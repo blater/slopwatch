@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""MCP interface for targeted codehealth analysis."""
+"""MCP interface for targeted smellscout analysis."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-from codehealth import AnalysisResult, FileMetrics, analyze_java
-from codehealth import build_report_document, project_relative_path
+from smellscout import AnalysisResult, FileMetrics, analyze_java
+from smellscout import build_report_document, project_relative_path
 
 
 SERVER_INSTRUCTIONS = (
@@ -69,12 +69,12 @@ def create_server() -> Any:
     from mcp_types import ToolAnnotations
   except ModuleNotFoundError as error:
     raise RuntimeError(
-        "MCP support is not installed; install codehealth with its mcp extra"
+        "MCP support is not installed; install smellscout with its mcp extra"
     ) from error
 
   server = MCPServer(
-      name="codehealth",
-      title="codehealth Java design-debt scorer",
+      name="smellscout",
+      title="smellscout Java design-debt scorer",
       description=(
           "Read-only tools for ranking Java design debt and scoring exact "
           "changed files."

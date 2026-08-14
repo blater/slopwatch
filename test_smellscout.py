@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for the codehealth command-line interface."""
+"""Tests for the smellscout command-line interface."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import codehealth
-import codehealth_mcp
+import smellscout
+import smellscout_mcp
 
 
 def report_with_deep_ifs(files: dict[str, int]) -> dict[str, object]:
@@ -34,26 +34,26 @@ def report_with_deep_ifs(files: dict[str, int]) -> dict[str, object]:
 class ParseArgsTest(unittest.TestCase):
 
   def test_text_is_the_default_format(self) -> None:
-    args = codehealth.parse_args([])
+    args = smellscout.parse_args([])
     self.assertEqual(args.output_format, "text")
 
   def test_accepts_non_negative_max_score(self) -> None:
-    args = codehealth.parse_args(["--max-score", "100"])
+    args = smellscout.parse_args(["--max-score", "100"])
     self.assertEqual(args.max_score, 100.0)
 
   def test_rejects_invalid_max_scores(self) -> None:
     for value in ("-1", "nan", "inf"):
       with self.subTest(value=value), self.assertRaises(SystemExit), \
           contextlib.redirect_stderr(io.StringIO()):
-        codehealth.parse_args(["--max-score", value])
+        smellscout.parse_args(["--max-score", value])
 
   def test_explain_is_rejected_with_json(self) -> None:
     with self.assertRaises(SystemExit), \
         contextlib.redirect_stderr(io.StringIO()):
-      codehealth.parse_args(["--format", "json", "--explain"])
+      smellscout.parse_args(["--format", "json", "--explain"])
 
   def test_accepts_multiple_directories_and_exact_files(self) -> None:
-    args = codehealth.parse_args([
+    args = smellscout.parse_args([
         "package/one", "package/two",
         "--file", "Changed.java", "--file", "Other.java",
     ])
@@ -64,16 +64,16 @@ class ParseArgsTest(unittest.TestCase):
 class ScoreContributionTest(unittest.TestCase):
 
   def test_contributions_are_the_single_source_of_the_total_score(self) -> None:
-    metrics = codehealth.FileMetrics(
+    metrics = smellscout.FileMetrics(
         path="Example.java",
-        cognitive_methods=[codehealth.COGNITIVE_THRESHOLD],
-        cyclomatic_methods=[codehealth.CYCLOMATIC_THRESHOLD],
-        cyclomatic_class=codehealth.CYCLOMATIC_CLASS_THRESHOLD,
-        npath_methods=[codehealth.NPATH_THRESHOLD],
+        cognitive_methods=[smellscout.COGNITIVE_THRESHOLD],
+        cyclomatic_methods=[smellscout.CYCLOMATIC_THRESHOLD],
+        cyclomatic_class=smellscout.CYCLOMATIC_CLASS_THRESHOLD,
+        npath_methods=[smellscout.NPATH_THRESHOLD],
         deep_ifs=1,
-        coupling=codehealth.COUPLING_THRESHOLD,
-        god_atfd=codehealth.GOD_ATFD_THRESHOLD,
-        god_tcc=codehealth.GOD_TCC_THRESHOLD,
+        coupling=smellscout.COUPLING_THRESHOLD,
+        god_atfd=smellscout.GOD_ATFD_THRESHOLD,
+        god_tcc=smellscout.GOD_TCC_THRESHOLD,
     )
     self.assertEqual(metrics.score_contributions, {
         "cognitive_complexity": 10.0,
@@ -113,9 +113,9 @@ class AnalysisScopeTest(unittest.TestCase):
     selected = self.java_file("src/main/java/one/Selected.java")
     self.java_file("src/main/java/two/Sibling.java")
     package = selected.parent
-    with mock.patch.object(codehealth, "run_pmd", return_value={"files": []}) \
+    with mock.patch.object(smellscout, "run_pmd", return_value={"files": []}) \
         as run_pmd:
-      analysis = codehealth.analyze_java(
+      analysis = smellscout.analyze_java(
           directories=[package], ruleset=self.ruleset, pmd="pmd"
       )
     self.assertEqual([item.path for item in analysis.metrics], [
@@ -127,8 +127,8 @@ class AnalysisScopeTest(unittest.TestCase):
   def test_project_directory_expands_to_production_sources_only(self) -> None:
     production = self.java_file("src/main/java/example/Production.java")
     self.java_file("src/test/java/example/TestOnly.java")
-    with mock.patch.object(codehealth, "run_pmd", return_value={"files": []}):
-      analysis = codehealth.analyze_java(
+    with mock.patch.object(smellscout, "run_pmd", return_value={"files": []}):
+      analysis = smellscout.analyze_java(
           directories=[self.root], ruleset=self.ruleset, pmd="pmd"
       )
     self.assertEqual([item.path for item in analysis.metrics], [
@@ -147,9 +147,9 @@ class AnalysisScopeTest(unittest.TestCase):
         "java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }\n",
         encoding="utf-8",
     )
-    with mock.patch.object(codehealth, "run_pmd", return_value={"files": []}) \
+    with mock.patch.object(smellscout, "run_pmd", return_value={"files": []}) \
         as run_pmd:
-      analysis = codehealth.analyze_java(
+      analysis = smellscout.analyze_java(
           directories=[first.parent],
           files=[second],
           ruleset=self.ruleset,
@@ -163,10 +163,33 @@ class AnalysisScopeTest(unittest.TestCase):
         "second/src/main/java/b/Second.java",
     })
 
+  def test_modules_with_the_same_java_version_share_one_pmd_run(self) -> None:
+    first = self.java_file("first/src/main/java/a/First.java")
+    second = self.java_file("second/src/main/java/b/Second.java")
+    for module in ("first", "second"):
+      (self.root / module / "pom.xml").write_text(
+          "<project><properties><maven.compiler.release>17"
+          "</maven.compiler.release></properties></project>\n",
+          encoding="utf-8",
+      )
+    with mock.patch.object(smellscout, "run_pmd", return_value={"files": []}) \
+        as run_pmd:
+      analysis = smellscout.analyze_java(
+          directories=[first.parent, second.parent],
+          ruleset=self.ruleset,
+          pmd="pmd",
+      )
+    run_pmd.assert_called_once()
+    self.assertEqual(set(run_pmd.call_args.args[3]), {
+        first.parent.resolve(), second.parent.resolve(),
+    })
+    self.assertEqual(run_pmd.call_args.args[4], "java-17")
+    self.assertEqual(len(analysis.modules), 2)
+
   def test_no_scope_defaults_to_current_directory(self) -> None:
     source = self.java_file("src/main/java/example/Default.java")
-    with mock.patch.object(codehealth, "run_pmd", return_value={"files": []}):
-      analysis = codehealth.analyze_java(
+    with mock.patch.object(smellscout, "run_pmd", return_value={"files": []}):
+      analysis = smellscout.analyze_java(
           ruleset=self.ruleset, pmd="pmd", base=self.root
       )
     self.assertEqual(analysis.directories, [self.root.resolve()])
@@ -177,17 +200,17 @@ class McpToolTest(unittest.TestCase):
 
   def test_score_exact_files_preserves_request_order_and_global_rank(self) -> None:
     root = Path("/workspace")
-    low = codehealth.FileMetrics(path="Low.java", deep_ifs=1)
-    high = codehealth.FileMetrics(path="High.java", deep_ifs=3)
-    analysis = codehealth.AnalysisResult(
+    low = smellscout.FileMetrics(path="Low.java", deep_ifs=1)
+    high = smellscout.FileMetrics(path="High.java", deep_ifs=3)
+    analysis = smellscout.AnalysisResult(
         workspace=root,
         directories=[],
         requested_files=[root / "Low.java", root / "High.java"],
         modules=[],
         metrics=[high, low],
     )
-    with mock.patch.object(codehealth_mcp, "analyze_java", return_value=analysis):
-      document = codehealth_mcp.score_java_files(["Low.java", "High.java"])
+    with mock.patch.object(smellscout_mcp, "analyze_java", return_value=analysis):
+      document = smellscout_mcp.score_java_files(["Low.java", "High.java"])
     self.assertEqual(
         [(item["path"], item["rank"]) for item in document["files"]],
         [("Low.java", 2), ("High.java", 1)],
@@ -195,16 +218,16 @@ class McpToolTest(unittest.TestCase):
     self.assertFalse(document["truncated"])
 
   def test_rank_defaults_to_current_directory_and_validates_limit(self) -> None:
-    analysis = codehealth.AnalysisResult(
+    analysis = smellscout.AnalysisResult(
         workspace=Path("/workspace"), directories=[], requested_files=[],
         modules=[], metrics=[],
     )
-    with mock.patch.object(codehealth_mcp, "analyze_java", return_value=analysis) \
+    with mock.patch.object(smellscout_mcp, "analyze_java", return_value=analysis) \
         as analyze:
-      codehealth_mcp.rank_java_files()
+      smellscout_mcp.rank_java_files()
     self.assertEqual(list(analyze.call_args.kwargs["directories"]), [])
     with self.assertRaisesRegex(ValueError, "non-negative"):
-      codehealth_mcp.rank_java_files(limit=-1)
+      smellscout_mcp.rank_java_files(limit=-1)
 
 
 class CommandTest(unittest.TestCase):
@@ -231,12 +254,12 @@ class CommandTest(unittest.TestCase):
     stderr = io.StringIO()
     argv = [str(self.root), "--ruleset", str(self.ruleset), *arguments]
     with (
-        mock.patch.object(codehealth.shutil, "which", return_value="pmd"),
-        mock.patch.object(codehealth, "run_pmd", return_value=report),
+        mock.patch.object(smellscout.shutil, "which", return_value="pmd"),
+        mock.patch.object(smellscout, "run_pmd", return_value=report),
         contextlib.redirect_stdout(stdout),
         contextlib.redirect_stderr(stderr),
     ):
-      status = codehealth.main(argv)
+      status = smellscout.main(argv)
     return status, stdout.getvalue(), stderr.getvalue()
 
   def test_text_output_remains_default(self) -> None:

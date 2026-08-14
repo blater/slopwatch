@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "codehealth"
+name = "smellscout"
 version = "0.1.0"
 description = "A stateless Java design-debt scorer and quality gate for coding agents"
 readme = "README.md"
@@ -14,11 +14,11 @@ dependencies = []
 mcp = ["mcp>=2.0,<3"]
 
 [project.scripts]
-codehealth = "codehealth:cli"
-codehealth-mcp = "codehealth_mcp:main"
+smellscout = "smellscout:cli"
+smellscout-mcp = "smellscout_mcp:main"
 
 [tool.setuptools]
-py-modules = ["codehealth", "codehealth_mcp"]
+py-modules = ["smellscout", "smellscout_mcp"]
 
 [tool.setuptools.data-files]
-"share/codehealth" = ["codehealth-ruleset.xml"]
+"share/smellscout" = ["smellscout-ruleset.xml"]

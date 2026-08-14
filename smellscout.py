@@ -284,8 +284,8 @@ def resolve_directory_targets(directory: Path) -> list[Path]:
 def default_ruleset_path() -> Path:
   """Locate the bundled ruleset in a source checkout or installed environment."""
   candidates = (
-      Path(__file__).resolve().parent / "codehealth-ruleset.xml",
-      Path(sys.prefix) / "share" / "codehealth" / "codehealth-ruleset.xml",
+      Path(__file__).resolve().parent / "smellscout-ruleset.xml",
+      Path(sys.prefix) / "share" / "smellscout" / "smellscout-ruleset.xml",
   )
   return next((path for path in candidates if path.is_file()), candidates[0])
 
@@ -487,6 +487,7 @@ def analyze_java(
   collected: list[FileMetrics] = []
   all_source_files: set[Path] = set()
   modules: list[ModuleAnalysis] = []
+  targets_by_version: dict[str | None, list[Path]] = {}
   for module_root, group in sorted(groups.items(), key=lambda item: str(item[0])):
     group_directories = _dedupe_nested_directories(group["directories"])
     group_files = _resolved_paths(group["files"], invocation_directory)
@@ -504,10 +505,7 @@ def analyze_java(
       continue
     targets = [*group_directories, *exact_targets]
     detected_version = java_version or detect_java_version(module_root, targets)
-    report = run_pmd(
-        selected_pmd, selected_ruleset, workspace, targets, detected_version
-    )
-    collected.extend(collect_metrics(report))
+    targets_by_version.setdefault(detected_version, []).extend(targets)
     all_source_files.update(source_files)
     modules.append(ModuleAnalysis(
         root=module_root,
@@ -515,6 +513,19 @@ def analyze_java(
         targets=targets,
         files=source_files,
     ))
+
+  # PMD startup and ruleset initialization are significant in multi-module
+  # builds. Modules that use the same language version can be analyzed in one
+  # invocation without changing their separately reported metadata.
+  for detected_version, targets in targets_by_version.items():
+    report = run_pmd(
+        selected_pmd,
+        selected_ruleset,
+        workspace,
+        _dedupe_nested_directories(targets),
+        detected_version,
+    )
+    collected.extend(collect_metrics(report))
 
   metrics = complete_file_inventory(collected, workspace, all_source_files)
   return AnalysisResult(
@@ -691,7 +702,7 @@ def build_report_document(
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
   parser = argparse.ArgumentParser(
-      prog="codehealth",
+      prog="smellscout",
       description="Measure production Java design debt using PMD."
   )
   parser.add_argument(
@@ -726,7 +737,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
       "--ruleset",
       type=Path,
       default=default_ruleset_path(),
-      help="PMD ruleset (default: bundled codehealth-ruleset.xml)",
+      help="PMD ruleset (default: bundled smellscout-ruleset.xml)",
   )
   parser.add_argument(
       "--java-version",

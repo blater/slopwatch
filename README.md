@@ -1,6 +1,6 @@
-# codehealth
+# smellscout
 
-`codehealth` gives coding agents a measurable forcing function for Java design
+`smellscout` gives coding agents a measurable forcing function for Java design
 quality. It ranks production files by a weighted design-debt score, making a
 complex set of [PMD](https://pmd.github.io/) signals easy to express as a simple
 goal: lower the score, and work toward keeping each file below 100.
@@ -18,13 +18,13 @@ build files when possible.
 Analyse the Java project in the current directory:
 
 ```sh
-codehealth
+smellscout
 ```
 
 Or pass a project directory explicitly:
 
 ```sh
-codehealth /path/to/java-project
+smellscout /path/to/java-project
 ```
 
 Pass several directories to analyze several package or module trees together.
@@ -33,7 +33,7 @@ their conventional production roots; source and package directories remain at
 the scope supplied:
 
 ```sh
-codehealth module-a/src/main/java/orders module-b/src/main/java/payments
+smellscout module-a/src/main/java/orders module-b/src/main/java/payments
 ```
 
 Use repeatable `--file` arguments when the exact changed classes are known.
@@ -41,20 +41,20 @@ Directories and files can be combined, and module/build inference is performed
 for each target:
 
 ```sh
-codehealth --file src/main/java/example/Changed.java \
+smellscout --file src/main/java/example/Changed.java \
   --file src/main/java/example/AlsoChanged.java
 ```
 
 Show a compact top ten and include an explanation of the scoring model:
 
 ```sh
-codehealth /path/to/java-project --compact --limit 10 --explain
+smellscout /path/to/java-project --compact --limit 10 --explain
 ```
 
 Fail the run if any production Java file scores above 100:
 
 ```sh
-codehealth /path/to/java-project --max-score 100
+smellscout /path/to/java-project --max-score 100
 ```
 
 The maximum is inclusive: a score of exactly 100 passes, while any unrounded
@@ -65,11 +65,11 @@ enable it immediately.
 
 ### Agent workflow
 
-For feature work, run `codehealth` afterward and treat high-scoring changed
+For feature work, run `smellscout` afterward and treat high-scoring changed
 files as candidates for a follow-up simplification agent. Give that agent a
 simple instruction:
 
-> Lower the target file's codehealth score. Work toward a score below 100, and
+> Lower the target file's smellscout score. Work toward a score below 100, and
 > do not finish unless the score decreases without breaking tests.
 
 When several agents cooperate on a feature, evaluate the completed result
@@ -81,7 +81,7 @@ Human-readable text remains the default. Request JSON when an agent or another
 program needs stable structured results:
 
 ```sh
-codehealth /path/to/java-project --format json --limit 0
+smellscout /path/to/java-project --format json --limit 0
 ```
 
 The JSON report contains scores and raw contributing metrics for each returned
@@ -90,7 +90,7 @@ and the result of an optional `--max-score` gate. The summary identifies the
 target score, number of files above it, and current highest-priority file.
 
 An agent runner may retain before-and-after reports when it wants mechanical
-comparison without making that history part of `codehealth`. `--limit` controls
+comparison without making that history part of `smellscout`. `--limit` controls
 the returned file list in both formats; use `--limit 0` when the caller needs
 every selected score. Gate evaluation always considers every analyzed Java file
 regardless of the output limit.
@@ -98,10 +98,10 @@ regardless of the output limit.
 For a non-standard project layout, specify one or more production source roots:
 
 ```sh
-codehealth . --source-root app/java --source-root shared/java
+smellscout . --source-root app/java --source-root shared/java
 ```
 
-Run `codehealth --help` for all options, including custom rulesets and an
+Run `smellscout --help` for all options, including custom rulesets and an
 explicit PMD Java language version.
 
 ## MCP server
@@ -131,9 +131,9 @@ python3 -m pip install '.[mcp]'
 ### Codex setup
 
 ```sh
-codex mcp add codehealth -- codehealth-mcp
+codex mcp add smellscout -- smellscout-mcp
 codex mcp list
-codex mcp get codehealth
+codex mcp get smellscout
 ```
 
 The final two commands confirm that Codex has the server registered and show
@@ -143,9 +143,9 @@ can discover the tools.
 ### Claude Code setup
 
 ```sh
-claude mcp add --transport stdio codehealth -- codehealth-mcp
+claude mcp add --transport stdio smellscout -- smellscout-mcp
 claude mcp list
-claude mcp get codehealth
+claude mcp get smellscout
 ```
 
 `claude mcp list` reports whether the server connected successfully. Inside a
@@ -166,7 +166,7 @@ If the server is registered but its tools are unavailable, verify that both
 commands needed by the server are visible on `PATH`:
 
 ```sh
-command -v codehealth-mcp
+command -v smellscout-mcp
 command -v pmd
 ```
 
@@ -219,7 +219,7 @@ brew install pmd
 On other platforms, install PMD using its
 [official installation instructions](https://docs.pmd-code.org/latest/pmd_userdocs_installation.html).
 
-Clone or download this repository, then either run `./codehealth` directly or
+Clone or download this repository, then either run `./smellscout` directly or
 install it as a command:
 
 ```sh
@@ -230,14 +230,14 @@ For an isolated command installation, use `pipx install .`; add the `mcp` extra
 when MCP support is wanted. A manual CLI-only installation is also possible:
 
 ```sh
-mkdir -p "$HOME/.local/lib/codehealth" "$HOME/.local/bin"
-install -m 755 codehealth codehealth.py "$HOME/.local/lib/codehealth/"
-install -m 644 codehealth-ruleset.xml "$HOME/.local/lib/codehealth/"
-ln -sf "$HOME/.local/lib/codehealth/codehealth" "$HOME/.local/bin/codehealth"
+mkdir -p "$HOME/.local/lib/smellscout" "$HOME/.local/bin"
+install -m 755 smellscout smellscout.py "$HOME/.local/lib/smellscout/"
+install -m 644 smellscout-ruleset.xml "$HOME/.local/lib/smellscout/"
+ln -sf "$HOME/.local/lib/smellscout/smellscout" "$HOME/.local/bin/smellscout"
 ```
 
 Make sure `$HOME/.local/bin` is on `PATH`, then verify the installation:
 
 ```sh
-codehealth --help
+smellscout --help
 ```
