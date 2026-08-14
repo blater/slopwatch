@@ -24,6 +24,13 @@ NPATH_THRESHOLD = 200
 COUPLING_THRESHOLD = 20
 GOD_ATFD_THRESHOLD = 5
 GOD_TCC_THRESHOLD = 100.0 / 3.0
+REPORT_SCHEMA_VERSION = 1
+TARGET_SCORE = 100.0
+BUILD_FILE_NAMES = ("pom.xml", "build.gradle", "build.gradle.kts")
+
+
+class ConfigurationError(RuntimeError):
+  """The requested analysis cannot be configured."""
 
 
 @dataclass
@@ -44,35 +51,64 @@ class FileMetrics:
     return self.god_tcc is not None
 
   @property
-  def score(self) -> float:
+  def score_contributions(self) -> dict[str, float]:
     # A threshold-level violation contributes one severity unit. Log scaling
     # preserves ordering without allowing explosive NPath values to dominate.
-    score = 0.0
-    score += 10.0 * sum(
+    cognitive = 10.0 * sum(
         severity(value, COGNITIVE_THRESHOLD)
         for value in self.cognitive_methods
     )
-    score += 8.0 * sum(
+    npath = 8.0 * sum(
         severity(value, NPATH_THRESHOLD) for value in self.npath_methods
     )
-    score += 5.0 * sum(
+    cyclomatic = 5.0 * sum(
         severity(value, CYCLOMATIC_THRESHOLD)
         for value in self.cyclomatic_methods
     )
     if self.cyclomatic_class:
-      score += 5.0 * severity(
+      cyclomatic += 5.0 * severity(
           self.cyclomatic_class, CYCLOMATIC_CLASS_THRESHOLD
       )
-    score += 6.0 * self.deep_ifs
+    deeply_nested_ifs = 6.0 * self.deep_ifs
+    coupling = 0.0
     if self.coupling:
-      score += 10.0 * severity(self.coupling, COUPLING_THRESHOLD)
+      coupling = 10.0 * severity(self.coupling, COUPLING_THRESHOLD)
+    god_class = 0.0
     if self.is_god_class:
       # WMC is already represented by cyclomatic complexity. The additional
       # score covers the god-class conjunction and its structural dimensions.
-      score += 30.0
-      score += 8.0 * severity(self.god_atfd, GOD_ATFD_THRESHOLD)
-      score += 8.0 * inverse_severity(self.god_tcc, GOD_TCC_THRESHOLD)
-    return score
+      god_class = 30.0
+      god_class += 8.0 * severity(self.god_atfd, GOD_ATFD_THRESHOLD)
+      god_class += 8.0 * inverse_severity(self.god_tcc, GOD_TCC_THRESHOLD)
+    return {
+        "cognitive_complexity": cognitive,
+        "npath_complexity": npath,
+        "cyclomatic_complexity": cyclomatic,
+        "deeply_nested_ifs": deeply_nested_ifs,
+        "coupling": coupling,
+        "god_class": god_class,
+    }
+
+  @property
+  def score(self) -> float:
+    return sum(self.score_contributions.values())
+
+
+@dataclass
+class ModuleAnalysis:
+  root: Path
+  java_version: str | None
+  targets: list[Path]
+  files: list[Path]
+
+
+@dataclass
+class AnalysisResult:
+  workspace: Path
+  directories: list[Path]
+  requested_files: list[Path]
+  modules: list[ModuleAnalysis]
+  metrics: list[FileMetrics]
 
 
 def severity(value: float, threshold: float) -> float:
@@ -134,6 +170,30 @@ def collect_metrics(report: dict[str, Any]) -> list[FileMetrics]:
   return sorted(results, key=lambda item: (-item.score, item.path))
 
 
+def project_relative_path(repo: Path, path: Path | str) -> str:
+  candidate = Path(path)
+  if not candidate.is_absolute():
+    candidate = repo / candidate
+  try:
+    return candidate.resolve().relative_to(repo).as_posix()
+  except ValueError:
+    return candidate.resolve().as_posix()
+
+
+def complete_file_inventory(
+    metrics: list[FileMetrics], repo: Path, source_files: Iterable[Path],
+) -> list[FileMetrics]:
+  """Include zero-score production files and normalize all project paths."""
+  by_path: dict[str, FileMetrics] = {}
+  for item in metrics:
+    item.path = project_relative_path(repo, item.path)
+    by_path[item.path] = item
+  for source_file in source_files:
+    path = project_relative_path(repo, source_file)
+    by_path.setdefault(path, FileMetrics(path=path))
+  return sorted(by_path.values(), key=lambda item: (-item.score, item.path))
+
+
 def discover_source_roots(repo: Path) -> list[Path]:
   """Find conventional production roots without assuming module names."""
   roots: list[Path] = []
@@ -163,6 +223,71 @@ def discover_source_roots(repo: Path) -> list[Path]:
   if any(repo.glob("*.java")):
     return [repo]
   return []
+
+
+def nearest_module_root(path: Path) -> Path | None:
+  current = path if path.is_dir() else path.parent
+  for candidate in (current, *current.parents):
+    if any((candidate / name).is_file() for name in BUILD_FILE_NAMES):
+      return candidate
+  return None
+
+
+def _common_path(paths: Iterable[Path]) -> Path:
+  resolved = [str(path.resolve()) for path in paths]
+  return Path(os.path.commonpath(resolved))
+
+
+def infer_workspace(
+    directories: list[Path], files: list[Path], fallback: Path,
+) -> Path:
+  candidates = directories + [path.parent for path in files]
+  if not candidates:
+    return fallback.resolve()
+  common = _common_path(candidates)
+  for candidate in (common, *common.parents):
+    if (candidate / ".git").exists():
+      return candidate
+  module_roots = [
+      root for path in candidates if (root := nearest_module_root(path))
+  ]
+  if module_roots:
+    module_common = _common_path(module_roots)
+    if module_common != Path(module_common.anchor):
+      return module_common
+  return fallback.resolve() if common == Path(common.anchor) else common
+
+
+def _dedupe_nested_directories(directories: Iterable[Path]) -> list[Path]:
+  selected: list[Path] = []
+  for directory in sorted(set(directories), key=lambda path: (len(path.parts),
+                                                               str(path))):
+    if not any(directory == parent or directory.is_relative_to(parent)
+               for parent in selected):
+      selected.append(directory)
+  return selected
+
+
+def resolve_directory_targets(directory: Path) -> list[Path]:
+  if not directory.is_dir():
+    raise ConfigurationError(
+        f"analysis directory is not a directory: {directory}"
+    )
+  roots = discover_source_roots(directory)
+  if roots:
+    return roots
+  if any(directory.rglob("*.java")):
+    return [directory]
+  raise ConfigurationError(f"no Java source files found under {directory}")
+
+
+def default_ruleset_path() -> Path:
+  """Locate the bundled ruleset in a source checkout or installed environment."""
+  candidates = (
+      Path(__file__).resolve().parent / "codehealth-ruleset.xml",
+      Path(sys.prefix) / "share" / "codehealth" / "codehealth-ruleset.xml",
+  )
+  return next((path for path in candidates if path.is_file()), candidates[0])
 
 
 def _resolve_maven_value(value: str, properties: dict[str, str]) -> str:
@@ -231,9 +356,7 @@ def detect_java_version(
   for source_root in source_roots:
     for parent in source_root.parents:
       if parent == repo or repo in parent.parents:
-        if any((parent / name).is_file() for name in (
-            "pom.xml", "build.gradle", "build.gradle.kts"
-        )):
+        if any((parent / name).is_file() for name in BUILD_FILE_NAMES):
           project_dirs.add(parent)
       else:
         break
@@ -299,6 +422,135 @@ def run_pmd(
   return report
 
 
+def _resolved_paths(paths: Iterable[Path], base: Path) -> list[Path]:
+  results: list[Path] = []
+  seen: set[Path] = set()
+  for path in paths:
+    resolved = (path if path.is_absolute() else base / path).resolve()
+    if resolved not in seen:
+      seen.add(resolved)
+      results.append(resolved)
+  return results
+
+
+def analyze_java(
+    directories: Iterable[Path] = (),
+    files: Iterable[Path] = (),
+    *,
+    ruleset: Path | None = None,
+    java_version: str | None = None,
+    pmd: str | None = None,
+    base: Path | None = None,
+) -> AnalysisResult:
+  """Analyze recursive directory scopes and exact Java files."""
+  invocation_directory = (base or Path.cwd()).resolve()
+  requested_directories = _resolved_paths(directories, invocation_directory)
+  requested_files = _resolved_paths(files, invocation_directory)
+  if not requested_directories and not requested_files:
+    requested_directories = [invocation_directory]
+
+  analysis_directories: list[Path] = []
+  for directory in requested_directories:
+    analysis_directories.extend(resolve_directory_targets(directory))
+  analysis_directories = _dedupe_nested_directories(analysis_directories)
+
+  for source_file in requested_files:
+    if not source_file.is_file():
+      raise ConfigurationError(f"analysis file does not exist: {source_file}")
+    if source_file.suffix.lower() != ".java":
+      raise ConfigurationError(
+          f"analysis file is not Java source: {source_file}"
+      )
+
+  workspace = infer_workspace(
+      requested_directories, requested_files, invocation_directory
+  )
+  selected_ruleset = (ruleset or default_ruleset_path()).resolve()
+  if not selected_ruleset.is_file():
+    raise ConfigurationError(f"PMD ruleset not found: {selected_ruleset}")
+  selected_pmd = pmd or shutil.which("pmd")
+  if not selected_pmd:
+    raise ConfigurationError("pmd is not on PATH")
+
+  groups: dict[Path, dict[str, list[Path]]] = {}
+  for directory in analysis_directories:
+    module_root = nearest_module_root(directory) or workspace
+    groups.setdefault(module_root, {"directories": [], "files": []})[
+        "directories"
+    ].append(directory)
+  for source_file in requested_files:
+    module_root = nearest_module_root(source_file) or workspace
+    groups.setdefault(module_root, {"directories": [], "files": []})[
+        "files"
+    ].append(source_file)
+
+  collected: list[FileMetrics] = []
+  all_source_files: set[Path] = set()
+  modules: list[ModuleAnalysis] = []
+  for module_root, group in sorted(groups.items(), key=lambda item: str(item[0])):
+    group_directories = _dedupe_nested_directories(group["directories"])
+    group_files = _resolved_paths(group["files"], invocation_directory)
+    covered_files = {
+        source_file
+        for directory in group_directories
+        for source_file in directory.rglob("*.java")
+    }
+    exact_targets = [
+        source_file for source_file in group_files
+        if source_file not in covered_files
+    ]
+    source_files = sorted(covered_files | set(group_files))
+    if not source_files:
+      continue
+    targets = [*group_directories, *exact_targets]
+    detected_version = java_version or detect_java_version(module_root, targets)
+    report = run_pmd(
+        selected_pmd, selected_ruleset, workspace, targets, detected_version
+    )
+    collected.extend(collect_metrics(report))
+    all_source_files.update(source_files)
+    modules.append(ModuleAnalysis(
+        root=module_root,
+        java_version=detected_version,
+        targets=targets,
+        files=source_files,
+    ))
+
+  metrics = complete_file_inventory(collected, workspace, all_source_files)
+  return AnalysisResult(
+      workspace=workspace,
+      directories=requested_directories,
+      requested_files=requested_files,
+      modules=modules,
+      metrics=metrics,
+  )
+
+
+def metric_to_document(item: FileMetrics, rank: int) -> dict[str, Any]:
+  god_class = None
+  if item.is_god_class:
+    god_class = {
+        "wmc": item.god_wmc,
+        "atfd": item.god_atfd,
+        "tcc_percent": item.god_tcc,
+    }
+  return {
+      "rank": rank,
+      "path": item.path,
+      "score": item.score,
+      "contributions": item.score_contributions,
+      "metrics": {
+          "cognitive_methods": item.cognitive_methods,
+          "cyclomatic_methods": item.cyclomatic_methods,
+          "cyclomatic_class": item.cyclomatic_class,
+          "npath_methods": item.npath_methods,
+          "deeply_nested_ifs": item.deep_ifs,
+          "coupling_between_objects": item.coupling,
+          "god_class": god_class,
+      },
+  }
+
+
 def metric_max(values: list[int]) -> str:
   return "-" if not values else f"{max(values)}/{len(values)}"
 
@@ -355,8 +607,8 @@ def render_table(
 
 def explain() -> str:
   return """\
-The score is a refactoring triage heuristic that can be used as a quality gate
-with --max-score. Each PMD violation starts at one unit at its configured
+The score is a refactoring triage heuristic and a measurable forcing function
+for coding agents. Each PMD violation starts at one unit at its configured
 threshold; severity above the threshold is 1 + log2(measure / threshold).
 Weights are:
 
@@ -372,18 +624,82 @@ Rows are pipe-delimited, so fields can be selected with cut -d'|' -fN.
 """
 
 
+def build_report_document(
+    analysis: AnalysisResult,
+    limit: int,
+    max_score: float | None,
+    ordered_metrics: list[FileMetrics] | None = None,
+) -> dict[str, Any]:
+  metrics = analysis.metrics
+  output_metrics = ordered_metrics if ordered_metrics is not None else metrics
+  selected = output_metrics if limit == 0 else output_metrics[:limit]
+  ranks = {item.path: rank for rank, item in enumerate(metrics, 1)}
+  highest = metrics[0] if metrics else None
+  max_score_failures = (
+      [] if max_score is None
+      else [item for item in metrics if item.score > max_score]
+  )
+  gate = {
+      "enabled": max_score is not None,
+      "passed": not max_score_failures,
+      "max_score": max_score,
+      "max_score_failures": [
+          {"path": item.path, "score": item.score}
+          for item in max_score_failures
+      ],
+  }
+  return {
+      "schema_version": REPORT_SCHEMA_VERSION,
+      "project": str(analysis.workspace),
+      "scope": {
+          "directories": [
+              project_relative_path(analysis.workspace, path)
+              for path in analysis.directories
+          ],
+          "files": [
+              project_relative_path(analysis.workspace, path)
+              for path in analysis.requested_files
+          ],
+      },
+      "modules": [
+          {
+              "root": project_relative_path(analysis.workspace, module.root),
+              "java_version": module.java_version,
+              "files_analyzed": len(module.files),
+          }
+          for module in analysis.modules
+      ],
+      "summary": {
+          "target_score": TARGET_SCORE,
+          "files_analyzed": len(metrics),
+          "files_above_target": sum(
+              item.score > TARGET_SCORE for item in metrics
+          ),
+          "highest_score": highest.score if highest is not None else None,
+          "highest_path": highest.path if highest is not None else None,
+      },
+      "total_files": len(metrics),
+      "returned_files": len(selected),
+      "truncated": len(selected) < len(output_metrics),
+      "files": [
+          metric_to_document(item, ranks[item.path])
+          for item in selected
+      ],
+      "gate": gate,
+  }
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
-  tool_dir = Path(__file__).resolve().parent
   parser = argparse.ArgumentParser(
       prog="codehealth",
-      description="Rank or gate production Java design debt using PMD."
+      description="Measure production Java design debt using PMD."
   )
   parser.add_argument(
-      "directory",
+      "directories",
       type=Path,
-      nargs="?",
-      default=None,
-      help="Java project directory (default: current directory)",
+      nargs="*",
+      help=("Java project, module, source, or package directories to recurse "
+            "(default: current directory)"),
   )
   parser.add_argument(
       "--repo",
@@ -399,10 +715,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "unless absolute; repeat for multiple roots (default: auto-detect)"),
   )
   parser.add_argument(
+      "--file",
+      type=Path,
+      action="append",
+      default=[],
+      dest="files",
+      help="exact Java source file to analyze; repeat for multiple files",
+  )
+  parser.add_argument(
       "--ruleset",
       type=Path,
-      default=tool_dir / "codehealth-ruleset.xml",
-      help="PMD ruleset (default: codehealth-ruleset.xml beside this script)",
+      default=default_ruleset_path(),
+      help="PMD ruleset (default: bundled codehealth-ruleset.xml)",
   )
   parser.add_argument(
       "--java-version",
@@ -421,6 +745,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
       help="show only rank, score, GodClass metrics, and path",
   )
   parser.add_argument(
+      "--format",
+      choices=("text", "json"),
+      default="text",
+      dest="output_format",
+      help="output format (default: text)",
+  )
+  parser.add_argument(
       "--max-score",
       type=float,
       help=("fail if any production Java file has an unrounded score above "
@@ -430,68 +761,76 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
       "--explain", action="store_true", help="explain scoring after the table"
   )
   args = parser.parse_args(argv)
-  if args.repo is not None and args.directory is not None:
-    parser.error("specify the project using either DIRECTORY or --repo, not both")
-  args.directory = args.repo or args.directory or Path.cwd()
+  if args.repo is not None and args.directories:
+    parser.error("specify directories positionally or with --repo, not both")
+  if len(args.directories) > 1 and args.source_root:
+    parser.error("--source-root cannot be combined with multiple directories")
+  if args.repo is not None:
+    args.directories = [args.repo]
+  if args.source_root:
+    project = args.directories[0] if args.directories else Path.cwd()
+    args.directories = [
+        root if root.is_absolute() else project / root
+        for root in args.source_root
+    ]
   if args.limit < 0:
     parser.error("--limit must be non-negative")
   if args.max_score is not None and (
       not math.isfinite(args.max_score) or args.max_score < 0
   ):
     parser.error("--max-score must be a finite non-negative number")
+  if args.output_format == "json" and args.explain:
+    parser.error("--explain is only available with text output")
   return args
 
 
 def main(argv: list[str]) -> int:
   args = parse_args(argv)
-  repo = args.directory.resolve()
-  pmd = shutil.which("pmd")
-  if not pmd:
-    print("error: pmd is not on PATH", file=sys.stderr)
-    return 2
-  roots = [
-      (root if root.is_absolute() else repo / root).resolve()
-      for root in args.source_root
-  ] or discover_source_roots(repo)
-  if not roots:
-    print(f"error: no production Java source roots found under {repo}",
-          file=sys.stderr)
-    return 2
-  missing_roots = [str(root) for root in roots if not root.is_dir()]
-  if missing_roots:
-    print("error: source root is not a directory: " + ", ".join(missing_roots),
-          file=sys.stderr)
-    return 2
-  ruleset = args.ruleset.resolve()
-  if not ruleset.is_file():
-    print(f"error: PMD ruleset not found: {ruleset}", file=sys.stderr)
-    return 2
-  java_version = args.java_version or detect_java_version(repo, roots)
   try:
-    report = run_pmd(pmd, ruleset, repo, roots, java_version)
+    analysis = analyze_java(
+        args.directories,
+        args.files,
+        ruleset=args.ruleset,
+        java_version=args.java_version,
+    )
+  except ConfigurationError as error:
+    print(f"error: {error}", file=sys.stderr)
+    return 2
   except RuntimeError as error:
     print(f"error: {error}", file=sys.stderr)
     return 1
-  metrics = collect_metrics(report)
-  print(render_table(metrics, args.limit, args.compact))
-  if args.explain:
-    print()
-    print(explain())
+  metrics = analysis.metrics
+  max_score_failures = []
   if args.max_score is not None:
-    failures = [item for item in metrics if item.score > args.max_score]
-    if failures:
-      noun = "file" if len(failures) == 1 else "files"
-      verb = "exceeds" if len(failures) == 1 else "exceed"
-      highest = failures[0]
+    max_score_failures = [
+        item for item in metrics if item.score > args.max_score
+    ]
+  gate_passed = not max_score_failures
+
+  if args.output_format == "json":
+    document = build_report_document(analysis, args.limit, args.max_score)
+    print(json.dumps(document, indent=2, sort_keys=True))
+  else:
+    print(render_table(metrics, args.limit, args.compact))
+    if args.explain:
+      print()
+      print(explain())
+    if max_score_failures:
+      noun = "file" if len(max_score_failures) == 1 else "files"
+      verb = "exceeds" if len(max_score_failures) == 1 else "exceed"
+      highest = max_score_failures[0]
       print(
-          f"quality gate failed: {len(failures)} {noun} {verb} "
+          f"quality gate failed: {len(max_score_failures)} {noun} {verb} "
           f"--max-score {args.max_score:g}; highest is {highest.path} "
           f"({highest.score:.6g})",
           file=sys.stderr,
       )
-      return 3
-  return 0
+  return 0 if gate_passed else 3
+
+
+def cli() -> None:
+  raise SystemExit(main(sys.argv[1:]))
 
 
 if __name__ == "__main__":
-  raise SystemExit(main(sys.argv[1:]))
+  cli()
