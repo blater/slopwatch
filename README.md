@@ -1,9 +1,9 @@
 # codehealth
 
 `codehealth` ranks production Java files by design-debt signals reported by
-[PMD](https://pmd.github.io/). It combines cognitive, cyclomatic, and NPath
-complexity with nesting, coupling, and God Class findings to produce a
-refactoring-priority score. The score is a triage aid, not a quality gate.
+[PMD](https://pmd.github.io/) and can enforce a maximum score as a quality gate.
+It combines cognitive, cyclomatic, and NPath complexity with nesting, coupling,
+and God Class findings to produce a refactoring-priority score.
 
 The tool automatically finds Maven and Gradle-style `src/main/java` directories
 (including multi-module projects) and infers the Java language version from the
@@ -28,6 +28,16 @@ Show a compact top ten and include an explanation of the scoring model:
 ```sh
 codehealth /path/to/java-project --compact --limit 10 --explain
 ```
+
+Fail the run if any production Java file scores above 100:
+
+```sh
+codehealth /path/to/java-project --max-score 100
+```
+
+The maximum is inclusive: a score of exactly 100 passes, while any unrounded
+score above 100 fails. A failed quality gate exits with status 3 after printing
+the ranked results and a summary of the failure to standard error.
 
 For a non-standard project layout, specify one or more production source roots:
 

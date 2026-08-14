@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rank production Java files by PMD design-debt signals."""
+"""Rank and optionally gate production Java files by design-debt signals."""
 
 from __future__ import annotations
 
@@ -355,9 +355,10 @@ def render_table(
 
 def explain() -> str:
   return """\
-The score is a refactoring triage heuristic, not a quality gate. Each PMD
-violation starts at one unit at its configured threshold; severity above the
-threshold is 1 + log2(measure / threshold). Weights are:
+The score is a refactoring triage heuristic that can be used as a quality gate
+with --max-score. Each PMD violation starts at one unit at its configured
+threshold; severity above the threshold is 1 + log2(measure / threshold).
+Weights are:
 
   cognitive method 10    NPath method 8       cyclomatic method 5
   cyclomatic class 5     deeply nested if 6   coupling 10
@@ -375,7 +376,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
   tool_dir = Path(__file__).resolve().parent
   parser = argparse.ArgumentParser(
       prog="codehealth",
-      description="Rank production Java design debt using PMD."
+      description="Rank or gate production Java design debt using PMD."
   )
   parser.add_argument(
       "directory",
@@ -420,6 +421,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
       help="show only rank, score, GodClass metrics, and path",
   )
   parser.add_argument(
+      "--max-score",
+      type=float,
+      help=("fail if any production Java file has an unrounded score above "
+            "this value"),
+  )
+  parser.add_argument(
       "--explain", action="store_true", help="explain scoring after the table"
   )
   args = parser.parse_args(argv)
@@ -428,6 +435,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
   args.directory = args.repo or args.directory or Path.cwd()
   if args.limit < 0:
     parser.error("--limit must be non-negative")
+  if args.max_score is not None and (
+      not math.isfinite(args.max_score) or args.max_score < 0
+  ):
+    parser.error("--max-score must be a finite non-negative number")
   return args
 
 
@@ -466,6 +477,19 @@ def main(argv: list[str]) -> int:
   if args.explain:
     print()
     print(explain())
+  if args.max_score is not None:
+    failures = [item for item in metrics if item.score > args.max_score]
+    if failures:
+      noun = "file" if len(failures) == 1 else "files"
+      verb = "exceeds" if len(failures) == 1 else "exceed"
+      highest = failures[0]
+      print(
+          f"quality gate failed: {len(failures)} {noun} {verb} "
+          f"--max-score {args.max_score:g}; highest is {highest.path} "
+          f"({highest.score:.6g})",
+          file=sys.stderr,
+      )
+      return 3
   return 0
 
 
