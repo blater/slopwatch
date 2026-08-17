@@ -3,7 +3,7 @@
 `smellscout` gives coding agents a measurable forcing function for Java design
 quality. It ranks production files by a weighted design-debt score, making a
 complex set of [PMD](https://pmd.github.io/) signals easy to express as a simple
-goal: lower the score, and work toward keeping each file below 100.
+goal: lower the score, and work toward keeping each file below your target score.
 
 Scores combine cognitive, cyclomatic, and NPath complexity with nesting,
 coupling, and God Class findings. The tool is stateless: it reports the current
