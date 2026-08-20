@@ -104,6 +104,42 @@ slopscout . --source-root app/java --source-root shared/java
 Run `slopscout --help` for all options, including custom rulesets and an
 explicit PMD Java language version.
 
+## Manage the GitHub Actions gate
+
+Slopscout can create and manage a GitHub Actions workflow that checks Java
+design-debt scores on pull requests and pushes to `main`.
+
+Add the workflow with a maximum score:
+
+```sh
+slopscout action add 100
+```
+
+Check whether it is installed and see its current limit:
+
+```sh
+slopscout action list
+```
+
+Change the enforced limit:
+
+```sh
+slopscout action set-max-score 85
+```
+
+Remove the workflow:
+
+```sh
+slopscout action remove
+```
+
+By default, Slopscout manages `.github/workflows/slopscout.yml`. Use
+`--workflow path/to/file.yml` to choose another path.
+
+`add` will not overwrite an existing file. `set-max-score` and `remove` only
+change workflows created by Slopscout. Commit and push the workflow after each
+change.
+
 ## MCP server
 
 The optional local MCP server exposes the same stateless analysis through two

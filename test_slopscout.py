@@ -61,6 +61,59 @@ class ParseArgsTest(unittest.TestCase):
     self.assertEqual(args.files, [Path("Changed.java"), Path("Other.java")])
 
 
+class ActionManagementTest(unittest.TestCase):
+
+  def setUp(self) -> None:
+    self.temporary = tempfile.TemporaryDirectory()
+    self.workflow = Path(self.temporary.name) / "workflows" / "slopscout.yml"
+
+  def tearDown(self) -> None:
+    self.temporary.cleanup()
+
+  def run_action(self, *arguments: str) -> tuple[int, str, str]:
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+      status = slopscout.main([
+          "action", *arguments, "--workflow", str(self.workflow),
+      ])
+    return status, stdout.getvalue(), stderr.getvalue()
+
+  def test_add_list_update_and_remove_action(self) -> None:
+    status, stdout, stderr = self.run_action("add", "100")
+    self.assertEqual((status, stderr), (0, ""))
+    self.assertIn("max score: 100", stdout)
+    self.assertIn('max-score: "100"', self.workflow.read_text(encoding="utf-8"))
+
+    status, stdout, stderr = self.run_action("list")
+    self.assertEqual((status, stderr), (0, ""))
+    self.assertIn("max score: 100", stdout)
+
+    status, stdout, stderr = self.run_action("set-max-score", "72.5")
+    self.assertEqual((status, stderr), (0, ""))
+    self.assertIn("72.5", stdout)
+    self.assertIn('max-score: "72.5"', self.workflow.read_text(encoding="utf-8"))
+
+    status, stdout, stderr = self.run_action("remove")
+    self.assertEqual((status, stderr), (0, ""))
+    self.assertIn("Removed", stdout)
+    self.assertFalse(self.workflow.exists())
+
+  def test_add_does_not_overwrite_existing_workflow(self) -> None:
+    self.workflow.parent.mkdir(parents=True)
+    self.workflow.write_text("name: Existing\n", encoding="utf-8")
+    status, _, stderr = self.run_action("add", "100")
+    self.assertEqual(status, 2)
+    self.assertIn("refusing to overwrite", stderr)
+
+  def test_remove_does_not_modify_unmanaged_workflow(self) -> None:
+    self.workflow.parent.mkdir(parents=True)
+    self.workflow.write_text("name: Existing\n", encoding="utf-8")
+    status, _, stderr = self.run_action("remove")
+    self.assertEqual(status, 2)
+    self.assertIn("refusing to modify", stderr)
+
+
 class ScoreContributionTest(unittest.TestCase):
 
   def test_contributions_are_the_single_source_of_the_total_score(self) -> None:

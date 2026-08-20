@@ -27,6 +27,9 @@ GOD_TCC_THRESHOLD = 100.0 / 3.0
 REPORT_SCHEMA_VERSION = 1
 TARGET_SCORE = 100.0
 BUILD_FILE_NAMES = ("pom.xml", "build.gradle", "build.gradle.kts")
+DEFAULT_ACTION_WORKFLOW = Path(".github/workflows/slopscout.yml")
+ACTION_MANAGED_MARKER = "# Managed by slopscout; edit with `slopscout action`."
+ACTION_SCORE_PATTERN = re.compile(r'^(\s*max-score:\s*)"[^"]+"\s*$', re.MULTILINE)
 
 
 class ConfigurationError(RuntimeError):
@@ -795,7 +798,129 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
   return args
 
 
+def validate_max_score(value: str) -> float:
+  try:
+    score = float(value)
+  except ValueError as error:
+    raise argparse.ArgumentTypeError("must be a finite non-negative number") from error
+  if not math.isfinite(score) or score < 0:
+    raise argparse.ArgumentTypeError("must be a finite non-negative number")
+  return score
+
+
+def action_workflow(score: float) -> str:
+  return f'''{ACTION_MANAGED_MARKER}
+name: Slopscout
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  score:
+    name: Java design-debt gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install PMD
+        run: |
+          curl --fail --location --silent --show-error \\
+            --output "$RUNNER_TEMP/pmd.zip" \\
+            https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.26.0/pmd-bin-7.26.0.zip
+          unzip -q "$RUNNER_TEMP/pmd.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/pmd-bin-7.26.0/bin" >> "$GITHUB_PATH"
+      - uses: blater/slop-scout@main
+        with:
+          max-score: "{score:g}"
+'''
+
+
+def parse_action_args(argv: list[str]) -> argparse.Namespace:
+  parser = argparse.ArgumentParser(
+      prog="slopscout action",
+      description="Manage the repository's Slopscout GitHub Actions workflow.",
+  )
+  parser.add_argument(
+      "command", choices=("add", "list", "remove", "set-max-score"),
+  )
+  parser.add_argument(
+      "score", nargs="?", type=validate_max_score,
+      help="maximum allowed score (required for add and set-max-score)",
+  )
+  parser.add_argument(
+      "--workflow", type=Path, default=DEFAULT_ACTION_WORKFLOW,
+      help="workflow path (default: .github/workflows/slopscout.yml)",
+  )
+  args = parser.parse_args(argv)
+  if args.command in ("add", "set-max-score") and args.score is None:
+    parser.error(f"{args.command} requires SCORE")
+  if args.command in ("list", "remove") and args.score is not None:
+    parser.error(f"{args.command} does not accept SCORE")
+  return args
+
+
+def managed_action_score(content: str) -> float | None:
+  if ACTION_MANAGED_MARKER not in content:
+    return None
+  match = ACTION_SCORE_PATTERN.search(content)
+  return float(match.group(0).split('"')[1]) if match else None
+
+
+def manage_action(argv: list[str]) -> int:
+  args = parse_action_args(argv)
+  workflow = args.workflow
+  if args.command == "list":
+    if not workflow.is_file():
+      print(f"Slopscout action is not installed ({workflow}).")
+      return 0
+    score = managed_action_score(workflow.read_text(encoding="utf-8"))
+    if score is None:
+      print(f"{workflow} exists but is not managed by slopscout.", file=sys.stderr)
+      return 2
+    print(f"Slopscout action is installed at {workflow} (max score: {score:g}).")
+    return 0
+  if args.command == "add":
+    if workflow.exists():
+      print(f"refusing to overwrite existing workflow: {workflow}", file=sys.stderr)
+      return 2
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    workflow.write_text(action_workflow(args.score), encoding="utf-8")
+    print(f"Added Slopscout action at {workflow} (max score: {args.score:g}).")
+    return 0
+  if not workflow.is_file():
+    print(f"Slopscout action is not installed ({workflow}).", file=sys.stderr)
+    return 2
+  content = workflow.read_text(encoding="utf-8")
+  if managed_action_score(content) is None:
+    print(f"refusing to modify unmanaged workflow: {workflow}", file=sys.stderr)
+    return 2
+  if args.command == "remove":
+    workflow.unlink()
+    print(f"Removed Slopscout action at {workflow}.")
+    return 0
+  updated, changes = ACTION_SCORE_PATTERN.subn(
+      lambda match: f'{match.group(1)}"{args.score:g}"', content, count=1,
+  )
+  if changes != 1:
+    print(f"unable to find max-score in {workflow}", file=sys.stderr)
+    return 2
+  workflow.write_text(updated, encoding="utf-8")
+  print(f"Updated Slopscout max score to {args.score:g} in {workflow}.")
+  return 0
+
+
 def main(argv: list[str]) -> int:
+  if argv and argv[0] == "action":
+    return manage_action(argv[1:])
   args = parse_args(argv)
   try:
     analysis = analyze_java(

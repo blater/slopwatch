@@ -1,0 +1,22 @@
+name: Slopscout
+description: Gate Java design debt with a maximum Slopscout score.
+inputs:
+  max-score:
+    description: Fail when any production Java file scores above this value.
+    required: true
+  path:
+    description: Project directory to analyse.
+    required: false
+    default: .
+runs:
+  using: composite
+  steps:
+    - name: Install Slopscout
+      shell: bash
+      run: python3 -m pip install "$GITHUB_ACTION_PATH"
+    - name: Score Java design debt
+      shell: bash
+      env:
+        SLOPSCOUT_MAX_SCORE: ${{ inputs.max-score }}
+        SLOPSCOUT_PATH: ${{ inputs.path }}
+      run: slopscout "$SLOPSCOUT_PATH" --max-score "$SLOPSCOUT_MAX_SCORE"
