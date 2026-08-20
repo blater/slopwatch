@@ -5,13 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "slopscout"
 version = "0.1.0"
-description = "A stateless Java design-debt scorer and quality gate for coding agents"
+description = "A stateless multi-language design-debt scorer"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
-dependencies = []
-
-[project.optional-dependencies]
-mcp = ["mcp>=2.0,<3"]
+dependencies = [
+  "mcp>=2.0,<3",
+  "tomli>=2.0; python_version < '3.11'",
+]
 
 [project.scripts]
 slopscout = "slopscout:cli"
@@ -19,6 +21,24 @@ slopscout-mcp = "slopscout_mcp:main"
 
 [tool.setuptools]
 py-modules = ["slopscout", "slopscout_mcp"]
+include-package-data = true
 
-[tool.setuptools.data-files]
-"share/slopscout" = ["slopscout-ruleset.xml"]
+[tool.setuptools.packages.find]
+include = ["slopscout_app*", "slopscout_core*", "slopscout_runtime*", "analyzers*"]
+
+[tool.setuptools.package-data]
+"analyzers" = [
+  "java/pom.xml",
+  "java/*.xml",
+  "java/src/main/java/dev/slopscout/pmd/*.java",
+  "typescript/package.json",
+  "typescript/package-lock.json",
+  "typescript/tsconfig.json",
+  "typescript/src/*.ts",
+  "typescript/test/*.ts",
+  "typescript/test/fixtures/*",
+  "rust/Cargo.toml",
+  "rust/Cargo.lock",
+  "rust/src/*.rs",
+]
+"slopscout_core" = ["component-catalog.json"]

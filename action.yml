@@ -1,9 +1,9 @@
 name: Slopscout
-description: Gate Java design debt with a maximum Slopscout score.
+description: Analyze Java, TypeScript, and Rust design debt with Slopscout.
 inputs:
-  max-score:
-    description: Fail when any production Java file scores above this value.
-    required: true
+  pass-score:
+    description: Pass files scoring at or below this value; omit to report only.
+    required: false
   path:
     description: Project directory to analyse.
     required: false
@@ -14,9 +14,28 @@ runs:
     - name: Install Slopscout
       shell: bash
       run: python3 -m pip install "$GITHUB_ACTION_PATH"
-    - name: Score Java design debt
+    - name: Install required analysis drivers
       shell: bash
       env:
-        SLOPSCOUT_MAX_SCORE: ${{ inputs.max-score }}
         SLOPSCOUT_PATH: ${{ inputs.path }}
-      run: slopscout "$SLOPSCOUT_PATH" --max-score "$SLOPSCOUT_MAX_SCORE"
+      run: |
+        if [[ -n "$(find "$SLOPSCOUT_PATH" -type f -name '*.java' -print -quit)" ]]; then
+          slopscout install java
+        fi
+        if [[ -n "$(find "$SLOPSCOUT_PATH" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' \) -print -quit)" ]]; then
+          slopscout install typescript
+        fi
+        if [[ -n "$(find "$SLOPSCOUT_PATH" -type f -name '*.rs' -print -quit)" ]]; then
+          slopscout install rust
+        fi
+    - name: Analyze design debt
+      shell: bash
+      env:
+        SLOPSCOUT_PASS_SCORE: ${{ inputs.pass-score }}
+        SLOPSCOUT_PATH: ${{ inputs.path }}
+      run: |
+        if [[ -n "$SLOPSCOUT_PASS_SCORE" ]]; then
+          slopscout "$SLOPSCOUT_PATH" --pass-score "$SLOPSCOUT_PASS_SCORE"
+        else
+          slopscout "$SLOPSCOUT_PATH"
+        fi

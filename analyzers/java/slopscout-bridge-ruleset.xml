@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="Slopscout structured Java metrics"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+  <description>
+    Complete PMD 7.26.0 observations for Slopscout's normalized analyzer bridge.
+  </description>
+
+  <rule name="SlopscoutMetrics"
+        language="java"
+        message="{0}"
+        class="dev.slopscout.pmd.SlopscoutMetricsRule">
+    <description>Emit unthresholded PMD metric observations.</description>
+    <priority>1</priority>
+  </rule>
+
+  <rule ref="category/java/design.xml/AvoidDeeplyNestedIfStmts">
+    <properties>
+      <property name="problemDepth" value="3"/>
+    </properties>
+  </rule>
+</ruleset>

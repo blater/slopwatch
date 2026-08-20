@@ -1,0 +1,16 @@
+export function control(a: boolean, b: boolean, c: boolean): number {
+  if (a && b) {
+    while (c) {
+      if (a) break;
+    }
+  } else if (c) {
+    return a ? 1 : 2;
+  } else {
+    throw new Error("no");
+  }
+  return 0;
+}
+
+export function nesting(a: boolean): void {
+  if (a) { if (a) { if (a) { if (a) {} } } }
+}

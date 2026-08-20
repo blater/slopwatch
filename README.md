@@ -1,279 +1,147 @@
-# slopscout
+# Slopscout
 
-`slopscout` gives coding agents a measurable forcing function for Java design
-smells. It ranks production files by a weighted design-debt score, making a
-complex set of [PMD](https://pmd.github.io/) signals easy to express as a simple
-goal: lower the score, and work toward keeping each file below your target score.
+Slopscout finds design smells in Java and TypeScript (Rust is experimental), 
+and gives them a score weighted on coupling, cohesion, depth, and cognitive complexity. 
 
-Scores combine cognitive, cyclomatic, and NPath complexity with nesting,
-coupling, and God Class findings. The tool is stateless: it reports the current
-project and does not maintain a policy ledger or catalog historical scores.
+Slop builds up, as extraneous cognitive load for humans, we've all seen impossible spaghetti code 
+which is painful to read, review, and reason about.
 
-The tool automatically finds Maven and Gradle-style `src/main/java` directories
-(including multi-module projects) and infers the Java language version from the
-build files when possible.
+We've also all seen that agents have deep slop tolerance.  However, they suffer in different ways,
+as reasoning chains lengthen, evidence conflicts, and distraction increases. 
+Symptoms start to show - planning becomes more elaborate with more subtasks, they start overlooking 
+constraints more often, forgetting goals, and prioritising irrelvancies. 
 
-## Example usage
+This tool condenses a complex mix of measures into *one clear and simple number* for agents - stay 
+under that, gates pass, go over it & they have to rework until it's clean.
 
-Analyse the Java project in the current directory:
+I use this in AGENTS.md as a *continuous forcing function*, pushing agents towards good. 
 
+It is aimed larger projects where you want a solid, sustainable architecture, where each module
+needs crystal clear focus & clean well defined interfaces.  
+
+## Install 
+
+Slopscout works as a CLI command, as an MCP server, or as a github action and runs on Python 3.10 or later.
+
+Install it with:
 ```sh
-slopscout
-```
-
-Or pass a project directory explicitly:
-
-```sh
-slopscout /path/to/java-project
-```
-
-Pass several directories to analyze several package or module trees together.
-Each directory is recursive. Project and module directories are narrowed to
-their conventional production roots; source and package directories remain at
-the scope supplied:
-
-```sh
-slopscout module-a/src/main/java/orders module-b/src/main/java/payments
-```
-
-Use repeatable `--file` arguments when the exact changed classes are known.
-Directories and files can be combined, and module/build inference is performed
-for each target:
-
-```sh
-slopscout --file src/main/java/example/Changed.java \
-  --file src/main/java/example/AlsoChanged.java
-```
-
-Show a compact top ten and include an explanation of the scoring model:
-
-```sh
-slopscout /path/to/java-project --compact --limit 10 --explain
-```
-
-Fail the run if any production Java file scores above 100:
-
-```sh
-slopscout /path/to/java-project --max-score 100
-```
-
-The maximum is inclusive: a score of exactly 100 passes, while any unrounded
-score above 100 fails. A failed quality gate exits with status 3 after printing
-the ranked results and a summary of the failure to standard error. This is
-useful for greenfield projects or as a final target; legacy projects need not
-enable it immediately.
-
-### Agent workflow
-
-For feature work, run `slopscout` afterward and treat high-scoring changed
-files as candidates for a follow-up simplification agent. Give that agent a
-simple instruction:
-
-> Lower the target file's slopscout score. Work toward a score below 100, and
-> do not finish unless the score decreases without breaking tests.
-
-When several agents cooperate on a feature, evaluate the completed result
-rather than requiring every intermediate step to satisfy the final target.
-
-### Structured output
-
-Human-readable text remains the default. Request JSON when an agent or another
-program needs stable structured results:
-
-```sh
-slopscout /path/to/java-project --format json --limit 0
-```
-
-The JSON report contains scores and raw contributing metrics for each returned
-file, the exact weighted contribution made by each signal, a project summary,
-and the result of an optional `--max-score` gate. The summary identifies the
-target score, number of files above it, and current highest-priority file.
-
-An agent runner may retain before-and-after reports when it wants mechanical
-comparison without making that history part of `slopscout`. `--limit` controls
-the returned file list in both formats; use `--limit 0` when the caller needs
-every selected score. Gate evaluation always considers every analyzed Java file
-regardless of the output limit.
-
-For a non-standard project layout, specify one or more production source roots:
-
-```sh
-slopscout . --source-root app/java --source-root shared/java
-```
-
-Run `slopscout --help` for all options, including custom rulesets and an
-explicit PMD Java language version.
-
-## Manage the GitHub Actions gate
-
-Slopscout can create and manage a GitHub Actions workflow that checks Java
-design-debt scores on pull requests and pushes to `main`.
-
-Add the workflow with a maximum score:
-
-```sh
-slopscout action add 100
-```
-
-Check whether it is installed and see its current limit:
-
-```sh
-slopscout action list
-```
-
-Change the enforced limit:
-
-```sh
-slopscout action set-max-score 85
-```
-
-Remove the workflow:
-
-```sh
-slopscout action remove
-```
-
-By default, Slopscout manages `.github/workflows/slopscout.yml`. Use
-`--workflow path/to/file.yml` to choose another path.
-
-`add` will not overwrite an existing file. `set-max-score` and `remove` only
-change workflows created by Slopscout. Commit and push the workflow after each
-change.
-
-## MCP server
-
-The optional local MCP server exposes the same stateless analysis through two
-read-only tools. Keeping these purposes explicit makes tool choice mechanical:
-
-| Agent task | MCP tool |
-| --- | --- |
-| Find the next cleanup target | `rank_java_files(directories=[], limit=10)` |
-| Check changed files or one known target | `score_java_files(files=[...])` |
-
-`rank_java_files` accepts repository, module, source, or package directories
-and recurses beneath them. With no directories it uses the current working
-directory. `score_java_files` analyzes exactly the supplied Java files, returns
-all of them in request order, and still infers the relevant module and Java
-version for each file. Neither tool edits code, stores a baseline, or imposes a
-workflow on the agent.
-
-Install the MCP extra once, then register the STDIO server with the agent you
-use:
-
-```sh
-python3 -m pip install '.[mcp]'
-```
-
-### Codex setup
-
-```sh
-codex mcp add slopscout -- slopscout-mcp
-codex mcp list
-codex mcp get slopscout
-```
-
-The final two commands confirm that Codex has the server registered and show
-the command it will start. Start a new Codex session after registration so it
-can discover the tools.
-
-### Claude Code setup
-
-```sh
-claude mcp add --transport stdio slopscout -- slopscout-mcp
-claude mcp list
-claude mcp get slopscout
-```
-
-`claude mcp list` reports whether the server connected successfully. Inside a
-Claude Code session, `/mcp` shows the server status and its discovered tool
-count. See the
-[official Claude Code MCP documentation](https://code.claude.com/docs/en/mcp)
-for configuration scopes and troubleshooting.
-
-### Tool discovery
-
-Once connected, the client discovers `rank_java_files` and `score_java_files`,
-including their argument schemas, descriptions, and read-only annotations.
-The server instructions tell the agent when each tool is appropriate; there is
-no separate tool catalog to maintain in the project. Claude Code may defer the
-full tool definitions until a request needs them, which is normal.
-
-If the server is registered but its tools are unavailable, verify that both
-commands needed by the server are visible on `PATH`:
-
-```sh
-command -v slopscout-mcp
-command -v pmd
-```
-
-### Usage from an agent
-
-MCP tools are normally selected by the agent from a natural-language request.
-Naming the tool is optional, but useful when the desired scope must be exact.
-For cleanup discovery, ask for a recursive ranking:
-
-> Use `rank_java_files` on `module-a/src/main/java` and
-> `module-b/src/main/java`. Show the ten highest-scoring files and suggest the
-> best cleanup target.
-
-For feature work, have the agent derive the Java files in its change set and
-pass that exact list to the scorer:
-
-> Find the Java files changed by this branch and pass them to
-> `score_java_files`. Report every score, then simplify the highest-scoring
-> changed file if you can do so without changing behaviour. Score it again
-> afterward.
-
-For a known target, the request can be even simpler:
-
-> Use `score_java_files` to score
-> `src/main/java/example/OrderProcessor.java` before and after this refactor.
-
-The feature agent does not have to finish below 100. A follow-up cleanup agent
-can use the same exact-file score as its forcing function: make the score lower,
-preserve behaviour, and keep working toward the target of 100.
-
-Paths supplied to the tools are resolved from the MCP server's working
-directory. See the
-[Codex MCP documentation](https://learn.chatgpt.com/docs/extend/mcp) for other
-configuration methods and MCP clients.
-
-## Installation
-
-Requirements:
-
-- Python 3.10 or later
-- Bash
-- PMD 7, with the `pmd` executable on `PATH`
-
-On macOS, PMD can be installed with Homebrew:
-
-```sh
-brew install pmd
-```
-
-On other platforms, install PMD using its
-[official installation instructions](https://docs.pmd-code.org/latest/pmd_userdocs_installation.html).
-
-Clone or download this repository, then either run `./slopscout` directly or
-install it as a command:
-
-```sh
+git clone <repository-url> slopscout
+cd slopscout
 python3 -m pip install .
 ```
 
-For an isolated command installation, use `pipx install .`; add the `mcp` extra
-when MCP support is wanted. A manual CLI-only installation is also possible:
+### Language Requirements
 
+Each language you're going to run static analysis on has dependencies:
+
+| Java: |
+| *JDK 11+* - (we normally run on JDK 25) |
+| *Maven;*  |
+| The analyzer uses PMD 7.26.0 and is built on first use. |
+| |
+| TypeScript |
+| *Node.js* 22 or later |
+| *npm* |
+| |
+| Rust |
+| - *Rust 1.78+* or later  (we use 1.97.1) |
+| - Cargo |
+
+You'll be prompted to install the analysis driver for your language the first time you run slopscout for
+that language, otherwise you can preemptively install them with the "install" command:
 ```sh
-mkdir -p "$HOME/.local/lib/slopscout" "$HOME/.local/bin"
-install -m 755 slopscout slopscout.py "$HOME/.local/lib/slopscout/"
-install -m 644 slopscout-ruleset.xml "$HOME/.local/lib/slopscout/"
-ln -sf "$HOME/.local/lib/slopscout/slopscout" "$HOME/.local/bin/slopscout"
+slopscout install java
+slopscout install typescript
+slopscout install rust
 ```
 
-Make sure `$HOME/.local/bin` is on `PATH`, then verify the installation:
+The help message in `slopscout -h` will show you which analysis drivers are installed.
+
+
+## Usage
+
+The simplest usage is: `slopscout <project path>`
+
+This will scan down the tree analysing files with `.ts`, `.tsx`, `.mts`, `.cts`, `.java` and `.rs` extensions.
+
+Full command list:
+
+| Command | Purpose | Example |
+| --- | --- | --- |
+| `slopscout` | Show help and installed analyzer status | `slopscout` |
+| `slopscout analyze [TARGET ...]` | Analyze directories or files | `slopscout src` |
+| `slopscout action add` | Add the GitHub Actions workflow | `slopscout action add` |
+| `slopscout action list` | Show the managed workflow | `slopscout action list` |
+| `slopscout action remove` | Remove the managed workflow | `slopscout action remove` |
+| `slopscout action set-pass-score SCORE` | Set its optional pass score | `slopscout action set-pass-score 100` |
+| `slopscout install LANGUAGE` | Install an analyzer | `slopscout install typescript` |
+| `slopscout config` | Show configurations, analyzers, and components | `slopscout config` |
+| `slopscout config edit [FILE\|global]` | Create or edit a configuration | `slopscout config edit` |
+
+The `analyze` word may be omitted. Common analysis options are:
+
+| Option | Purpose | Example |
+| --- | --- | --- |
+| `--config FILE` | Use an exact configuration file | `slopscout . --config team.toml` |
+| `--limit NUMBER` | Return at most this many ranked files | `slopscout --limit 20 .` |
+| `--pass-score SCORE` | Pass files scoring at or below this value | `slopscout --pass-score 100 .` |
+| `--format json` | Emit the standard JSON report | `slopscout . --format json` |
+
+`--limit 0` returns every result. The limit only controls returned rows;
+`--pass-score` always considers every analyzed file.
+
+`--pass-score` is optional and inclusive. When present, the text report starts
+with a `PASS` column. Analysis returns 0 when all files pass, 3 when any file
+does not pass, and 2 for configuration or analysis errors.
+
+## Report measurements
+
+Lower numbers are better. A routine is a function, method, or constructor.
+`-` means that the analyzer does not supply that measurement.
+
+| Column | Meaning |
+| --- | --- |
+| `SCORE` | Weighted penalties from every enabled rule and metric, after waivers. Thresholds and weights come from the active profile, so compare scores only under the same profile. |
+| `COG MAX/#` | Highest cognitive complexity of any routine / routines measured. Branches and loops add cost; nesting adds more because nested control flow is harder to follow. |
+| `NPATH MAX/#` | Highest NPath complexity of any routine / routines measured. NPath estimates distinct routes through a routine without repeating a loop; branches can multiply the result. |
+| `CYCLO TOT/MAX` | Largest sum across one type's routines / highest value for one routine. Cyclomatic complexity starts at one and rises at each decision point, such as a branch or loop. |
+| `DEEP` | Java and TypeScript: number of `if` chains reaching three levels. Rust: greatest control-flow nesting depth. |
+
+Currently for Java we're able to take every measurement. 
+TypeScript we can measure everything except the cyclomatic type total. 
+Rust support is still weak. It gives `DEEP` as a best-effort measure; its other structural measurements show `-`.
+
+## Configuration
+
+Without `--config`, Slopscout selects the first existing configuration from:
+
+1. `./.slopscout.toml`
+2. `$XDG_CONFIG_HOME/slopscout/config.toml` or `~/.config/slopscout/config.toml`
+3. `~/.slopscout.toml`
+
+`slopscout config edit` opens the config file or editing (and creates it if it doesn't already exist)
+
+## MCP server
+
+The STDIO MCP server exposes three read-only tools:
+
+| Task | Tool |
+| --- | --- |
+| Rank supported source files | `rank_files(directories=[], languages=["auto"], limit=10)` |
+| Score exact supported files | `score_files(files=[...])` |
+| Inspect configuration and analyzers | `get_config()` |
+
+The analysis tools return the same report format as `slopscout --format json`.
+All three tools are read-only.
+
+Register the server with Codex:
 
 ```sh
-slopscout --help
+codex mcp add slopscout -- slopscout-mcp
+```
+
+Or register it with Claude Code:
+
+```sh
+claude mcp add --transport stdio slopscout -- slopscout-mcp
 ```

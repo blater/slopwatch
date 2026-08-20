@@ -1,0 +1,14 @@
+export type Shape = { kind: "circle" } | { kind: "square" } | { kind: "triangle" };
+function consume(value: string): void {}
+export function inspect(value: any, flag: string, shape: Shape): string {
+  if (flag) {}
+  const propagated: string = value;
+  consume(value);
+  value.missing();
+  const asserted = value as string;
+  switch (shape.kind) {
+    case "circle": return value;
+    case "square": return asserted;
+  }
+  return propagated;
+}

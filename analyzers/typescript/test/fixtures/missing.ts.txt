@@ -1,0 +1,2 @@
+import { missing } from "package-that-is-not-installed";
+export function use(): number { if (missing) return 1; return 0; }
