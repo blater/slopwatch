@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "smellscout"
+name = "slopscout"
 version = "0.1.0"
 description = "A stateless Java design-debt scorer and quality gate for coding agents"
 readme = "README.md"
@@ -14,11 +14,11 @@ dependencies = []
 mcp = ["mcp>=2.0,<3"]
 
 [project.scripts]
-smellscout = "smellscout:cli"
-smellscout-mcp = "smellscout_mcp:main"
+slopscout = "slopscout:cli"
+slopscout-mcp = "slopscout_mcp:main"
 
 [tool.setuptools]
-py-modules = ["smellscout", "smellscout_mcp"]
+py-modules = ["slopscout", "slopscout_mcp"]
 
 [tool.setuptools.data-files]
-"share/smellscout" = ["smellscout-ruleset.xml"]
+"share/slopscout" = ["slopscout-ruleset.xml"]

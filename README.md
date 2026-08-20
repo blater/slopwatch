@@ -1,7 +1,7 @@
-# smellscout
+# slopscout
 
-`smellscout` gives coding agents a measurable forcing function for Java design
-quality. It ranks production files by a weighted design-debt score, making a
+`slopscout` gives coding agents a measurable forcing function for Java design
+smells. It ranks production files by a weighted design-debt score, making a
 complex set of [PMD](https://pmd.github.io/) signals easy to express as a simple
 goal: lower the score, and work toward keeping each file below your target score.
 
@@ -18,13 +18,13 @@ build files when possible.
 Analyse the Java project in the current directory:
 
 ```sh
-smellscout
+slopscout
 ```
 
 Or pass a project directory explicitly:
 
 ```sh
-smellscout /path/to/java-project
+slopscout /path/to/java-project
 ```
 
 Pass several directories to analyze several package or module trees together.
@@ -33,7 +33,7 @@ their conventional production roots; source and package directories remain at
 the scope supplied:
 
 ```sh
-smellscout module-a/src/main/java/orders module-b/src/main/java/payments
+slopscout module-a/src/main/java/orders module-b/src/main/java/payments
 ```
 
 Use repeatable `--file` arguments when the exact changed classes are known.
@@ -41,20 +41,20 @@ Directories and files can be combined, and module/build inference is performed
 for each target:
 
 ```sh
-smellscout --file src/main/java/example/Changed.java \
+slopscout --file src/main/java/example/Changed.java \
   --file src/main/java/example/AlsoChanged.java
 ```
 
 Show a compact top ten and include an explanation of the scoring model:
 
 ```sh
-smellscout /path/to/java-project --compact --limit 10 --explain
+slopscout /path/to/java-project --compact --limit 10 --explain
 ```
 
 Fail the run if any production Java file scores above 100:
 
 ```sh
-smellscout /path/to/java-project --max-score 100
+slopscout /path/to/java-project --max-score 100
 ```
 
 The maximum is inclusive: a score of exactly 100 passes, while any unrounded
@@ -65,11 +65,11 @@ enable it immediately.
 
 ### Agent workflow
 
-For feature work, run `smellscout` afterward and treat high-scoring changed
+For feature work, run `slopscout` afterward and treat high-scoring changed
 files as candidates for a follow-up simplification agent. Give that agent a
 simple instruction:
 
-> Lower the target file's smellscout score. Work toward a score below 100, and
+> Lower the target file's slopscout score. Work toward a score below 100, and
 > do not finish unless the score decreases without breaking tests.
 
 When several agents cooperate on a feature, evaluate the completed result
@@ -81,7 +81,7 @@ Human-readable text remains the default. Request JSON when an agent or another
 program needs stable structured results:
 
 ```sh
-smellscout /path/to/java-project --format json --limit 0
+slopscout /path/to/java-project --format json --limit 0
 ```
 
 The JSON report contains scores and raw contributing metrics for each returned
@@ -90,7 +90,7 @@ and the result of an optional `--max-score` gate. The summary identifies the
 target score, number of files above it, and current highest-priority file.
 
 An agent runner may retain before-and-after reports when it wants mechanical
-comparison without making that history part of `smellscout`. `--limit` controls
+comparison without making that history part of `slopscout`. `--limit` controls
 the returned file list in both formats; use `--limit 0` when the caller needs
 every selected score. Gate evaluation always considers every analyzed Java file
 regardless of the output limit.
@@ -98,10 +98,10 @@ regardless of the output limit.
 For a non-standard project layout, specify one or more production source roots:
 
 ```sh
-smellscout . --source-root app/java --source-root shared/java
+slopscout . --source-root app/java --source-root shared/java
 ```
 
-Run `smellscout --help` for all options, including custom rulesets and an
+Run `slopscout --help` for all options, including custom rulesets and an
 explicit PMD Java language version.
 
 ## MCP server
@@ -131,9 +131,9 @@ python3 -m pip install '.[mcp]'
 ### Codex setup
 
 ```sh
-codex mcp add smellscout -- smellscout-mcp
+codex mcp add slopscout -- slopscout-mcp
 codex mcp list
-codex mcp get smellscout
+codex mcp get slopscout
 ```
 
 The final two commands confirm that Codex has the server registered and show
@@ -143,9 +143,9 @@ can discover the tools.
 ### Claude Code setup
 
 ```sh
-claude mcp add --transport stdio smellscout -- smellscout-mcp
+claude mcp add --transport stdio slopscout -- slopscout-mcp
 claude mcp list
-claude mcp get smellscout
+claude mcp get slopscout
 ```
 
 `claude mcp list` reports whether the server connected successfully. Inside a
@@ -166,7 +166,7 @@ If the server is registered but its tools are unavailable, verify that both
 commands needed by the server are visible on `PATH`:
 
 ```sh
-command -v smellscout-mcp
+command -v slopscout-mcp
 command -v pmd
 ```
 
@@ -219,7 +219,7 @@ brew install pmd
 On other platforms, install PMD using its
 [official installation instructions](https://docs.pmd-code.org/latest/pmd_userdocs_installation.html).
 
-Clone or download this repository, then either run `./smellscout` directly or
+Clone or download this repository, then either run `./slopscout` directly or
 install it as a command:
 
 ```sh
@@ -230,14 +230,14 @@ For an isolated command installation, use `pipx install .`; add the `mcp` extra
 when MCP support is wanted. A manual CLI-only installation is also possible:
 
 ```sh
-mkdir -p "$HOME/.local/lib/smellscout" "$HOME/.local/bin"
-install -m 755 smellscout smellscout.py "$HOME/.local/lib/smellscout/"
-install -m 644 smellscout-ruleset.xml "$HOME/.local/lib/smellscout/"
-ln -sf "$HOME/.local/lib/smellscout/smellscout" "$HOME/.local/bin/smellscout"
+mkdir -p "$HOME/.local/lib/slopscout" "$HOME/.local/bin"
+install -m 755 slopscout slopscout.py "$HOME/.local/lib/slopscout/"
+install -m 644 slopscout-ruleset.xml "$HOME/.local/lib/slopscout/"
+ln -sf "$HOME/.local/lib/slopscout/slopscout" "$HOME/.local/bin/slopscout"
 ```
 
 Make sure `$HOME/.local/bin` is on `PATH`, then verify the installation:
 
 ```sh
-smellscout --help
+slopscout --help
 ```
