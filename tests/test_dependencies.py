@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 from slopslap_app.dependencies import (
     AnalyzerDependencyError, InstallationMethod, analyzer_dependencies,
-    ensure_analyzer, install_analyzer,
+    ensure_analyzer, install_analyzer, _install_commands, _required_programs,
 )
 
 
@@ -21,7 +21,8 @@ class _Input:
 class AnalyzerDependencyTests(unittest.TestCase):
   def test_catalog_declares_extensions_versions_and_installation_methods(self) -> None:
     dependencies = analyzer_dependencies()
-    self.assertEqual(set(dependencies), {"java", "typescript", "rust"})
+    self.assertEqual(set(dependencies), {"go", "java", "typescript", "rust"})
+    self.assertEqual(dependencies["go"].extensions, (".go",))
     self.assertEqual(dependencies["java"].extensions, (".java",))
     self.assertEqual(
         dependencies["typescript"].extensions, (".ts", ".tsx", ".mts", ".cts"),
@@ -33,7 +34,13 @@ class AnalyzerDependencyTests(unittest.TestCase):
                      InstallationMethod.NPM)
     self.assertEqual(dependencies["rust"].installation_method,
                      InstallationMethod.CARGO)
+    self.assertEqual(dependencies["go"].installation_method,
+                     InstallationMethod.GO)
     self.assertTrue(all(item.version == "0.1.0" for item in dependencies.values()))
+    self.assertEqual(dependencies["rust"].source.name, "structural")
+    self.assertEqual(_required_programs(dependencies["rust"]), ("cargo", "go"))
+    commands = _install_commands(dependencies["rust"], Path("/project"))
+    self.assertEqual([command[0] for command in commands], ["cargo", "go"])
 
   def test_missing_dependency_does_not_prompt_noninteractive_process(self) -> None:
     prompt = Mock(return_value="yes")

@@ -119,7 +119,9 @@ def serve(configuration: str | None, port: int, *, open_browser: bool = True) ->
         policy = dict(load_policy(config_path if config_path.is_file() else None))
         self._json(HTTPStatus.OK, {"path": str(config_path), "policy": policy,
                                   "schema": catalog_document(),
-                                  "effective": effective_profile_document(policy, ["java", "typescript", "rust"])})
+                                  "effective": effective_profile_document(
+                                      policy, ["go", "java", "typescript", "rust"],
+                                  )})
       else:
         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
@@ -141,7 +143,7 @@ def serve(configuration: str | None, port: int, *, open_browser: bool = True) ->
           raise ValueError("request must contain only an overrides object")
         current = dict(load_policy(config_path if config_path.is_file() else None))
         updated = _merge(current, body["overrides"])
-        effective_profile_document(updated, ["java", "typescript", "rust"])
+        effective_profile_document(updated, ["go", "java", "typescript", "rust"])
         encoded = dump_policy(updated)
         temporary = config_path.with_suffix(config_path.suffix + ".tmp")
         temporary.write_text(encoded, encoding="utf-8")

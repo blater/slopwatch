@@ -1,0 +1,108 @@
+// Package facts defines the language-neutral input consumed by metric strategies.
+package facts
+
+// SchemaVersion identifies the normalized adapter-to-strategy fact contract.
+const SchemaVersion = 1
+
+// Location identifies a stable source subject using one-based coordinates.
+type Location struct {
+	Path      string `json:"path"`
+	Line      int    `json:"line"`
+	Column    int    `json:"column"`
+	EndLine   int    `json:"end_line"`
+	EndColumn int    `json:"end_column"`
+}
+
+// ExprKind identifies only expression structure that affects PMD metrics.
+type ExprKind uint8
+
+const (
+	ExprOther ExprKind = iota
+	ExprAnd
+	ExprOr
+	ExprNot
+)
+
+// Expression is a normalized Boolean/call expression.
+type Expression struct {
+	Kind     ExprKind      `json:"kind"`
+	Children []*Expression `json:"children"`
+	Calls    []string      `json:"calls"`
+	Nested   []*Function   `json:"nested"`
+}
+
+// StmtKind identifies normalized structured control flow.
+type StmtKind uint8
+
+const (
+	StmtLinear StmtKind = iota
+	StmtBlock
+	StmtIf
+	StmtLoop
+	StmtSwitch
+	StmtReturn
+	StmtPanic
+	StmtBreak
+	StmtContinue
+	StmtGoto
+)
+
+// Case is one switch, type-switch, or select alternative.
+type Case struct {
+	Default      bool          `json:"default"`
+	FallsThrough bool          `json:"falls_through"`
+	Expressions  []*Expression `json:"expressions"`
+	Body         []*Statement  `json:"body"`
+}
+
+// Statement is a normalized control-flow statement.
+type Statement struct {
+	Kind        StmtKind      `json:"kind"`
+	Location    Location      `json:"location"`
+	Condition   *Expression   `json:"condition,omitempty"`
+	Expressions []*Expression `json:"expressions"`
+	Body        []*Statement  `json:"body"`
+	Else        []*Statement  `json:"else"`
+	Cases       []Case        `json:"cases"`
+	MaySkip     bool          `json:"may_skip"`
+	Labeled     bool          `json:"labeled"`
+}
+
+// Function is one independently measured executable body.
+type Function struct {
+	Name        string       `json:"name"`
+	Receiver    string       `json:"receiver"`
+	ReceiverVar string       `json:"receiver_var"`
+	Location    Location     `json:"location"`
+	Body        []*Statement `json:"body"`
+}
+
+// Type is the normalized design surface for a named type.
+type Type struct {
+	Name                 string              `json:"name"`
+	Kind                 string              `json:"kind"`
+	Location             Location            `json:"location"`
+	Methods              []*Function         `json:"methods"`
+	InterfaceMethodCount int                 `json:"interface_method_count"`
+	ForeignTypes         []string            `json:"foreign_types"`
+	MethodFields         map[string][]string `json:"method_fields"`
+	ForeignFields        []string            `json:"foreign_fields"`
+}
+
+// Program is the complete fact set for one analyzer unit.
+type Program struct {
+	Functions   []*Function                  `json:"functions"`
+	Types       []*Type                      `json:"types"`
+	Files       []string                     `json:"files"`
+	Unavailable map[string]map[string]string `json:"unavailable"`
+}
+
+// Availability returns whether a component has complete evidence for a file.
+func (program *Program) Availability(path, component string) (bool, string) {
+	components := program.Unavailable[path]
+	if components == nil {
+		return true, ""
+	}
+	reason, unavailable := components[component]
+	return !unavailable, reason
+}

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel>=0.42"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -20,7 +20,7 @@ slopslap = "slopslap:cli"
 slopslap-mcp = "slopslap_mcp:main"
 
 [tool.setuptools]
-py-modules = ["slopslap", "slopslap_mcp"]
+py-modules = ["slopslap", "slopslap_build", "slopslap_mcp"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
@@ -37,8 +37,16 @@ include = ["slopslap_app*", "slopslap_core*", "slopslap_runtime*", "analyzers*"]
   "typescript/src/*.ts",
   "typescript/test/*.ts",
   "typescript/test/fixtures/*",
-  "rust/Cargo.toml",
-  "rust/Cargo.lock",
-  "rust/src/*.rs",
+  "structural/go.mod",
+  "structural/README.md",
+  "structural/adapters/rust/Cargo.toml",
+  "structural/adapters/rust/Cargo.lock",
+  "structural/adapters/rust/src/*.rs",
+  "structural/cmd/slopslap-structural/*.go",
+  "structural/internal/adapters/*.go",
+  "structural/internal/facts/*.go",
+  "structural/internal/goadapter/*.go",
+  "structural/internal/metrics/*.go",
+  "structural/internal/rustadapter/*.go",
 ]
 "slopslap_core" = ["component-catalog.json"]

@@ -1,6 +1,6 @@
 # Slopslap
 
-Slopslap finds design smells in Java and TypeScript (Rust is experimental),
+Slopslap finds design smells in Go, Java and TypeScript (Rust is experimental),
 and gives them a score weighted on coupling, cohesion, depth, and cognitive complexity. 
 
 Slop builds up, as extraneous cognitive load for humans, we've all seen impossible spaghetti code 
@@ -34,6 +34,9 @@ python3 -m pip install .
 
 Each language you're going to run static analysis on has dependencies:
 
+| Go |
+| The Go/Rust structural analyzer is pre-installed. *Go 1.22+* supplies Go standard-library type information. |
+| |
 | Java: |
 | *JDK 11+* - (we normally run on JDK 25) |
 | *Maven;*  |
@@ -44,15 +47,13 @@ Each language you're going to run static analysis on has dependencies:
 | *npm* |
 | |
 | Rust |
-| - *Rust 1.78+* or later  (we use 1.97.1) |
-| - Cargo |
+| The syntax adapter is pre-installed and does not execute Cargo, build scripts, or macros. |
 
 You'll be prompted to install the analysis driver for your language the first time you run slopslap for
 that language, otherwise you can preemptively install them with the "install" command:
 ```sh
 slopslap install java
 slopslap install typescript
-slopslap install rust
 ```
 
 The help message in `slopslap -h` will show you which analysis drivers are installed.
@@ -62,7 +63,7 @@ The help message in `slopslap -h` will show you which analysis drivers are insta
 
 The simplest usage is: `slopslap <project path>`
 
-This will scan down the tree analysing files with `.ts`, `.tsx`, `.mts`, `.cts`, `.java` and `.rs` extensions.
+This scans `.go`, `.java`, `.ts`, `.tsx`, `.mts`, `.cts` and `.rs` files.
 
 Full command list:
 
@@ -83,12 +84,17 @@ The `analyze` word may be omitted. Common analysis options are:
 | Option | Purpose | Example |
 | --- | --- | --- |
 | `--config FILE` | Use an exact configuration file | `slopslap . --config team.toml` |
-| `--limit NUMBER` | Return at most this many ranked files | `slopslap --limit 20 .` |
+| `-c`, `--compact` | Show only score and path in text output | `slopslap --compact .` |
+| `--include-tests` | Include test source files | `slopslap --include-tests .` |
+| `--limit NUMBER` | Return at most this many ranked files (all by default) | `slopslap --limit 20 .` |
 | `--pass-score SCORE` | Pass files scoring at or below this value | `slopslap --pass-score 100 .` |
 | `--format json` | Emit the standard JSON report | `slopslap . --format json` |
 
-`--limit 0` returns every result. The limit only controls returned rows;
+Every result is returned by default; `--limit 0` is the explicit equivalent.
+The limit only controls returned rows;
 `--pass-score` always considers every analyzed file.
+
+Test sources are excluded by default. Use `--include-tests` to analyze them too.
 
 `--pass-score` is optional and inclusive. When present, the text report starts
 with a `PASS` column. Analysis returns 0 when all files pass, 3 when any file
@@ -105,11 +111,14 @@ Lower numbers are better. A routine is a function, method, or constructor.
 | `COG MAX/#` | Highest cognitive complexity of any routine / routines measured. Branches and loops add cost; nesting adds more because nested control flow is harder to follow. |
 | `NPATH MAX/#` | Highest NPath complexity of any routine / routines measured. NPath estimates distinct routes through a routine without repeating a loop; branches can multiply the result. |
 | `CYCLO TOT/MAX` | Largest sum across one type's routines / highest value for one routine. Cyclomatic complexity starts at one and rises at each decision point, such as a branch or loop. |
-| `DEEP` | Java and TypeScript: number of `if` chains reaching three levels. Rust: greatest control-flow nesting depth. |
+| `DEEP` | Number of `if` chains reaching three levels. |
+| `GOD` | Weighted God Class contribution to `SCORE`. `0` means it was evaluated but PMD's WMC/ATFD/TCC conjunction did not trigger; `-` means unavailable. |
 
-Currently for Java we're able to take every measurement. 
-TypeScript we can measure everything except the cyclomatic type total. 
-Rust support is still weak. It gives `DEEP` as a best-effort measure; its other structural measurements show `-`.
+Go and Java support every listed measurement. Go's CBO and God-Class inputs are
+marked unavailable when required imported source is not part of the analysis.
+TypeScript supports everything except the cyclomatic type total and God Class.
+Rust supplies the same source-level structural measurements through the bundled
+`syn` adapter; macro-generated control flow is intentionally not expanded.
 
 ## Configuration
 
@@ -127,8 +136,8 @@ The STDIO MCP server exposes three read-only tools:
 
 | Task | Tool |
 | --- | --- |
-| Rank supported source files | `rank_files(directories=[], languages=["auto"], limit=10)` |
-| Score exact supported files | `score_files(files=[...])` |
+| Rank supported source files | `rank_files(directories=[], languages=["auto"], limit=0, include_tests=false)` |
+| Score exact supported files | `score_files(files=[...], include_tests=false)` |
 | Inspect configuration and analyzers | `get_config()` |
 
 The analysis tools return the same report format as `slopslap --format json`.

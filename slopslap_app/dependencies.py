@@ -21,6 +21,7 @@ class InstallationMethod(str, Enum):
   MAVEN = "maven"
   NPM = "npm"
   CARGO = "cargo"
+  GO = "go"
 
 
 class ExecutionMethod(str, Enum):
@@ -111,17 +112,23 @@ def _ready_project(dependency: AnalyzerDependency) -> Path | None:
   for project in (dependency.source, _installed_project(dependency)):
     ready = _platform_path(project, dependency.ready_path,
                            dependency.execution_method)
-    if ready.is_file():
+    entrypoint = _platform_path(project, dependency.entrypoint,
+                                dependency.execution_method)
+    if ready.is_file() and entrypoint.is_file():
       return project
   return None
 
 
 def _required_programs(dependency: AnalyzerDependency) -> tuple[str, ...]:
+  if dependency.language == "rust" and dependency.source.name == "structural":
+    return ("cargo", "go")
   if dependency.installation_method is InstallationMethod.MAVEN:
     return ("java", "mvn")
   if dependency.installation_method is InstallationMethod.NPM:
     return ("node", "npm")
-  return ("cargo",)
+  if dependency.installation_method is InstallationMethod.CARGO:
+    return ("cargo",)
+  return ("go",)
 
 
 def _install_commands(dependency: AnalyzerDependency,
@@ -133,8 +140,18 @@ def _install_commands(dependency: AnalyzerDependency,
         ("npm", "--prefix", str(project), "ci", "--ignore-scripts"),
         ("npm", "--prefix", str(project), "run", "build"),
     )
-  return (("cargo", "build", "--locked", "--release", "--manifest-path",
-           str(project / "Cargo.toml")),)
+  if dependency.installation_method is InstallationMethod.CARGO:
+    if dependency.language == "rust" and dependency.source.name == "structural":
+      return (
+          ("cargo", "build", "--locked", "--release", "--manifest-path",
+           str(project / "adapters" / "rust" / "Cargo.toml")),
+          ("go", "build", "-C", str(project), "-o", "slopslap-structural",
+           "./cmd/slopslap-structural"),
+      )
+    return (("cargo", "build", "--locked", "--release", "--manifest-path",
+             str(project / "Cargo.toml")),)
+  return (("go", "build", "-C", str(project), "-o", "slopslap-structural",
+           "./cmd/slopslap-structural"),)
 
 
 def _install(dependency: AnalyzerDependency) -> Path:
@@ -164,10 +181,20 @@ def _install(dependency: AnalyzerDependency) -> Path:
             f"{dependency.installation_method.value} failed while installing "
             f"{dependency.dependency}@{dependency.version}"
         )
-    if not _platform_path(project, dependency.ready_path,
-                          dependency.execution_method).is_file():
+    if dependency.language == "rust" and dependency.source.name == "structural":
+      suffix = ".exe" if os.name == "nt" else ""
+      built = project / "adapters" / "rust" / "target" / "release" \
+          / f"slopslap-structural-rust{suffix}"
+      shutil.copy2(built, _platform_path(
+          project, dependency.ready_path, dependency.execution_method,
+      ))
+    ready = _platform_path(project, dependency.ready_path,
+                           dependency.execution_method)
+    entrypoint = _platform_path(project, dependency.entrypoint,
+                                dependency.execution_method)
+    if not ready.is_file() or not entrypoint.is_file():
       raise AnalyzerDependencyError(
-          f"installation did not create {dependency.ready_path}"
+          f"installation did not create {dependency.ready_path} and {dependency.entrypoint}"
       )
     destination = _installed_project(dependency)
     destination.parent.mkdir(parents=True, exist_ok=True)

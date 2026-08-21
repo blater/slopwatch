@@ -14,7 +14,7 @@ from slopslap_app.schema import configuration_document
 
 
 SERVER_INSTRUCTIONS = (
-    "Use rank_files to find high-scoring Java, TypeScript, or Rust files worth simplifying. "
+    "Use rank_files to find high-scoring Go, Java, TypeScript, or Rust files worth simplifying. "
     "Use score_files with every supported source file changed by feature work. "
     "Use get_config to inspect configuration, analyzers, and scoring components. "
     "Use score_files with a cleanup target before and after refactoring. Lower scores are "
@@ -39,7 +39,8 @@ def _workspace_for(paths: list[Path]) -> Path:
 def rank_files(
     directories: list[str] | None = None,
     languages: list[str] | None = None,
-    limit: int = 10,
+    limit: int = 0,
+    include_tests: bool = False,
 ) -> dict[str, Any]:
   """Rank supported source files with the standard report format."""
   if limit < 0:
@@ -50,7 +51,8 @@ def rank_files(
       Path.cwd(), warn=lambda message: print(f"warning: {message}", file=sys.stderr),
   )
   selected = None if not languages or languages == ["auto"] else languages
-  outcome = analyze_languages(workspace, targets=targets, policy=load_policy(config), languages=selected)
+  outcome = analyze_languages(workspace, targets=targets, policy=load_policy(config),
+                              languages=selected, include_tests=include_tests)
   document = report_document(outcome.scores, calibrated=outcome.profiles.calibrated,
                              diagnostics=outcome.diagnostics,
                              execution_plans=outcome.execution_plans,
@@ -59,12 +61,12 @@ def rank_files(
   return document
 
 
-def score_files(files: list[str]) -> dict[str, Any]:
+def score_files(files: list[str], include_tests: bool = False) -> dict[str, Any]:
   """Score exactly the supplied supported source files."""
   if not files:
     raise ValueError("files must contain at least one source path")
   paths = [Path(item) for item in files]
-  return rank_files([str(item) for item in paths], limit=0)
+  return rank_files([str(item) for item in paths], limit=0, include_tests=include_tests)
 
 
 def get_config() -> dict[str, Any]:

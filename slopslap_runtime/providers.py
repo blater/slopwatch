@@ -49,7 +49,7 @@ class LanguageProvider:
         require_version(self.dependency_version, context="analyzer dependency version")
         if not self.dependency:
             raise ValidationError("analyzer dependency name is required")
-        if self.installation_method not in {"maven", "npm", "cargo"}:
+        if self.installation_method not in {"maven", "npm", "cargo", "go"}:
             raise ValidationError("invalid analyzer installation method")
         if not self.source_extensions or any(not item.startswith(".") or item != item.lower() for item in self.source_extensions):
             raise ValidationError("provider extensions must be lowercase dotted extensions")

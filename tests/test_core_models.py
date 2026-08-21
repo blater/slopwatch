@@ -85,7 +85,7 @@ class CoreCatalogTest(unittest.TestCase):
       self.assertTrue(descriptor.documentation)
       self.assertTrue(descriptor.evidence_posture.value)
 
-  def test_catalogue_aligns_with_typescript_and_rust_analyzer_contracts(self) -> None:
+  def test_catalogue_aligns_with_language_analyzer_contracts(self) -> None:
     catalog = standard_catalog()
     for component_id in (
         "explicit_any", "unsafe_type_assertion", "unsafe_type_propagation",
@@ -99,18 +99,18 @@ class CoreCatalogTest(unittest.TestCase):
       self.assertIn("attributes.normalized_symbol",
                     descriptor.deduplication_key)
     for component_id in (
-        "rust_large_function", "rust_deep_nesting", "rust_unsafe_block",
-        "rust_panic_macro",
+        "cognitive_complexity", "cyclomatic_method_complexity", "npath_complexity",
+        "deeply_nested_if", "cyclomatic_class_complexity",
+        "coupling_between_objects", "god_class",
     ):
       descriptor = catalog.get(component_id)
-      self.assertEqual(descriptor.definition_version, "rust-v1")
-      self.assertFalse(descriptor.default_policy.enabled)
-      self.assertEqual(descriptor.required_capability, "rust_structural")
+      self.assertEqual(descriptor.support["rust"].value, "supported")
+      self.assertTrue(descriptor.default_policy.enabled)
 
   def test_catalogue_rejects_missing_language_support(self) -> None:
     descriptor = standard_catalog().get("cognitive_complexity")
     with self.assertRaises(CatalogError):
-      ComponentCatalog([descriptor], ["java", "typescript", "rust", "go"])
+      ComponentCatalog([descriptor], ["java", "typescript", "rust", "go", "python"])
 
 
 if __name__ == "__main__":

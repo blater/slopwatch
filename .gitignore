@@ -1,10 +1,17 @@
 __pycache__/
+.DS_Store
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 node_modules/
 dist/
+build/
 coverage/
 target/
 docs/
+analyzers/structural/slopslap-structural
+analyzers/structural/slopslap-structural.exe
+analyzers/structural/slopslap-structural-rust
+analyzers/structural/slopslap-structural-rust.exe

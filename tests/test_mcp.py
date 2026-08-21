@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +14,10 @@ class McpSurfaceTests(unittest.TestCase):
     self.assertTrue(callable(slopslap_mcp.get_config))
     self.assertFalse(hasattr(slopslap_mcp, "rank_java_files"))
     self.assertFalse(hasattr(slopslap_mcp, "score_java_files"))
+
+  def test_ranking_has_no_default_result_limit(self) -> None:
+    self.assertEqual(inspect.signature(slopslap_mcp.rank_files)
+                     .parameters["limit"].default, 0)
 
   def test_get_config_uses_shared_read_only_document(self) -> None:
     expected = {"configuration": {}, "analyzers": [], "components": []}

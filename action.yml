@@ -1,5 +1,5 @@
 name: Slopslap
-description: Analyze Java, TypeScript, and Rust design debt with Slopslap.
+description: Analyze Go, Java, TypeScript, and Rust design debt with Slopslap.
 inputs:
   pass-score:
     description: Pass files scoring at or below this value; omit to report only.
@@ -24,9 +24,6 @@ runs:
         fi
         if [[ -n "$(find "$SLOPSLAP_PATH" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' \) -print -quit)" ]]; then
           slopslap install typescript
-        fi
-        if [[ -n "$(find "$SLOPSLAP_PATH" -type f -name '*.rs' -print -quit)" ]]; then
-          slopslap install rust
         fi
     - name: Analyze design debt
       shell: bash

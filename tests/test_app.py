@@ -5,6 +5,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from slopslap_app.cli import _analysis_table, _config_command, main as cli_main
@@ -75,7 +76,8 @@ class ConfigurationTests(unittest.TestCase):
     )
     self.assertIn("Maximum pass score. files whose score is above this", output.getvalue())
     self.assertIn("value are failed.", output.getvalue())
-    for option in ("--config", "--languages", "--format", "--limit",
+    for option in ("--config", "--languages", "--format", "-c", "--compact",
+                   "--include-tests", "--limit",
                    "--pass-score", "--timeout", "--port", "--no-browser",
                    "--workflow"):
       self.assertIn(option, output.getvalue())
@@ -96,6 +98,23 @@ class ConfigurationTests(unittest.TestCase):
     self.assertEqual(args.pass_score, 42)
     self.assertEqual(args.limit, 20)
 
+  def test_analysis_returns_all_results_by_default(self) -> None:
+    captured = []
+    with patch("slopslap_app.cli._analyze", side_effect=lambda args: captured.append(args) or 0), \
+         redirect_stdout(StringIO()):
+      self.assertEqual(cli_main(["analyze", "."]), 0)
+    self.assertEqual(captured[0].limit, 0)
+
+  def test_compact_short_and_long_options(self) -> None:
+    for option in ("-c", "--compact"):
+      with self.subTest(option=option):
+        captured = []
+        with patch("slopslap_app.cli._analyze",
+                   side_effect=lambda args: captured.append(args) or 0), \
+             redirect_stdout(StringIO()):
+          self.assertEqual(cli_main(["analyze", option, "."]), 0)
+        self.assertTrue(captured[0].compact)
+
   def test_java_specific_cli_options_are_absent(self) -> None:
     for option in ("--java-version", "--ruleset", "--max-score"):
       with self.subTest(option=option), redirect_stdout(StringIO()), \
@@ -114,6 +133,7 @@ class ConfigurationTests(unittest.TestCase):
                 "subjects": [{"value": 12}],
             },
             "deeply_nested_if": {"subjects": []},
+            "god_class": {"contribution": 63.5, "subjects": [{"value": 49}]},
         },
     }]}
     table = _analysis_table(document, include_pass=True)
@@ -124,8 +144,47 @@ class ConfigurationTests(unittest.TestCase):
     self.assertIn("NPATH MAX/#", header)
     self.assertIn("CYCLO TOT/MAX", header)
     self.assertIn("DEEP", header)
+    self.assertIn("GOD", header)
     self.assertIn("18/2", row)
+    self.assertIn("63.5", row)
     self.assertIn("-", row)
+
+  def test_compact_analysis_table_contains_only_score_and_path(self) -> None:
+    document = {"files": [{
+        "rank": 7, "score": 24, "passed": False, "path": "src/example.ts",
+        "components": {"cognitive_complexity": {"subjects": [{"value": 18}]}},
+    }]}
+    table = _analysis_table(document, include_pass=True, compact=True)
+    self.assertEqual(table.splitlines(), [
+        "SCORE  PATH",
+        "   24  src/example.ts",
+    ])
+
+  def test_text_analysis_output_contains_only_the_table(self) -> None:
+    document = {
+        "files": [{
+            "rank": 1, "score": 24, "path": "src/example.ts", "components": {},
+        }],
+        "profile_set_hash": "profile-hash",
+        "calibrated": True,
+        "returned_files": 1,
+        "summary": {"files_analyzed": 2},
+    }
+    outcome = SimpleNamespace(
+        scores=object(), profiles=SimpleNamespace(calibrated=True),
+        diagnostics=(), execution_plans=(),
+    )
+    expected = _analysis_table(document, include_pass=False) + "\n"
+    for truncated in (False, True):
+      with self.subTest(truncated=truncated):
+        document["truncated"] = truncated
+        output = StringIO()
+        with patch("slopslap_app.cli._policy", return_value=(None, {})), \
+             patch("slopslap_app.cli.analyze", return_value=outcome), \
+             patch("slopslap_app.cli.report_document", return_value=document), \
+             redirect_stdout(output):
+          self.assertEqual(cli_main(["analyze", ".", "--limit", "1"]), 0)
+        self.assertEqual(output.getvalue(), expected)
 
   def test_analyzer_failure_is_an_error_not_a_score_report(self) -> None:
     output = StringIO()
@@ -268,9 +327,10 @@ class ConfigurationTests(unittest.TestCase):
     self.assertIn("pass-score:", action)
     self.assertIn("required: false", action)
     self.assertIn('--pass-score "$SLOPSLAP_PASS_SCORE"', action)
+    self.assertNotIn("slopslap install go", action)
     self.assertIn("slopslap install java", action)
     self.assertIn("slopslap install typescript", action)
-    self.assertIn("slopslap install rust", action)
+    self.assertNotIn("slopslap install rust", action)
 
   def test_config_command_combines_locations_analyzers_and_components(self) -> None:
     with tempfile.TemporaryDirectory() as temporary:
@@ -335,8 +395,17 @@ class RegistryTests(unittest.TestCase):
         self.assertIn((capability.component_id, capability.definition_version), definitions)
     self.assertEqual(
         {item.component_id for item in registry.capabilities("rust")},
-        {"rust_large_function", "rust_deep_nesting", "rust_unsafe_block",
-         "rust_panic_macro"},
+        {"cognitive_complexity", "cyclomatic_method_complexity",
+         "npath_complexity", "deeply_nested_if",
+         "cyclomatic_class_complexity", "coupling_between_objects",
+         "god_class"},
+    )
+    self.assertEqual(
+        {item.component_id for item in registry.capabilities("go")},
+        {"cognitive_complexity", "cyclomatic_method_complexity",
+         "npath_complexity", "deeply_nested_if",
+         "cyclomatic_class_complexity", "coupling_between_objects",
+         "god_class"},
     )
 
   def test_source_discovery_is_language_neutral_and_ignores_build_outputs(self) -> None:
@@ -344,12 +413,13 @@ class RegistryTests(unittest.TestCase):
       root = Path(temporary)
       (root / "src").mkdir()
       (root / "src" / "A.java").write_text("class A {}", encoding="utf-8")
+      (root / "src" / "main.go").write_text("package main", encoding="utf-8")
       (root / "src" / "a.ts").write_text("const a = 1", encoding="utf-8")
       (root / "src" / "lib.rs").write_text("fn a() {}", encoding="utf-8")
       (root / "node_modules").mkdir()
       (root / "node_modules" / "ignored.ts").write_text("", encoding="utf-8")
       self.assertEqual(discover_sources(root), {
-          "java": ("src/A.java",), "rust": ("src/lib.rs",),
+          "go": ("src/main.go",), "java": ("src/A.java",), "rust": ("src/lib.rs",),
           "typescript": ("src/a.ts",),
       })
 
@@ -366,6 +436,28 @@ class RegistryTests(unittest.TestCase):
           "java": ("looks-like-typescript.java",),
           "typescript": ("looks-like-java.ts",),
       })
+
+  def test_source_discovery_excludes_tests_unless_included(self) -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+      root = Path(temporary)
+      sources = ("src/main.go", "src/main/java/MainTest.java", "src/main.ts", "src/lib.rs")
+      tests = ("src/main_test.go", "src/test/java/Main.java", "src/main.test.ts", "tests/integration.rs")
+      for relative in (*sources, *tests):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+      discovered = {path for paths in discover_sources(root).values() for path in paths}
+      included = {path for paths in discover_sources(root, include_tests=True).values()
+                  for path in paths}
+      self.assertEqual(discovered, set(sources))
+      self.assertEqual(included, set((*sources, *tests)))
+
+      exact_test = Path("src/main_test.go")
+      self.assertEqual(discover_sources(root, (exact_test,)), {})
+      self.assertEqual(
+          discover_sources(root, (exact_test,), include_tests=True),
+          {"go": ("src/main_test.go",)},
+      )
 
 
 if __name__ == "__main__":

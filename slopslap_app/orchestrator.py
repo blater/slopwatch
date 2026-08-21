@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -28,6 +29,15 @@ _IGNORED_DIRECTORIES = frozenset({
     ".ruff_cache", "build", "coverage", "dist", "node_modules", "out",
     "target", "vendor",
 })
+_TEST_DIRECTORIES = frozenset({
+    "__tests__", "integration-test", "integration-tests", "integrationtest",
+    "integrationtests", "spec", "specs", "test", "test-fixtures",
+    "testfixtures", "tests",
+})
+_TYPESCRIPT_TEST_SUFFIXES = (
+    ".spec.cts", ".spec.mts", ".spec.ts", ".spec.tsx",
+    ".test.cts", ".test.mts", ".test.ts", ".test.tsx",
+)
 
 
 class AnalysisError(RuntimeError):
@@ -42,7 +52,18 @@ class AnalysisOutcome:
   execution_plans: tuple[Mapping[str, Any], ...]
 
 
-def discover_sources(workspace: Path, targets: Iterable[Path] = ()) -> dict[str, tuple[str, ...]]:
+def _is_test_source(path: Path, language: str) -> bool:
+  if any(part.lower() in _TEST_DIRECTORIES for part in path.parts[:-1]):
+    return True
+  if language == "go":
+    return path.name.lower().endswith("_test.go")
+  if language == "typescript":
+    return path.name.lower().endswith(_TYPESCRIPT_TEST_SUFFIXES)
+  return False
+
+
+def discover_sources(workspace: Path, targets: Iterable[Path] = (), *,
+                     include_tests: bool = False) -> dict[str, tuple[str, ...]]:
   workspace = workspace.resolve()
   registry = standard_provider_registry()
   roots = tuple(targets) or (workspace,)
@@ -64,6 +85,8 @@ def discover_sources(workspace: Path, targets: Iterable[Path] = ()) -> dict[str,
       try:
         language = registry.language_for_path(relative)
       except RuntimeValidationError:
+        continue
+      if not include_tests and _is_test_source(Path(relative), language):
         continue
       grouped.setdefault(language, set()).add(relative)
   return {language: tuple(sorted(paths)) for language, paths in sorted(grouped.items())}
@@ -144,15 +167,33 @@ def _require_success(records: Iterable[ProtocolRecord], language: str) -> None:
   raise AnalysisError(f"{language} analyzer failed: {message}")
 
 
+def _analyzer_environment(language: str) -> Mapping[str, str] | None:
+  if language != "go":
+    return None
+  go = shutil.which("go")
+  if go is None:
+    raise AnalysisError("Go 1.22+ is required for Go semantic analysis")
+  completed = subprocess.run(
+      (go, "env", "GOROOT"), stdin=subprocess.DEVNULL,
+      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+      timeout=10, check=False,
+  )
+  root = Path(completed.stdout.strip())
+  if completed.returncode != 0 or not root.is_absolute() or not root.is_dir():
+    raise AnalysisError("the Go toolchain did not provide a usable GOROOT")
+  return {"GOROOT": str(root.resolve())}
+
+
 def analyze(workspace: Path, *, targets: Iterable[Path] = (),
             policy: Mapping[str, Any] | None = None,
             languages: Iterable[str] | None = None,
+            include_tests: bool = False,
             timeout_seconds: float = 120) -> AnalysisOutcome:
   workspace = workspace.resolve()
-  discovered = discover_sources(workspace, targets)
+  discovered = discover_sources(workspace, targets, include_tests=include_tests)
   selected = tuple(dict.fromkeys(languages or discovered.keys()))
   if not selected:
-    raise AnalysisError("no supported Java, TypeScript, or Rust source files found")
+    raise AnalysisError("no supported Go, Java, TypeScript, or Rust source files found")
   missing = [language for language in selected if language not in discovered]
   if missing:
     raise AnalysisError(f"no source files discovered for: {', '.join(missing)}")
@@ -186,6 +227,7 @@ def analyze(workspace: Path, *, targets: Iterable[Path] = (),
         raise AnalysisError(f"provider {language} does not support {component.component_id}")
     unit = ProtocolUnit(f"{language}-unit", language, discovered[language])
     options: dict[str, Any] = {}
+    options["include_tests"] = include_tests
     if language == "typescript":
       options["typescript_types"] = "auto"
     elif language == "java":
@@ -200,7 +242,10 @@ def analyze(workspace: Path, *, targets: Iterable[Path] = (),
           options["pmd_classpath"] = libraries
     request = AnalyzerRequest.create(workspace, (unit,), components,
                                      options=options, limits={"max_seconds": int(timeout_seconds)})
-    result = process.run(analyzer_commands[language], request)
+    result = process.run(
+        analyzer_commands[language], request,
+        environment=_analyzer_environment(language),
+    )
     invoked += 1
     _require_success(result.records, language)
     converted = _convert(result.records, request)

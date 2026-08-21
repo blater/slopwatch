@@ -71,8 +71,16 @@ def _add_analysis_options(parser: Any) -> None:
       help="select text or JSON output (default: text)",
   )
   parser.add_argument(
-      "--limit", type=_non_negative_integer, default=50,
-      help="maximum results to return; 0 returns all (default: 50)",
+      "-c", "--compact", action="store_true",
+      help="show only score and path in text output",
+  )
+  parser.add_argument(
+      "--include-tests", action="store_true",
+      help="include test source files in the analysis",
+  )
+  parser.add_argument(
+      "--limit", type=_non_negative_integer, default=0,
+      help="maximum results to return; 0 returns all (default: all)",
   )
   parser.add_argument(
       "--pass-score", metavar="SCORE", type=_non_negative_score,
@@ -138,7 +146,9 @@ def _parser() -> argparse.ArgumentParser:
   )
   action_parser.add_argument("score", nargs="?", type=_non_negative_score)
   _add_action_options(action_parser)
-  analyze_parser = commands.add_parser("analyze", help="analyze Java, TypeScript, and Rust sources")
+  analyze_parser = commands.add_parser(
+      "analyze", help="analyze Go, Java, TypeScript, and Rust sources",
+  )
   analyze_parser.add_argument("targets", nargs="*", type=Path)
   _add_analysis_options(analyze_parser)
 
@@ -237,28 +247,34 @@ def _cyclomatic(item: dict[str, Any]) -> str:
 
 def _depth(item: dict[str, Any]) -> str:
   nested = _component_values(item, "deeply_nested_if")
-  if nested is not None:
-    return _display_number(sum(nested))
-  rust = _component_values(item, "rust_deep_nesting")
-  if rust is not None:
-    return _display_number(max(rust, default=0))
-  return "-"
+  return "-" if nested is None else _display_number(sum(nested))
 
 
-def _analysis_table(document: dict[str, Any], *, include_pass: bool) -> str:
-  headers = ["RANK", "SCORE", "COG MAX/#", "NPATH MAX/#",
-             "CYCLO TOT/MAX", "DEEP", "PATH"]
-  if include_pass:
+def _component_score(item: dict[str, Any], component_id: str) -> str:
+  component = item["components"].get(component_id)
+  return "-" if component is None else _display_number(component["contribution"])
+
+
+def _analysis_table(document: dict[str, Any], *, include_pass: bool,
+                    compact: bool = False) -> str:
+  headers = (["SCORE", "PATH"] if compact else
+             ["RANK", "SCORE", "COG MAX/#", "NPATH MAX/#",
+              "CYCLO TOT/MAX", "DEEP", "GOD", "PATH"])
+  if include_pass and not compact:
     headers.insert(0, "PASS")
   rows: list[list[str]] = []
   for item in document["files"]:
-    row = [
-        str(item["rank"]), _display_number(item["score"]),
-        _max_count(item, "cognitive_complexity"),
-        _max_count(item, "npath_complexity"),
-        _cyclomatic(item), _depth(item), item["path"],
-    ]
-    if include_pass:
+    if compact:
+      row = [_display_number(item["score"]), item["path"]]
+    else:
+      row = [
+          str(item["rank"]), _display_number(item["score"]),
+          _max_count(item, "cognitive_complexity"),
+          _max_count(item, "npath_complexity"),
+          _cyclomatic(item), _depth(item),
+          _component_score(item, "god_class"), item["path"],
+      ]
+    if include_pass and not compact:
       row.insert(0, "yes" if item["passed"] else "NO")
     rows.append(row)
   widths = [len(header) for header in headers]
@@ -280,7 +296,8 @@ def _analyze(args: argparse.Namespace) -> int:
   workspace = Path.cwd().resolve()
   config_path, policy = _policy(args.config)
   outcome = analyze(workspace, targets=args.targets, policy=policy,
-                    languages=args.languages, timeout_seconds=args.timeout)
+                    languages=args.languages, include_tests=args.include_tests,
+                    timeout_seconds=args.timeout)
   document = report_document(outcome.scores, calibrated=outcome.profiles.calibrated,
                              diagnostics=outcome.diagnostics,
                              execution_plans=outcome.execution_plans,
@@ -289,12 +306,8 @@ def _analyze(args: argparse.Namespace) -> int:
   if args.format == "json":
     _json(document)
   else:
-    print(_analysis_table(document, include_pass=args.pass_score is not None))
-    if document["truncated"]:
-      print(f"showing {document['returned_files']} of "
-            f"{document['summary']['files_analyzed']} files; use --limit 0 for all")
-    print(f"profile {document['profile_set_hash']} "
-          f"({'calibrated' if document['calibrated'] else 'customized'})")
+    print(_analysis_table(document, include_pass=args.pass_score is not None,
+                          compact=args.compact))
   if args.pass_score is not None and not document["summary"]["passed"]:
     return 3
   return 0

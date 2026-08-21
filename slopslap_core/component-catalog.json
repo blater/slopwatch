@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "profile": "slopslap-balanced-v1",
-  "languages": ["java", "rust", "typescript"],
+  "languages": ["go", "java", "rust", "typescript"],
   "analyzers": [
     {
       "language": "java",
@@ -13,6 +13,17 @@
       "source": "../analyzers/java",
       "entrypoint": "cli.py",
       "ready_path": "target/slopslap-pmd-bridge-0.1.0.jar"
+    },
+    {
+      "language": "go",
+      "extensions": [".go"],
+      "dependency": "slopslap-structural",
+      "version": "0.1.0",
+      "installation_method": "go",
+      "execution_method": "direct",
+      "source": "../analyzers/structural",
+      "entrypoint": "slopslap-structural",
+      "ready_path": "slopslap-structural"
     },
     {
       "language": "typescript",
@@ -28,13 +39,13 @@
     {
       "language": "rust",
       "extensions": [".rs"],
-      "dependency": "slopslap-rust-structural",
+      "dependency": "slopslap-structural-rust-adapter",
       "version": "0.1.0",
       "installation_method": "cargo",
       "execution_method": "direct",
-      "source": "../analyzers/rust",
-      "entrypoint": "target/release/slopslap-rust-structural",
-      "ready_path": "target/release/slopslap-rust-structural"
+      "source": "../analyzers/structural",
+      "entrypoint": "slopslap-structural",
+      "ready_path": "slopslap-structural-rust"
     }
   ],
   "components": [
@@ -55,7 +66,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
+      "support": {"go": "not_applicable", "java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "4", "formula": "log-count", "cap": null}
     },
     {
@@ -75,7 +86,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "conformant", "rust": "unsupported", "typescript": "conformant"},
+      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "conformant"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "15", "weight": "10", "formula": "log-ratio", "cap": null}
     },
     {
@@ -95,7 +106,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "conformant", "rust": "unsupported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "unsupported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "20", "weight": "10", "formula": "log-ratio", "cap": null}
     },
     {
@@ -115,7 +126,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "conformant", "rust": "unsupported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "unsupported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "80", "weight": "5", "formula": "log-ratio", "cap": null}
     },
     {
@@ -135,7 +146,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "conformant", "rust": "unsupported", "typescript": "conformant"},
+      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "conformant"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "10", "weight": "5", "formula": "log-ratio", "cap": null}
     },
     {
@@ -155,7 +166,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "conformant", "rust": "unsupported", "typescript": "conformant"},
+      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "conformant"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "6", "formula": "count", "cap": null}
     },
     {
@@ -175,7 +186,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
+      "support": {"go": "not_applicable", "java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "3", "formula": "log-count", "cap": null}
     },
     {
@@ -188,14 +199,14 @@
       "scopes": ["type"],
       "deduplication_key": ["subject.location", "subject.symbol"],
       "aggregator": "sum",
-      "required_capability": "java_design_metrics",
+      "required_capability": "structural_type_metrics",
       "evidence_posture": "oracle_aligned",
       "documentation": "docs/components/god_class.md",
       "allowed_formulas": ["god-class/pmd-v1"],
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "conformant", "rust": "unsupported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "unsupported"},
       "defaults": {"enabled": true, "severity": "error", "threshold": null, "weight": "1", "formula": "god-class/pmd-v1", "cap": null}
     },
     {
@@ -215,7 +226,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
+      "support": {"go": "not_applicable", "java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "8", "formula": "log-count", "cap": null}
     },
     {
@@ -235,88 +246,8 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "conformant", "rust": "unsupported", "typescript": "conformant"},
+      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "conformant"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "200", "weight": "8", "formula": "log-ratio", "cap": null}
-    },
-    {
-      "component_id": "rust_deep_nesting",
-      "definition_version": "rust-v1",
-      "axis": "rust_design",
-      "taxonomy": "rust.design.nesting",
-      "kind": "continuous",
-      "numeric_type": "integer",
-      "scopes": ["function"],
-      "deduplication_key": ["subject.location", "subject.symbol"],
-      "aggregator": "sum",
-      "required_capability": "rust_structural",
-      "evidence_posture": "experimental",
-      "documentation": "docs/components/rust_deep_nesting.md",
-      "allowed_formulas": ["linear-over-threshold", "log-ratio"],
-      "value_constraint": {"minimum": "0", "maximum": null},
-      "threshold_constraint": {"minimum": "1", "maximum": null},
-      "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "supported", "typescript": "not_applicable"},
-      "defaults": {"enabled": false, "severity": "info", "threshold": "5", "weight": "6", "formula": "log-ratio", "cap": null}
-    },
-    {
-      "component_id": "rust_large_function",
-      "definition_version": "rust-v1",
-      "axis": "rust_design",
-      "taxonomy": "rust.design.function_size",
-      "kind": "continuous",
-      "numeric_type": "integer",
-      "scopes": ["function"],
-      "deduplication_key": ["subject.location", "subject.symbol"],
-      "aggregator": "sum",
-      "required_capability": "rust_structural",
-      "evidence_posture": "experimental",
-      "documentation": "docs/components/rust_large_function.md",
-      "allowed_formulas": ["linear-over-threshold", "log-ratio"],
-      "value_constraint": {"minimum": "0", "maximum": null},
-      "threshold_constraint": {"minimum": "1", "maximum": null},
-      "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "supported", "typescript": "not_applicable"},
-      "defaults": {"enabled": false, "severity": "info", "threshold": "100", "weight": "7", "formula": "log-ratio", "cap": null}
-    },
-    {
-      "component_id": "rust_panic_macro",
-      "definition_version": "rust-v1",
-      "axis": "rust_design",
-      "taxonomy": "rust.design.panic",
-      "kind": "count",
-      "numeric_type": "integer",
-      "scopes": ["expression"],
-      "deduplication_key": ["subject.location", "subject.symbol"],
-      "aggregator": "sum",
-      "required_capability": "rust_structural",
-      "evidence_posture": "experimental",
-      "documentation": "docs/components/rust_panic_macro.md",
-      "allowed_formulas": ["binary", "count", "log-count"],
-      "value_constraint": {"minimum": "1", "maximum": "1"},
-      "threshold_constraint": {"minimum": "1", "maximum": null},
-      "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "supported", "typescript": "not_applicable"},
-      "defaults": {"enabled": false, "severity": "info", "threshold": null, "weight": "5", "formula": "log-count", "cap": null}
-    },
-    {
-      "component_id": "rust_unsafe_block",
-      "definition_version": "rust-v1",
-      "axis": "rust_design",
-      "taxonomy": "rust.design.unsafe",
-      "kind": "count",
-      "numeric_type": "integer",
-      "scopes": ["expression"],
-      "deduplication_key": ["subject.location", "subject.symbol"],
-      "aggregator": "sum",
-      "required_capability": "rust_structural",
-      "evidence_posture": "experimental",
-      "documentation": "docs/components/rust_unsafe_block.md",
-      "allowed_formulas": ["binary", "count", "log-count"],
-      "value_constraint": {"minimum": "1", "maximum": "1"},
-      "threshold_constraint": {"minimum": "1", "maximum": null},
-      "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "supported", "typescript": "not_applicable"},
-      "defaults": {"enabled": false, "severity": "info", "threshold": null, "weight": "4", "formula": "log-count", "cap": null}
     },
     {
       "component_id": "type_complexity",
@@ -335,7 +266,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "unsupported", "typescript": "not_applicable"},
+      "support": {"go": "not_applicable", "java": "not_applicable", "rust": "unsupported", "typescript": "not_applicable"},
       "defaults": {"enabled": false, "severity": "info", "threshold": null, "weight": "7", "formula": "log-count", "cap": null}
     },
     {
@@ -355,7 +286,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
+      "support": {"go": "not_applicable", "java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "5", "formula": "log-count", "cap": null}
     },
     {
@@ -375,7 +306,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
+      "support": {"go": "not_applicable", "java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "10", "formula": "log-count", "cap": null}
     },
     {
@@ -395,7 +326,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
+      "support": {"go": "not_applicable", "java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "4", "formula": "log-count", "cap": null}
     },
     {
@@ -415,7 +346,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
+      "support": {"go": "not_applicable", "java": "not_applicable", "rust": "not_applicable", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "4", "formula": "log-count", "cap": null}
     }
   ]
