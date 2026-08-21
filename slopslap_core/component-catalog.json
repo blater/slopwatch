@@ -1,21 +1,23 @@
 {
-  "schema": 1,
+  "schema": 2,
   "profile": "slopslap-balanced-v1",
   "languages": ["go", "java", "rust", "typescript"],
   "analyzers": [
     {
       "language": "java",
+      "backend": "structural",
       "extensions": [".java"],
-      "dependency": "dev.slopslap:slopslap-pmd-bridge",
+      "dependency": "slopslap-structural-java-adapter",
       "version": "0.1.0",
-      "installation_method": "maven",
-      "execution_method": "python",
-      "source": "../analyzers/java",
-      "entrypoint": "cli.py",
-      "ready_path": "target/slopslap-pmd-bridge-0.1.0.jar"
+      "installation_method": "jdk",
+      "execution_method": "direct",
+      "source": "../analyzers/structural",
+      "entrypoint": "slopslap-structural",
+      "ready_path": "slopslap-structural-java.jar"
     },
     {
       "language": "go",
+      "backend": "structural",
       "extensions": [".go"],
       "dependency": "slopslap-structural",
       "version": "0.1.0",
@@ -27,6 +29,7 @@
     },
     {
       "language": "typescript",
+      "backend": "typescript",
       "extensions": [".ts", ".tsx", ".mts", ".cts"],
       "dependency": "@slopslap/typescript-analyzer",
       "version": "0.1.0",
@@ -38,6 +41,7 @@
     },
     {
       "language": "rust",
+      "backend": "structural",
       "extensions": [".rs"],
       "dependency": "slopslap-structural-rust-adapter",
       "version": "0.1.0",
@@ -46,6 +50,20 @@
       "source": "../analyzers/structural",
       "entrypoint": "slopslap-structural",
       "ready_path": "slopslap-structural-rust"
+    }
+  ],
+  "analyzer_backends": [
+    {
+      "language": "java",
+      "backend": "pmd",
+      "extensions": [".java"],
+      "dependency": "dev.slopslap:slopslap-pmd-bridge",
+      "version": "0.1.0",
+      "installation_method": "maven",
+      "execution_method": "python",
+      "source": "../analyzers/java",
+      "entrypoint": "cli.py",
+      "ready_path": "target/slopslap-pmd-bridge-0.1.0.jar"
     }
   ],
   "components": [
@@ -86,7 +104,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "conformant"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "15", "weight": "10", "formula": "log-ratio", "cap": null}
     },
     {
@@ -106,7 +124,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "unsupported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "20", "weight": "10", "formula": "log-ratio", "cap": null}
     },
     {
@@ -126,7 +144,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "unsupported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "80", "weight": "5", "formula": "log-ratio", "cap": null}
     },
     {
@@ -146,7 +164,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "conformant"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "10", "weight": "5", "formula": "log-ratio", "cap": null}
     },
     {
@@ -166,7 +184,7 @@
       "value_constraint": {"minimum": "1", "maximum": "1"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "conformant"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "6", "formula": "count", "cap": null}
     },
     {
@@ -206,7 +224,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "unsupported"},
       "defaults": {"enabled": true, "severity": "error", "threshold": null, "weight": "1", "formula": "god-class/pmd-v1", "cap": null}
     },
     {
@@ -246,7 +264,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "conformant", "rust": "supported", "typescript": "conformant"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "200", "weight": "8", "formula": "log-ratio", "cap": null}
     },
     {

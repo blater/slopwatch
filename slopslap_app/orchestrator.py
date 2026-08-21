@@ -188,6 +188,7 @@ def analyze(workspace: Path, *, targets: Iterable[Path] = (),
             policy: Mapping[str, Any] | None = None,
             languages: Iterable[str] | None = None,
             include_tests: bool = False,
+            backends: Mapping[str, str] | None = None,
             timeout_seconds: float = 120) -> AnalysisOutcome:
   workspace = workspace.resolve()
   discovered = discover_sources(workspace, targets, include_tests=include_tests)
@@ -197,7 +198,16 @@ def analyze(workspace: Path, *, targets: Iterable[Path] = (),
   missing = [language for language in selected if language not in discovered]
   if missing:
     raise AnalysisError(f"no source files discovered for: {', '.join(missing)}")
-  analyzer_commands = {language: ensure_analyzer(language) for language in selected}
+  backend_overrides = dict(backends or {})
+  irrelevant = sorted(set(backend_overrides).difference(selected))
+  if irrelevant:
+    raise AnalysisError(
+        f"backend override has no selected source language: {', '.join(irrelevant)}"
+    )
+  analyzer_commands = {
+      language: ensure_analyzer(language, backend=backend_overrides.get(language))
+      for language in selected
+  }
   catalog = standard_catalog()
   profiles = resolve_profile_set(
       catalog, balanced_profile(), selected, policy or {},
@@ -234,12 +244,14 @@ def analyze(workspace: Path, *, targets: Iterable[Path] = (),
       java = shutil.which("java")
       if java is not None:
         options["java_path"] = str(Path(java).resolve())
-      pmd_home = os.environ.get("SLOPSLAP_PMD_HOME")
-      if pmd_home:
-        libraries = sorted(str(item.resolve()) for item in (Path(pmd_home) / "lib").glob("*")
-                           if item.is_file())
-        if libraries:
-          options["pmd_classpath"] = libraries
+      if backend_overrides.get("java") == "pmd":
+        pmd_home = os.environ.get("SLOPSLAP_PMD_HOME")
+        if pmd_home:
+          libraries = sorted(str(item.resolve())
+                             for item in (Path(pmd_home) / "lib").glob("*")
+                             if item.is_file())
+          if libraries:
+            options["pmd_classpath"] = libraries
     request = AnalyzerRequest.create(workspace, (unit,), components,
                                      options=options, limits={"max_seconds": int(timeout_seconds)})
     result = process.run(

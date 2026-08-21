@@ -22,6 +22,7 @@ class InstallationMethod(str, Enum):
   NPM = "npm"
   CARGO = "cargo"
   GO = "go"
+  JDK = "jdk"
 
 
 class ExecutionMethod(str, Enum):
@@ -37,6 +38,7 @@ class AnalyzerDependencyError(AnalyzerRuntimeError):
 @dataclass(frozen=True)
 class AnalyzerDependency:
   language: str
+  backend: str
   extensions: tuple[str, ...]
   dependency: str
   version: str
@@ -48,42 +50,81 @@ class AnalyzerDependency:
 
 
 _FIELDS = {
-    "language", "extensions", "dependency", "version", "installation_method",
+    "language", "backend", "extensions", "dependency", "version", "installation_method",
     "execution_method", "source", "entrypoint", "ready_path",
 }
 
 
+def _dependency(raw: Any, name: str) -> AnalyzerDependency:
+  distribution_root = CATALOG_PATH.parent.parent.resolve()
+  if not isinstance(raw, Mapping) or set(raw) != _FIELDS:
+    raise AnalyzerDependencyError(f"{name} has invalid fields")
+  language = str(raw["language"])
+  backend = str(raw["backend"])
+  if not backend:
+    raise AnalyzerDependencyError(f"{name}.backend is invalid")
+  extensions = raw["extensions"]
+  if not isinstance(extensions, list) or not extensions \
+      or any(not isinstance(item, str) or not item.startswith(".") for item in extensions):
+    raise AnalyzerDependencyError(f"{name}.extensions is invalid")
+  source = (CATALOG_PATH.parent / str(raw["source"])).resolve()
+  try:
+    source.relative_to(distribution_root)
+  except ValueError as error:
+    raise AnalyzerDependencyError(f"{name}.source escapes the installation") from error
+  return AnalyzerDependency(
+      language=language,
+      backend=backend,
+      extensions=tuple(extensions),
+      dependency=str(raw["dependency"]),
+      version=str(raw["version"]),
+      installation_method=InstallationMethod(str(raw["installation_method"])),
+      execution_method=ExecutionMethod(str(raw["execution_method"])),
+      source=source,
+      entrypoint=Path(str(raw["entrypoint"])),
+      ready_path=Path(str(raw["ready_path"])),
+  )
+
+
 def analyzer_dependencies() -> dict[str, AnalyzerDependency]:
   result: dict[str, AnalyzerDependency] = {}
-  distribution_root = CATALOG_PATH.parent.parent.resolve()
   for index, raw in enumerate(catalog_document()["analyzers"]):
-    if not isinstance(raw, Mapping) or set(raw) != _FIELDS:
-      raise AnalyzerDependencyError(f"analyzers[{index}] has invalid fields")
-    language = str(raw["language"])
-    extensions = raw["extensions"]
-    if not isinstance(extensions, list) or not extensions \
-        or any(not isinstance(item, str) or not item.startswith(".") for item in extensions):
-      raise AnalyzerDependencyError(f"analyzers[{index}].extensions is invalid")
-    source = (CATALOG_PATH.parent / str(raw["source"])).resolve()
-    try:
-      source.relative_to(distribution_root)
-    except ValueError as error:
-      raise AnalyzerDependencyError(f"analyzers[{index}].source escapes the installation") from error
-    dependency = AnalyzerDependency(
-        language=language,
-        extensions=tuple(extensions),
-        dependency=str(raw["dependency"]),
-        version=str(raw["version"]),
-        installation_method=InstallationMethod(str(raw["installation_method"])),
-        execution_method=ExecutionMethod(str(raw["execution_method"])),
-        source=source,
-        entrypoint=Path(str(raw["entrypoint"])),
-        ready_path=Path(str(raw["ready_path"])),
-    )
-    if language in result:
-      raise AnalyzerDependencyError(f"duplicate analyzer dependency for {language}")
-    result[language] = dependency
+    dependency = _dependency(raw, f"analyzers[{index}]")
+    if dependency.language in result:
+      raise AnalyzerDependencyError(
+          f"duplicate analyzer dependency for {dependency.language}"
+      )
+    result[dependency.language] = dependency
   return result
+
+
+def analyzer_backends() -> dict[tuple[str, str], AnalyzerDependency]:
+  result = {
+      (item.language, item.backend): item for item in analyzer_dependencies().values()
+  }
+  for index, raw in enumerate(catalog_document()["analyzer_backends"]):
+    dependency = _dependency(raw, f"analyzer_backends[{index}]")
+    key = (dependency.language, dependency.backend)
+    if key in result:
+      raise AnalyzerDependencyError(
+          f"duplicate analyzer backend for {dependency.language}={dependency.backend}"
+      )
+    result[key] = dependency
+  return result
+
+
+def analyzer_dependency(language: str, backend: str | None = None) -> AnalyzerDependency:
+  if backend is None:
+    try:
+      return analyzer_dependencies()[language]
+    except KeyError as error:
+      raise AnalyzerDependencyError(f"no analyzer dependency for {language}") from error
+  try:
+    return analyzer_backends()[(language, backend)]
+  except KeyError as error:
+    raise AnalyzerDependencyError(
+        f"no analyzer backend {backend!r} for {language}"
+    ) from error
 
 
 def dependency_root() -> Path:
@@ -97,7 +138,7 @@ def dependency_root() -> Path:
 
 
 def _installed_project(dependency: AnalyzerDependency) -> Path:
-  return dependency_root() / dependency.language / dependency.version
+  return dependency_root() / dependency.language / dependency.backend / dependency.version
 
 
 def _platform_path(project: Path, relative: Path,
@@ -120,6 +161,8 @@ def _ready_project(dependency: AnalyzerDependency) -> Path | None:
 
 
 def _required_programs(dependency: AnalyzerDependency) -> tuple[str, ...]:
+  if dependency.installation_method is InstallationMethod.JDK:
+    return ("go", "javac", "jar")
   if dependency.language == "rust" and dependency.source.name == "structural":
     return ("cargo", "go")
   if dependency.installation_method is InstallationMethod.MAVEN:
@@ -133,6 +176,19 @@ def _required_programs(dependency: AnalyzerDependency) -> tuple[str, ...]:
 
 def _install_commands(dependency: AnalyzerDependency,
                       project: Path) -> tuple[tuple[str, ...], ...]:
+  if dependency.installation_method is InstallationMethod.JDK:
+    classes = project / "adapters" / "java" / "build" / "classes"
+    helper = project / "slopslap-structural-java.jar"
+    sources = tuple(str(path) for path in sorted(
+        (project / "adapters" / "java" / "src").rglob("*.java")
+    ))
+    return (
+        ("javac", "--release", "17", "-d", str(classes), *sources),
+        ("jar", "--create", "--file", str(helper), "--main-class",
+         "dev.slopslap.structural.Main", "-C", str(classes), "."),
+        ("go", "build", "-C", str(project), "-o", "slopslap-structural",
+         "./cmd/slopslap-structural"),
+    )
   if dependency.installation_method is InstallationMethod.MAVEN:
     return (("mvn", "-q", "-f", str(project / "pom.xml"), "package"),)
   if dependency.installation_method is InstallationMethod.NPM:
@@ -174,6 +230,10 @@ def _install(dependency: AnalyzerDependency) -> Path:
         dependency.source, project,
         ignore=shutil.ignore_patterns("__pycache__", "dist", "node_modules", "target"),
     )
+    if dependency.installation_method is InstallationMethod.JDK:
+      (project / "adapters" / "java" / "build" / "classes").mkdir(
+          parents=True, exist_ok=True,
+      )
     for command in _install_commands(dependency, project):
       completed = subprocess.run(command, stdin=subprocess.DEVNULL, check=False)
       if completed.returncode != 0:
@@ -222,15 +282,13 @@ def _command(dependency: AnalyzerDependency, project: Path) -> tuple[str, ...]:
 def ensure_analyzer(
     language: str,
     *,
+    backend: str | None = None,
     input_stream: Any | None = None,
     prompt: Callable[[str], str] | None = None,
 ) -> tuple[str, ...]:
   input_stream = sys.stdin if input_stream is None else input_stream
   prompt = input if prompt is None else prompt
-  try:
-    dependency = analyzer_dependencies()[language]
-  except KeyError as error:
-    raise AnalyzerDependencyError(f"no analyzer dependency for {language}") from error
+  dependency = analyzer_dependency(language, backend)
   project = _ready_project(dependency)
   if project is not None:
     return _command(dependency, project)
@@ -248,12 +306,9 @@ def ensure_analyzer(
   return _command(dependency, _install(dependency))
 
 
-def install_analyzer(language: str) -> bool:
+def install_analyzer(language: str, *, backend: str | None = None) -> bool:
   """Install one analyzer, returning False when it was already ready."""
-  try:
-    dependency = analyzer_dependencies()[language]
-  except KeyError as error:
-    raise AnalyzerDependencyError(f"no analyzer dependency for {language}") from error
+  dependency = analyzer_dependency(language, backend)
   if _ready_project(dependency) is not None:
     return False
   _install(dependency)
@@ -263,6 +318,7 @@ def install_analyzer(language: str) -> bool:
 def dependency_statuses() -> tuple[dict[str, Any], ...]:
   return tuple({
       "language": dependency.language,
+      "backend": dependency.backend,
       "ready": _ready_project(dependency) is not None,
       "dependency": dependency.dependency,
       "version": dependency.version,

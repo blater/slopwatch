@@ -14,7 +14,8 @@ func booleanComplexity(expression *facts.Expression) int {
 		return 0
 	}
 	value := 0
-	if expression.Kind == facts.ExprAnd || expression.Kind == facts.ExprOr {
+	if expression.Kind == facts.ExprAnd || expression.Kind == facts.ExprOr ||
+		expression.Kind == facts.ExprConditional {
 		value++
 	}
 	for _, child := range expression.Children {

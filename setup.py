@@ -11,7 +11,8 @@ from wheel.bdist_wheel import bdist_wheel
 
 sys.path.insert(0, str(Path(__file__).parent))
 from slopslap_build import (
-    StructuralAnalyzerBuildError, build_rust_adapter, build_structural_analyzer,
+    StructuralAnalyzerBuildError, build_java_adapter, build_rust_adapter,
+    build_structural_analyzer,
 )
 
 
@@ -32,10 +33,14 @@ class BuildPyWithStructuralAnalyzer(build_py):
         else "slopslap-structural-rust"
     return self._target().with_name(name)
 
+  def _java_target(self) -> Path:
+    return self._target().with_name("slopslap-structural-java.jar")
+
   def run(self) -> None:
     try:
       build_structural_analyzer(self._target())
       build_rust_adapter(self._rust_target())
+      build_java_adapter(self._java_target())
     except StructuralAnalyzerBuildError as error:
       raise DistutilsExecError(str(error)) from error
     super().run()

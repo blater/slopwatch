@@ -5,8 +5,9 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from slopslap_app.dependencies import (
-    AnalyzerDependencyError, InstallationMethod, analyzer_dependencies,
-    ensure_analyzer, install_analyzer, _install_commands, _required_programs,
+    AnalyzerDependencyError, InstallationMethod, analyzer_backends,
+    analyzer_dependencies, ensure_analyzer, install_analyzer, _install_commands,
+    _required_programs,
 )
 
 
@@ -29,7 +30,7 @@ class AnalyzerDependencyTests(unittest.TestCase):
     )
     self.assertEqual(dependencies["rust"].extensions, (".rs",))
     self.assertEqual(dependencies["java"].installation_method,
-                     InstallationMethod.MAVEN)
+                     InstallationMethod.JDK)
     self.assertEqual(dependencies["typescript"].installation_method,
                      InstallationMethod.NPM)
     self.assertEqual(dependencies["rust"].installation_method,
@@ -39,8 +40,14 @@ class AnalyzerDependencyTests(unittest.TestCase):
     self.assertTrue(all(item.version == "0.1.0" for item in dependencies.values()))
     self.assertEqual(dependencies["rust"].source.name, "structural")
     self.assertEqual(_required_programs(dependencies["rust"]), ("cargo", "go"))
+    self.assertEqual(_required_programs(dependencies["java"]),
+                     ("go", "javac", "jar"))
     commands = _install_commands(dependencies["rust"], Path("/project"))
     self.assertEqual([command[0] for command in commands], ["cargo", "go"])
+    backends = analyzer_backends()
+    self.assertEqual(backends[("java", "structural")], dependencies["java"])
+    self.assertEqual(backends[("java", "pmd")].installation_method,
+                     InstallationMethod.MAVEN)
 
   def test_missing_dependency_does_not_prompt_noninteractive_process(self) -> None:
     prompt = Mock(return_value="yes")

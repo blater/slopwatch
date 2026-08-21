@@ -86,6 +86,8 @@ func walkCognitiveExpression(expression *facts.Expression, state *cognitiveState
 		state.booleanOp = expression.Kind
 	case facts.ExprNot:
 		state.booleanOp = facts.ExprOther
+	case facts.ExprConditional:
+		state.complexity += 1 + state.nesting
 	}
 	for _, call := range expression.Calls {
 		for _, active := range state.stack {

@@ -41,6 +41,7 @@ def rank_files(
     languages: list[str] | None = None,
     limit: int = 0,
     include_tests: bool = False,
+    backends: dict[str, str] | None = None,
 ) -> dict[str, Any]:
   """Rank supported source files with the standard report format."""
   if limit < 0:
@@ -52,7 +53,8 @@ def rank_files(
   )
   selected = None if not languages or languages == ["auto"] else languages
   outcome = analyze_languages(workspace, targets=targets, policy=load_policy(config),
-                              languages=selected, include_tests=include_tests)
+                              languages=selected, include_tests=include_tests,
+                              backends=backends)
   document = report_document(outcome.scores, calibrated=outcome.profiles.calibrated,
                              diagnostics=outcome.diagnostics,
                              execution_plans=outcome.execution_plans,
@@ -61,12 +63,14 @@ def rank_files(
   return document
 
 
-def score_files(files: list[str], include_tests: bool = False) -> dict[str, Any]:
+def score_files(files: list[str], include_tests: bool = False,
+                backends: dict[str, str] | None = None) -> dict[str, Any]:
   """Score exactly the supplied supported source files."""
   if not files:
     raise ValueError("files must contain at least one source path")
   paths = [Path(item) for item in files]
-  return rank_files([str(item) for item in paths], limit=0, include_tests=include_tests)
+  return rank_files([str(item) for item in paths], limit=0,
+                    include_tests=include_tests, backends=backends)
 
 
 def get_config() -> dict[str, Any]:

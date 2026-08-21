@@ -11,6 +11,7 @@ import (
 
 	"slopslap.dev/structural/internal/adapters"
 	"slopslap.dev/structural/internal/goadapter"
+	"slopslap.dev/structural/internal/javaadapter"
 	"slopslap.dev/structural/internal/metrics"
 	"slopslap.dev/structural/internal/rustadapter"
 )
@@ -126,7 +127,9 @@ func run(input request, writer io.Writer) int {
 	sort.Strings(kernels)
 	analyzed := make([]string, 0, len(input.Units))
 	failed := make([]string, 0)
-	adapterRegistry, registryErr := adapters.NewRegistry(goadapter.Adapter{}, rustadapter.Adapter{})
+	adapterRegistry, registryErr := adapters.NewRegistry(
+		goadapter.Adapter{}, javaadapter.Adapter{}, rustadapter.Adapter{},
+	)
 	if registryErr != nil {
 		out.emit("terminal", map[string]any{
 			"status": "failure", "message": registryErr.Error(),

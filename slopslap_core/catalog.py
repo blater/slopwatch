@@ -103,15 +103,21 @@ def _load() -> tuple[dict[str, Any], ComponentCatalog]:
   except (OSError, json.JSONDecodeError) as error:
     raise CatalogError(f"cannot load component catalogue {CATALOG_PATH}: {error}") from error
   root = _mapping(document, "component catalogue")
-  if set(root) != {"schema", "profile", "languages", "analyzers", "components"}:
+  if set(root) != {
+      "schema", "profile", "languages", "analyzers", "analyzer_backends", "components",
+  }:
     raise CatalogError("component catalogue has invalid top-level fields")
-  if root["schema"] != 1:
+  if root["schema"] != 2:
     raise CatalogError(f"unsupported component catalogue schema: {root['schema']!r}")
   if not isinstance(root["profile"], str) or not root["profile"].strip():
     raise CatalogError("component catalogue profile must be a non-empty string")
   if not isinstance(root["languages"], list) or not isinstance(root["analyzers"], list) \
+      or not isinstance(root["analyzer_backends"], list) \
       or not isinstance(root["components"], list):
-    raise CatalogError("component catalogue languages, analyzers, and components must be arrays")
+    raise CatalogError(
+        "component catalogue languages, analyzers, analyzer_backends, and components "
+        "must be arrays"
+    )
   languages = tuple(str(language) for language in root["languages"])
   descriptors = tuple(_descriptor(item, index)
                       for index, item in enumerate(root["components"]))

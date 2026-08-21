@@ -19,9 +19,6 @@ runs:
       env:
         SLOPSLAP_PATH: ${{ inputs.path }}
       run: |
-        if [[ -n "$(find "$SLOPSLAP_PATH" -type f -name '*.java' -print -quit)" ]]; then
-          slopslap install java
-        fi
         if [[ -n "$(find "$SLOPSLAP_PATH" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' \) -print -quit)" ]]; then
           slopslap install typescript
         fi

@@ -12,7 +12,9 @@ license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
   "mcp>=2.0,<3",
+  "textual>=8.2,<9",
   "tomli>=2.0; python_version < '3.11'",
+  "watchfiles>=1.2,<2",
 ]
 
 [project.scripts]
@@ -42,10 +44,12 @@ include = ["slopslap_app*", "slopslap_core*", "slopslap_runtime*", "analyzers*"]
   "structural/adapters/rust/Cargo.toml",
   "structural/adapters/rust/Cargo.lock",
   "structural/adapters/rust/src/*.rs",
+  "structural/adapters/java/src/dev/slopslap/structural/*.java",
   "structural/cmd/slopslap-structural/*.go",
   "structural/internal/adapters/*.go",
   "structural/internal/facts/*.go",
   "structural/internal/goadapter/*.go",
+  "structural/internal/javaadapter/*.go",
   "structural/internal/metrics/*.go",
   "structural/internal/rustadapter/*.go",
 ]

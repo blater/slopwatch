@@ -14,4 +14,30 @@ while [ -L "$script_path" ]; do
 done
 tool_dir="$(cd "$(dirname "$script_path")" && pwd)"
 
-exec python3 "$tool_dir/slopslap.py" "$@"
+runtime_python="${SLOPSLAP_PYTHON:-python3}"
+follow_requested=false
+for argument in "$@"; do
+  case "$argument" in
+    -f|--follow)
+      follow_requested=true
+      break
+      ;;
+  esac
+done
+
+if [[ "$follow_requested" == true ]] && \
+   ! "$runtime_python" -c 'import textual, watchfiles' >/dev/null 2>&1; then
+  bootstrap_python="$runtime_python"
+  runtime_dir="${SLOPSLAP_RUNTIME_DIR:-$tool_dir/.slopslap-runtime}"
+  runtime_python="$runtime_dir/bin/python"
+  if [[ ! -x "$runtime_python" ]]; then
+    echo "slopslap: preparing the follow-mode runtime..." >&2
+    "$bootstrap_python" -m venv "$runtime_dir"
+  fi
+  if ! "$runtime_python" -c 'import textual, watchfiles' >/dev/null 2>&1; then
+    "$runtime_python" -m pip install --disable-pip-version-check \
+      'textual>=8.2,<9' 'watchfiles>=1.2,<2'
+  fi
+fi
+
+exec "$runtime_python" "$tool_dir/slopslap.py" "$@"

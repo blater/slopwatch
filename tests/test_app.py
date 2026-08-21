@@ -77,7 +77,8 @@ class ConfigurationTests(unittest.TestCase):
     self.assertIn("Maximum pass score. files whose score is above this", output.getvalue())
     self.assertIn("value are failed.", output.getvalue())
     for option in ("--config", "--languages", "--format", "-c", "--compact",
-                   "--include-tests", "--limit",
+                   "-f", "--follow", "--trend-window", "--include-tests",
+                   "--backend", "--limit",
                    "--pass-score", "--timeout", "--port", "--no-browser",
                    "--workflow"):
       self.assertIn(option, output.getvalue())
@@ -114,6 +115,33 @@ class ConfigurationTests(unittest.TestCase):
              redirect_stdout(StringIO()):
           self.assertEqual(cli_main(["analyze", option, "."]), 0)
         self.assertTrue(captured[0].compact)
+
+  def test_follow_command_routes_limit_and_trend_window_to_dashboard(self) -> None:
+    outcome = SimpleNamespace(
+        scores=object(), profiles=SimpleNamespace(calibrated=True),
+        diagnostics=(), execution_plans=(),
+    )
+    document = {"files": [], "summary": {"files_analyzed": 0}}
+    with patch("slopslap_app.cli._policy", return_value=(None, {})), \
+         patch("slopslap_app.cli.analyze", return_value=outcome), \
+         patch("slopslap_app.cli.report_document", return_value=document), \
+         patch("slopslap_app.follow.run_follow", return_value=0) as follow:
+      self.assertEqual(cli_main([
+          "--follow", "--limit", "100", "--trend-window", "20m", ".",
+      ]), 0)
+    self.assertEqual(follow.call_args.kwargs["limit"], 100)
+    self.assertEqual(follow.call_args.kwargs["trend_window"], 1200)
+    self.assertEqual(follow.call_args.kwargs["targets"], [Path(".")])
+
+  def test_backend_override_uses_language_equals_backend_form(self) -> None:
+    captured = []
+    with patch("slopslap_app.cli._analyze",
+               side_effect=lambda args: captured.append(args) or 0), \
+         redirect_stdout(StringIO()):
+      self.assertEqual(cli_main([
+          "analyze", "--backend", "java=pmd", "Example.java",
+      ]), 0)
+    self.assertEqual(captured[0].backend, [("java", "pmd")])
 
   def test_java_specific_cli_options_are_absent(self) -> None:
     for option in ("--java-version", "--ruleset", "--max-score"):
@@ -328,7 +356,7 @@ class ConfigurationTests(unittest.TestCase):
     self.assertIn("required: false", action)
     self.assertIn('--pass-score "$SLOPSLAP_PASS_SCORE"', action)
     self.assertNotIn("slopslap install go", action)
-    self.assertIn("slopslap install java", action)
+    self.assertNotIn("slopslap install java", action)
     self.assertIn("slopslap install typescript", action)
     self.assertNotIn("slopslap install rust", action)
 

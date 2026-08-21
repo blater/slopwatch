@@ -1,13 +1,13 @@
 # Slopslap structural analyzer
 
 This Go module contains the language-neutral structural analyzer host, the
-PMD-compatible metric strategies, and built-in Go and Rust source adapters.
+PMD-compatible metric strategies, and built-in Go, Java, and Rust source adapters.
 
 The layers are deliberately separate:
 
 ```text
 Go syntax adapter ─┐
-                   ├─> normalized facts -> metric strategies -> protocol records
+Java JDK adapter ──┼─> normalized facts -> metric strategies -> protocol records
 Rust syn adapter ──┘
 ```
 
@@ -32,10 +32,17 @@ strategies as Go. Rust support is classified as `supported` rather than
 `conformant` because macro-generated control flow is intentionally outside the
 source-level evidence boundary.
 
+The Java adapter uses only the public JDK compiler-tree API with annotation
+processing disabled. It parses the exact requested `.java` inventory without
+building or executing project code. Its source-level facts feed the same seven
+strategies; `--backend java=pmd` selects the retained PMD 7.26 bridge when the
+classpath-aware oracle is preferred.
+
 Build and test locally with:
 
 ```sh
 go test ./...
+javac --release 17 -d build/java-classes adapters/java/src/dev/slopslap/structural/*.java
 cargo test --manifest-path adapters/rust/Cargo.toml
 go build -o slopslap-structural ./cmd/slopslap-structural
 ```

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,9 @@ from slopslap_core import CoreError
 from slopslap_runtime.errors import RuntimeError as AnalyzerRuntimeError
 
 from .config import ConfigLoadError, discover_config, load_policy
-from .dependencies import analyzer_dependencies, dependency_statuses, install_analyzer
+from .dependencies import (
+    analyzer_dependencies, analyzer_dependency, dependency_statuses, install_analyzer,
+)
 from .orchestrator import AnalysisError, analyze
 from .report import report_document
 from .schema import configuration_document
@@ -53,6 +56,24 @@ def _non_negative_integer(value: str) -> int:
   return number
 
 
+def _duration(value: str) -> float:
+  match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([smh]?)\s*", value.lower())
+  if match is None:
+    raise argparse.ArgumentTypeError("must be a duration such as 30s, 15m, or 1h")
+  amount = float(match.group(1))
+  if amount <= 0:
+    raise argparse.ArgumentTypeError("must be a positive duration")
+  multiplier = {"": 1, "s": 1, "m": 60, "h": 3600}[match.group(2)]
+  return amount * multiplier
+
+
+def _backend(value: str) -> tuple[str, str]:
+  language, separator, backend = value.partition("=")
+  if separator != "=" or not language.strip() or not backend.strip():
+    raise argparse.ArgumentTypeError("must use LANGUAGE=BACKEND")
+  return language.strip(), backend.strip()
+
+
 def _policy(configured: Path | None) -> tuple[Path | None, dict[str, Any]]:
   path = configured or discover_config(
       Path.cwd(), warn=lambda message: print(f"warning: {message}", file=sys.stderr),
@@ -75,8 +96,20 @@ def _add_analysis_options(parser: Any) -> None:
       help="show only score and path in text output",
   )
   parser.add_argument(
+      "-f", "--follow", action="store_true",
+      help="continuously update an interactive ranked report",
+  )
+  parser.add_argument(
+      "--trend-window", type=_duration, default=900, metavar="DURATION",
+      help="follow-mode rank and edit-memory window (default: 15m)",
+  )
+  parser.add_argument(
       "--include-tests", action="store_true",
       help="include test source files in the analysis",
+  )
+  parser.add_argument(
+      "--backend", action="append", type=_backend, default=[], metavar="LANGUAGE=BACKEND",
+      help="override a language analyzer backend (for example: java=pmd)",
   )
   parser.add_argument(
       "--limit", type=_non_negative_integer, default=0,
@@ -166,6 +199,7 @@ def _parser() -> argparse.ArgumentParser:
 
   install_parser = commands.add_parser("install", help="install an analysis driver")
   install_parser.add_argument("language", choices=tuple(analyzer_dependencies()))
+  install_parser.add_argument("--backend", help="install a named alternative backend")
   return parser
 
 
@@ -203,9 +237,9 @@ def _config_command(output_format: str = "text") -> int:
   return 0
 
 
-def _install_command(language: str) -> int:
-  dependency = analyzer_dependencies()[language]
-  installed = install_analyzer(language)
+def _install_command(language: str, backend: str | None = None) -> int:
+  dependency = analyzer_dependency(language, backend)
+  installed = install_analyzer(language, backend=backend)
   state = "installed" if installed else "already installed"
   print(f"{language}: {dependency.dependency}@{dependency.version} {state}")
   return 0
@@ -293,16 +327,61 @@ def _analysis_table(document: dict[str, Any], *, include_pass: bool,
 
 
 def _analyze(args: argparse.Namespace) -> int:
+  if args.follow and args.format != "text":
+    raise AnalysisError("--follow cannot be combined with --format json")
   workspace = Path.cwd().resolve()
   config_path, policy = _policy(args.config)
+  backends = dict(args.backend)
+  if len(backends) != len(args.backend):
+    raise AnalysisError("each language may have only one --backend override")
   outcome = analyze(workspace, targets=args.targets, policy=policy,
                     languages=args.languages, include_tests=args.include_tests,
+                    backends=backends,
                     timeout_seconds=args.timeout)
-  document = report_document(outcome.scores, calibrated=outcome.profiles.calibrated,
-                             diagnostics=outcome.diagnostics,
-                             execution_plans=outcome.execution_plans,
-                             configuration=None if config_path is None else str(config_path),
-                             limit=args.limit, pass_score=args.pass_score)
+  def document_for(result: Any, *, limit: int) -> dict[str, Any]:
+    return report_document(
+        result.scores, calibrated=result.profiles.calibrated,
+        diagnostics=result.diagnostics, execution_plans=result.execution_plans,
+        configuration=None if config_path is None else str(config_path),
+        limit=limit, pass_score=args.pass_score,
+    )
+
+  document = document_for(outcome, limit=0 if args.follow else args.limit)
+  if args.follow:
+    from .follow import RefreshResult, measurement_plan, run_follow
+
+    def refresh(changed: set[str] | None) -> RefreshResult:
+      if changed is None:
+        refreshed = analyze(
+            workspace, targets=args.targets, policy=policy,
+            languages=args.languages, include_tests=args.include_tests,
+            backends=backends, timeout_seconds=args.timeout,
+        )
+        return RefreshResult(document_for(refreshed, limit=0), frozenset(), full=True)
+      plan = measurement_plan(
+          workspace, changed, include_tests=args.include_tests,
+          languages=args.languages, scopes=args.targets,
+      )
+      if not plan.targets:
+        return RefreshResult({"files": [], "summary": {}}, plan.replace_paths)
+      scoped_backends = {
+          language: backend for language, backend in backends.items()
+          if language in plan.languages
+      }
+      refreshed = analyze(
+          workspace, targets=plan.targets, policy=policy,
+          languages=plan.languages, include_tests=args.include_tests,
+          backends=scoped_backends, timeout_seconds=args.timeout,
+      )
+      return RefreshResult(
+          document_for(refreshed, limit=0), plan.replace_paths,
+      )
+
+    return run_follow(
+        document, refresh, workspace=workspace, targets=args.targets,
+        include_tests=args.include_tests, trend_window=args.trend_window,
+        compact=args.compact, limit=args.limit, languages=args.languages,
+    )
   if args.format == "json":
     _json(document)
   else:
@@ -330,7 +409,7 @@ def main(argv: list[str]) -> int:
         parser.error(f"action {args.action_command} does not accept SCORE")
       return manage_action(args.action_command, args.workflow, args.score)
     if args.command == "install":
-      return _install_command(args.language)
+      return _install_command(args.language, args.backend)
     if args.command == "config":
       if args.config_action == "edit":
         from .ui import serve

@@ -21,6 +21,7 @@ const (
 	ExprAnd
 	ExprOr
 	ExprNot
+	ExprConditional
 )
 
 // Expression is a normalized Boolean/call expression.

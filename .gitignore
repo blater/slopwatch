@@ -5,6 +5,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.slopslap-runtime/
+.slopslap-go/
 node_modules/
 dist/
 build/
@@ -14,4 +16,6 @@ docs/
 analyzers/structural/slopslap-structural
 analyzers/structural/slopslap-structural.exe
 analyzers/structural/slopslap-structural-rust
+analyzers/structural/slopslap-structural-java.jar
+analyzers/structural/adapters/java/build/
 analyzers/structural/slopslap-structural-rust.exe

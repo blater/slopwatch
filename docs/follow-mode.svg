@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760" role="img" aria-labelledby="title description">
+  <title id="title">Slopslap follow-mode dashboard</title>
+  <desc id="description">A simulated terminal showing the live complexity ranking and its scrollable full-analysis view.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#000" flood-opacity=".48"/>
+    </filter>
+    <style>
+      .ui { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 15px; }
+      .small { font-size: 13px; }
+      .head { fill: #6f8ca2; font-weight: 700; }
+      .text { fill: #d5e2eb; }
+      .muted { fill: #668298; }
+      .path { fill: #607b91; }
+      .green { fill: #58e7ad; }
+      .amber { fill: #f5c451; }
+      .red { fill: #ff6174; }
+      .hot { fill: #ff8291; }
+      .section { fill: #68f6c8; font-weight: 700; }
+      .label { fill: #b9cad8; font-weight: 700; }
+      .description { fill: #91aabd; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="760" rx="24" fill="#02070d"/>
+  <g filter="url(#shadow)">
+    <rect x="34" y="34" width="1332" height="692" rx="16" fill="#071019" stroke="#31506a" stroke-width="2"/>
+    <rect x="34" y="34" width="1332" height="42" rx="16" fill="#0a1622"/>
+    <rect x="34" y="60" width="1332" height="16" fill="#0a1622"/>
+  </g>
+
+  <circle cx="62" cy="55" r="6" fill="#ff6174"/>
+  <circle cx="82" cy="55" r="6" fill="#f5c451"/>
+  <circle cx="102" cy="55" r="6" fill="#58e7ad"/>
+  <text x="126" y="61" class="ui" fill="#9fb4c6">slopslap --follow --limit 100 .</text>
+
+  <g class="ui">
+    <rect x="34" y="76" width="1332" height="34" fill="#0b1e2d"/>
+    <text x="58" y="98" class="head">▼SCORE</text>
+    <text x="150" y="98" class="head">COG</text>
+    <text x="228" y="98" class="head">NPATH</text>
+    <text x="326" y="98" class="head">CYCLO</text>
+    <text x="414" y="98" class="head">DEEP</text>
+    <text x="476" y="98" class="head">GOD</text>
+
+    <rect x="34" y="110" width="1332" height="35" fill="#183b52"/>
+    <text x="58" y="133" class="red">178.9</text>
+    <text x="150" y="133" class="hot">35</text>
+    <text x="228" y="133" class="hot">216</text>
+    <text x="326" y="133" class="hot">26</text>
+    <text x="414" y="133" class="green">0</text>
+    <text x="476" y="133" class="amber">74.0</text>
+    <text x="548" y="133" class="path">river-tx/src/main/java/io/riverdb/tx/</text>
+    <text x="912" y="133" class="text">LockManager.java</text>
+
+    <text x="58" y="168" class="red">171.0</text>
+    <text x="150" y="168" class="amber">20</text>
+    <text x="228" y="168" class="hot">163</text>
+    <text x="326" y="168" class="amber">15</text>
+    <text x="414" y="168" class="green">0</text>
+    <text x="476" y="168" class="amber">68.4</text>
+    <text x="548" y="168" class="path">river-engine/src/main/java/io/riverdb/engine/sql/</text>
+    <text x="1000" y="168" class="text">SqlNestedQueryExecution.java</text>
+
+    <text x="58" y="203" class="red">162.1</text>
+    <text x="150" y="203" class="amber">20</text>
+    <text x="228" y="203" class="amber">149</text>
+    <text x="326" y="203" class="amber">18</text>
+    <text x="414" y="203" class="green">0</text>
+    <text x="476" y="203" class="amber">61.2</text>
+    <text x="548" y="203" class="path">river-client/src/main/java/io/riverdb/client/</text>
+    <text x="958" y="203" class="text">RiverClientConnection.java</text>
+
+    <text x="58" y="238" class="amber">89.9</text>
+    <text x="150" y="238" class="hot">112</text>
+    <text x="228" y="238" class="amber">89</text>
+    <text x="326" y="238" class="hot">45</text>
+    <text x="414" y="238" class="amber">5</text>
+    <text x="476" y="238" class="green">0.0</text>
+    <text x="548" y="238" class="path">analyzers/structural/internal/native/</text>
+    <text x="868" y="238" class="text">scoring.go</text>
+
+    <text x="58" y="273" class="green">17.5</text>
+    <text x="150" y="273" class="amber">17</text>
+    <text x="228" y="273" class="green">11</text>
+    <text x="326" y="273" class="amber">11</text>
+    <text x="414" y="273" class="green">0</text>
+    <text x="476" y="273" class="green">0.0</text>
+    <text x="548" y="273" class="path">analyzers/structural/internal/native/</text>
+    <text x="868" y="273" class="text">protocol.go</text>
+
+    <rect x="34" y="690" width="1332" height="36" rx="0 0 16 16" fill="#061019"/>
+    <text x="58" y="713" fill="#6fb9e8">c</text><text x="72" y="713" class="muted">columns</text>
+    <text x="158" y="713" fill="#6fb9e8">s</text><text x="172" y="713" class="muted">sort</text>
+    <text x="230" y="713" fill="#6fb9e8">r</text><text x="244" y="713" class="muted">rescan</text>
+    <text x="322" y="713" fill="#6fb9e8">q</text><text x="336" y="713" class="muted">quit</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="382" y="302" width="934" height="354" rx="12" fill="#091723" stroke="#31506a" stroke-width="2"/>
+    <rect x="383" y="303" width="932" height="68" rx="11" fill="#0b1e2d"/>
+    <rect x="383" y="350" width="932" height="21" fill="#0b1e2d"/>
+  </g>
+
+  <g class="ui">
+    <text x="412" y="343" class="section">FULL ANALYSIS</text>
+    <text x="1172" y="343" class="section small">ESC / Q CLOSE</text>
+    <text x="412" y="401" class="text" font-weight="700">river-tx/src/main/java/io/riverdb/tx/LockManager.java</text>
+    <text x="412" y="427" class="muted">java  ·  rank 1  ·  score </text><text x="666" y="427" class="red">178.9</text>
+
+    <text x="412" y="468" class="section">METRIC SUMMARY</text>
+    <text x="412" y="497" class="label">Cognitive complexity</text><text x="640" y="497" class="description">maximum 35 across 25 routines</text>
+    <text x="412" y="524" class="label">NPath complexity</text><text x="640" y="524" class="description">maximum 216 across 25 routines</text>
+    <text x="412" y="551" class="label">Cyclomatic complexity</text><text x="640" y="551" class="description">method maximum 26; largest type total 124</text>
+    <text x="412" y="578" class="label">Deep nesting</text><text x="640" y="578" class="description">0 findings</text>
+    <text x="412" y="605" class="label">God class score</text><text x="640" y="605" class="description">74.0</text>
+
+    <rect x="1289" y="389" width="4" height="244" rx="2" fill="#0a1723"/>
+    <rect x="1289" y="389" width="4" height="76" rx="2" fill="#31536b"/>
+  </g>
+</svg>

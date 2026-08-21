@@ -74,3 +74,38 @@ def build_rust_adapter(target: Path, *, project: Path | None = None) -> Path:
     ) from error
   target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
   return target
+
+
+def build_java_adapter(target: Path, *, project: Path | None = None) -> Path:
+  """Build the bundled Java syntax-to-facts adapter with public JDK APIs."""
+  javac = shutil.which("javac")
+  jar = shutil.which("jar")
+  if javac is None or jar is None:
+    raise StructuralAnalyzerBuildError(
+        "JDK 17+ is required when building Slopslap from source; "
+        "release wheels include the Java adapter"
+    )
+  project = project or Path(__file__).parent / "analyzers" / "structural"
+  source_root = project / "adapters" / "java" / "src"
+  sources = sorted(source_root.rglob("*.java"))
+  if not sources:
+    raise StructuralAnalyzerBuildError("the Slopslap Java adapter sources are missing")
+  target = target.resolve()
+  target.parent.mkdir(parents=True, exist_ok=True)
+  try:
+    with tempfile.TemporaryDirectory(prefix="slopslap-java-build-") as classes:
+      subprocess.run(
+          [javac, "--release", "17", "-d", classes,
+           *(str(source) for source in sources)],
+          cwd=project, stdin=subprocess.DEVNULL, check=True,
+      )
+      subprocess.run(
+          [jar, "--create", "--file", str(target), "--main-class",
+           "dev.slopslap.structural.Main", "-C", classes, "."],
+          cwd=project, stdin=subprocess.DEVNULL, check=True,
+      )
+  except subprocess.CalledProcessError as error:
+    raise StructuralAnalyzerBuildError(
+        "failed to build the bundled Slopslap Java adapter"
+    ) from error
+  return target

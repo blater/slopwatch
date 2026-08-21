@@ -61,7 +61,18 @@ func expressionPaths(expression *facts.Expression, incoming *big.Int) conditionP
 			right.whenFalse,
 		}
 	}
-	return conditionPaths{copyNumber(incoming), copyNumber(incoming), copyNumber(incoming)}
+	if expression.Kind == facts.ExprConditional && len(expression.Children) == 3 {
+		condition := expressionPaths(expression.Children[0], incoming)
+		whenTrue := expressionPaths(expression.Children[1], condition.whenTrue)
+		whenFalse := expressionPaths(expression.Children[2], condition.whenFalse)
+		end := sum(whenTrue.end, whenFalse.end)
+		return conditionPaths{end, copyNumber(end), copyNumber(end)}
+	}
+	next := copyNumber(incoming)
+	for _, child := range expression.Children {
+		next = expressionPaths(child, next).end
+	}
+	return conditionPaths{next, copyNumber(next), copyNumber(next)}
 }
 
 func sequence(statements []*facts.Statement, incoming *big.Int) flow {
