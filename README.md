@@ -30,50 +30,25 @@ cd slopslap
 python3 -m pip install .
 ```
 
-### Language Requirements
-
-Each language you're going to run static analysis on has dependencies:
-
-| Go |
-| The Go/Rust structural analyzer is pre-installed. *Go 1.22+* supplies Go standard-library type information. |
-| |
-| Java |
-| The syntax adapter is pre-installed. A *JDK 17+* runtime supplies the public compiler-tree parser. |
-| PMD 7.26.0 remains available as an optional backend and requires Maven when installed from source. |
-| |
-| TypeScript |
-| *Node.js* 22 or later |
-| *npm* |
-| |
-| Rust |
-| The syntax adapter is pre-installed and does not execute Cargo, build scripts, or macros. |
-
-You'll be prompted to install the analysis driver for your language the first time you run slopslap for
-that language, otherwise you can preemptively install them with the "install" command:
-```sh
-slopslap install typescript
-slopslap install java --backend pmd
-```
-
-The help message in `slopslap -h` will show you which analysis drivers are installed.
-
-
 ## Usage
 
-The simplest usage is: `slopslap <project path>`
+The simplest usage is: 
+```sh
+slopslap <project path>
+```
 
 This scans `.go`, `.java`, `.ts`, `.tsx`, `.mts`, `.cts` and `.rs` files.
 
 Multiple files and directories may be combined into one sorted report:
 
 ```sh
-slopslap src buildSrc/src/main/java tools/check.go
+slopslap myproj/src anotherProj/prod/src
 ```
 
 For a live dashboard that remeasures only changed source units:
 
 ```sh
-slopslap --follow --limit 100 .
+slopslap --follow .
 ```
 
 ![Slopslap follow-mode dashboard](docs/follow-mode.svg)
