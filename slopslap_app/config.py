@@ -14,8 +14,8 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 uses tomli
   import tomli as tomllib  # type: ignore[no-redef]
 
 
-CONFIG_NAME = ".slopscout.toml"
-XDG_CONFIG_PATH = Path("slopscout") / "config.toml"
+CONFIG_NAME = ".slopslap.toml"
+XDG_CONFIG_PATH = Path("slopslap") / "config.toml"
 
 
 class ConfigLoadError(ValueError):
@@ -108,9 +108,9 @@ def load_policy(path: Path | None) -> Mapping[str, Any]:
 
 
 def initial_policy() -> str:
-  return '''# Slopscout scoring policy. Language tables override common defaults.
+  return '''# Slopslap scoring policy. Language tables override common defaults.
 schema = 1
-extends = "slopscout-balanced-v1"
+extends = "slopslap-balanced-v1"
 completeness = "fail_closed"
 
 # [languages.typescript.components.unsafe_type_boundary]

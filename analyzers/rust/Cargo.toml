@@ -1,12 +1,12 @@
 [package]
-name = "slopscout-rust-structural"
+name = "slopslap-rust-structural"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.78"
 publish = false
 
 [[bin]]
-name = "slopscout-rust-structural"
+name = "slopslap-rust-structural"
 path = "src/main.rs"
 
 [dependencies]

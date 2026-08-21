@@ -1,10 +1,10 @@
 {
-  "name": "@slopscout/typescript-analyzer",
+  "name": "@slopslap/typescript-analyzer",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
-    "slopscout-typescript-analyzer": "dist/src/cli.js"
+    "slopslap-typescript-analyzer": "dist/src/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

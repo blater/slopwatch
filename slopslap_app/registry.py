@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from slopscout_core import catalog_document, standard_catalog
-from slopscout_runtime import Capability, LanguageProvider, ProviderRegistry
+from slopslap_core import catalog_document, standard_catalog
+from slopslap_runtime import Capability, LanguageProvider, ProviderRegistry
 
 
 def standard_provider_registry() -> ProviderRegistry:

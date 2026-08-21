@@ -45,10 +45,10 @@ class AnalyzerProcessAdapter:
         argv = [os.fspath(item) for item in command]
         env = self._sanitized_environment(environment)
         started = time.monotonic()
-        workdir = Path(tempfile.mkdtemp(prefix="slopscout-analyzer-"))
+        workdir = Path(tempfile.mkdtemp(prefix="slopslap-analyzer-"))
         (workdir / "cache").mkdir()
-        env["SLOPSCOUT_WORK_DIR"] = str(workdir)
-        env["SLOPSCOUT_CACHE_DIR"] = str(workdir / "cache")
+        env["SLOPSLAP_WORK_DIR"] = str(workdir)
+        env["SLOPSLAP_CACHE_DIR"] = str(workdir / "cache")
         process: subprocess.Popen[bytes] | None = None
         try:
             process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,

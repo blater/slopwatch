@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 function workspace(files: Record<string, string>): string {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "slopscout-ts-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "slopslap-ts-"));
   temporaryDirectories.push(directory);
   for (const [relative, contents] of Object.entries(files)) {
     const file = path.join(directory, relative);

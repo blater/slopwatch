@@ -4,7 +4,7 @@ import unittest
 from dataclasses import FrozenInstanceError
 from decimal import Decimal
 
-from slopscout_core import (
+from slopslap_core import (
     CatalogError,
     ComponentCatalog,
     Measurement,

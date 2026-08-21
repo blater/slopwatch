@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from slopscout_app.dependencies import (
+from slopslap_app.dependencies import (
     AnalyzerDependencyError, InstallationMethod, analyzer_dependencies,
     ensure_analyzer, install_analyzer,
 )
@@ -37,7 +37,7 @@ class AnalyzerDependencyTests(unittest.TestCase):
 
   def test_missing_dependency_does_not_prompt_noninteractive_process(self) -> None:
     prompt = Mock(return_value="yes")
-    with patch("slopscout_app.dependencies._ready_project", return_value=None), \
+    with patch("slopslap_app.dependencies._ready_project", return_value=None), \
          self.assertRaises(AnalyzerDependencyError):
       ensure_analyzer("typescript", input_stream=_Input(False), prompt=prompt)
     prompt.assert_not_called()
@@ -45,23 +45,23 @@ class AnalyzerDependencyTests(unittest.TestCase):
   def test_interactive_first_use_prompts_and_installs(self) -> None:
     project = Path("/installed/typescript")
     prompt = Mock(return_value="yes")
-    with patch("slopscout_app.dependencies._ready_project", return_value=None), \
-         patch("slopscout_app.dependencies._install", return_value=project) as install, \
-         patch("slopscout_app.dependencies._command", return_value=("node", "cli.js")):
+    with patch("slopslap_app.dependencies._ready_project", return_value=None), \
+         patch("slopslap_app.dependencies._install", return_value=project) as install, \
+         patch("slopslap_app.dependencies._command", return_value=("node", "cli.js")):
       command = ensure_analyzer("typescript", input_stream=_Input(True), prompt=prompt)
     self.assertEqual(command, ("node", "cli.js"))
     prompt.assert_called_once()
     install.assert_called_once()
 
   def test_explicit_install_is_idempotent(self) -> None:
-    with patch("slopscout_app.dependencies._ready_project", return_value=Path("/ready")), \
-         patch("slopscout_app.dependencies._install") as install:
+    with patch("slopslap_app.dependencies._ready_project", return_value=Path("/ready")), \
+         patch("slopslap_app.dependencies._install") as install:
       self.assertFalse(install_analyzer("rust"))
     install.assert_not_called()
 
   def test_explicit_install_installs_when_missing(self) -> None:
-    with patch("slopscout_app.dependencies._ready_project", return_value=None), \
-         patch("slopscout_app.dependencies._install") as install:
+    with patch("slopslap_app.dependencies._ready_project", return_value=None), \
+         patch("slopslap_app.dependencies._install") as install:
       self.assertTrue(install_analyzer("java"))
     install.assert_called_once()
 

@@ -14,4 +14,4 @@ while [ -L "$script_path" ]; do
 done
 tool_dir="$(cd "$(dirname "$script_path")" && pwd)"
 
-exec python3 "$tool_dir/slopscout.py" "$@"
+exec python3 "$tool_dir/slopslap.py" "$@"

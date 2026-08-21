@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "slopscout"
+name = "slopslap"
 version = "0.1.0"
 description = "A stateless multi-language design-debt scorer"
 readme = "README.md"
@@ -16,21 +16,21 @@ dependencies = [
 ]
 
 [project.scripts]
-slopscout = "slopscout:cli"
-slopscout-mcp = "slopscout_mcp:main"
+slopslap = "slopslap:cli"
+slopslap-mcp = "slopslap_mcp:main"
 
 [tool.setuptools]
-py-modules = ["slopscout", "slopscout_mcp"]
+py-modules = ["slopslap", "slopslap_mcp"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["slopscout_app*", "slopscout_core*", "slopscout_runtime*", "analyzers*"]
+include = ["slopslap_app*", "slopslap_core*", "slopslap_runtime*", "analyzers*"]
 
 [tool.setuptools.package-data]
 "analyzers" = [
   "java/pom.xml",
   "java/*.xml",
-  "java/src/main/java/dev/slopscout/pmd/*.java",
+  "java/src/main/java/dev/slopslap/pmd/*.java",
   "typescript/package.json",
   "typescript/package-lock.json",
   "typescript/tsconfig.json",
@@ -41,4 +41,4 @@ include = ["slopscout_app*", "slopscout_core*", "slopscout_runtime*", "analyzers
   "rust/Cargo.lock",
   "rust/src/*.rs",
 ]
-"slopscout_core" = ["component-catalog.json"]
+"slopslap_core" = ["component-catalog.json"]

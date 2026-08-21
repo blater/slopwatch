@@ -12,9 +12,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from slopscout_core import catalog_document
-from slopscout_core.catalog import CATALOG_PATH
-from slopscout_runtime.errors import RuntimeError as AnalyzerRuntimeError
+from slopslap_core import catalog_document
+from slopslap_core.catalog import CATALOG_PATH
+from slopslap_runtime.errors import RuntimeError as AnalyzerRuntimeError
 
 
 class InstallationMethod(str, Enum):
@@ -86,13 +86,13 @@ def analyzer_dependencies() -> dict[str, AnalyzerDependency]:
 
 
 def dependency_root() -> Path:
-  configured = os.environ.get("SLOPSCOUT_DEPENDENCY_ROOT")
+  configured = os.environ.get("SLOPSLAP_DEPENDENCY_ROOT")
   if configured:
     return Path(configured).expanduser().resolve()
   xdg = os.environ.get("XDG_CACHE_HOME")
   base = Path(xdg).expanduser() if xdg and Path(xdg).expanduser().is_absolute() \
       else Path.home() / ".cache"
-  return (base / "slopscout" / "dependencies").resolve()
+  return (base / "slopslap" / "dependencies").resolve()
 
 
 def _installed_project(dependency: AnalyzerDependency) -> Path:
@@ -146,7 +146,7 @@ def _install(dependency: AnalyzerDependency) -> Path:
     )
   if not dependency.source.is_dir():
     raise AnalyzerDependencyError(
-        f"installed Slopscout is missing analyzer source: {dependency.source}"
+        f"installed Slopslap is missing analyzer source: {dependency.source}"
     )
   root = dependency_root()
   root.mkdir(parents=True, exist_ok=True)
@@ -210,7 +210,7 @@ def ensure_analyzer(
   if not input_stream.isatty():
     raise AnalyzerDependencyError(
         f"{dependency.dependency}@{dependency.version} is required for "
-        f"{', '.join(dependency.extensions)} files; run Slopscout interactively once to install it"
+        f"{', '.join(dependency.extensions)} files; run Slopslap interactively once to install it"
     )
   answer = prompt(
       f"{language} source detected. Install {dependency.dependency}@{dependency.version} "

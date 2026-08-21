@@ -7,22 +7,22 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from slopscout_app.cli import _analysis_table, _config_command, main as cli_main
-from slopscout_app.config import (
+from slopslap_app.cli import _analysis_table, _config_command, main as cli_main
+from slopslap_app.config import (
     CONFIG_NAME, ConfigLocations, discover_config, dump_policy, load_policy,
 )
-from slopscout_app.orchestrator import AnalysisError, _require_success, discover_sources
-from slopscout_app.registry import standard_provider_registry
-from slopscout_app.schema import effective_profile_document, schema_document
-from slopscout_app.ui import _configuration_path
-from slopscout_runtime.protocol import ProtocolRecord
+from slopslap_app.orchestrator import AnalysisError, _require_success, discover_sources
+from slopslap_app.registry import standard_provider_registry
+from slopslap_app.schema import effective_profile_document, schema_document
+from slopslap_app.ui import _configuration_path
+from slopslap_runtime.protocol import ProtocolRecord
 
 
 class ConfigurationTests(unittest.TestCase):
   def test_policy_round_trip_and_current_directory_discovery(self) -> None:
     policy = {
         "schema": 1,
-        "extends": "slopscout-balanced-v1",
+        "extends": "slopslap-balanced-v1",
         "languages": {
             "typescript": {
                 "components": {"unsafe_type_boundary": {"weight": 12}},
@@ -50,7 +50,7 @@ class ConfigurationTests(unittest.TestCase):
         {"language": "typescript", "ready": True},
     )
     output = StringIO()
-    with patch("slopscout_app.cli.dependency_statuses", return_value=statuses), \
+    with patch("slopslap_app.cli.dependency_statuses", return_value=statuses), \
          redirect_stdout(output):
       self.assertEqual(cli_main([]), 0)
     self.assertIn("analysis drivers:", output.getvalue())
@@ -60,13 +60,13 @@ class ConfigurationTests(unittest.TestCase):
   def test_help_flag_prints_driver_status(self) -> None:
     statuses = ({"language": "java", "ready": False},)
     output = StringIO()
-    with patch("slopscout_app.cli.dependency_statuses", return_value=statuses), \
+    with patch("slopslap_app.cli.dependency_statuses", return_value=statuses), \
          redirect_stdout(output), self.assertRaises(SystemExit) as stopped:
       cli_main(["-h"])
     self.assertEqual(stopped.exception.code, 0)
     self.assertIn("analysis drivers:", output.getvalue())
     self.assertIn("{action,analyze,config,install}", output.getvalue())
-    self.assertIn("MCP server: slopscout-mcp", output.getvalue())
+    self.assertIn("MCP server: slopslap-mcp", output.getvalue())
     self.assertIn("MCP tools: rank_files, score_files, get_config", output.getvalue())
     self.assertIn("analysis options:", output.getvalue())
     self.assertIn("config edit options:", output.getvalue())
@@ -82,7 +82,7 @@ class ConfigurationTests(unittest.TestCase):
 
   def test_target_shorthand_is_language_neutral(self) -> None:
     captured = []
-    with patch("slopscout_app.cli._analyze", side_effect=lambda args: captured.append(args) or 0), \
+    with patch("slopslap_app.cli._analyze", side_effect=lambda args: captured.append(args) or 0), \
          redirect_stdout(StringIO()):
       self.assertEqual(cli_main([
           "src", "changed.ts", "Changed.java", "--pass-score", "42",
@@ -130,7 +130,7 @@ class ConfigurationTests(unittest.TestCase):
   def test_analyzer_failure_is_an_error_not_a_score_report(self) -> None:
     output = StringIO()
     errors = StringIO()
-    with patch("slopscout_app.cli.analyze", side_effect=AnalysisError(
+    with patch("slopslap_app.cli.analyze", side_effect=AnalysisError(
         "java analyzer failed: PMD exited with status 5; no scores were produced",
     )), redirect_stdout(output), redirect_stderr(errors):
       self.assertEqual(cli_main(["analyze", "."]), 2)
@@ -158,9 +158,9 @@ class ConfigurationTests(unittest.TestCase):
       xdg = root / "xdg"
       current.mkdir()
       home.mkdir()
-      (xdg / "slopscout").mkdir(parents=True)
+      (xdg / "slopslap").mkdir(parents=True)
       local_config = current / CONFIG_NAME
-      xdg_config = xdg / "slopscout" / "config.toml"
+      xdg_config = xdg / "slopslap" / "config.toml"
       home_config = home / CONFIG_NAME
       xdg_config.write_text("schema = 1\n", encoding="utf-8")
       home_config.write_text("schema = 1\n", encoding="utf-8")
@@ -199,46 +199,46 @@ class ConfigurationTests(unittest.TestCase):
   def test_config_edit_creates_current_directory_policy_when_none_exists(self) -> None:
     with tempfile.TemporaryDirectory() as temporary:
       workspace = Path(temporary)
-      with patch("slopscout_app.ui.Path.cwd", return_value=workspace), \
-           patch("slopscout_app.ui.discover_config", return_value=None), \
+      with patch("slopslap_app.ui.Path.cwd", return_value=workspace), \
+           patch("slopslap_app.ui.discover_config", return_value=None), \
            redirect_stdout(StringIO()):
         selected = _configuration_path(None)
       self.assertEqual(selected, (workspace / CONFIG_NAME).resolve())
-      self.assertEqual(load_policy(selected)["extends"], "slopscout-balanced-v1")
+      self.assertEqual(load_policy(selected)["extends"], "slopslap-balanced-v1")
 
   def test_config_edit_global_creates_xdg_policy_when_no_global_exists(self) -> None:
     with tempfile.TemporaryDirectory() as temporary:
       root = Path(temporary)
       locations = ConfigLocations(
           local=root / "project" / CONFIG_NAME,
-          xdg=root / "xdg" / "slopscout" / "config.toml",
+          xdg=root / "xdg" / "slopslap" / "config.toml",
           home=root / "home" / CONFIG_NAME,
       )
-      with patch("slopscout_app.ui.discover_global_config", return_value=None), \
-           patch("slopscout_app.ui.config_locations", return_value=locations), \
+      with patch("slopslap_app.ui.discover_global_config", return_value=None), \
+           patch("slopslap_app.ui.config_locations", return_value=locations), \
            redirect_stdout(StringIO()):
         selected = _configuration_path("global")
       self.assertEqual(selected, locations.xdg)
-      self.assertEqual(load_policy(selected)["extends"], "slopscout-balanced-v1")
+      self.assertEqual(load_policy(selected)["extends"], "slopslap-balanced-v1")
 
   def test_config_edit_filename_creates_exact_policy(self) -> None:
     with tempfile.TemporaryDirectory() as temporary:
       current = Path(temporary)
-      with patch("slopscout_app.ui.Path.cwd", return_value=current), \
+      with patch("slopslap_app.ui.Path.cwd", return_value=current), \
            redirect_stdout(StringIO()):
         selected = _configuration_path("policies/team.toml")
       self.assertEqual(selected, (current / "policies/team.toml").resolve())
-      self.assertEqual(load_policy(selected)["extends"], "slopscout-balanced-v1")
+      self.assertEqual(load_policy(selected)["extends"], "slopslap-balanced-v1")
 
   def test_config_edit_routes_to_configuration_ui(self) -> None:
-    with patch("slopscout_app.ui.serve", return_value=0) as serve, \
+    with patch("slopslap_app.ui.serve", return_value=0) as serve, \
          redirect_stdout(StringIO()):
       self.assertEqual(cli_main(["config", "edit", "global", "--no-browser"]), 0)
     serve.assert_called_once_with("global", 0, open_browser=False)
 
   def test_action_add_list_set_pass_score_and_remove(self) -> None:
     with tempfile.TemporaryDirectory() as temporary:
-      workflow = Path(temporary) / ".github/workflows/slopscout.yml"
+      workflow = Path(temporary) / ".github/workflows/slopslap.yml"
       common = ["--workflow", str(workflow)]
       output = StringIO()
       with redirect_stdout(output):
@@ -267,29 +267,29 @@ class ConfigurationTests(unittest.TestCase):
     action = (Path(__file__).parent.parent / "action.yml").read_text(encoding="utf-8")
     self.assertIn("pass-score:", action)
     self.assertIn("required: false", action)
-    self.assertIn('--pass-score "$SLOPSCOUT_PASS_SCORE"', action)
-    self.assertIn("slopscout install java", action)
-    self.assertIn("slopscout install typescript", action)
-    self.assertIn("slopscout install rust", action)
+    self.assertIn('--pass-score "$SLOPSLAP_PASS_SCORE"', action)
+    self.assertIn("slopslap install java", action)
+    self.assertIn("slopslap install typescript", action)
+    self.assertIn("slopslap install rust", action)
 
   def test_config_command_combines_locations_analyzers_and_components(self) -> None:
     with tempfile.TemporaryDirectory() as temporary:
       root = Path(temporary)
       locations = ConfigLocations(
           local=root / "project" / CONFIG_NAME,
-          xdg=root / "xdg" / "slopscout" / "config.toml",
+          xdg=root / "xdg" / "slopslap" / "config.toml",
           home=root / "home" / CONFIG_NAME,
       )
       locations.xdg.parent.mkdir(parents=True)
       locations.xdg.write_text("schema = 1\n", encoding="utf-8")
       output = StringIO()
-      with patch("slopscout_app.schema.config_locations", return_value=locations), \
-           patch("slopscout_app.schema.discover_config", return_value=locations.xdg), \
-           patch("slopscout_app.schema.dependency_statuses", return_value=({
+      with patch("slopslap_app.schema.config_locations", return_value=locations), \
+           patch("slopslap_app.schema.discover_config", return_value=locations.xdg), \
+           patch("slopslap_app.schema.dependency_statuses", return_value=({
                "language": "java", "ready": True, "dependency": "java-driver",
                "version": "1", "installation_method": "maven",
            },)), \
-           patch("slopscout_app.schema.catalog_document", return_value={
+           patch("slopslap_app.schema.catalog_document", return_value={
                "schema": 1, "profile": "profile", "languages": ["java"],
                "analyzers": [{
                    "language": "java", "extensions": [".java"],

@@ -8,14 +8,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from slopscout_core import (
+from slopslap_core import (
     Coverage, CoverageState, Measurement, Provenance, Scope, ScoringEngine,
     SourceLocation, Subject, balanced_profile, resolve_profile_set,
     standard_catalog,
 )
-from slopscout_runtime import AnalyzerProcessAdapter, AnalyzerRequest
-from slopscout_runtime.errors import ValidationError as RuntimeValidationError
-from slopscout_runtime.protocol import (
+from slopslap_runtime import AnalyzerProcessAdapter, AnalyzerRequest
+from slopslap_runtime.errors import ValidationError as RuntimeValidationError
+from slopslap_runtime.protocol import (
     ProtocolRecord, ProtocolUnit, RequestedComponent, decode_number,
 )
 
@@ -192,7 +192,7 @@ def analyze(workspace: Path, *, targets: Iterable[Path] = (),
       java = shutil.which("java")
       if java is not None:
         options["java_path"] = str(Path(java).resolve())
-      pmd_home = os.environ.get("SLOPSCOUT_PMD_HOME")
+      pmd_home = os.environ.get("SLOPSLAP_PMD_HOME")
       if pmd_home:
         libraries = sorted(str(item.resolve()) for item in (Path(pmd_home) / "lib").glob("*")
                            if item.is_file())
@@ -211,7 +211,7 @@ def analyze(workspace: Path, *, targets: Iterable[Path] = (),
   if invoked == 0:
     raise AnalysisError(
         "the selected language profiles enable no analysis components; "
-        "enable an experimental Rust component in .slopscout.toml"
+        "enable an experimental Rust component in .slopslap.toml"
     )
   scores = ScoringEngine(catalog).score(all_measurements, profiles, all_coverage)
   return AnalysisOutcome(scores, profiles, tuple(diagnostics), tuple(plans))

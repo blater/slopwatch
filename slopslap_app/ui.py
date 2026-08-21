@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from slopscout_core import catalog_document
+from slopslap_core import catalog_document
 
 from .config import (
     config_locations, discover_config, discover_global_config, dump_policy,
@@ -24,7 +24,7 @@ from .schema import effective_profile_document
 
 _HTML = '''<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Slopscout configuration</title>
+<title>Slopslap configuration</title>
 <style>
 :root{color-scheme:light dark;font:15px/1.45 system-ui,sans-serif}body{max-width:1100px;margin:2rem auto;padding:0 1rem}
 h1{margin-bottom:.2rem}.muted{opacity:.7}fieldset{border:1px solid #8886;border-radius:8px;margin:1rem 0;padding:1rem}
@@ -32,7 +32,7 @@ legend{font-weight:700}table{width:100%;border-collapse:collapse}th,td{text-alig
 input[type=number]{width:7rem}button{padding:.55rem .9rem;margin-right:.5rem}.status{min-height:1.5rem;font-weight:600}
 code{font-size:.85em}.experimental{opacity:.7}
 </style>
-<body><h1>Slopscout configuration</h1><p class="muted">Per-language scoring mix. Changes are validated by the same policy engine used for analysis.</p>
+<body><h1>Slopslap configuration</h1><p class="muted">Per-language scoring mix. Changes are validated by the same policy engine used for analysis.</p>
 <div id="controls"></div><p><button id="save">Validate and save</button><button id="reload">Reset</button></p><p class="status" id="status"></p>
 <script>
 const csrf=__CSRF__; let state;
@@ -46,7 +46,7 @@ function render(){const root=document.querySelector('#controls');root.innerHTML=
    const severity=['error','warning','info'].map(x=>`<option ${x===c.severity?'selected':''}>${x}</option>`).join('');const formulas=meta.allowed_formulas.map(x=>`<option ${x===c.formula?'selected':''}>${esc(x)}</option>`).join('');
    row.innerHTML=`<td><code>${esc(id)}</code><br><small>${esc(meta.evidence_posture)} · ${esc(meta.support[language])}</small></td><td><input data-lang="${esc(language)}" data-id="${esc(id)}" data-key="enabled" type="checkbox" ${c.enabled?'checked':''}></td><td><select data-lang="${esc(language)}" data-id="${esc(id)}" data-key="severity">${severity}</select></td><td><input data-lang="${esc(language)}" data-id="${esc(id)}" data-key="weight" type="number" min="0" step="0.1" value="${esc(c.weight)}"></td><td>${c.threshold===null?'—':`<input data-lang="${esc(language)}" data-id="${esc(id)}" data-key="threshold" type="number" min="1" step="1" value="${esc(c.threshold)}">`}</td><td><select data-lang="${esc(language)}" data-id="${esc(id)}" data-key="formula">${formulas}</select></td>`;body.append(row)} root.append(field)}}
 function overrides(){const result={};document.querySelectorAll('[data-lang]').forEach(input=>{const l=input.dataset.lang,id=input.dataset.id,k=input.dataset.key;result[l]??={};result[l][id]??={};result[l][id][k]=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value});return result}
-document.querySelector('#save').onclick=async()=>{const status=document.querySelector('#status');status.textContent='Saving…';const r=await fetch('/api/policy',{method:'POST',headers:{'Content-Type':'application/json','X-Slopscout-CSRF':csrf},body:JSON.stringify({overrides:overrides()})});const body=await r.json();status.textContent=r.ok?`Saved ${body.path}`:`Error: ${body.error}`;if(r.ok)await load()};
+document.querySelector('#save').onclick=async()=>{const status=document.querySelector('#status');status.textContent='Saving…';const r=await fetch('/api/policy',{method:'POST',headers:{'Content-Type':'application/json','X-Slopslap-CSRF':csrf},body:JSON.stringify({overrides:overrides()})});const body=await r.json();status.textContent=r.ok?`Saved ${body.path}`:`Error: ${body.error}`;if(r.ok)await load()};
 document.querySelector('#reload').onclick=load;load().catch(e=>document.querySelector('#status').textContent=e);
 </script></body></html>'''
 
@@ -78,7 +78,7 @@ def _configuration_path(configuration: str | None) -> Path:
 def _merge(policy: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
   result = dict(policy)
   result.setdefault("schema", 1)
-  result.setdefault("extends", "slopscout-balanced-v1")
+  result.setdefault("extends", "slopslap-balanced-v1")
   languages = dict(result.get("languages", {}))
   for language, components in overrides.items():
     language_table = dict(languages.get(language, {}))
@@ -127,7 +127,7 @@ def serve(configuration: str | None, port: int, *, open_browser: bool = True) ->
       host = self.headers.get("Host", "")
       origin = self.headers.get("Origin", "")
       if (self.path != "/api/policy"
-          or self.headers.get("X-Slopscout-CSRF") != token
+          or self.headers.get("X-Slopslap-CSRF") != token
           or not host.startswith("127.0.0.1:")
           or origin != f"http://{host}"):
         self._json(HTTPStatus.FORBIDDEN, {"error": "invalid request token"})
@@ -155,7 +155,7 @@ def serve(configuration: str | None, port: int, *, open_browser: bool = True) ->
 
   server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
   url = f"http://127.0.0.1:{server.server_port}/"
-  print(f"Slopscout configuration UI: {url}")
+  print(f"Slopslap configuration UI: {url}")
   print("Press Ctrl-C to stop.")
   if open_browser:
     threading.Timer(0.1, lambda: webbrowser.open(url)).start()

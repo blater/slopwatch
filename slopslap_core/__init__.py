@@ -1,4 +1,4 @@
-"""Language-neutral Slopscout domain and policy engine."""
+"""Language-neutral Slopslap domain and policy engine."""
 
 from .catalog import LANGUAGES, balanced_profile, catalog_document, standard_catalog
 from .components import (

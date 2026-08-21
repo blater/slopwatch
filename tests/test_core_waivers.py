@@ -4,7 +4,7 @@ import unittest
 from datetime import date
 from decimal import Decimal
 
-from slopscout_core import (
+from slopslap_core import (
     Coverage,
     CoverageState,
     Measurement,

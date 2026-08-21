@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Slopscout command-line entry point."""
+"""Slopslap command-line entry point."""
 
 from __future__ import annotations
 
 import sys
 
-from slopscout_app.cli import main
+from slopslap_app.cli import main
 
 
 def cli() -> None:

@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ruleset name="Slopscout structured Java metrics"
+<ruleset name="Slopslap structured Java metrics"
          xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
   <description>
-    Complete PMD 7.26.0 observations for Slopscout's normalized analyzer bridge.
+    Complete PMD 7.26.0 observations for Slopslap's normalized analyzer bridge.
   </description>
 
-  <rule name="SlopscoutMetrics"
+  <rule name="SlopslapMetrics"
         language="java"
         message="{0}"
-        class="dev.slopscout.pmd.SlopscoutMetricsRule">
+        class="dev.slopslap.pmd.SlopslapMetricsRule">
     <description>Emit unthresholded PMD metric observations.</description>
     <priority>1</priority>
   </rule>

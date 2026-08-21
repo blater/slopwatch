@@ -1,6 +1,6 @@
 # Safe Rust analyzer
 
-`slopscout-rust-structural` reads exact `.rs` source paths from protocol v1 and
+`slopslap-rust-structural` reads exact `.rs` source paths from protocol v1 and
 emits only `rust_design` measurements: `rust_large_function`,
 `rust_deep_nesting`, `rust_unsafe_block`, and `rust_panic_macro`, all version
 `rust-v1`. It intentionally emits no PMD-aligned component identity: conformance

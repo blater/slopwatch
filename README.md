@@ -1,6 +1,6 @@
-# Slopscout
+# Slopslap
 
-Slopscout finds design smells in Java and TypeScript (Rust is experimental), 
+Slopslap finds design smells in Java and TypeScript (Rust is experimental),
 and gives them a score weighted on coupling, cohesion, depth, and cognitive complexity. 
 
 Slop builds up, as extraneous cognitive load for humans, we've all seen impossible spaghetti code 
@@ -21,12 +21,12 @@ needs crystal clear focus & clean well defined interfaces.
 
 ## Install 
 
-Slopscout works as a CLI command, as an MCP server, or as a github action and runs on Python 3.10 or later.
+Slopslap works as a CLI command, as an MCP server, or as a github action and runs on Python 3.10 or later.
 
 Install it with:
 ```sh
-git clone <repository-url> slopscout
-cd slopscout
+git clone <repository-url> slopslap
+cd slopslap
 python3 -m pip install .
 ```
 
@@ -47,20 +47,20 @@ Each language you're going to run static analysis on has dependencies:
 | - *Rust 1.78+* or later  (we use 1.97.1) |
 | - Cargo |
 
-You'll be prompted to install the analysis driver for your language the first time you run slopscout for
+You'll be prompted to install the analysis driver for your language the first time you run slopslap for
 that language, otherwise you can preemptively install them with the "install" command:
 ```sh
-slopscout install java
-slopscout install typescript
-slopscout install rust
+slopslap install java
+slopslap install typescript
+slopslap install rust
 ```
 
-The help message in `slopscout -h` will show you which analysis drivers are installed.
+The help message in `slopslap -h` will show you which analysis drivers are installed.
 
 
 ## Usage
 
-The simplest usage is: `slopscout <project path>`
+The simplest usage is: `slopslap <project path>`
 
 This will scan down the tree analysing files with `.ts`, `.tsx`, `.mts`, `.cts`, `.java` and `.rs` extensions.
 
@@ -68,24 +68,24 @@ Full command list:
 
 | Command | Purpose | Example |
 | --- | --- | --- |
-| `slopscout` | Show help and installed analyzer status | `slopscout` |
-| `slopscout analyze [TARGET ...]` | Analyze directories or files | `slopscout src` |
-| `slopscout action add` | Add the GitHub Actions workflow | `slopscout action add` |
-| `slopscout action list` | Show the managed workflow | `slopscout action list` |
-| `slopscout action remove` | Remove the managed workflow | `slopscout action remove` |
-| `slopscout action set-pass-score SCORE` | Set its optional pass score | `slopscout action set-pass-score 100` |
-| `slopscout install LANGUAGE` | Install an analyzer | `slopscout install typescript` |
-| `slopscout config` | Show configurations, analyzers, and components | `slopscout config` |
-| `slopscout config edit [FILE\|global]` | Create or edit a configuration | `slopscout config edit` |
+| `slopslap` | Show help and installed analyzer status | `slopslap` |
+| `slopslap analyze [TARGET ...]` | Analyze directories or files | `slopslap src` |
+| `slopslap action add` | Add the GitHub Actions workflow | `slopslap action add` |
+| `slopslap action list` | Show the managed workflow | `slopslap action list` |
+| `slopslap action remove` | Remove the managed workflow | `slopslap action remove` |
+| `slopslap action set-pass-score SCORE` | Set its optional pass score | `slopslap action set-pass-score 100` |
+| `slopslap install LANGUAGE` | Install an analyzer | `slopslap install typescript` |
+| `slopslap config` | Show configurations, analyzers, and components | `slopslap config` |
+| `slopslap config edit [FILE\|global]` | Create or edit a configuration | `slopslap config edit` |
 
 The `analyze` word may be omitted. Common analysis options are:
 
 | Option | Purpose | Example |
 | --- | --- | --- |
-| `--config FILE` | Use an exact configuration file | `slopscout . --config team.toml` |
-| `--limit NUMBER` | Return at most this many ranked files | `slopscout --limit 20 .` |
-| `--pass-score SCORE` | Pass files scoring at or below this value | `slopscout --pass-score 100 .` |
-| `--format json` | Emit the standard JSON report | `slopscout . --format json` |
+| `--config FILE` | Use an exact configuration file | `slopslap . --config team.toml` |
+| `--limit NUMBER` | Return at most this many ranked files | `slopslap --limit 20 .` |
+| `--pass-score SCORE` | Pass files scoring at or below this value | `slopslap --pass-score 100 .` |
+| `--format json` | Emit the standard JSON report | `slopslap . --format json` |
 
 `--limit 0` returns every result. The limit only controls returned rows;
 `--pass-score` always considers every analyzed file.
@@ -113,13 +113,13 @@ Rust support is still weak. It gives `DEEP` as a best-effort measure; its other 
 
 ## Configuration
 
-Without `--config`, Slopscout selects the first existing configuration from:
+Without `--config`, Slopslap selects the first existing configuration from:
 
-1. `./.slopscout.toml`
-2. `$XDG_CONFIG_HOME/slopscout/config.toml` or `~/.config/slopscout/config.toml`
-3. `~/.slopscout.toml`
+1. `./.slopslap.toml`
+2. `$XDG_CONFIG_HOME/slopslap/config.toml` or `~/.config/slopslap/config.toml`
+3. `~/.slopslap.toml`
 
-`slopscout config edit` opens the config file or editing (and creates it if it doesn't already exist)
+`slopslap config edit` opens the config file or editing (and creates it if it doesn't already exist)
 
 ## MCP server
 
@@ -131,17 +131,17 @@ The STDIO MCP server exposes three read-only tools:
 | Score exact supported files | `score_files(files=[...])` |
 | Inspect configuration and analyzers | `get_config()` |
 
-The analysis tools return the same report format as `slopscout --format json`.
+The analysis tools return the same report format as `slopslap --format json`.
 All three tools are read-only.
 
 Register the server with Codex:
 
 ```sh
-codex mcp add slopscout -- slopscout-mcp
+codex mcp add slopslap -- slopslap-mcp
 ```
 
 Or register it with Claude Code:
 
 ```sh
-claude mcp add --transport stdio slopscout -- slopscout-mcp
+claude mcp add --transport stdio slopslap -- slopslap-mcp
 ```

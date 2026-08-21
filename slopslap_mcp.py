@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP interface for targeted slopscout analysis."""
+"""MCP interface for targeted slopslap analysis."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from slopscout_app.config import discover_config, load_policy
-from slopscout_app.orchestrator import analyze as analyze_languages
-from slopscout_app.report import report_document
-from slopscout_app.schema import configuration_document
+from slopslap_app.config import discover_config, load_policy
+from slopslap_app.orchestrator import analyze as analyze_languages
+from slopslap_app.report import report_document
+from slopslap_app.schema import configuration_document
 
 
 SERVER_INSTRUCTIONS = (
@@ -81,12 +81,12 @@ def create_server() -> Any:
     from mcp_types import ToolAnnotations
   except ModuleNotFoundError as error:
     raise RuntimeError(
-        "the Slopscout installation is incomplete: its MCP dependency is missing"
+        "the Slopslap installation is incomplete: its MCP dependency is missing"
     ) from error
 
   server = MCPServer(
-      name="slopscout",
-      title="slopscout multi-language design-debt scorer",
+      name="slopslap",
+      title="slopslap multi-language design-debt scorer",
       description=(
           "Read-only tools for analysis and configuration introspection."
       ),
@@ -118,7 +118,7 @@ def create_server() -> Any:
   )(score_files)
   server.tool(
       name="get_config",
-      title="Get Slopscout configuration",
+      title="Get Slopslap configuration",
       description=(
           "Return configuration precedence, analyzer installation status, "
           "dependencies, and scoring components."

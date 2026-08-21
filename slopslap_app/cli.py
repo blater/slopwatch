@@ -1,4 +1,4 @@
-"""Slopscout command-line interface."""
+"""Slopslap command-line interface."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from slopscout_core import CoreError
-from slopscout_runtime.errors import RuntimeError as AnalyzerRuntimeError
+from slopslap_core import CoreError
+from slopslap_runtime.errors import RuntimeError as AnalyzerRuntimeError
 
 from .config import ConfigLoadError, discover_config, load_policy
 from .dependencies import analyzer_dependencies, dependency_statuses, install_analyzer
@@ -97,8 +97,8 @@ def _add_config_edit_options(parser: Any) -> None:
 
 def _add_action_options(parser: Any) -> None:
   parser.add_argument(
-      "--workflow", type=Path, default=Path(".github/workflows/slopscout.yml"),
-      help="workflow path (default: .github/workflows/slopscout.yml)",
+      "--workflow", type=Path, default=Path(".github/workflows/slopslap.yml"),
+      help="workflow path (default: .github/workflows/slopslap.yml)",
   )
 
 
@@ -110,12 +110,12 @@ def _parser() -> argparse.ArgumentParser:
       for item in statuses
   )
   parser = argparse.ArgumentParser(
-      prog="slopscout",
-      usage="slopscout [COMMAND] [OPTIONS] [TARGET ...]",
+      prog="slopslap",
+      usage="slopslap [COMMAND] [OPTIONS] [TARGET ...]",
       epilog=(
-          "analysis: slopscout [OPTIONS] [TARGET ...]\n"
-          "configuration editor: slopscout config edit [FILE|global] [OPTIONS]\n\n"
-          "MCP server: slopscout-mcp\n"
+          "analysis: slopslap [OPTIONS] [TARGET ...]\n"
+          "configuration editor: slopslap config edit [FILE|global] [OPTIONS]\n\n"
+          "MCP server: slopslap-mcp\n"
           "MCP tools: rank_files, score_files, get_config\n\n"
           + "\n".join(status_lines)
       ),

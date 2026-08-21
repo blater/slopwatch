@@ -1,4 +1,4 @@
-"""Domain errors raised by Slopscout's language-neutral core."""
+"""Domain errors raised by Slopslap's language-neutral core."""
 
 
 class CoreError(Exception):

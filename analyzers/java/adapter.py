@@ -1,4 +1,4 @@
-"""Strict decoder for the PMD 7.26.0 Slopscout bridge report."""
+"""Strict decoder for the PMD 7.26.0 Slopslap bridge report."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 
-BRIDGE_PREFIX = "SLOPSCOUT_METRIC_V1"
+BRIDGE_PREFIX = "SLOPSLAP_METRIC_V1"
 PMD_VERSION = "7.26.0"
 
 
@@ -119,10 +119,10 @@ def _measurement(
       "subject": {"name": symbol, **location.document()},
       "attributes": dict(attributes or {}),
       "provenance": {
-          "analyzer": "slopscout-java-pmd",
+          "analyzer": "slopslap-java-pmd",
           "analyzer_version": "0.1.0",
           "oracle": f"PMD {PMD_VERSION}",
-          "rule": "SlopscoutMetrics",
+          "rule": "SlopslapMetrics",
       },
   }
 
@@ -240,7 +240,7 @@ def decode_pmd_report(
       if not isinstance(violation, Mapping):
         raise BridgeDecodeError("PMD violation must be an object")
       rule = violation.get("rule")
-      if rule == "SlopscoutMetrics":
+      if rule == "SlopslapMetrics":
         decoded, missing = _decode_metric(violation, path)
         measurements.extend(decoded)
         unavailable.extend(missing)

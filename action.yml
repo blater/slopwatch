@@ -1,5 +1,5 @@
-name: Slopscout
-description: Analyze Java, TypeScript, and Rust design debt with Slopscout.
+name: Slopslap
+description: Analyze Java, TypeScript, and Rust design debt with Slopslap.
 inputs:
   pass-score:
     description: Pass files scoring at or below this value; omit to report only.
@@ -11,31 +11,31 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install Slopscout
+    - name: Install Slopslap
       shell: bash
       run: python3 -m pip install "$GITHUB_ACTION_PATH"
     - name: Install required analysis drivers
       shell: bash
       env:
-        SLOPSCOUT_PATH: ${{ inputs.path }}
+        SLOPSLAP_PATH: ${{ inputs.path }}
       run: |
-        if [[ -n "$(find "$SLOPSCOUT_PATH" -type f -name '*.java' -print -quit)" ]]; then
-          slopscout install java
+        if [[ -n "$(find "$SLOPSLAP_PATH" -type f -name '*.java' -print -quit)" ]]; then
+          slopslap install java
         fi
-        if [[ -n "$(find "$SLOPSCOUT_PATH" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' \) -print -quit)" ]]; then
-          slopscout install typescript
+        if [[ -n "$(find "$SLOPSLAP_PATH" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' \) -print -quit)" ]]; then
+          slopslap install typescript
         fi
-        if [[ -n "$(find "$SLOPSCOUT_PATH" -type f -name '*.rs' -print -quit)" ]]; then
-          slopscout install rust
+        if [[ -n "$(find "$SLOPSLAP_PATH" -type f -name '*.rs' -print -quit)" ]]; then
+          slopslap install rust
         fi
     - name: Analyze design debt
       shell: bash
       env:
-        SLOPSCOUT_PASS_SCORE: ${{ inputs.pass-score }}
-        SLOPSCOUT_PATH: ${{ inputs.path }}
+        SLOPSLAP_PASS_SCORE: ${{ inputs.pass-score }}
+        SLOPSLAP_PATH: ${{ inputs.path }}
       run: |
-        if [[ -n "$SLOPSCOUT_PASS_SCORE" ]]; then
-          slopscout "$SLOPSCOUT_PATH" --pass-score "$SLOPSCOUT_PASS_SCORE"
+        if [[ -n "$SLOPSLAP_PASS_SCORE" ]]; then
+          slopslap "$SLOPSLAP_PATH" --pass-score "$SLOPSLAP_PASS_SCORE"
         else
-          slopscout "$SLOPSCOUT_PATH"
+          slopslap "$SLOPSLAP_PATH"
         fi

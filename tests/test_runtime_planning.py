@@ -3,10 +3,10 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from slopscout_runtime.errors import ValidationError
-from slopscout_runtime.planning import AnalysisContext, AnalysisPlan, AnalysisUnit, KernelPlan, KernelSpec
-from slopscout_runtime.protocol import RequestedComponent
-from slopscout_runtime.providers import Capability, LanguageProvider, ProviderRegistry
+from slopslap_runtime.errors import ValidationError
+from slopslap_runtime.planning import AnalysisContext, AnalysisPlan, AnalysisUnit, KernelPlan, KernelSpec
+from slopslap_runtime.protocol import RequestedComponent
+from slopslap_runtime.providers import Capability, LanguageProvider, ProviderRegistry
 
 
 class PlanningTests(unittest.TestCase):
@@ -14,7 +14,7 @@ class PlanningTests(unittest.TestCase):
         component = RequestedComponent("npath_complexity", "pmd-v1")
         provider = LanguageProvider("java", (".java",),
                                     (Capability("npath_complexity", "pmd-v1", "conformant", "oracle_aligned", "syntax"),),
-                                    "dev.slopscout:slopscout-pmd-bridge", "0.1.0", "maven")
+                                    "dev.slopslap:slopslap-pmd-bridge", "0.1.0", "maven")
         registry = ProviderRegistry([provider])
         unit = AnalysisUnit("unit_1", "java", Path.cwd(), ("src/A.java",), (component,))
         plan = AnalysisPlan.build(Path.cwd(), [unit], registry)

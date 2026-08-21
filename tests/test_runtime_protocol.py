@@ -4,8 +4,8 @@ import json
 import unittest
 from pathlib import Path
 
-from slopscout_runtime.errors import ProtocolError, ValidationError
-from slopscout_runtime.protocol import AnalyzerRequest, ProtocolReader, ProtocolUnit, RequestedComponent, decode_number, encode_number
+from slopslap_runtime.errors import ProtocolError, ValidationError
+from slopslap_runtime.protocol import AnalyzerRequest, ProtocolReader, ProtocolUnit, RequestedComponent, decode_number, encode_number
 
 
 class ProtocolTests(unittest.TestCase):

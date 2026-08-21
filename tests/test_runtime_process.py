@@ -5,9 +5,9 @@ import threading
 import unittest
 from pathlib import Path
 
-from slopscout_runtime.errors import AnalyzerExecutionError
-from slopscout_runtime.process import AnalyzerProcessAdapter
-from slopscout_runtime.protocol import AnalyzerRequest, ProtocolUnit, RequestedComponent
+from slopslap_runtime.errors import AnalyzerExecutionError
+from slopslap_runtime.process import AnalyzerProcessAdapter
+from slopslap_runtime.protocol import AnalyzerRequest, ProtocolUnit, RequestedComponent
 
 
 class ProcessAdapterTests(unittest.TestCase):

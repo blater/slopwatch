@@ -1,4 +1,4 @@
-# Slopscout TypeScript analyzer
+# Slopslap TypeScript analyzer
 
 This is the isolated, read-only TypeScript analyzer described by
 `docs/multilanguage-architecture-plan.md`. It parses every exact source once in

@@ -1,4 +1,4 @@
-package dev.slopscout.pmd;
+package dev.slopslap.pmd;
 
 import net.sourceforge.pmd.lang.java.ast.ASTClassDeclaration;
 import net.sourceforge.pmd.lang.java.ast.ASTCompactConstructorDeclaration;
@@ -22,12 +22,12 @@ import org.apache.commons.lang3.mutable.MutableInt;
 /** Emits complete PMD metric observations as stable machine-readable violations.
  *
  * <p>The rule deliberately emits observations below lint thresholds. The Python
- * adapter converts these records to Slopscout's normalized measurement protocol;
+ * adapter converts these records to Slopslap's normalized measurement protocol;
  * scoring and gating never occur in this rule.</p>
  */
-public final class SlopscoutMetricsRule extends AbstractJavaRule {
+public final class SlopslapMetricsRule extends AbstractJavaRule {
 
-    private static final String PREFIX = "SLOPSCOUT_METRIC_V1";
+    private static final String PREFIX = "SLOPSLAP_METRIC_V1";
 
     @Override
     public Object visit(ASTMethodDeclaration node, Object data) {

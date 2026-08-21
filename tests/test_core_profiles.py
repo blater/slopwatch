@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
-from slopscout_core import (
+from slopslap_core import (
     ProfileError,
     Severity,
     balanced_profile,
@@ -21,7 +21,7 @@ class CoreProfileResolutionTest(unittest.TestCase):
   def test_resolution_order_and_language_isolation(self) -> None:
     policy = {
         "schema": 1,
-        "extends": "slopscout-balanced-v1",
+        "extends": "slopslap-balanced-v1",
         "component_groups": {
             "structural": {"enabled": False, "severity": "error"},
             "structural.complexity": {"severity": "warning"},

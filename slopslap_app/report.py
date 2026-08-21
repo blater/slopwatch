@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable, Mapping
 
-from slopscout_core import ScoreResult
+from slopslap_core import ScoreResult
 
 
 def _json_number(value: Decimal) -> int | float:

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const VERSION: u32 = 1;
-const ANALYZER: &str = "slopscout-rust-structural";
+const ANALYZER: &str = "slopslap-rust-structural";
 const ANALYZER_VERSION: &str = "0.1.0";
 
 #[derive(Deserialize)] #[serde(deny_unknown_fields)] struct Component { component_id: String, definition_version: String }

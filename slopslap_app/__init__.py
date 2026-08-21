@@ -1,4 +1,4 @@
-"""Application services for multi-language Slopscout analysis."""
+"""Application services for multi-language Slopslap analysis."""
 
 from .config import CONFIG_NAME, discover_config, load_policy
 from .registry import standard_provider_registry

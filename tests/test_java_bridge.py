@@ -36,7 +36,7 @@ class JavaBridgeDecoderTest(unittest.TestCase):
     }
 
   @staticmethod
-  def violation(description: str, rule: str = "SlopscoutMetrics") -> dict[str, object]:
+  def violation(description: str, rule: str = "SlopslapMetrics") -> dict[str, object]:
     return {
         "rule": rule,
         "description": description,
@@ -49,11 +49,11 @@ class JavaBridgeDecoderTest(unittest.TestCase):
   def test_decodes_complete_method_and_type_metrics(self) -> None:
     report = self.report([
         self.violation(
-            "SLOPSCOUT_METRIC_V1|scope=type|kind=class|symbol=Example"
+            "SLOPSLAP_METRIC_V1|scope=type|kind=class|symbol=Example"
             "|wmc=17|atfd=6|tcc=0.25|fan_out=9"
         ),
         self.violation(
-            "SLOPSCOUT_METRIC_V1|scope=function|kind=method|symbol=run"
+            "SLOPSLAP_METRIC_V1|scope=function|kind=method|symbol=run"
             "|cognitive=16|cyclomatic=11|npath=250"
         ),
         self.violation("nested", "AvoidDeeplyNestedIfStmts"),
@@ -77,7 +77,7 @@ class JavaBridgeDecoderTest(unittest.TestCase):
   def test_decodes_compact_constructor_metrics(self) -> None:
     decoded = decode_pmd_report(
         self.report([self.violation(
-            "SLOPSCOUT_METRIC_V1|scope=function|kind=compact_constructor"
+            "SLOPSLAP_METRIC_V1|scope=function|kind=compact_constructor"
             "|symbol=Record|cognitive=3|cyclomatic=4|npath=2"
         )]),
         workspace=self.workspace,
@@ -97,7 +97,7 @@ class JavaBridgeDecoderTest(unittest.TestCase):
   def test_decodes_interface_complexity_and_coupling_without_class_smell(self) -> None:
     decoded = decode_pmd_report(
         self.report([self.violation(
-            "SLOPSCOUT_METRIC_V1|scope=type|kind=interface|symbol=InputReader"
+            "SLOPSLAP_METRIC_V1|scope=type|kind=interface|symbol=InputReader"
             "|wmc=9|atfd=1|tcc=unavailable|fan_out=8"
         )]),
         workspace=self.workspace,
@@ -121,7 +121,7 @@ class JavaBridgeDecoderTest(unittest.TestCase):
     with self.assertRaisesRegex(BridgeDecodeError, "only for an interface"):
       decode_pmd_report(
           self.report([self.violation(
-              "SLOPSCOUT_METRIC_V1|scope=type|kind=class|symbol=Example"
+              "SLOPSLAP_METRIC_V1|scope=type|kind=class|symbol=Example"
               "|wmc=9|atfd=1|tcc=unavailable|fan_out=8"
           )]),
           workspace=self.workspace,
@@ -146,7 +146,7 @@ class JavaBridgeDecoderTest(unittest.TestCase):
     with self.assertRaisesRegex(BridgeDecodeError, "unknown"):
       decode_pmd_report(
           self.report([self.violation(
-              "SLOPSCOUT_METRIC_V1|scope=function|kind=method|symbol=run"
+              "SLOPSLAP_METRIC_V1|scope=function|kind=method|symbol=run"
               "|cognitive=1|cyclomatic=1|npath=1|surprise=yes"
           )]),
           workspace=self.workspace,

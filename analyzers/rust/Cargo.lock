@@ -71,7 +71,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "slopscout-rust-structural"
+name = "slopslap-rust-structural"
 version = "0.1.0"
 dependencies = [
  "serde",

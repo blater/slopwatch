@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 test("CLI accepts a one-record NDJSON request and emits one terminal record last", () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "slopscout-ts-protocol-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "slopslap-ts-protocol-"));
   try {
     fs.writeFileSync(path.join(workspace, "entry.ts"), "export const entry = (): number => 1;\n");
     const request = {

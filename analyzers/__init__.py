@@ -1,1 +1,1 @@
-"""First-party Slopscout analyzer sources."""
+"""First-party Slopslap analyzer sources."""

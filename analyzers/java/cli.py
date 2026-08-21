@@ -110,8 +110,8 @@ def main() -> int:
   try:
     workspace = Path(request["workspace"]).resolve(strict=True)
     bridge_dir = Path(__file__).resolve().parent
-    bridge_jar = bridge_dir / "target" / "slopscout-pmd-bridge-0.1.0.jar"
-    ruleset = bridge_dir / "slopscout-bridge-ruleset.xml"
+    bridge_jar = bridge_dir / "target" / "slopslap-pmd-bridge-0.1.0.jar"
+    ruleset = bridge_dir / "slopslap-bridge-ruleset.xml"
     if not bridge_jar.is_file():
       raise ValueError("Java bridge is not installed")
     classpath = [str(bridge_jar), *_classpath(dict(request.get("options", {})))]
@@ -128,7 +128,7 @@ def main() -> int:
         candidate.relative_to(workspace)
         all_paths.append(path)
         path_units[path] = unit["unit_id"]
-    report_path = Path(os.environ.get("SLOPSCOUT_WORK_DIR", tempfile.gettempdir())) / "pmd.json"
+    report_path = Path(os.environ.get("SLOPSLAP_WORK_DIR", tempfile.gettempdir())) / "pmd.json"
     command = [java, "-cp", os.pathsep.join(classpath),
                "net.sourceforge.pmd.cli.PmdCli", "check", "-d",
                ",".join(str(workspace / item) for item in all_paths),

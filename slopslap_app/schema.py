@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from slopscout_core import (
+from slopslap_core import (
     balanced_profile, catalog_document, resolve_profile_set, standard_catalog,
 )
 

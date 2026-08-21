@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
-from slopscout_core import (
+from slopslap_core import (
     Coverage,
     CoverageState,
     Measurement,

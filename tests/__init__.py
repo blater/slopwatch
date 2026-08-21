@@ -1,1 +1,1 @@
-"""Slopscout package and analyzer tests."""
+"""Slopslap package and analyzer tests."""

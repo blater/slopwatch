@@ -1,23 +1,23 @@
 {
   "schema": 1,
-  "profile": "slopscout-balanced-v1",
+  "profile": "slopslap-balanced-v1",
   "languages": ["java", "rust", "typescript"],
   "analyzers": [
     {
       "language": "java",
       "extensions": [".java"],
-      "dependency": "dev.slopscout:slopscout-pmd-bridge",
+      "dependency": "dev.slopslap:slopslap-pmd-bridge",
       "version": "0.1.0",
       "installation_method": "maven",
       "execution_method": "python",
       "source": "../analyzers/java",
       "entrypoint": "cli.py",
-      "ready_path": "target/slopscout-pmd-bridge-0.1.0.jar"
+      "ready_path": "target/slopslap-pmd-bridge-0.1.0.jar"
     },
     {
       "language": "typescript",
       "extensions": [".ts", ".tsx", ".mts", ".cts"],
-      "dependency": "@slopscout/typescript-analyzer",
+      "dependency": "@slopslap/typescript-analyzer",
       "version": "0.1.0",
       "installation_method": "npm",
       "execution_method": "node",
@@ -28,13 +28,13 @@
     {
       "language": "rust",
       "extensions": [".rs"],
-      "dependency": "slopscout-rust-structural",
+      "dependency": "slopslap-rust-structural",
       "version": "0.1.0",
       "installation_method": "cargo",
       "execution_method": "direct",
       "source": "../analyzers/rust",
-      "entrypoint": "target/release/slopscout-rust-structural",
-      "ready_path": "target/release/slopscout-rust-structural"
+      "entrypoint": "target/release/slopslap-rust-structural",
+      "ready_path": "target/release/slopslap-rust-structural"
     }
   ],
   "components": [
