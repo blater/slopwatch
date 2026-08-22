@@ -29,8 +29,10 @@ func (model Model) tableView() string {
 	if status != "" {
 		top += "  " + status
 	}
-	topText := " " + truncate(top, max(0, model.width-2))
-	lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("#9fb4c6")).Background(topBackground).Render(padANSI(topText, model.width)))
+	logo := lipgloss.NewStyle().Foreground(colourGreen).Bold(true).Render("-=[slopwatch]=-")
+	path := lipgloss.NewStyle().Foreground(lipgloss.Color("#9fb4c6")).Render("  " + top)
+	topText := truncateANSI(logo+path, model.width)
+	lines = append(lines, lipgloss.NewStyle().Background(topBackground).Render(padANSI(topText, model.width)))
 	lines = append(lines, model.header())
 	files := model.displayFiles()
 	page := model.bodyHeight()

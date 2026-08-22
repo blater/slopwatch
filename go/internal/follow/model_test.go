@@ -61,6 +61,19 @@ func TestInitialScanRendersCenteredAnimatedStatus(t *testing.T) {
 	}
 }
 
+func TestTableTopBarShowsLogoBeforeWorkspace(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{width: 80, height: 10, options: Options{Workspace: "/workspace"}}
+	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
+	logo := "-=[slopwatch]=-"
+	if !strings.HasPrefix(firstLine, logo) {
+		t.Fatalf("top bar = %q, want logo prefix %q", firstLine, logo)
+	}
+	if strings.Index(firstLine, "/workspace") <= len(logo) {
+		t.Fatalf("workspace path was not moved after logo: %q", firstLine)
+	}
+}
+
 func TestFindSearchesMainTableAndAdvancesWithNext(t *testing.T) {
 	files := []report.File{testFile("alpha.go", 3), testFile("beta.go", 2), testFile("gamma.go", 1)}
 	document := report.Document{Files: files}
