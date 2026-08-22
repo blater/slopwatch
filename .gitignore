@@ -7,12 +7,15 @@ __pycache__/
 .ruff_cache/
 .slopslap-runtime/
 .slopslap-go/
+.slopslap-build/
 node_modules/
 dist/
 build/
 coverage/
 target/
-docs/
+# Authored documentation is tracked. Put generated documentation artifacts
+# under this directory if they should not be committed.
+docs/generated/
 analyzers/structural/slopslap-structural
 analyzers/structural/slopslap-structural.exe
 analyzers/structural/slopslap-structural-rust

@@ -6,7 +6,6 @@ import (
 	"math"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/slopslap/slopslap/internal/report"
 )
@@ -122,44 +121,12 @@ func scoreRecords(catalog catalogDocument, selected []string, records []protocol
 	for _, descriptor := range catalog.Components {
 		descriptors[descriptor.ID] = descriptor
 	}
-	observations := map[string]map[string][]observation{}
-	coverage := map[string]map[string]string{}
-	languages := map[string]string{}
-	diagnostics := []map[string]any{}
-	plans := []map[string]any{}
-	for _, record := range records {
-		switch record.Type {
-		case "measurement":
-			if record.Path == nil {
-				return report.Document{}, fmt.Errorf("measurement has no path")
-			}
-			value, err := number(record.Value)
-			if err != nil {
-				return report.Document{}, err
-			}
-			item := observation{record.Component, *record.Path, record.Language, value, record.Subject, record.Attributes}
-			if observations[item.path] == nil {
-				observations[item.path] = map[string][]observation{}
-			}
-			observations[item.path][item.component] = append(observations[item.path][item.component], item)
-			languages[item.path] = item.language
-		case "coverage":
-			if record.Path == nil {
-				return report.Document{}, fmt.Errorf("coverage has no path")
-			}
-			if coverage[*record.Path] == nil {
-				coverage[*record.Path] = map[string]string{}
-			}
-			coverage[*record.Path][record.Component] = record.State
-			if languages[*record.Path] == "" {
-				languages[*record.Path] = strings.TrimSuffix(record.UnitID, "-unit")
-			}
-		case "diagnostic":
-			diagnostics = append(diagnostics, record.Raw)
-		case "execution_plan":
-			plans = append(plans, record.Raw)
-		}
+	inputs, err := collectScoreInputs(records)
+	if err != nil {
+		return report.Document{}, err
 	}
+	observations, coverage, languages := inputs.observations, inputs.coverage, inputs.languages
+	diagnostics, plans := inputs.diagnostics, inputs.plans
 	paths := make([]string, 0, len(coverage))
 	for path := range coverage {
 		paths = append(paths, path)
@@ -175,82 +142,9 @@ func scoreRecords(catalog catalogDocument, selected []string, records []protocol
 		if !selectedSet[language] {
 			continue
 		}
-		file := report.File{Path: path, Language: language, Complete: true, Components: map[string]report.Component{}, Coverage: map[string]string{}, Axes: map[string]float64{}, ObservedAxes: map[string]float64{}}
-		for _, descriptor := range catalog.Components {
-			if !descriptor.Defaults.Enabled || !descriptor.supported(language) {
-				continue
-			}
-			state, ok := coverage[path][descriptor.ID]
-			if !ok {
-				state = "not_requested"
-			}
-			file.Coverage[descriptor.ID] = state
-			if state != "complete" {
-				file.Complete = false
-			}
-			weight, err := descriptor.Defaults.weight()
-			if err != nil {
-				return report.Document{}, err
-			}
-			threshold, hasThreshold, err := descriptor.Defaults.threshold()
-			if err != nil {
-				return report.Document{}, err
-			}
-			raw := observations[path][descriptor.ID]
-			component := report.Component{Observations: len(raw), DeduplicatedObservations: len(raw), Subjects: []report.SubjectContribution{}, Waivers: []map[string]any{}}
-			if state == "complete" {
-				if descriptor.Kind == "count" {
-					value := float64(len(raw))
-					contribution, err := scalarContribution(descriptor.Defaults.Formula, value, threshold, weight, hasThreshold)
-					if err != nil {
-						return report.Document{}, err
-					}
-					component.Contribution = contribution
-					component.ObservedContribution = contribution
-					if len(raw) > 0 {
-						component.Subjects = append(component.Subjects, report.SubjectContribution{Subject: "deduplicated_count", Value: value, Contribution: contribution})
-					}
-				} else {
-					values := make([]float64, 0, len(raw))
-					for _, item := range raw {
-						contribution := 0.0
-						if descriptor.Kind == "compound" {
-							contribution, err = godContribution(item, weight)
-						} else {
-							contribution, err = scalarContribution(descriptor.Defaults.Formula, item.value, threshold, weight, hasThreshold)
-						}
-						if err != nil {
-							return report.Document{}, err
-						}
-						values = append(values, contribution)
-						component.Subjects = append(component.Subjects, report.SubjectContribution{Subject: subjectKey(item.subject), Value: item.value, Contribution: contribution})
-					}
-					if descriptor.Aggregator == "max" {
-						for _, value := range values {
-							component.Contribution = math.Max(component.Contribution, value)
-						}
-					} else {
-						for _, value := range values {
-							component.Contribution += value
-						}
-					}
-					component.Contribution = roundScore(component.Contribution)
-					component.ObservedContribution = component.Contribution
-				}
-			}
-			file.Components[descriptor.ID] = component
-			file.Axes[descriptor.Axis] = roundScore(file.Axes[descriptor.Axis] + component.Contribution)
-			file.ObservedAxes[descriptor.Axis] = file.Axes[descriptor.Axis]
-		}
-		for _, value := range file.Axes {
-			file.Score += value
-		}
-		file.Score = roundScore(file.Score)
-		file.ObservedScore = file.Score
-		file.ValidZero = file.Complete && file.Score == 0
-		if passScore != nil {
-			passed := file.Complete && file.Score <= *passScore
-			file.Passed = &passed
+		file, err := scoreFile(path, language, catalog.Components, observations, coverage, passScore)
+		if err != nil {
+			return report.Document{}, err
 		}
 		files = append(files, file)
 	}

@@ -124,7 +124,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "20", "weight": "10", "formula": "log-ratio", "cap": null}
     },
     {
@@ -144,7 +144,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "warning", "threshold": "80", "weight": "5", "formula": "log-ratio", "cap": null}
     },
     {
@@ -188,6 +188,26 @@
       "defaults": {"enabled": true, "severity": "warning", "threshold": null, "weight": "6", "formula": "count", "cap": null}
     },
     {
+      "component_id": "module_shallowness",
+      "definition_version": "ousterhout-v2",
+      "axis": "structural_core",
+      "taxonomy": "structural.modularity.shallowness",
+      "kind": "continuous",
+      "numeric_type": "integer",
+      "scopes": ["file"],
+      "deduplication_key": ["path"],
+      "aggregator": "max",
+      "required_capability": "structural_metrics",
+      "evidence_posture": "supported",
+      "documentation": "docs/components/module_shallowness.md",
+      "allowed_formulas": ["linear-over-threshold"],
+      "value_constraint": {"minimum": "0", "maximum": "100"},
+      "threshold_constraint": {"minimum": "1", "maximum": null},
+      "waiver_value": "value",
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
+      "defaults": {"enabled": true, "severity": "warning", "threshold": "100", "weight": "2", "formula": "linear-over-threshold", "cap": null}
+    },
+    {
       "component_id": "explicit_any",
       "definition_version": "typescript-local-sink-v1",
       "axis": "typescript_type_safety",
@@ -224,7 +244,7 @@
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
-      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "unsupported"},
+      "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "supported"},
       "defaults": {"enabled": true, "severity": "error", "threshold": null, "weight": "1", "formula": "god-class/pmd-v1", "cap": null}
     },
     {

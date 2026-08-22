@@ -32,6 +32,8 @@ interface ConditionPaths {
   whenFalse: bigint;
 }
 
+const MAX_NPATH = 9999n;
+
 function isFunctionNode(node: ts.Node): node is FunctionNode {
   return (
     ts.isFunctionDeclaration(node) ||
@@ -144,102 +146,81 @@ interface CognitiveState {
   methodStack: string[];
 }
 
+
+class CognitiveWalker {
+  private readonly state: CognitiveState;
+  constructor(private readonly fact: FunctionFact, private readonly source: ts.SourceFile) {
+    this.state = { complexity: 0, nesting: 0, booleanOperation: undefined, methodStack: [fact.name] };
+  }
+  run(): number {
+    if (this.fact.node.body !== undefined) this.walk(this.fact.node.body);
+    return this.state.complexity;
+  }
+  private structural(node: ts.Node): void {
+    this.state.complexity += 1 + this.state.nesting;
+    this.state.nesting += 1;
+    this.children(node);
+    this.state.nesting -= 1;
+  }
+  private ifStatement(node: ts.IfStatement, elseIf: boolean): void {
+    this.walk(node.expression);
+    if (!elseIf) { this.state.complexity += 1 + this.state.nesting; this.state.nesting += 1; }
+    this.walk(node.thenStatement);
+    if (!elseIf) this.state.nesting -= 1;
+    if (node.elseStatement === undefined) return;
+    this.state.complexity += 1;
+    this.state.nesting += 1;
+    if (ts.isIfStatement(node.elseStatement)) this.ifStatement(node.elseStatement, true);
+    else this.walk(node.elseStatement);
+    this.state.nesting -= 1;
+  }
+  private children(node: ts.Node): void { ts.forEachChild(node, (child) => this.walk(child)); }
+  private nestedFunction(node: FunctionNode): void {
+    this.state.nesting += 1;
+    this.state.methodStack.push(functionName(node, this.source));
+    if (node.body !== undefined) this.walk(node.body);
+    this.state.methodStack.pop();
+    this.state.nesting -= 1;
+  }
+  private walkBlock(node: ts.Block): void {
+    for (const statement of node.statements) { this.state.booleanOperation = undefined; this.walk(statement); }
+  }
+  private walkLogical(node: ts.BinaryExpression): void {
+    const operation = node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ? "and" : "or";
+    if (this.state.booleanOperation !== operation) this.state.complexity += 1;
+    this.state.booleanOperation = operation;
+    this.walk(node.left); this.walk(node.right);
+  }
+  private walkUnary(node: ts.PrefixUnaryExpression): boolean {
+    if (node.operator !== ts.SyntaxKind.ExclamationToken) return false;
+    this.state.booleanOperation = undefined; this.walk(node.operand); return true;
+  }
+  private walkBreak(node: ts.BreakStatement | ts.ContinueStatement): void {
+    if (node.label !== undefined) this.state.complexity += 1;
+  }
+  private walkCall(node: ts.CallExpression): void {
+    if (ts.isIdentifier(node.expression) && this.state.methodStack.includes(node.expression.text)) this.state.complexity += 1;
+    this.children(node);
+  }
+  private walk(node: ts.Node): void {
+    if (node !== this.fact.node && isFunctionNode(node)) { this.nestedFunction(node); return; }
+    if (ts.isBlock(node)) { this.walkBlock(node); return; }
+    if (ts.isIfStatement(node)) { this.ifStatement(node, false); return; }
+    if (isCognitiveStructural(node)) { this.structural(node); return; }
+    if (ts.isBreakStatement(node) || ts.isContinueStatement(node)) { this.walkBreak(node); return; }
+    if (ts.isBinaryExpression(node) && isLogical(node)) { this.walkLogical(node); return; }
+    if (ts.isPrefixUnaryExpression(node) && this.walkUnary(node)) return;
+    if (ts.isCallExpression(node)) { this.walkCall(node); return; }
+    this.children(node);
+  }
+}
+
+function isCognitiveStructural(node: ts.Node): boolean {
+  return ts.isForStatement(node) || ts.isForInStatement(node) || ts.isForOfStatement(node) || ts.isWhileStatement(node) || ts.isDoStatement(node) || ts.isSwitchStatement(node) || ts.isCatchClause(node) || ts.isConditionalExpression(node);
+}
+
 function cognitive(fact: FunctionFact, source: ts.SourceFile): number {
-  const state: CognitiveState = {
-    complexity: 0,
-    nesting: 0,
-    booleanOperation: undefined,
-    methodStack: [fact.name]
-  };
-
-  const structural = (node: ts.Node): void => {
-    state.complexity += 1 + state.nesting;
-    state.nesting += 1;
-    walkChildren(node);
-    state.nesting -= 1;
-  };
-
-  const walkIf = (node: ts.IfStatement, isElseIf: boolean): void => {
-    walk(node.expression);
-    if (!isElseIf) {
-      state.complexity += 1 + state.nesting;
-      state.nesting += 1;
-    }
-    walk(node.thenStatement);
-    if (!isElseIf) state.nesting -= 1;
-    if (node.elseStatement !== undefined) {
-      // PMD's hybrid increment: one point and one nesting level, with no nesting premium.
-      state.complexity += 1;
-      state.nesting += 1;
-      if (ts.isIfStatement(node.elseStatement)) walkIf(node.elseStatement, true);
-      else walk(node.elseStatement);
-      state.nesting -= 1;
-    }
-  };
-
-  const walkChildren = (node: ts.Node): void => {
-    ts.forEachChild(node, walk);
-  };
-
-  const walk = (node: ts.Node): void => {
-    if (node !== fact.node && isFunctionNode(node)) {
-      state.nesting += 1;
-      state.methodStack.push(functionName(node, source));
-      if (node.body !== undefined) walk(node.body);
-      state.methodStack.pop();
-      state.nesting -= 1;
-      return;
-    }
-    if (ts.isBlock(node)) {
-      for (const statement of node.statements) {
-        state.booleanOperation = undefined;
-        walk(statement);
-      }
-      return;
-    }
-    if (ts.isIfStatement(node)) {
-      walkIf(node, false);
-      return;
-    }
-    if (
-      ts.isForStatement(node) ||
-      ts.isForInStatement(node) ||
-      ts.isForOfStatement(node) ||
-      ts.isWhileStatement(node) ||
-      ts.isDoStatement(node) ||
-      ts.isSwitchStatement(node) ||
-      ts.isCatchClause(node) ||
-      ts.isConditionalExpression(node)
-    ) {
-      structural(node);
-      return;
-    }
-    if (ts.isBreakStatement(node) || ts.isContinueStatement(node)) {
-      if (node.label !== undefined) state.complexity += 1;
-      return;
-    }
-    if (ts.isBinaryExpression(node) && isLogical(node)) {
-      const operation =
-        node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ? "and" : "or";
-      if (state.booleanOperation !== operation) state.complexity += 1;
-      state.booleanOperation = operation;
-      walk(node.left);
-      walk(node.right);
-      return;
-    }
-    if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
-      state.booleanOperation = undefined;
-      walk(node.operand);
-      return;
-    }
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      if (state.methodStack.includes(node.expression.text)) state.complexity += 1;
-    }
-    walkChildren(node);
-  };
-
-  if (fact.node.body !== undefined) walk(fact.node.body);
-  return state.complexity;
+  return new CognitiveWalker(fact, source).run();
 }
 
 function emptyFlow(next: bigint): Flow {
@@ -310,96 +291,87 @@ function sequence(statements: readonly ts.Statement[], incoming: bigint): Flow {
   return flow;
 }
 
-function statementFlow(statement: ts.Statement, incoming: bigint): Flow {
-  if (incoming === 0n) return emptyFlow(0n);
-  if (ts.isBlock(statement)) return sequence(statement.statements, incoming);
-  if (ts.isIfStatement(statement)) {
-    const condition = expressionPaths(statement.expression, incoming);
-    const thenFlow = statementFlow(statement.thenStatement, condition.whenTrue);
-    const elseFlow =
-      statement.elseStatement === undefined
-        ? emptyFlow(condition.whenFalse)
-        : statementFlow(statement.elseStatement, condition.whenFalse);
-    return combineFlow(thenFlow, elseFlow);
-  }
+function branchFlow(statement: ts.IfStatement, incoming: bigint): Flow {
+  const condition = expressionPaths(statement.expression, incoming);
+  const thenFlow = statementFlow(statement.thenStatement, condition.whenTrue);
+  const elseFlow = statement.elseStatement === undefined
+    ? emptyFlow(condition.whenFalse)
+    : statementFlow(statement.elseStatement, condition.whenFalse);
+  return combineFlow(thenFlow, elseFlow);
+}
+
+function loopFlow(statement: ts.WhileStatement | ts.ForStatement, incoming: bigint): Flow {
+  const expression = ts.isForStatement(statement) ? statement.condition : statement.expression;
+  const condition = expression === undefined
+    ? { end: incoming, whenTrue: incoming, whenFalse: 0n }
+    : expressionPaths(expression, incoming);
+  const body = statementFlow(statement.statement, condition.whenTrue);
+  return {
+    next: condition.whenFalse + body.breaks,
+    returns: body.returns,
+    throws: body.throws,
+    breaks: 0n,
+    continues: 0n,
+    loopbacks: body.loopbacks + body.next + body.continues
+  };
+}
+
+function tryFlow(statement: ts.TryStatement, incoming: bigint): Flow {
+  let total = statementFlow(statement.tryBlock, incoming);
+  if (statement.catchClause !== undefined) total = combineFlow(total, statementFlow(statement.catchClause.block, incoming));
+  if (statement.finallyBlock === undefined) return total;
+  const finallyFlow = statementFlow(statement.finallyBlock, total.next);
+  return {
+    next: finallyFlow.next,
+    returns: total.returns + finallyFlow.returns,
+    throws: total.throws + finallyFlow.throws,
+    breaks: total.breaks + finallyFlow.breaks,
+    continues: total.continues + finallyFlow.continues,
+    loopbacks: total.loopbacks + finallyFlow.loopbacks
+  };
+}
+
+function terminalFlow(statement: ts.ReturnStatement | ts.ThrowStatement | ts.BreakStatement | ts.ContinueStatement, incoming: bigint): Flow {
   if (ts.isReturnStatement(statement)) {
     const exits = statement.expression === undefined ? incoming : expressionPaths(statement.expression, incoming).end;
     return { ...emptyFlow(0n), returns: exits };
   }
-  if (ts.isThrowStatement(statement)) {
-    const exits = expressionPaths(statement.expression, incoming).end;
-    return { ...emptyFlow(0n), throws: exits };
-  }
+  if (ts.isThrowStatement(statement)) return { ...emptyFlow(0n), throws: expressionPaths(statement.expression, incoming).end };
   if (ts.isBreakStatement(statement)) return { ...emptyFlow(0n), breaks: incoming };
-  if (ts.isContinueStatement(statement)) return { ...emptyFlow(0n), continues: incoming };
-  if (ts.isExpressionStatement(statement)) {
-    return emptyFlow(expressionPaths(statement.expression, incoming).end);
+  return { ...emptyFlow(0n), continues: incoming };
+}
+
+function variableFlow(statement: ts.VariableStatement, incoming: bigint): Flow {
+  let next = incoming;
+  for (const declaration of statement.declarationList.declarations) {
+    if (declaration.initializer !== undefined) next = expressionPaths(declaration.initializer, next).end;
   }
-  if (ts.isVariableStatement(statement)) {
-    let next = incoming;
-    for (const declaration of statement.declarationList.declarations) {
-      if (declaration.initializer !== undefined) next = expressionPaths(declaration.initializer, next).end;
-    }
-    return emptyFlow(next);
-  }
-  if (ts.isWhileStatement(statement) || ts.isForStatement(statement)) {
-    const expression = ts.isForStatement(statement) ? statement.condition : statement.expression;
-    const condition =
-      expression === undefined
-        ? { end: incoming, whenTrue: incoming, whenFalse: 0n }
-        : expressionPaths(expression, incoming);
-    const body = statementFlow(statement.statement, condition.whenTrue);
-    return {
-      next: condition.whenFalse + body.breaks,
-      returns: body.returns,
-      throws: body.throws,
-      breaks: 0n,
-      continues: 0n,
-      loopbacks: body.loopbacks + body.next + body.continues
-    };
-  }
-  if (ts.isForInStatement(statement) || ts.isForOfStatement(statement)) {
-    const body = statementFlow(statement.statement, incoming);
-    return {
-      next: incoming + body.breaks,
-      returns: body.returns,
-      throws: body.throws,
-      breaks: 0n,
-      continues: 0n,
-      loopbacks: body.loopbacks + body.next + body.continues
-    };
-  }
-  if (ts.isDoStatement(statement)) {
-    const body = statementFlow(statement.statement, incoming);
-    const condition = expressionPaths(statement.expression, body.next + body.continues);
-    return {
-      next: body.breaks + condition.whenFalse,
-      returns: body.returns,
-      throws: body.throws,
-      breaks: 0n,
-      continues: 0n,
-      loopbacks: body.loopbacks + condition.whenTrue
-    };
-  }
+  return emptyFlow(next);
+}
+
+function collectionLoopFlow(statement: ts.ForInStatement | ts.ForOfStatement, incoming: bigint): Flow {
+  const body = statementFlow(statement.statement, incoming);
+  return { next: incoming + body.breaks, returns: body.returns, throws: body.throws, breaks: 0n, continues: 0n, loopbacks: body.loopbacks + body.next + body.continues };
+}
+
+function doLoopFlow(statement: ts.DoStatement, incoming: bigint): Flow {
+  const body = statementFlow(statement.statement, incoming);
+  const condition = expressionPaths(statement.expression, body.next + body.continues);
+  return { next: body.breaks + condition.whenFalse, returns: body.returns, throws: body.throws, breaks: 0n, continues: 0n, loopbacks: body.loopbacks + condition.whenTrue };
+}
+
+function statementFlow(statement: ts.Statement, incoming: bigint): Flow {
+  if (incoming === 0n) return emptyFlow(0n);
+  if (ts.isBlock(statement)) return sequence(statement.statements, incoming);
+  if (ts.isIfStatement(statement)) return branchFlow(statement, incoming);
+  if (ts.isReturnStatement(statement) || ts.isThrowStatement(statement) || ts.isBreakStatement(statement) || ts.isContinueStatement(statement)) return terminalFlow(statement, incoming);
+  if (ts.isExpressionStatement(statement)) return emptyFlow(expressionPaths(statement.expression, incoming).end);
+  if (ts.isVariableStatement(statement)) return variableFlow(statement, incoming);
+  if (ts.isWhileStatement(statement) || ts.isForStatement(statement)) return loopFlow(statement, incoming);
+  if (ts.isForInStatement(statement) || ts.isForOfStatement(statement)) return collectionLoopFlow(statement, incoming);
+  if (ts.isDoStatement(statement)) return doLoopFlow(statement, incoming);
   if (ts.isSwitchStatement(statement)) return switchFlow(statement, incoming);
-  if (ts.isTryStatement(statement)) {
-    let total = statementFlow(statement.tryBlock, incoming);
-    for (const clause of statement.catchClause === undefined ? [] : [statement.catchClause]) {
-      total = combineFlow(total, statementFlow(clause.block, incoming));
-    }
-    if (statement.finallyBlock !== undefined) {
-      const finallyFlow = statementFlow(statement.finallyBlock, total.next);
-      total = {
-        next: finallyFlow.next,
-        returns: total.returns + finallyFlow.returns,
-        throws: total.throws + finallyFlow.throws,
-        breaks: total.breaks + finallyFlow.breaks,
-        continues: total.continues + finallyFlow.continues,
-        loopbacks: total.loopbacks + finallyFlow.loopbacks
-      };
-    }
-    return total;
-  }
+  if (ts.isTryStatement(statement)) return tryFlow(statement, incoming);
   return emptyFlow(incoming);
 }
 
@@ -432,32 +404,31 @@ function npath(fact: FunctionFact): bigint {
   let flow: Flow;
   if (ts.isBlock(body)) flow = sequence(body.statements, 1n);
   else flow = emptyFlow(expressionPaths(body, 1n).end);
-  return flow.next + flow.returns + flow.throws + flow.loopbacks;
+  return minBigInt(flow.next + flow.returns + flow.throws + flow.loopbacks, MAX_NPATH);
+}
+
+function minBigInt(value: bigint, limit: bigint): bigint {
+  return value < limit ? value : limit;
+}
+
+function walkDeepIf(node: ts.Node, depth: number, fact: FunctionFact, entry: SourceEntry, measurements: Measurement[]): void {
+  if (node !== fact.node && isFunctionNode(node)) return;
+  if (!ts.isIfStatement(node)) {
+    ts.forEachChild(node, (child) => walkDeepIf(child, depth, fact, entry, measurements));
+    return;
+  }
+  if (depth + 1 === 3) {
+    measurements.push(measurement(entry, "deeply_nested_if", "pmd-v1", "expression", 1, nodeSubject(entry.sourceFile, node, "if"), { problem_depth: 3 }));
+    return;
+  }
+  walkDeepIf(node.expression, depth, fact, entry, measurements);
+  walkDeepIf(node.thenStatement, depth + 1, fact, entry, measurements);
+  if (node.elseStatement !== undefined) walkDeepIf(node.elseStatement, ts.isIfStatement(node.elseStatement) ? depth : depth + 1, fact, entry, measurements);
 }
 
 function deepIfMeasurements(entry: SourceEntry, fact: FunctionFact): Measurement[] {
   const measurements: Measurement[] = [];
-  const visit = (node: ts.Node, depth: number): void => {
-    if (node !== fact.node && isFunctionNode(node)) return;
-    if (ts.isIfStatement(node)) {
-      if (depth + 1 === 3) {
-        measurements.push(
-          measurement(entry, "deeply_nested_if", "pmd-v1", "expression", 1, nodeSubject(entry.sourceFile, node, "if"), {
-            problem_depth: 3
-          })
-        );
-        return; // PMD stops this chain so it is reported once.
-      }
-      visit(node.expression, depth);
-      visit(node.thenStatement, depth + 1);
-      if (node.elseStatement !== undefined) {
-        visit(node.elseStatement, ts.isIfStatement(node.elseStatement) ? depth : depth + 1);
-      }
-      return;
-    }
-    ts.forEachChild(node, (child) => visit(child, depth));
-  };
-  if (fact.node.body !== undefined) visit(fact.node.body, 0);
+  if (fact.node.body !== undefined) walkDeepIf(fact.node.body, 0, fact, entry, measurements);
   return measurements;
 }
 
@@ -465,7 +436,7 @@ function measurement(
   entry: SourceEntry,
   component: string,
   definition: string,
-  scope: "function" | "expression",
+  scope: "file" | "function" | "type" | "expression",
   value: number | bigint,
   subject: Subject,
   attributes: Record<string, unknown> = {}
@@ -487,11 +458,307 @@ function measurement(
   };
 }
 
+function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+  return ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) === true;
+}
+
+function publicMember(node: ts.Node): boolean {
+  return !hasModifier(node, ts.SyntaxKind.PrivateKeyword) &&
+    !hasModifier(node, ts.SyntaxKind.ProtectedKeyword);
+}
+
+function functionReturnType(node: FunctionNode): ts.TypeNode | undefined {
+  return "type" in node ? node.type : undefined;
+}
+
+function typeComplexity(node: ts.TypeNode | undefined, depth = 0): number {
+  if (node === undefined || depth > 32) return 1;
+  let total = 1;
+  if (ts.isArrayTypeNode(node)) total += typeComplexity(node.elementType, depth + 1);
+  else if (ts.isTupleTypeNode(node)) total += node.elements.reduce((sum, child) => sum + typeComplexity(child, depth + 1), 0);
+  else if (ts.isUnionTypeNode(node) || ts.isIntersectionTypeNode(node)) total += node.types.reduce((sum, child) => sum + typeComplexity(child, depth + 1), 0);
+  else if (ts.isTypeReferenceNode(node) && node.typeArguments !== undefined) total += node.typeArguments.reduce((sum, child) => sum + typeComplexity(child, depth + 1), 0);
+  else if (ts.isTypeLiteralNode(node)) total += node.members.length;
+  else if (ts.isFunctionTypeNode(node)) total += node.parameters.reduce((sum, parameter) => sum + typeComplexity(parameter.type, depth + 1), 0) + typeComplexity(node.type, depth + 1);
+  else if (ts.isParenthesizedTypeNode(node)) total += typeComplexity(node.type, depth + 1);
+  return Math.min(32, total);
+}
+
+function returnsValue(node: FunctionNode): boolean {
+  const returnType = functionReturnType(node);
+  if (returnType !== undefined && returnType.kind !== ts.SyntaxKind.VoidKeyword &&
+      returnType.kind !== ts.SyntaxKind.UndefinedKeyword) return true;
+  let result = false;
+  const visit = (child: ts.Node): void => {
+    if (child !== node && isFunctionNode(child)) return;
+    if (ts.isReturnStatement(child) && child.expression !== undefined) result = true;
+    ts.forEachChild(child, visit);
+  };
+  if (node.body !== undefined) visit(node.body);
+  return result;
+}
+
+interface PublicOperation {
+  node: FunctionNode;
+  typeCost: number;
+  representationCost: number;
+}
+
+function typeRepresentationCost(node: ts.TypeNode | undefined, depth = 0): number {
+  if (node === undefined || depth > 32) return 0;
+  if (ts.isTypeLiteralNode(node)) {
+    return node.members.filter((member) => !hasModifier(member, ts.SyntaxKind.ReadonlyKeyword)).length +
+      node.members.reduce((sum, member) => {
+        if (ts.isPropertySignature(member)) return sum + typeRepresentationCost(member.type, depth + 1);
+        return sum;
+      }, 0);
+  }
+  if (ts.isArrayTypeNode(node)) return typeRepresentationCost(node.elementType, depth + 1);
+  return 0;
+}
+
+function operationFacts(node: FunctionNode): PublicOperation {
+  const resultCost = returnsValue(node) ? typeComplexity(functionReturnType(node)) : 0;
+  return {
+    node,
+    typeCost: node.parameters.reduce((sum, parameter) => sum + typeComplexity(parameter.type), 0) + resultCost,
+    representationCost: node.parameters.reduce((sum, parameter) => sum + typeRepresentationCost(parameter.type), 0) +
+      (returnsValue(node) ? typeRepresentationCost(functionReturnType(node)) : 0)
+  };
+}
+
+type TypeDeclaration = ts.ClassDeclaration | ts.InterfaceDeclaration;
+
+function isTypeDeclaration(node: ts.Node): node is TypeDeclaration {
+  return ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node);
+}
+
+function methodLike(node: ts.ClassElement | ts.TypeElement): node is ts.MethodDeclaration | ts.ConstructorDeclaration | ts.GetAccessorDeclaration | ts.SetAccessorDeclaration | ts.MethodSignature | ts.CallSignatureDeclaration | ts.ConstructSignatureDeclaration | ts.GetAccessorDeclaration | ts.SetAccessorDeclaration {
+  return ts.isMethodDeclaration(node) || ts.isConstructorDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node) ||
+    ts.isMethodSignature(node) || ts.isCallSignatureDeclaration(node) ||
+    ts.isConstructSignatureDeclaration(node);
+}
+
+function typeFunctionFact(node: FunctionNode, source: ts.SourceFile): FunctionFact {
+  const name = functionName(node, source);
+  return { node, name, subject: nodeSubject(source, node, name) };
+}
+
+function typeMembers(item: TypeDeclaration, source: ts.SourceFile): FunctionFact[] {
+  const output: FunctionFact[] = [];
+  for (const member of item.members) {
+    if (!methodLike(member) || !isFunctionNode(member) || member.body === undefined) continue;
+    output.push(typeFunctionFact(member, source));
+  }
+  return output;
+}
+
+function typeMemberCount(item: TypeDeclaration): number {
+  return item.members.filter((member) => methodLike(member)).length;
+}
+
+function typeReferences(node: ts.Node): string[] {
+  const output = new Set<string>();
+  const visit = (current: ts.Node): void => {
+    if (ts.isTypeReferenceNode(current)) output.add(current.typeName.getText());
+    ts.forEachChild(current, visit);
+  };
+  visit(node);
+  return [...output].sort();
+}
+
+function fieldsUsedByMethod(fact: FunctionFact): Set<string> {
+  const output = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (node !== fact.node && isFunctionNode(node)) return;
+    if (ts.isPropertyAccessExpression(node) && node.expression.kind === ts.SyntaxKind.ThisKeyword) {
+      output.add(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  if (fact.node.body !== undefined) visit(fact.node.body);
+  return output;
+}
+
+function foreignFieldsUsedByMethod(fact: FunctionFact): Set<string> {
+  const output = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (node !== fact.node && isFunctionNode(node)) return;
+    if (ts.isPropertyAccessExpression(node) && node.expression.kind !== ts.SyntaxKind.ThisKeyword) {
+      output.add(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  if (fact.node.body !== undefined) visit(fact.node.body);
+  return output;
+}
+
+function uniqueStrings(values: Iterable<string>): string[] {
+  return [...new Set(values)].sort();
+}
+
+function typeMetricMeasurements(
+  entry: SourceEntry,
+  requestedComponents: ReadonlySet<string>
+): Measurement[] {
+  const output: Measurement[] = [];
+  for (const statement of entry.sourceFile.statements) {
+    if (!isTypeDeclaration(statement)) continue;
+    const methods = typeMembers(statement, entry.sourceFile);
+    const methodFieldSets = methods.map((method) => fieldsUsedByMethod(method));
+    let connected = 0;
+    let pairs = 0;
+    for (let left = 0; left < methodFieldSets.length; left++) {
+      const leftFields = methodFieldSets[left];
+      if (leftFields === undefined) continue;
+      for (let right = left + 1; right < methodFieldSets.length; right++) {
+        pairs++;
+        const rightFields = methodFieldSets[right];
+        if (rightFields !== undefined && [...leftFields].some((field) => rightFields.has(field))) connected++;
+      }
+    }
+    const tcc = pairs === 0 ? 0 : connected / pairs;
+    const wmc = typeMemberCount(statement) + methods.reduce((sum, method) => sum + cyclomatic(method), 0);
+    const foreignTypes = uniqueStrings(typeReferences(statement));
+    const foreignFields = uniqueStrings(methods.flatMap((method) => [...foreignFieldsUsedByMethod(method)]));
+
+    if (requestedComponents.has("cyclomatic_class_complexity")) {
+      output.push(measurement(entry, "cyclomatic_class_complexity", "pmd-v1", "type", wmc,
+        nodeSubject(entry.sourceFile, statement, statement.name?.text ?? "<anonymous-type>"), { kind: ts.isInterfaceDeclaration(statement) ? "interface" : "class" }));
+    }
+    if (requestedComponents.has("coupling_between_objects")) {
+      output.push(measurement(entry, "coupling_between_objects", "pmd-v1", "type", foreignTypes.length,
+        nodeSubject(entry.sourceFile, statement, statement.name?.text ?? "<anonymous-type>"), {
+          kind: ts.isInterfaceDeclaration(statement) ? "interface" : "class",
+          referenced_types: foreignTypes
+        }));
+    }
+    if (requestedComponents.has("god_class") && ts.isClassDeclaration(statement)) {
+      output.push(measurement(entry, "god_class", "pmd-v1", "type", wmc,
+        nodeSubject(entry.sourceFile, statement, statement.name?.text ?? "<anonymous-class>"), {
+          kind: "class", wmc, atfd: foreignFields.length, tcc
+        }));
+    }
+  }
+  return output;
+}
+
+function publicOperations(source: ts.SourceFile): { operations: PublicOperation[]; publicTypes: number; exposedState: number; exposedRepresentation: number } {
+  const operations: PublicOperation[] = [];
+  let publicTypes = 0;
+  let exposedState = 0;
+  let exposedRepresentation = 0;
+  for (const statement of source.statements) {
+    if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) continue;
+    if (ts.isFunctionDeclaration(statement) && statement.body !== undefined) {
+      operations.push(operationFacts(statement));
+    } else if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (declaration.initializer !== undefined && (ts.isArrowFunction(declaration.initializer) || ts.isFunctionExpression(declaration.initializer))) {
+          const node = declaration.initializer;
+          operations.push(operationFacts(node));
+        } else {
+          exposedState += 1;
+          if (statement.declarationList.flags & ts.NodeFlags.Const) continue;
+          exposedRepresentation += 1;
+        }
+      }
+    } else if (ts.isClassDeclaration(statement)) {
+      publicTypes += 1;
+      for (const member of statement.members) {
+        if (!publicMember(member)) continue;
+        if (ts.isMethodDeclaration(member) || ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member)) {
+          const node = member;
+          operations.push(operationFacts(node));
+          if ((ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member)) && directAccessorExposure(member)) {
+            exposedRepresentation += 1;
+          }
+        } else if (ts.isPropertyDeclaration(member)) {
+          exposedState += 1;
+          if (!hasModifier(member, ts.SyntaxKind.ReadonlyKeyword)) exposedRepresentation += 1;
+        }
+      }
+    } else if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) {
+      publicTypes += 1;
+      if (ts.isInterfaceDeclaration(statement)) {
+        exposedState += statement.members.length;
+        exposedRepresentation += statement.members.filter((member) => !hasModifier(member, ts.SyntaxKind.ReadonlyKeyword)).length;
+      }
+      else exposedState += typeComplexity(statement.type);
+    }
+  }
+  return { operations, publicTypes, exposedState, exposedRepresentation };
+}
+
+function directAccessorExposure(node: ts.GetAccessorDeclaration | ts.SetAccessorDeclaration): boolean {
+  if (node.body === undefined) return false;
+  let exposed = false;
+  const visit = (child: ts.Node): void => {
+    if (exposed || (child !== node && isFunctionNode(child))) return;
+    if (ts.isPropertyAccessExpression(child) && child.expression.kind === ts.SyntaxKind.ThisKeyword) {
+      exposed = true;
+      return;
+    }
+    ts.forEachChild(child, visit);
+  };
+  visit(node.body);
+  return exposed;
+}
+
+function moduleShallowness(entry: SourceEntry): Measurement {
+  const surface = publicOperations(entry.sourceFile);
+  const parameterCount = surface.operations.reduce((sum, operation) => sum + operation.node.parameters.length, 0);
+  const resultCount = surface.operations.filter((operation) => returnsValue(operation.node)).length;
+  const entries = surface.operations.reduce((sum, operation) => sum + Math.max(1, operation.node.parameters.length), 0);
+  const exits = resultCount;
+  const functionality = entries + exits;
+  const operationCost = surface.operations.length;
+  const typeCost = surface.operations.reduce((sum, operation) => sum + operation.typeCost, 0);
+  const exposedStateCost = surface.exposedState;
+  const signatureRepresentation = surface.operations.reduce((sum, operation) => sum + operation.representationCost, 0);
+  const interfaceCost = operationCost + typeCost + exposedStateCost;
+  const available = interfaceCost > 0;
+  const depth = available ? functionality / interfaceCost : 0;
+  const depthPenalty = available ? 100 * Math.max(0, 1 - depth) : 0;
+  const leakagePenalty = available ? 100 * Math.min(1, (surface.exposedRepresentation + signatureRepresentation) / interfaceCost) : 0;
+  const value = available ? Math.max(0, Math.min(100, Math.round(0.8 * depthPenalty + 0.2 * leakagePenalty))) : 0;
+  return measurement(entry, "module_shallowness", "ousterhout-v2", "file", value,
+    nodeSubject(entry.sourceFile, entry.sourceFile, entry.relativePath), {
+      available,
+      functionality,
+      entries,
+      exits,
+      parameter_count: parameterCount,
+      result_count: resultCount,
+      reads: 0,
+      writes: 0,
+      evidence_level: 2,
+      evidence_coverage: 1,
+      capability_basis: "cosmic-inspired-signature",
+      interface_cost: interfaceCost,
+      operation_cost: operationCost,
+      type_cost: typeCost,
+      public_types: surface.publicTypes,
+      exposed_state_cost: exposedStateCost,
+      information_hiding_cost: 0,
+      exposed_representation: surface.exposedRepresentation + signatureRepresentation,
+      raw_depth_ratio: depth,
+      depth_reference: 1,
+      depth_penalty: depthPenalty,
+      leakage_penalty: leakagePenalty,
+      available_weight: 1,
+      total_weight: 1
+    });
+}
+
 export function analyzeStructural(
   entry: SourceEntry,
   requestedComponents: ReadonlySet<string>
 ): Measurement[] {
   const output: Measurement[] = [];
+  if (requestedComponents.has("module_shallowness")) output.push(moduleShallowness(entry));
+  output.push(...typeMetricMeasurements(entry, requestedComponents));
   const functions = collectFunctions(entry.sourceFile);
   for (const fact of functions) {
     if (requestedComponents.has("cognitive_complexity")) {

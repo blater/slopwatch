@@ -5,6 +5,5 @@ set -euo pipefail
 tool_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 binary_dir="$tool_dir/.slopslap-go"
 binary="$binary_dir/slopslap"
-mkdir -p "$binary_dir"
-GOCACHE="$binary_dir/cache" go build -C "$tool_dir/go" -o "$binary" ./cmd/slopslap-go
+make --no-print-directory -C "$tool_dir" dev-build
 exec "$binary" "$@"

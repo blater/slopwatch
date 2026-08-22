@@ -56,7 +56,7 @@ func parser() (*flag.FlagSet, *options) {
 	flags.BoolVar(&options.compact, "compact", false, "show only score and path")
 	flags.BoolVar(&options.follow, "f", false, "open the live ranking dashboard")
 	flags.BoolVar(&options.follow, "follow", false, "open the live ranking dashboard")
-	flags.DurationVar(&options.trendWindow, "trend-window", 15*time.Minute, "rank and edit-memory window")
+	flags.DurationVar(&options.trendWindow, "trend-window", 10*time.Minute, "movement indicator and edit-highlight window")
 	flags.BoolVar(&options.includeTests, "include-tests", false, "include test sources")
 	flags.IntVar(&options.limit, "limit", 0, "maximum results; 0 returns all")
 	flags.StringVar(&options.languages, "languages", "", "comma-separated languages")
@@ -90,6 +90,33 @@ func run(arguments []string) error {
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
+	if err := validateOptions(parsed); err != nil {
+		return err
+	}
+	workspace, err := absoluteWorkspace()
+	if err != nil {
+		return err
+	}
+	targets := flags.Args()
+	if len(targets) == 0 {
+		targets = []string{"."}
+	}
+	languages := splitLanguages(parsed.languages)
+	passScore, err := parsePassScore(parsed.passScore)
+	if err != nil {
+		return err
+	}
+	reference, err := bridge.New(workspace, bridge.Options{Targets: targets, Languages: languages, IncludeTests: parsed.includeTests, Backends: parsed.backends, Config: parsed.config, Timeout: parsed.timeout, PassScore: passScore})
+	if err != nil {
+		return err
+	}
+	if parsed.follow {
+		return runFollow(workspace, targets, languages, parsed, passScore, reference)
+	}
+	return runReport(parsed, passScore, reference)
+}
+
+func validateOptions(parsed *options) error {
 	if parsed.limit < 0 {
 		return errors.New("--limit must be non-negative")
 	}
@@ -102,72 +129,72 @@ func run(arguments []string) error {
 	if parsed.follow && parsed.format != "text" {
 		return errors.New("--follow cannot be combined with --format json")
 	}
+	return nil
+}
+
+func absoluteWorkspace() (string, error) {
 	workspace, err := os.Getwd()
 	if err != nil {
-		return err
+		return "", err
 	}
-	workspace, err = filepath.Abs(workspace)
-	if err != nil {
-		return err
+	return filepath.Abs(workspace)
+}
+
+func parsePassScore(raw string) (*float64, error) {
+	if raw == "" {
+		return nil, nil
 	}
-	targets := flags.Args()
-	if len(targets) == 0 {
-		targets = []string{"."}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value < 0 {
+		return nil, errors.New("--pass-score must be a non-negative number")
 	}
-	languages := splitLanguages(parsed.languages)
-	var passScore *float64
-	if parsed.passScore != "" {
-		value, parseErr := strconv.ParseFloat(parsed.passScore, 64)
-		if parseErr != nil || value < 0 {
-			return errors.New("--pass-score must be a non-negative number")
-		}
-		passScore = &value
-	}
-	reference, err := bridge.New(workspace, bridge.Options{
-		Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
-		Backends: parsed.backends, Config: parsed.config, Timeout: parsed.timeout,
-		PassScore: passScore,
-	})
-	if err != nil {
-		return err
-	}
-	if parsed.follow {
-		var liveAnalyzer follow.Analyzer = reference
-		var document report.Document
-		if nativeEligible(workspace, parsed) {
-			nativeAnalyzer, nativeErr := native.New(workspace, filepath.Dir(reference.Script), native.Options{
-				Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
-				Timeout: parsed.timeout, PassScore: passScore,
-			})
-			if nativeErr == nil {
-				document, nativeErr = nativeAnalyzer.Analyze(context.Background(), nil, nil)
-			}
-			if nativeErr == nil {
-				liveAnalyzer = nativeAnalyzer
-			} else if !errors.Is(nativeErr, native.ErrUnsupported) {
-				return nativeErr
-			}
-		}
-		if len(document.Files) == 0 && liveAnalyzer == reference {
-			document, err = reference.Analyze(context.Background(), nil, nil)
-			if err != nil {
-				return err
-			}
-		}
-		model, modelErr := follow.New(document, liveAnalyzer, follow.Options{
-			Workspace: workspace, Targets: targets, Languages: languages,
-			IncludeTests: parsed.includeTests, Limit: parsed.limit,
-			TrendWindow: parsed.trendWindow, Compact: parsed.compact,
+	return &value, nil
+}
+
+func runFollow(workspace string, targets, languages []string, parsed *options, passScore *float64, reference *bridge.Analyzer) error {
+	var liveAnalyzer follow.Analyzer = reference
+	if nativeEligible(workspace, parsed) {
+		nativeAnalyzer, nativeErr := native.New(workspace, filepath.Dir(reference.Script), native.Options{
+			Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
+			Timeout: parsed.timeout, PassScore: passScore,
 		})
-		if modelErr != nil {
-			return modelErr
+		if nativeErr == nil {
+			liveAnalyzer = fallbackAnalyzer{primary: nativeAnalyzer, fallback: reference}
 		}
-		defer model.Close()
-		follow.ConfigureTerminalColours()
-		program := tea.NewProgram(model, tea.WithAltScreen())
-		_, runErr := program.Run()
-		return runErr
+		if nativeErr != nil && !errors.Is(nativeErr, native.ErrUnsupported) {
+			return nativeErr
+		}
 	}
+	model, modelErr := follow.New(report.Document{}, liveAnalyzer, follow.Options{
+		Workspace: workspace, Targets: targets, Languages: languages,
+		IncludeTests: parsed.includeTests, Limit: parsed.limit,
+		TrendWindow: parsed.trendWindow, Compact: parsed.compact,
+	})
+	if modelErr != nil {
+		return modelErr
+	}
+	model.StartInitialAnalysis()
+	defer model.Close()
+	follow.ConfigureTerminalColours()
+	program := tea.NewProgram(model, tea.WithAltScreen())
+	_, runErr := program.Run()
+	return runErr
+}
+
+type fallbackAnalyzer struct {
+	primary  follow.Analyzer
+	fallback follow.Analyzer
+}
+
+func (analyzer fallbackAnalyzer) Analyze(ctx context.Context, targets, languages []string) (report.Document, error) {
+	document, err := analyzer.primary.Analyze(ctx, targets, languages)
+	if err == nil || (!errors.Is(err, native.ErrUnsupported) && !strings.Contains(strings.ToLower(err.Error()), "unsupported")) {
+		return document, err
+	}
+	return analyzer.fallback.Analyze(ctx, targets, languages)
+}
+
+func runReport(parsed *options, passScore *float64, reference *bridge.Analyzer) error {
 	document, err := reference.Analyze(context.Background(), nil, nil)
 	if err != nil {
 		return err
@@ -242,7 +269,7 @@ func splitLanguages(value string) []string {
 }
 
 func renderTable(document report.Document, compact, includePass bool) string {
-	headers := []string{"RANK", "SCORE", "COG MAX/#", "NPATH MAX/#", "CYCLO TOT/MAX", "DEEP", "GOD", "PATH"}
+	headers := []string{"RANK", "SCORE", "COG MAX/#", "NPATH MAX/#", "CYCLO TOT/MAX", "SHALLOW", "GOD", "PATH"}
 	if compact {
 		headers = []string{"SCORE", "PATH"}
 	} else if includePass {
@@ -318,7 +345,7 @@ func cyclomatic(file report.File) string {
 	return left + "/" + right
 }
 func depth(file report.File) string {
-	value, ok := report.Sum(file, "deeply_nested_if")
+	value, ok := report.Max(file, "module_shallowness")
 	if !ok {
 		return "-"
 	}

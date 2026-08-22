@@ -1,10 +1,10 @@
 export interface ComponentDefinition {
   component_id: string;
   definition_version: string;
-  axis: "structural_core" | "typescript_type_safety";
+  axis: "structural_core" | "structural_language" | "typescript_type_safety";
   taxonomy: string;
   kind: "continuous" | "finding";
-  scope: "function" | "expression";
+  scope: "file" | "function" | "type" | "expression";
   evidence_posture: "oracle_aligned" | "supported";
   support_level: "conformant" | "supported";
   required_capability: "syntax" | "types";
@@ -59,6 +59,54 @@ export const COMPONENTS = [
     support_level: "conformant",
     required_capability: "syntax",
     deduplication_key: "canonical-file,start,end"
+  },
+  {
+    component_id: "module_shallowness",
+    definition_version: "ousterhout-v2",
+    axis: "structural_core",
+    taxonomy: "structural.modularity.shallowness",
+    kind: "continuous",
+    scope: "file",
+    evidence_posture: "supported",
+    support_level: "conformant",
+    required_capability: "syntax",
+    deduplication_key: "canonical-file",
+  },
+  {
+    component_id: "cyclomatic_class_complexity",
+    definition_version: "pmd-v1",
+    axis: "structural_language",
+    taxonomy: "structural.complexity.cyclomatic.type",
+    kind: "continuous",
+    scope: "type",
+    evidence_posture: "oracle_aligned",
+    support_level: "supported",
+    required_capability: "syntax",
+    deduplication_key: "canonical-file,type-start"
+  },
+  {
+    component_id: "coupling_between_objects",
+    definition_version: "pmd-v1",
+    axis: "structural_language",
+    taxonomy: "structural.coupling",
+    kind: "continuous",
+    scope: "type",
+    evidence_posture: "supported",
+    support_level: "supported",
+    required_capability: "syntax",
+    deduplication_key: "canonical-file,type-start"
+  },
+  {
+    component_id: "god_class",
+    definition_version: "pmd-v1",
+    axis: "structural_language",
+    taxonomy: "structural.cohesion.god_class",
+    kind: "continuous",
+    scope: "type",
+    evidence_posture: "supported",
+    support_level: "supported",
+    required_capability: "syntax",
+    deduplication_key: "canonical-file,type-start"
   },
   ...[
     "explicit_any",

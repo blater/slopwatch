@@ -425,14 +425,14 @@ class RegistryTests(unittest.TestCase):
         {item.component_id for item in registry.capabilities("rust")},
         {"cognitive_complexity", "cyclomatic_method_complexity",
          "npath_complexity", "deeply_nested_if",
-         "cyclomatic_class_complexity", "coupling_between_objects",
+         "module_shallowness", "cyclomatic_class_complexity", "coupling_between_objects",
          "god_class"},
     )
     self.assertEqual(
         {item.component_id for item in registry.capabilities("go")},
         {"cognitive_complexity", "cyclomatic_method_complexity",
          "npath_complexity", "deeply_nested_if",
-         "cyclomatic_class_complexity", "coupling_between_objects",
+         "module_shallowness", "cyclomatic_class_complexity", "coupling_between_objects",
          "god_class"},
     )
 

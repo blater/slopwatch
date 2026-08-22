@@ -74,7 +74,7 @@ The `analyze` word may be omitted. Common analysis options are:
 | `--config FILE` | Use an exact configuration file | `slopslap . --config team.toml` |
 | `-c`, `--compact` | Show only score and path in text output | `slopslap --compact .` |
 | `-f`, `--follow` | Open the live, scrollable ranking dashboard | `slopslap --follow --limit 100 .` |
-| `--trend-window DURATION` | Set follow-mode rank and edit-memory history | `slopslap --follow --trend-window 30m .` |
+| `--trend-window DURATION` | Set follow-mode movement-indicator and edit-highlight window | `slopslap --follow --trend-window 30m .` |
 | `--include-tests` | Include test source files | `slopslap --include-tests .` |
 | `--backend LANGUAGE=BACKEND` | Override one language's analyzer | `slopslap --backend java=pmd .` |
 | `--limit NUMBER` | Return at most this many ranked files (all by default) | `slopslap --limit 20 .` |
@@ -88,9 +88,21 @@ The limit only controls returned rows;
 Follow mode uses native filesystem notifications rather than directory polling.
 On an edit it remeasures the exact Java or TypeScript file, the containing Go
 package, or the containing Rust crate, then merges those rows back into the
-complete in-memory ranking. The default 15-minute trend window controls the
-small rank-change indicator beside each score and the row highlight that fades
-from bright to muted after an edit.
+complete in-memory ranking. The default 10-minute trend window controls the
+movement indicator beside each score and the row highlight that fades from
+bright to muted after an edit. A module receives an indicator only when its
+own score changes: `↑`/`↓` represent movement of 1–4 places, while `⇈`/`⇊`
+represent movement of 5 or more places. Modules passed by a changed module
+remain neutral. A newly discovered file starts with a green dot; if it moves
+into the top half or top tenth during its first 10 minutes, that dot becomes
+amber or red respectively before normal movement indicators take over.
+
+`SHALLOW` is a 0–100 shallow-module penalty: lower is better; green indicates a
+deep boundary, amber a mixed boundary, and red a shallow or leaky boundary.
+The approved definition measures useful functional capability per
+caller-visible interface cost, with explicit information-hiding leakage. The
+implementation migration plan and references are in
+[`docs/depth-design.md`](docs/depth-design.md).
 
 | Follow-mode key | Action |
 | --- | --- |
@@ -100,6 +112,7 @@ from bright to muted after an edit.
 | `Enter` | Open the selected file's scrollable full analysis |
 | `c` | Choose visible metric columns |
 | `s` | Sort by score, COG, NPath, cyclomatic complexity, depth, God score, or filename; use `←` / `→` for direction |
+| `h` | Show column meanings and close the help popup with `h`, `Esc`, or `q` |
 | `r` | Request an explicit full rescan |
 | `Esc` / `q` | Close a popup |
 | `Ctrl-C` / `q` | Quit from the dashboard |
@@ -129,14 +142,16 @@ Lower numbers are better. A routine is a function, method, or constructor.
 | `COG MAX/#` | Highest cognitive complexity of any routine / routines measured. Branches and loops add cost; nesting adds more because nested control flow is harder to follow. |
 | `NPATH MAX/#` | Highest NPath complexity of any routine / routines measured. NPath estimates distinct routes through a routine without repeating a loop; branches can multiply the result. |
 | `CYCLO TOT/MAX` | Largest sum across one type's routines / highest value for one routine. Cyclomatic complexity starts at one and rises at each decision point, such as a branch or loop. |
-| `DEEP` | Number of `if` chains reaching three levels. |
+| `SHALLOW` | Ousterhout-inspired module shallowness penalty from 0 (deep boundary) to 100 (shallow boundary). |
 | `GOD` | Weighted God Class contribution to `SCORE`. `0` means it was evaluated but PMD's WMC/ATFD/TCC conjunction did not trigger; `-` means unavailable. |
 
-Go and Java support every listed measurement. The built-in Java adapter uses
+Go, Java, and TypeScript support every listed measurement. The built-in Java adapter uses
 source syntax and PMD-normalized ranges; the optional PMD backend remains the
 classpath-aware oracle. Go's CBO and God-Class inputs are
 marked unavailable when required imported source is not part of the analysis.
-TypeScript supports everything except the cyclomatic type total and God Class.
+TypeScript's type-level structural metrics use syntax-level references and
+member-access facts; they are supported but are not classpath- or
+project-resolution-backed.
 Rust supplies the same source-level structural measurements through the bundled
 `syn` adapter; macro-generated control flow is intentionally not expanded.
 

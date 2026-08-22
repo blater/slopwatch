@@ -137,9 +137,40 @@ final class Protocol {
         writeStrings(data, value.foreignFields);
     }
 
+    private static void writeShape(DataOutputStream data, Facts.TypeShape value) throws IOException {
+        writeString(data, value.stableId);
+        writeString(data, value.kind);
+        writeString(data, value.name);
+        writeList(data, value.children, Protocol::writeShape);
+        writeStrings(data, value.exposedMembers);
+        data.writeInt(value.complexity);
+    }
+
+    private static void writeOperation(DataOutputStream data, Facts.PublicOperation value) throws IOException {
+        writeString(data, value.stableId);
+        writeString(data, value.name);
+        writeString(data, value.ownerType);
+        writeLocation(data, value.location);
+        writeList(data, value.parameters, Protocol::writeShape);
+        writeList(data, value.results, Protocol::writeShape);
+        data.writeBoolean(value.emitsOutput);
+        data.writeBoolean(value.observableMutation);
+    }
+
+    private static void writeExposure(DataOutputStream data, Facts.RepresentationExposure value) throws IOException {
+        writeString(data, value.stableId);
+        writeString(data, value.kind);
+        writeString(data, value.entity);
+        writeLocation(data, value.location);
+        writeString(data, value.evidence);
+        writeString(data, value.confidence);
+    }
+
     private static void writeProgram(DataOutputStream data, Facts.Program value) throws IOException {
         writeList(data, value.functions, Protocol::writeFunction);
         writeList(data, value.types, Protocol::writeType);
+        writeList(data, value.publicOperations, Protocol::writeOperation);
+        writeList(data, value.representation, Protocol::writeExposure);
         writeStrings(data, value.files);
     }
 

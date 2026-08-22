@@ -157,7 +157,7 @@ class CoreProfileResolutionTest(unittest.TestCase):
       resolve_profile_set(
           self.catalog, self.built_in, ["typescript"],
           {"languages": {"typescript": {"components": {
-              "coupling_between_objects": {"enabled": True},
+              "type_complexity": {"enabled": True},
           }}}},
       )
 

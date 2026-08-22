@@ -172,7 +172,7 @@ class CoreWaiverTest(unittest.TestCase):
         self.waiver("cognitive_complexity", 10, path="../src/**"),
         self.waiver("cognitive_complexity", 10, reason=""),
         self.waiver("cognitive_complexity", 10, expires="not-a-date"),
-        self.waiver("coupling_between_objects", 10, language="typescript"),
+        self.waiver("type_complexity", 10, language="typescript"),
     )
     for waiver in invalid:
       with self.subTest(waiver=waiver), self.assertRaises(WaiverError):

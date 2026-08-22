@@ -280,8 +280,8 @@ def _cyclomatic(item: dict[str, Any]) -> str:
 
 
 def _depth(item: dict[str, Any]) -> str:
-  nested = _component_values(item, "deeply_nested_if")
-  return "-" if nested is None else _display_number(sum(nested))
+  shallow = _component_values(item, "module_shallowness")
+  return "-" if shallow is None else _display_number(max(shallow, default=0))
 
 
 def _component_score(item: dict[str, Any], component_id: str) -> str:
@@ -293,7 +293,7 @@ def _analysis_table(document: dict[str, Any], *, include_pass: bool,
                     compact: bool = False) -> str:
   headers = (["SCORE", "PATH"] if compact else
              ["RANK", "SCORE", "COG MAX/#", "NPATH MAX/#",
-              "CYCLO TOT/MAX", "DEEP", "GOD", "PATH"])
+              "CYCLO TOT/MAX", "SHALLOW", "GOD", "PATH"])
   if include_pass and not compact:
     headers.insert(0, "PASS")
   rows: list[list[str]] = []

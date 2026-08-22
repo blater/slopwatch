@@ -68,6 +68,46 @@ pub struct Function {
 }
 
 #[derive(Clone, Default, Serialize)]
+pub struct TypeShape {
+    pub stable_id: String,
+    pub kind: String,
+    pub name: String,
+    pub children: Vec<TypeShape>,
+    pub exposed_members: Vec<String>,
+    pub complexity: usize,
+}
+
+#[derive(Clone, Default, Serialize)]
+pub struct PublicOperation {
+    pub stable_id: String,
+    pub name: String,
+    pub owner_type: String,
+    pub location: Location,
+    pub parameters: Vec<TypeShape>,
+    pub results: Vec<TypeShape>,
+    pub emits_output: bool,
+    pub observable_mutation: bool,
+}
+
+#[derive(Clone, Default, Serialize)]
+pub struct FieldFact {
+    pub name: String,
+    pub public: bool,
+    pub mutable: bool,
+    pub r#type: Option<TypeShape>,
+}
+
+#[derive(Clone, Default, Serialize)]
+pub struct RepresentationExposure {
+    pub stable_id: String,
+    pub kind: String,
+    pub entity: String,
+    pub location: Location,
+    pub evidence: String,
+    pub confidence: String,
+}
+
+#[derive(Clone, Default, Serialize)]
 pub struct TypeFact {
     pub name: String,
     pub kind: String,
@@ -79,12 +119,16 @@ pub struct TypeFact {
     pub foreign_fields: Vec<String>,
     #[serde(skip)]
     pub fields: Vec<String>,
+    #[serde(rename = "fields")]
+    pub field_facts: Vec<FieldFact>,
 }
 
 #[derive(Default, Serialize)]
 pub struct Program {
     pub functions: Vec<Function>,
     pub types: Vec<TypeFact>,
+    pub public_operations: Vec<PublicOperation>,
+    pub representation: Vec<RepresentationExposure>,
     pub files: Vec<String>,
     pub unavailable: BTreeMap<String, BTreeMap<String, String>>,
 }

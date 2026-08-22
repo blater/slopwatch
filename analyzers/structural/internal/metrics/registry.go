@@ -105,6 +105,7 @@ func defaultStrategies() []Strategy {
 			}
 			return output
 		}},
+		strategy{"module_shallowness", shallowDefinition, moduleShallownessMeasurements},
 	}
 }
 

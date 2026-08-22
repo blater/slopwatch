@@ -85,6 +85,7 @@ func TestDefaultRegistryOwnsAllVersionedStrategies(t *testing.T) {
 		"cyclomatic_class_complexity":  "pmd-v1",
 		"coupling_between_objects":     "pmd-v1",
 		"god_class":                    "pmd-v1",
+		"module_shallowness":           "ousterhout-v2",
 	}
 	got := DefaultRegistry().Definitions()
 	if len(got) != len(want) {
@@ -98,5 +99,68 @@ func TestDefaultRegistryOwnsAllVersionedStrategies(t *testing.T) {
 	duplicate := strategy{"cognitive_complexity", "other-v1", func(*facts.Program) []Measurement { return nil }}
 	if _, err := NewRegistry(defaultStrategies()[0], duplicate); err == nil {
 		t.Fatal("expected duplicate strategy rejection")
+	}
+}
+
+func TestModuleShallownessUsesCapabilityAndInterfaceNotImplementationSize(t *testing.T) {
+	public := &facts.Function{
+		Name: "Run", Body: []*facts.Statement{{Kind: facts.StmtReturn, Expressions: []*facts.Expression{{}}}},
+	}
+	private := &facts.Function{Name: "helper", Body: make([]*facts.Statement, 100)}
+	base, baseAttributes := ModuleShallowness([]*facts.Function{public}, nil)
+	withPrivate, privateAttributes := ModuleShallowness([]*facts.Function{public, private}, nil)
+	if base != withPrivate {
+		t.Fatalf("private implementation changed SHALLOW: base=%d with_private=%d", base, withPrivate)
+	}
+	if baseAttributes["functionality"] != privateAttributes["functionality"] {
+		t.Fatalf("private implementation changed functionality: %#v vs %#v", baseAttributes, privateAttributes)
+	}
+}
+
+func TestModuleShallownessPenalizesAdditionalInterfaceCost(t *testing.T) {
+	public := &facts.Function{
+		Name: "Run", Body: []*facts.Statement{{Kind: facts.StmtReturn, Expressions: []*facts.Expression{{}}}},
+	}
+	shallow, _ := ModuleShallowness([]*facts.Function{public}, []*facts.Type{
+		{Name: "Payload"}, {Name: "Request"}, {Name: "Response"},
+	})
+	deep, _ := ModuleShallowness([]*facts.Function{public}, nil)
+	if shallow <= deep {
+		t.Fatalf("additional interface cost did not increase penalty: shallow=%d deep=%d", shallow, deep)
+	}
+}
+
+func TestSignatureShallownessUsesPublicBoundaryFacts(t *testing.T) {
+	primitive := &facts.TypeShape{Kind: "primitive", Complexity: 1}
+	complex := &facts.TypeShape{Kind: "record", Complexity: 5}
+	deep, _ := moduleShallownessWithOperations([]*facts.PublicOperation{{
+		Name: "Run", Parameters: []*facts.TypeShape{primitive}, Results: []*facts.TypeShape{primitive},
+	}}, nil)
+	shallow, attributes := moduleShallownessWithOperations([]*facts.PublicOperation{{
+		Name: "Run", Parameters: []*facts.TypeShape{complex}, Results: []*facts.TypeShape{complex},
+	}}, nil)
+	if shallow <= deep {
+		t.Fatalf("complexer signature did not increase penalty: shallow=%d deep=%d", shallow, deep)
+	}
+	if attributes["evidence_level"] != 2 || attributes["capability_basis"] != "cosmic-inspired-signature" {
+		t.Fatalf("signature evidence metadata = %#v", attributes)
+	}
+}
+
+func TestSignatureShallownessPenalizesExposedMutableFields(t *testing.T) {
+	operation := &facts.PublicOperation{Name: "Run", Results: []*facts.TypeShape{{Kind: "primitive", Complexity: 1}}}
+	withoutFields, _ := moduleShallownessWithOperations([]*facts.PublicOperation{operation}, []*facts.Type{{Name: "Service"}})
+	withFields, attributes := moduleShallownessWithOperations([]*facts.PublicOperation{operation}, []*facts.Type{{
+		Name: "Service", Fields: []facts.Field{{Name: "State", Public: true, Mutable: true}},
+	}})
+	if withFields <= withoutFields || attributes["exposed_representation"] != 1 {
+		t.Fatalf("exposed field did not increase penalty: with=%d without=%d attrs=%#v", withFields, withoutFields, attributes)
+	}
+}
+
+func TestModuleShallownessUnavailableWithoutPublicInterface(t *testing.T) {
+	value, attributes := ModuleShallowness([]*facts.Function{{Name: "private"}}, nil)
+	if value != 0 || attributes["available"] != false {
+		t.Fatalf("private-only module should be unavailable: value=%d attributes=%#v", value, attributes)
 	}
 }

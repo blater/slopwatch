@@ -1,7 +1,85 @@
 use crate::design::{collect_functions, declare_types, normalize_types};
-use crate::model::Program;
+use crate::location::location;
+use crate::model::{Program, PublicOperation, RepresentationExposure, TypeShape};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use syn::spanned::Spanned;
+
+fn shape(ty: &syn::Type) -> TypeShape {
+    let name = match ty {
+        syn::Type::Path(value) => value.path.segments.last().map(|item| item.ident.to_string()).unwrap_or_else(|| "type".to_owned()),
+        syn::Type::Reference(_) => "reference".to_owned(),
+        syn::Type::Array(_) => "array".to_owned(),
+        syn::Type::Slice(_) => "slice".to_owned(),
+        syn::Type::Tuple(_) => "tuple".to_owned(),
+        _ => "type".to_owned(),
+    };
+    let mut result = TypeShape { kind: "type".to_owned(), name, complexity: 1, ..TypeShape::default() };
+    match ty {
+        syn::Type::Reference(value) => result.children.push(shape(&value.elem)),
+        syn::Type::Array(value) => result.children.push(shape(&value.elem)),
+        syn::Type::Slice(value) => result.children.push(shape(&value.elem)),
+        syn::Type::Tuple(value) => result.children.extend(value.elems.iter().map(shape)),
+        syn::Type::Path(value) => if let Some(segment) = value.path.segments.last() {
+            if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                for argument in &arguments.args {
+                    if let syn::GenericArgument::Type(value) = argument { result.children.push(shape(value)); }
+                }
+            }
+        },
+        _ => {}
+    }
+    result.complexity = (1 + result.children.iter().map(|child| child.complexity).sum::<usize>()).min(32);
+    result.stable_id = format!("type:{}:{}", result.name, result.complexity);
+    result
+}
+
+fn operations(items: &[syn::Item], path: &str, output: &mut Vec<PublicOperation>) {
+    for item in items {
+        match item {
+            syn::Item::Fn(function) if matches!(function.vis, syn::Visibility::Public(_)) => {
+                let mut operation = PublicOperation { stable_id: format!("{path}::{}", function.sig.ident), name: function.sig.ident.to_string(), location: location(path, function.span()), ..PublicOperation::default() };
+                for input in &function.sig.inputs { if let syn::FnArg::Typed(value) = input { operation.parameters.push(shape(&value.ty)); } }
+                if let syn::ReturnType::Type(_, value) = &function.sig.output { operation.results.push(shape(value)); operation.emits_output = true; }
+                output.push(operation);
+            }
+            syn::Item::Impl(value) => {
+                let owner = match value.self_ty.as_ref() {
+                    syn::Type::Path(value) => value.path.segments.last().map(|item| item.ident.to_string()).unwrap_or_else(|| "type".to_owned()),
+                    _ => "type".to_owned(),
+                };
+                for member in &value.items {
+                    if let syn::ImplItem::Method(method) = member {
+                        if !matches!(method.vis, syn::Visibility::Public(_)) { continue; }
+                        let mut operation = PublicOperation { stable_id: format!("{path}:{owner}:{}", method.sig.ident), name: method.sig.ident.to_string(), owner_type: owner.clone(), location: location(path, method.span()), ..PublicOperation::default() };
+                        for input in &method.sig.inputs { if let syn::FnArg::Typed(value) = input { operation.parameters.push(shape(&value.ty)); } }
+                        if let syn::ReturnType::Type(_, value) = &method.sig.output { operation.results.push(shape(value)); operation.emits_output = true; }
+                        output.push(operation);
+                    }
+                }
+            }
+            syn::Item::Mod(module) => if let Some((_, nested)) = &module.content { operations(nested, path, output); },
+            _ => {}
+        }
+    }
+}
+
+fn exposures(items: &[syn::Item], path: &str, output: &mut Vec<RepresentationExposure>) {
+    for item in items {
+        match item {
+            syn::Item::Struct(value) => {
+                for field in &value.fields {
+                    if matches!(field.vis, syn::Visibility::Public(_)) {
+                        let name = field.ident.as_ref().map(ToString::to_string).unwrap_or_else(|| "tuple".to_owned());
+                        output.push(RepresentationExposure { stable_id: format!("{path}:{}:{name}", value.ident), kind: "public-mutable-field".to_owned(), entity: format!("{}.{}", value.ident, name), location: location(path, field.span()), evidence: "public Rust struct field exposes representation".to_owned(), confidence: "exact".to_owned() });
+                    }
+                }
+            }
+            syn::Item::Mod(module) => if let Some((_, nested)) = &module.content { exposures(nested, path, output); },
+            _ => {}
+        }
+    }
+}
 
 fn canonical_source(workspace: &Path, requested: &str) -> Result<(PathBuf, String), String> {
     let relative = Path::new(requested);
@@ -72,6 +150,8 @@ pub fn parse_program(
             &mut program.functions,
             include_tests,
         );
+        operations(&syntax.items, path, &mut program.public_operations);
+        exposures(&syntax.items, path, &mut program.representation);
     }
     normalize_types(&mut program.types);
     program.functions.sort_by_key(|item| {
@@ -88,6 +168,7 @@ pub fn parse_program(
             item.location.column,
         )
     });
+    program.public_operations.sort_by_key(|item| (item.location.path.clone(), item.location.line, item.location.column));
     Ok(program)
 }
 

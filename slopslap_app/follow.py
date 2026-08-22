@@ -380,7 +380,7 @@ _COLUMNS = (
     ColumnSpec("cog", "COG", 8),
     ColumnSpec("npath", "NPATH", 9),
     ColumnSpec("cyclo", "CYCLO", 8),
-    ColumnSpec("deep", "DEEP", 5),
+    ColumnSpec("deep", "SHALLOW", 7),
     ColumnSpec("god", "GOD", 8),
     ColumnSpec("path", "", None),
 )
@@ -453,8 +453,8 @@ def _cyclomatic_maximum(item: Mapping[str, Any]) -> str:
 
 
 def _depth(item: Mapping[str, Any]) -> str:
-  values = _component_values(item, "deeply_nested_if")
-  return "-" if values is None else _display_number(sum(values))
+  values = _component_values(item, "module_shallowness")
+  return "-" if values is None else _display_number(max(values, default=0))
 
 
 def _god(item: Mapping[str, Any]) -> str:
@@ -467,7 +467,7 @@ def _metric_summary(item: Mapping[str, Any]) -> list[tuple[str, str]]:
   npath = _component_values(item, "npath_complexity")
   cyclo_types = _component_values(item, "cyclomatic_class_complexity")
   cyclo_methods = _component_values(item, "cyclomatic_method_complexity")
-  deep = _component_values(item, "deeply_nested_if")
+  shallow = _component_values(item, "module_shallowness")
   god = item.get("components", {}).get("god_class")
 
   def maximum_and_count(values: list[Any] | None) -> str:
@@ -486,7 +486,7 @@ def _metric_summary(item: Mapping[str, Any]) -> list[tuple[str, str]]:
       ("NPath complexity", maximum_and_count(npath)),
       ("Cyclomatic complexity",
        f"method maximum {method_maximum}; largest class/type total {type_total}"),
-      ("Deep nesting", "unavailable" if deep is None else f"{sum(deep)} findings"),
+      ("Module shallowness", "unavailable" if shallow is None else f"{max(shallow, default=0)}/100 penalty"),
       ("God class score", "unavailable" if god is None else _display_decimal(
           god.get("contribution", 0),
       )),
@@ -612,7 +612,7 @@ class ColumnsScreen(ModalScreen[set[str] | None]):
 
 _SORT_FIELDS = (
     ("score", "Score"), ("cog", "COG"),
-    ("npath", "NPath"), ("cyclo", "Cyclomatic"), ("deep", "Deep"),
+    ("npath", "NPath"), ("cyclo", "Cyclomatic"), ("deep", "Shallowness"),
     ("god", "God"), ("filename", "Filename"),
 )
 
@@ -756,6 +756,39 @@ def _full_details(row: FollowRow, state: FollowState) -> Text:
   return content
 
 
+class HelpScreen(ModalScreen[None]):
+  """Compact column glossary shown without leaving the ranking view."""
+
+  CSS = """
+  HelpScreen { align: center middle; background: #02070dcc; }
+  #help-dialog { width: 92%; height: 14; padding: 1 2;
+                 background: #0d1d29; border: round #31506a; }
+  """
+
+  BINDINGS = [
+      Binding("escape", "close", "Close", priority=True),
+      Binding("q", "close", "Close", priority=True),
+      Binding("h", "close", "Close", priority=True),
+  ]
+
+  def compose(self) -> ComposeResult:
+    with Vertical(id="help-dialog"):
+      yield Static("HELP", classes="title")
+      yield Static(
+          "SCORE   weighted total of enabled metrics; COG, NPath, Cyclo, "
+          "SHALLOW and God contributions\n"
+          "COG     cognitive effort from nested decisions\n"
+          "NPATH   estimated distinct execution routes through a routine\n"
+          "CYCLO   independent control-flow paths\n"
+          "SHALLOW Ousterhout-inspired 0–100 module shallowness penalty; lower is better\n"
+          "GOD     large, externally coupled, low-cohesion type contribution\n"
+          "PATH    source file; press Esc, q or h to close",
+      )
+
+  def action_close(self) -> None:
+    self.dismiss(None)
+
+
 class DetailsScreen(ModalScreen[None]):
   """Scrollable full analysis for the selected file."""
 
@@ -815,6 +848,7 @@ class FollowApp(App[int]):
       Binding("c", "columns", "Columns"),
       Binding("s", "sort", "Sort"),
       Binding("r", "rescan", "Rescan"),
+      Binding("h", "help", "Help"),
   ]
 
   def __init__(self, initial_document: dict[str, Any], analyzer: ReportBuilder, *,
@@ -950,20 +984,24 @@ class FollowApp(App[int]):
     cognitive = _component_values(item, "cognitive_complexity")
     npath = _component_values(item, "npath_complexity")
     method_cyclo = _component_values(item, "cyclomatic_method_complexity")
-    deep_values = _component_values(item, "deeply_nested_if")
-    deep_count = None if deep_values is None else sum(deep_values)
+    shallow_values = _component_values(item, "module_shallowness")
+    shallow_value = None if shallow_values is None else max(shallow_values, default=0)
     god_value = item.get("components", {}).get("god_class", {}).get("contribution")
     cog_level = "hot" if cognitive and max(cognitive) >= 25 else "warm" if cognitive and max(cognitive) >= 15 else "normal"
     npath_level = "hot" if npath and max(npath) >= 200 else "warm" if npath and max(npath) >= 100 else "normal"
     cyclo_level = "hot" if method_cyclo and max(method_cyclo) >= 20 else "warm" if method_cyclo and max(method_cyclo) >= 10 else "normal"
-    deep_level = "warm" if deep_count else "normal"
+    shallow_level = (
+        "hot" if shallow_value is not None and shallow_value >= 60
+        else "warm" if shallow_value is not None and shallow_value >= 30
+        else "normal"
+    )
     god_level = "hot" if god_value is not None and float(god_value) >= 20 else "warm" if god_value else "normal"
     cells = {
         "score": _score(row, self.state, now),
         "cog": _metric(_maximum(item, "cognitive_complexity"), cog_level),
         "npath": _metric(_maximum(item, "npath_complexity"), npath_level),
         "cyclo": _metric(_cyclomatic_maximum(item), cyclo_level),
-        "deep": _metric(_depth(item), deep_level),
+        "deep": _metric(_depth(item), shallow_level),
         "god": _metric(_god(item), god_level),
         "path": _path_text(row.path),
     }
@@ -1035,8 +1073,8 @@ class FollowApp(App[int]):
       values = _component_values(row.document, component_id)
       return None if values is None else max(values, default=0)
     if self.sort_key == "deep":
-      values = _component_values(row.document, "deeply_nested_if")
-      return None if values is None else sum(values)
+      values = _component_values(row.document, "module_shallowness")
+      return None if values is None else max(values, default=0)
     if self.sort_key == "god":
       component = row.document.get("components", {}).get("god_class")
       return None if component is None else float(component.get("contribution", 0))
@@ -1087,6 +1125,9 @@ class FollowApp(App[int]):
       return
     row = self.state.rows[self.selected_path]
     self.push_screen(DetailsScreen(_full_details(row, self.state)))
+
+  def action_help(self) -> None:
+    self.push_screen(HelpScreen())
 
   def action_columns(self) -> None:
     self.push_screen(ColumnsScreen(set(self.visible_columns)), self._columns_selected)

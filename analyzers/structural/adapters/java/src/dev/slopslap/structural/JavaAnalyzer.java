@@ -45,6 +45,7 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                 .thenComparingInt(Facts.Location::line).thenComparingInt(Facts.Location::column);
         program.functions.sort(Comparator.comparing(item -> item.location, locations));
         program.types.sort(Comparator.comparing(item -> item.location, locations));
+        program.publicOperations.sort(Comparator.comparing(item -> item.location, locations));
         program.files.sort(String::compareTo);
     }
 
@@ -88,6 +89,22 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                 if (member instanceof VariableTree field) {
                     type.fields.add(field.getName().toString());
                     collectTypes(field.getType(), foreignTypes);
+                    Facts.FieldFact fieldFact = new Facts.FieldFact();
+                    fieldFact.name = field.getName().toString();
+                    fieldFact.publicField = field.getModifiers().getFlags().contains(javax.lang.model.element.Modifier.PUBLIC);
+                    fieldFact.mutable = !field.getModifiers().getFlags().contains(javax.lang.model.element.Modifier.FINAL);
+                    fieldFact.type = shape(field.getType());
+                    type.fieldFacts.add(fieldFact);
+                    if (fieldFact.publicField && fieldFact.mutable) {
+                        Facts.RepresentationExposure exposure = new Facts.RepresentationExposure();
+                        exposure.stableId = path + ":" + name + ":" + fieldFact.name;
+                        exposure.kind = "public-mutable-field";
+                        exposure.entity = name + "." + fieldFact.name;
+                        exposure.location = location(field);
+                        exposure.evidence = "public non-final Java field exposes mutable representation";
+                        exposure.confidence = "exact";
+                        program.representation.add(exposure);
+                    }
                 }
             }
             int ordinal = 0;
@@ -99,6 +116,9 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                 Facts.Function function = function(method, name);
                 program.functions.add(function);
                 type.methods.add(function);
+                if (method.getModifiers().getFlags().contains(javax.lang.model.element.Modifier.PUBLIC)) {
+                    program.publicOperations.add(operation(method, name));
+                }
                 if (type.kind.equals("interface")) {
                     type.interfaceMethodCount++;
                 }
@@ -145,6 +165,35 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
         if (method.getBody() != null) {
             result.body.addAll(statements(method.getBody().getStatements()));
         }
+        return result;
+    }
+
+    private Facts.PublicOperation operation(MethodTree method, String owner) {
+        Facts.PublicOperation result = new Facts.PublicOperation();
+        result.name = method.getName().toString();
+        result.ownerType = owner;
+        result.location = location(method);
+        result.stableId = path + ":" + owner + ":" + result.name;
+        for (VariableTree parameter : method.getParameters()) result.parameters.add(shape(parameter.getType()));
+        Tree returnType = method.getReturnType();
+        if (returnType != null && !returnType.toString().equals("void")) result.results.add(shape(returnType));
+        result.emitsOutput = !result.results.isEmpty();
+        return result;
+    }
+
+    private Facts.TypeShape shape(Tree tree) {
+        Facts.TypeShape result = new Facts.TypeShape();
+        result.kind = tree.getKind().toString().toLowerCase(Locale.ROOT);
+        result.name = tree.toString();
+        if (tree instanceof ParameterizedTypeTree parameterized) {
+            for (Tree argument : parameterized.getTypeArguments()) result.children.add(shape(argument));
+        } else if (tree instanceof ArrayTypeTree array) {
+            result.children.add(shape(array.getType()));
+        }
+        result.complexity = 1;
+        for (Facts.TypeShape child : result.children) result.complexity += child.complexity;
+        result.complexity = Math.min(32, result.complexity);
+        result.stableId = result.kind + ":" + result.name + ":" + result.complexity;
         return result;
     }
 

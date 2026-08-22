@@ -178,6 +178,206 @@ function isOutermostUnsafeMember(node: ts.PropertyAccessExpression | ts.ElementA
   return true;
 }
 
+type AddCandidate = (
+  component: string,
+  node: ts.Node,
+  kind: string,
+  symbolNode?: ts.Node,
+  attributes?: Record<string, unknown>
+) => void;
+
+function explicitAnySubject(node: ts.Node): ts.Node {
+  for (let parent = node.parent; parent !== undefined; parent = parent.parent) {
+    if (
+      (ts.isParameter(parent) || ts.isVariableDeclaration(parent) || ts.isPropertyDeclaration(parent)) &&
+      parent.name !== undefined
+    ) {
+      return parent.name;
+    }
+    if (ts.isFunctionLike(parent) || ts.isSourceFile(parent)) break;
+  }
+  return node;
+}
+
+function collectExplicitAny(node: ts.Node, add: AddCandidate): void {
+  if (node.kind === ts.SyntaxKind.AnyKeyword) {
+    add("explicit_any", node, "explicit_any", explicitAnySubject(node));
+  }
+}
+
+function collectUnsafeAssertions(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  add: AddCandidate
+): void {
+  if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
+    const sourceType = checker.getTypeAtLocation(node.expression);
+    const targetType = checker.getTypeAtLocation(node);
+    if (isAny(sourceType) || isAny(targetType) || !checker.isTypeAssignableTo(sourceType, targetType)) {
+      add("unsafe_type_assertion", node, "assertion", node.expression, {
+        source_type: checker.typeToString(sourceType),
+        target_type: checker.typeToString(targetType)
+      });
+    }
+  } else if (ts.isNonNullExpression(node)) {
+    const sourceType = checker.getTypeAtLocation(node.expression);
+    if (isAny(sourceType) || isNullish(sourceType)) {
+      add("unsafe_type_assertion", node, "non_null", node.expression, {
+        source_type: checker.typeToString(sourceType)
+      });
+    }
+  }
+}
+
+function collectUnsafePropagation(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+  if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
+    const sourceType = checker.getTypeAtLocation(node.initializer);
+    const targetType = checker.getTypeAtLocation(node.name);
+    if (isAny(sourceType) && !isAny(targetType)) {
+      add("unsafe_type_propagation", node, "declaration", node.name, {
+        source_type: checker.typeToString(sourceType),
+        target_type: checker.typeToString(targetType)
+      });
+    }
+  } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    const sourceType = checker.getTypeAtLocation(node.right);
+    const targetType = checker.getTypeAtLocation(node.left);
+    if (isAny(sourceType) && !isAny(targetType)) {
+      add("unsafe_type_propagation", node, "assignment", node.left, {
+        source_type: checker.typeToString(sourceType),
+        target_type: checker.typeToString(targetType)
+      });
+    }
+  }
+}
+
+function collectUnsafeCalls(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+  if (!ts.isCallExpression(node) && !ts.isNewExpression(node)) return;
+  const signature = checker.getResolvedSignature(node);
+  if (signature !== undefined) {
+    const parameters = signature.getParameters();
+    node.arguments?.forEach((argument, index) => {
+      const parameter = parameters[Math.min(index, parameters.length - 1)];
+      if (parameter === undefined) return;
+      const sourceType = checker.getTypeAtLocation(argument);
+      const targetType = parameterType(checker, parameter, node);
+      if (isAny(sourceType) && !isAny(targetType)) {
+        add("unsafe_type_propagation", argument, "argument", argument, {
+          parameter: checker.symbolToString(parameter),
+          source_type: checker.typeToString(sourceType),
+          target_type: checker.typeToString(targetType)
+        });
+      }
+    });
+  }
+  const calleeType = checker.getTypeAtLocation(node.expression);
+  if (isAny(calleeType)) {
+    add("unsafe_type_use", node, "call", node.expression, {
+      receiver_type: checker.typeToString(calleeType)
+    });
+  }
+}
+
+function collectUnsafeMembers(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+  if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) return;
+  if (!isOutermostUnsafeMember(node)) return;
+  const receiverType = checker.getTypeAtLocation(node.expression);
+  if (isAny(receiverType)) {
+    add("unsafe_type_use", node, "member", node.expression, {
+      receiver_type: checker.typeToString(receiverType)
+    });
+  }
+}
+
+function collectUnsafeReturn(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+  if (!ts.isReturnStatement(node) || node.expression === undefined) return;
+  const fn = enclosingFunction(node);
+  const signature = fn === undefined ? undefined : checker.getSignatureFromDeclaration(fn);
+  const sourceType = checker.getTypeAtLocation(node.expression);
+  const targetType = signature?.getReturnType();
+  if (targetType !== undefined && isAny(sourceType) && !isAny(targetType)) {
+    add("unsafe_type_boundary", node, "return", node.expression, {
+      source_type: checker.typeToString(sourceType),
+      target_type: checker.typeToString(targetType)
+    });
+  }
+}
+
+function collectPublicFunctionBoundary(node: ts.SignatureDeclaration, checker: ts.TypeChecker, add: AddCandidate): void {
+  const signature = checker.getSignatureFromDeclaration(node);
+  if (signature !== undefined && isAny(signature.getReturnType())) {
+    add("unsafe_type_boundary", node, "public_return", node.name ?? node, {
+      boundary_type: "return", type: checker.typeToString(signature.getReturnType())
+    });
+  }
+  for (const parameter of node.parameters) {
+    const parameterType = checker.getTypeAtLocation(parameter.name);
+    if (isAny(parameterType)) {
+      add("unsafe_type_boundary", parameter, "public_parameter", parameter.name, {
+        boundary_type: "parameter", type: checker.typeToString(parameterType)
+      });
+    }
+  }
+}
+
+function collectPublicPropertyBoundary(node: ts.PropertyDeclaration | ts.PropertySignature | ts.VariableDeclaration, checker: ts.TypeChecker, add: AddCandidate): void {
+  if (!isPublicMember(node) && !isExported(node)) return;
+  const valueType = checker.getTypeAtLocation(node.name);
+  if (isAny(valueType)) {
+    add("unsafe_type_boundary", node, "public_property", node.name, {
+      boundary_type: "property", type: checker.typeToString(valueType)
+    });
+  }
+}
+
+function collectPublicBoundary(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+  if (ts.isFunctionLike(node) && isPublicFunction(node)) {
+    collectPublicFunctionBoundary(node, checker, add);
+    return;
+  }
+  if (
+    (ts.isPropertyDeclaration(node) || ts.isPropertySignature(node) || ts.isVariableDeclaration(node)) &&
+    (isPublicMember(node) || isExported(node))
+  ) {
+    collectPublicPropertyBoundary(node, checker, add);
+  }
+}
+
+function collectAmbiguousCondition(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+  let condition: ts.Expression | undefined;
+  if (ts.isIfStatement(node) || ts.isWhileStatement(node) || ts.isDoStatement(node)) condition = node.expression;
+  else if (ts.isForStatement(node)) condition = node.condition;
+  else if (ts.isConditionalExpression(node)) condition = node.condition;
+  if (condition === undefined) return;
+  const conditionType = checker.getTypeAtLocation(condition);
+  if (!isBooleanOnly(conditionType)) {
+    add("ambiguous_boolean_expression", condition, "condition", condition, {
+      type: checker.typeToString(conditionType)
+    });
+  }
+}
+
+function collectNonExhaustiveSwitch(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+  if (!ts.isSwitchStatement(node) || node.caseBlock.clauses.some(ts.isDefaultClause)) return;
+  const discriminant = checker.getTypeAtLocation(node.expression);
+  const parts = discriminant.isUnion() ? discriminant.types : [discriminant];
+  const expected = parts.map((part) => typeCaseKey(checker, part));
+  if (parts.length <= 1 || !expected.every((item): item is string => item !== undefined)) return;
+  const present = new Set(
+    node.caseBlock.clauses
+      .filter(ts.isCaseClause)
+      .map((clause) => caseKey(checker, clause.expression))
+      .filter((item): item is string => item !== undefined)
+  );
+  const missing = (expected as string[]).filter((item) => !present.has(item)).sort();
+  if (missing.length > 0) {
+    add("non_exhaustive_union", node.expression, "switch", node.expression, {
+      discriminant_type: checker.typeToString(discriminant),
+      missing
+    });
+  }
+}
+
 export function analyzeTypeSafety(
   entry: SourceEntry,
   typed: TypedContext,
@@ -207,183 +407,15 @@ export function analyzeTypeSafety(
   };
 
   const visit = (node: ts.Node): void => {
-    if (node.kind === ts.SyntaxKind.AnyKeyword) {
-      let named: ts.Node = node;
-      for (let parent = node.parent; parent !== undefined; parent = parent.parent) {
-        if (
-          (ts.isParameter(parent) || ts.isVariableDeclaration(parent) || ts.isPropertyDeclaration(parent)) &&
-          parent.name !== undefined
-        ) {
-          named = parent.name;
-          break;
-        }
-        if (ts.isFunctionLike(parent) || ts.isSourceFile(parent)) break;
-      }
-      add("explicit_any", node, "explicit_any", named);
-    }
-
-    if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
-      const sourceType = checker.getTypeAtLocation(node.expression);
-      const targetType = checker.getTypeAtLocation(node);
-      if (isAny(sourceType) || isAny(targetType) || !checker.isTypeAssignableTo(sourceType, targetType)) {
-        add("unsafe_type_assertion", node, "assertion", node.expression, {
-          source_type: checker.typeToString(sourceType),
-          target_type: checker.typeToString(targetType)
-        });
-      }
-    } else if (ts.isNonNullExpression(node)) {
-      const sourceType = checker.getTypeAtLocation(node.expression);
-      if (isAny(sourceType) || isNullish(sourceType)) {
-        add("unsafe_type_assertion", node, "non_null", node.expression, {
-          source_type: checker.typeToString(sourceType)
-        });
-      }
-    }
-
-    if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
-      const sourceType = checker.getTypeAtLocation(node.initializer);
-      const targetType = checker.getTypeAtLocation(node.name);
-      if (isAny(sourceType) && !isAny(targetType)) {
-        add("unsafe_type_propagation", node, "declaration", node.name, {
-          source_type: checker.typeToString(sourceType),
-          target_type: checker.typeToString(targetType)
-        });
-      }
-    } else if (
-      ts.isBinaryExpression(node) &&
-      node.operatorToken.kind === ts.SyntaxKind.EqualsToken
-    ) {
-      const sourceType = checker.getTypeAtLocation(node.right);
-      const targetType = checker.getTypeAtLocation(node.left);
-      if (isAny(sourceType) && !isAny(targetType)) {
-        add("unsafe_type_propagation", node, "assignment", node.left, {
-          source_type: checker.typeToString(sourceType),
-          target_type: checker.typeToString(targetType)
-        });
-      }
-    }
-
-    if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
-      const signature = checker.getResolvedSignature(node);
-      if (signature !== undefined) {
-        const parameters = signature.getParameters();
-        node.arguments?.forEach((argument, index) => {
-          const parameter = parameters[Math.min(index, parameters.length - 1)];
-          if (parameter === undefined) return;
-          const sourceType = checker.getTypeAtLocation(argument);
-          const targetType = parameterType(checker, parameter, node);
-          if (isAny(sourceType) && !isAny(targetType)) {
-            add("unsafe_type_propagation", argument, "argument", argument, {
-              parameter: checker.symbolToString(parameter),
-              source_type: checker.typeToString(sourceType),
-              target_type: checker.typeToString(targetType)
-            });
-          }
-        });
-      }
-      const calleeType = checker.getTypeAtLocation(node.expression);
-      if (isAny(calleeType)) {
-        add("unsafe_type_use", node, "call", node.expression, {
-          receiver_type: checker.typeToString(calleeType)
-        });
-      }
-    }
-
-    if (
-      (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
-      isOutermostUnsafeMember(node)
-    ) {
-      const receiverType = checker.getTypeAtLocation(node.expression);
-      if (isAny(receiverType)) {
-        add("unsafe_type_use", node, "member", node.expression, {
-          receiver_type: checker.typeToString(receiverType)
-        });
-      }
-    }
-
-    if (ts.isReturnStatement(node) && node.expression !== undefined) {
-      const fn = enclosingFunction(node);
-      const signature = fn === undefined ? undefined : checker.getSignatureFromDeclaration(fn);
-      const sourceType = checker.getTypeAtLocation(node.expression);
-      const targetType = signature?.getReturnType();
-      if (targetType !== undefined && isAny(sourceType) && !isAny(targetType)) {
-        add("unsafe_type_boundary", node, "return", node.expression, {
-          source_type: checker.typeToString(sourceType),
-          target_type: checker.typeToString(targetType)
-        });
-      }
-    }
-
-    if (ts.isFunctionLike(node) && isPublicFunction(node)) {
-      const signature = checker.getSignatureFromDeclaration(node);
-      if (signature !== undefined) {
-        const returnType = signature.getReturnType();
-        if (isAny(returnType)) {
-          add("unsafe_type_boundary", node, "public_return", node.name ?? node, {
-            boundary_type: "return",
-            type: checker.typeToString(returnType)
-          });
-        }
-      }
-      for (const parameter of node.parameters) {
-        const parameterValueType = checker.getTypeAtLocation(parameter.name);
-        if (isAny(parameterValueType)) {
-          add("unsafe_type_boundary", parameter, "public_parameter", parameter.name, {
-            boundary_type: "parameter",
-            type: checker.typeToString(parameterValueType)
-          });
-        }
-      }
-    } else if (
-      (ts.isPropertyDeclaration(node) || ts.isPropertySignature(node) || ts.isVariableDeclaration(node)) &&
-      (isPublicMember(node) || isExported(node))
-    ) {
-      const valueType = checker.getTypeAtLocation(node.name);
-      if (isAny(valueType)) {
-        add("unsafe_type_boundary", node, "public_property", node.name, {
-          boundary_type: "property",
-          type: checker.typeToString(valueType)
-        });
-      }
-    }
-
-    let condition: ts.Expression | undefined;
-    if (ts.isIfStatement(node) || ts.isWhileStatement(node) || ts.isDoStatement(node)) {
-      condition = node.expression;
-    } else if (ts.isForStatement(node)) {
-      condition = node.condition;
-    } else if (ts.isConditionalExpression(node)) {
-      condition = node.condition;
-    }
-    if (condition !== undefined) {
-      const conditionType = checker.getTypeAtLocation(condition);
-      if (!isBooleanOnly(conditionType)) {
-        add("ambiguous_boolean_expression", condition, "condition", condition, {
-          type: checker.typeToString(conditionType)
-        });
-      }
-    }
-
-    if (ts.isSwitchStatement(node) && !node.caseBlock.clauses.some(ts.isDefaultClause)) {
-      const discriminant = checker.getTypeAtLocation(node.expression);
-      const parts = discriminant.isUnion() ? discriminant.types : [discriminant];
-      const expected = parts.map((part) => typeCaseKey(checker, part));
-      if (parts.length > 1 && expected.every((item): item is string => item !== undefined)) {
-        const present = new Set(
-          node.caseBlock.clauses
-            .filter(ts.isCaseClause)
-            .map((clause) => caseKey(checker, clause.expression))
-            .filter((item): item is string => item !== undefined)
-        );
-        const missing = (expected as string[]).filter((item) => !present.has(item)).sort();
-        if (missing.length > 0) {
-          add("non_exhaustive_union", node.expression, "switch", node.expression, {
-            discriminant_type: checker.typeToString(discriminant),
-            missing
-          });
-        }
-      }
-    }
+    collectExplicitAny(node, add);
+    collectUnsafeAssertions(node, checker, add);
+    collectUnsafePropagation(node, checker, add);
+    collectUnsafeCalls(node, checker, add);
+    collectUnsafeMembers(node, checker, add);
+    collectUnsafeReturn(node, checker, add);
+    collectPublicBoundary(node, checker, add);
+    collectAmbiguousCondition(node, checker, add);
+    collectNonExhaustiveSwitch(node, checker, add);
 
     ts.forEachChild(node, visit);
   };

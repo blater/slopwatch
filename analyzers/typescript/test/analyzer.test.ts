@@ -85,7 +85,79 @@ test("structural kernels share one syntax parse and emit PMD-aligned measurement
   assert.equal(records.at(-1)?.status, "success");
 });
 
-test("NPath uses tagged exact integers above the interoperable JSON range", () => {
+test("type-level structural metrics match the shared PMD measurement contract", () => {
+  const root = workspace({
+    "src/service.ts": `
+      interface Payload { id: string }
+      const external = { value: 1 };
+      export class Service {
+        private state = 0;
+        private payload!: Payload;
+        run(value: number): number { if (value > 0) this.state = value; return this.state; }
+        report(): void { console.log(external.value); }
+      }
+    `
+  });
+  const records = analyze(request(root, ["src/service.ts"], [
+    ["cyclomatic_class_complexity", "pmd-v1"],
+    ["coupling_between_objects", "pmd-v1"],
+    ["god_class", "pmd-v1"]
+  ]));
+  const measurements = recordsOf(records, "measurement");
+  const classMetric = (component: string) => measurements.find(
+    (item) => item.component_id === component && (item.subject as { name: string }).name === "Service"
+  );
+  assert.equal(classMetric("cyclomatic_class_complexity")?.value, 5);
+  assert.equal(classMetric("coupling_between_objects")?.value, 1);
+  assert.deepEqual(classMetric("god_class")?.attributes, { kind: "class", wmc: 5, atfd: 2, tcc: 0 });
+  assert.ok(recordsOf(records, "coverage").every((item) => item.state === "complete"));
+});
+
+test("module shallowness reports signature evidence", () => {
+  const root = workspace({
+    "src/service.ts": "export function run(request: { id: string }): { ok: boolean } { return { ok: true }; }\n"
+  });
+  const records = analyze(request(root, ["src/service.ts"], [["module_shallowness", "ousterhout-v2"]]));
+  const measurement = recordsOf(records, "measurement")[0];
+  const attributes = measurement?.attributes as Record<string, unknown>;
+  assert.equal(attributes.capability_basis, "cosmic-inspired-signature");
+  assert.equal(attributes.evidence_level, 2);
+  assert.equal(attributes.entries, 1);
+  assert.equal(attributes.exits, 1);
+  assert.equal(attributes.parameter_count, 1);
+  assert.equal(attributes.result_count, 1);
+});
+
+test("module shallowness distinguishes immutable state from representation exposure", () => {
+  const root = workspace({
+    "src/service.ts": `
+      export class Service {
+        readonly stable = 1;
+        mutable = 2;
+        private hidden = 3;
+        get exposed(): number { return this.mutable; }
+        set exposed(value: number) { this.mutable = value; }
+      }
+    `
+  });
+  const records = analyze(request(root, ["src/service.ts"], [["module_shallowness", "ousterhout-v2"]]));
+  const measurement = recordsOf(records, "measurement")[0];
+  const attributes = measurement?.attributes as Record<string, unknown>;
+  assert.equal(attributes.exposed_state_cost, 2);
+  assert.equal(attributes.exposed_representation, 3);
+});
+
+test("module shallowness counts mutable structured signature members as exposure", () => {
+  const root = workspace({
+    "src/service.ts": "export function run(value: { stable: number; readonly id: string }): void {}\n"
+  });
+  const records = analyze(request(root, ["src/service.ts"], [["module_shallowness", "ousterhout-v2"]]));
+  const measurement = recordsOf(records, "measurement")[0];
+  const attributes = measurement?.attributes as Record<string, unknown>;
+  assert.equal(attributes.exposed_representation, 1);
+});
+
+test("NPath is capped at the supported maximum", () => {
   const decisions = Array.from({ length: 55 }, (_, index) => `if (v${index}) {}`).join("\n");
   const parameters = Array.from({ length: 55 }, (_, index) => `v${index}: boolean`).join(", ");
   const root = workspace({ "huge.mts": `export function huge(${parameters}) { ${decisions} }` });
@@ -93,7 +165,7 @@ test("NPath uses tagged exact integers above the interoperable JSON range", () =
     request(root, ["huge.mts"], [["npath_complexity", "pmd-v1"]])
   );
   const measurement = recordsOf(records, "measurement")[0];
-  assert.deepEqual(measurement?.value, { $integer: (2n ** 55n).toString() });
+  assert.equal(measurement?.value, 9999);
 });
 
 test("typed kernels cover all initial local sink components with deterministic dedup", () => {

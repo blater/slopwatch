@@ -78,6 +78,51 @@ type Function struct {
 	Body        []*Statement `json:"body"`
 }
 
+// TypeShape is the caller-visible shape of a signature value. It intentionally
+// excludes private representation unless the type is exposed in the signature.
+type TypeShape struct {
+	StableID       string       `json:"stable_id"`
+	Kind           string       `json:"kind"`
+	Name           string       `json:"name,omitempty"`
+	Children       []*TypeShape `json:"children,omitempty"`
+	ExposedMembers []string     `json:"exposed_members,omitempty"`
+	Complexity     int          `json:"complexity"`
+}
+
+// PublicOperation is the normalized signature evidence for one public
+// function or method. It is optional so older adapters can retain fallback
+// structural measurements while they are upgraded.
+type PublicOperation struct {
+	StableID           string       `json:"stable_id"`
+	Name               string       `json:"name"`
+	OwnerType          string       `json:"owner_type,omitempty"`
+	Location           Location     `json:"location"`
+	Parameters         []*TypeShape `json:"parameters"`
+	Results            []*TypeShape `json:"results"`
+	EmitsOutput        bool         `json:"emits_output"`
+	ObservableMutation bool         `json:"observable_mutation"`
+}
+
+// Field is a declared field/property with visibility relevant to interface
+// cost and representation leakage.
+type Field struct {
+	Name    string     `json:"name"`
+	Public  bool       `json:"public"`
+	Mutable bool       `json:"mutable"`
+	Type    *TypeShape `json:"type,omitempty"`
+}
+
+// RepresentationExposure records a caller-visible entity that exposes module
+// representation rather than merely increasing interface learning cost.
+type RepresentationExposure struct {
+	StableID   string   `json:"stable_id"`
+	Kind       string   `json:"kind"`
+	Entity     string   `json:"entity"`
+	Location   Location `json:"location"`
+	Evidence   string   `json:"evidence"`
+	Confidence string   `json:"confidence"`
+}
+
 // Type is the normalized design surface for a named type.
 type Type struct {
 	Name                 string              `json:"name"`
@@ -88,14 +133,17 @@ type Type struct {
 	ForeignTypes         []string            `json:"foreign_types"`
 	MethodFields         map[string][]string `json:"method_fields"`
 	ForeignFields        []string            `json:"foreign_fields"`
+	Fields               []Field             `json:"fields,omitempty"`
 }
 
 // Program is the complete fact set for one analyzer unit.
 type Program struct {
-	Functions   []*Function                  `json:"functions"`
-	Types       []*Type                      `json:"types"`
-	Files       []string                     `json:"files"`
-	Unavailable map[string]map[string]string `json:"unavailable"`
+	Functions        []*Function                  `json:"functions"`
+	Types            []*Type                      `json:"types"`
+	PublicOperations []*PublicOperation           `json:"public_operations,omitempty"`
+	Representation   []*RepresentationExposure    `json:"representation_exposure,omitempty"`
+	Files            []string                     `json:"files"`
+	Unavailable      map[string]map[string]string `json:"unavailable"`
 }
 
 // Availability returns whether a component has complete evidence for a file.

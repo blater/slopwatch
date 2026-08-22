@@ -106,6 +106,54 @@ func (watcher *sourceWatcher) close() {
 	_ = watcher.watcher.Close()
 }
 
+func (watcher *sourceWatcher) inScope(absolute string) bool {
+	for _, scope := range watcher.scopes {
+		if !scope.directory && filepath.Clean(absolute) == scope.path {
+			return true
+		}
+		if scope.directory {
+			scoped, err := filepath.Rel(scope.path, absolute)
+			if err == nil && scoped != ".." && !strings.HasPrefix(scoped, ".."+string(filepath.Separator)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (watcher *sourceWatcher) excluded(relative string) bool {
+	parts := strings.Split(filepath.ToSlash(relative), "/")
+	for _, part := range parts[:max(0, len(parts)-1)] {
+		lower := strings.ToLower(part)
+		if ignoredDirectories[lower] || (!watcher.includeTests && testDirectories[lower]) {
+			return true
+		}
+	}
+	return false
+}
+
+func (watcher *sourceWatcher) languageFor(relative string) (string, bool) {
+	name := strings.ToLower(filepath.Base(relative))
+	switch ext := strings.ToLower(filepath.Ext(name)); ext {
+	case ".go":
+		if !watcher.includeTests && strings.HasSuffix(name, "_test.go") {
+			return "", false
+		}
+		return "go", true
+	case ".java":
+		return "java", true
+	case ".rs":
+		return "rust", true
+	case ".ts", ".tsx", ".mts", ".cts":
+		if !watcher.includeTests && isTypeScriptTest(name) {
+			return "", false
+		}
+		return "typescript", true
+	default:
+		return "", false
+	}
+}
+
 func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {
 	absolute, err := filepath.Abs(path)
 	if err != nil {
@@ -115,51 +163,11 @@ func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", "", false
 	}
-	inScope := false
-	for _, scope := range watcher.scopes {
-		if !scope.directory && filepath.Clean(absolute) == scope.path {
-			inScope = true
-			break
-		}
-		if scope.directory {
-			scoped, scopeErr := filepath.Rel(scope.path, absolute)
-			if scopeErr == nil && scoped != ".." && !strings.HasPrefix(scoped, ".."+string(filepath.Separator)) {
-				inScope = true
-				break
-			}
-		}
-	}
-	if !inScope {
+	if !watcher.inScope(absolute) || watcher.excluded(relative) {
 		return "", "", false
 	}
-	parts := strings.Split(filepath.ToSlash(relative), "/")
-	for _, part := range parts[:max(0, len(parts)-1)] {
-		lower := strings.ToLower(part)
-		if ignoredDirectories[lower] {
-			return "", "", false
-		}
-		if !watcher.includeTests && testDirectories[lower] {
-			return "", "", false
-		}
-	}
-	name := strings.ToLower(filepath.Base(relative))
-	language := ""
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".go":
-		language = "go"
-		if !watcher.includeTests && strings.HasSuffix(name, "_test.go") {
-			return "", "", false
-		}
-	case ".java":
-		language = "java"
-	case ".rs":
-		language = "rust"
-	case ".ts", ".tsx", ".mts", ".cts":
-		language = "typescript"
-		if !watcher.includeTests && isTypeScriptTest(name) {
-			return "", "", false
-		}
-	default:
+	language, ok := watcher.languageFor(relative)
+	if !ok {
 		return "", "", false
 	}
 	if len(watcher.languages) > 0 && !watcher.languages[language] {

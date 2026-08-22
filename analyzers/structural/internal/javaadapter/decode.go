@@ -55,6 +55,126 @@ func readType(data *bufio.Reader) (*facts.Type, error) {
 	return item, nil
 }
 
+func readShape(data *bufio.Reader) (*facts.TypeShape, error) {
+	shape := &facts.TypeShape{}
+	var err error
+	if shape.StableID, err = readString(data); err != nil {
+		return nil, err
+	}
+	if shape.Kind, err = readString(data); err != nil {
+		return nil, err
+	}
+	if shape.Name, err = readString(data); err != nil {
+		return nil, err
+	}
+	if shape.Children, err = readShapes(data); err != nil {
+		return nil, err
+	}
+	if shape.ExposedMembers, err = readStrings(data); err != nil {
+		return nil, err
+	}
+	value, err := readUint32(data)
+	if err != nil {
+		return nil, err
+	}
+	shape.Complexity = int(value)
+	return shape, nil
+}
+
+func readShapes(data *bufio.Reader) ([]*facts.TypeShape, error) {
+	count, err := readCount(data)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*facts.TypeShape, count)
+	for index := range result {
+		result[index], err = readShape(data)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
+func readOperations(data *bufio.Reader) ([]*facts.PublicOperation, error) {
+	count, err := readCount(data)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*facts.PublicOperation, count)
+	for index := range result {
+		item := &facts.PublicOperation{}
+		if item.StableID, err = readString(data); err != nil {
+			return nil, err
+		}
+		if item.Name, err = readString(data); err != nil {
+			return nil, err
+		}
+		if item.OwnerType, err = readString(data); err != nil {
+			return nil, err
+		}
+		if item.Location, err = readLocation(data); err != nil {
+			return nil, err
+		}
+		if item.Parameters, err = readShapes(data); err != nil {
+			return nil, err
+		}
+		if item.Results, err = readShapes(data); err != nil {
+			return nil, err
+		}
+		if item.EmitsOutput, err = readBool(data); err != nil {
+			return nil, err
+		}
+		if item.ObservableMutation, err = readBool(data); err != nil {
+			return nil, err
+		}
+		result[index] = item
+	}
+	return result, nil
+}
+
+func readBool(data *bufio.Reader) (bool, error) {
+	value, err := data.ReadByte()
+	if err != nil {
+		return false, err
+	}
+	if value > 1 {
+		return false, fmt.Errorf("invalid Java boolean %d", value)
+	}
+	return value == 1, nil
+}
+
+func readExposures(data *bufio.Reader) ([]*facts.RepresentationExposure, error) {
+	count, err := readCount(data)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*facts.RepresentationExposure, count)
+	for index := range result {
+		item := &facts.RepresentationExposure{}
+		if item.StableID, err = readString(data); err != nil {
+			return nil, err
+		}
+		if item.Kind, err = readString(data); err != nil {
+			return nil, err
+		}
+		if item.Entity, err = readString(data); err != nil {
+			return nil, err
+		}
+		if item.Location, err = readLocation(data); err != nil {
+			return nil, err
+		}
+		if item.Evidence, err = readString(data); err != nil {
+			return nil, err
+		}
+		if item.Confidence, err = readString(data); err != nil {
+			return nil, err
+		}
+		result[index] = item
+	}
+	return result, nil
+}
+
 func readMethodFields(data *bufio.Reader) (map[string][]string, error) {
 	count, err := readCount(data)
 	if err != nil {

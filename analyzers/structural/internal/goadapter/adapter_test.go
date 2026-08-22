@@ -28,6 +28,15 @@ func Run(ok bool) { callback := func() { if ok {} }; callback() }
 	if len(program.Functions) != 4 {
 		t.Fatalf("functions = %d, want 4", len(program.Functions))
 	}
+	if len(program.PublicOperations) != 3 {
+		t.Fatalf("public operations = %d, want 3", len(program.PublicOperations))
+	}
+	if len(program.Representation) != 1 || program.Representation[0].Entity != "Peer.Value" {
+		t.Fatalf("representation exposure = %#v", program.Representation)
+	}
+	if len(program.PublicOperations[0].Parameters) == 0 || program.PublicOperations[0].Parameters[0].Name != "Peer" {
+		t.Fatalf("first operation signature = %#v", program.PublicOperations[0])
+	}
 	var serviceFound bool
 	for _, item := range program.Types {
 		if item.Name != "Service" {
@@ -40,12 +49,20 @@ func Run(ok bool) { callback := func() { if ok {} }; callback() }
 		if len(item.MethodFields["A"]) != 1 || item.MethodFields["A"][0] != "state" {
 			t.Fatalf("A fields = %#v", item.MethodFields["A"])
 		}
+		if len(item.Fields) != 2 || item.Fields[0].Public || item.Fields[1].Public {
+			t.Fatalf("Service fields = %#v", item.Fields)
+		}
 		if len(item.ForeignFields) != 1 || item.ForeignFields[0] != "Peer.Value" {
 			t.Fatalf("foreign fields = %#v", item.ForeignFields)
 		}
 	}
 	if !serviceFound {
 		t.Fatal("Service type was not collected")
+	}
+	for _, item := range program.Types {
+		if item.Name == "Peer" && (len(item.Fields) != 1 || !item.Fields[0].Public) {
+			t.Fatalf("Peer public fields = %#v", item.Fields)
+		}
 	}
 }
 

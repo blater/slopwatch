@@ -155,6 +155,12 @@ func readProgram(data *bufio.Reader) (*facts.Program, error) {
 	if program.Types, err = readTypes(data); err != nil {
 		return nil, err
 	}
+	if program.PublicOperations, err = readOperations(data); err != nil {
+		return nil, err
+	}
+	if program.Representation, err = readExposures(data); err != nil {
+		return nil, err
+	}
 	if program.Files, err = readStrings(data); err != nil {
 		return nil, err
 	}

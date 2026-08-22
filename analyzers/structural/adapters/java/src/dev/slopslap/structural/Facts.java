@@ -58,6 +58,42 @@ final class Facts {
         final List<Statement> body = new ArrayList<>();
     }
 
+    static final class TypeShape {
+        String stableId = "";
+        String kind = "opaque";
+        String name = "";
+        final List<TypeShape> children = new ArrayList<>();
+        final List<String> exposedMembers = new ArrayList<>();
+        int complexity = 1;
+    }
+
+    static final class PublicOperation {
+        String stableId;
+        String name;
+        String ownerType = "";
+        Location location;
+        final List<TypeShape> parameters = new ArrayList<>();
+        final List<TypeShape> results = new ArrayList<>();
+        boolean emitsOutput;
+        boolean observableMutation;
+    }
+
+    static final class FieldFact {
+        String name;
+        boolean publicField;
+        boolean mutable;
+        TypeShape type;
+    }
+
+    static final class RepresentationExposure {
+        String stableId;
+        String kind;
+        String entity;
+        Location location;
+        String evidence;
+        String confidence;
+    }
+
     static final class TypeFact {
         String name;
         String kind;
@@ -68,11 +104,14 @@ final class Facts {
         final Map<String, List<String>> methodFields = new LinkedHashMap<>();
         final List<String> foreignFields = new ArrayList<>();
         final List<String> fields = new ArrayList<>();
+        final List<FieldFact> fieldFacts = new ArrayList<>();
     }
 
     static final class Program {
         final List<Function> functions = new ArrayList<>();
         final List<TypeFact> types = new ArrayList<>();
+        final List<PublicOperation> publicOperations = new ArrayList<>();
+        final List<RepresentationExposure> representation = new ArrayList<>();
         final List<String> files = new ArrayList<>();
     }
 

@@ -18,9 +18,9 @@ func TestAdapterExtractsJavaFactsAndExcludesTestPackages(t *testing.T) {
 	helper := buildHelper(t, root, javac, jar)
 	writeSource(t, root, "src/main/java/example/Service.java", `
 package example;
-final class Service {
+public class Service {
   private int total;
-  int calculate(int value, boolean enabled) {
+  public int calculate(int value, boolean enabled) {
     if (enabled && value > 0) { total += value; }
     return total;
   }
@@ -43,6 +43,9 @@ final class ServiceTest { void testIt() { if (true) { return; } } }`)
 	if len(program.Types) != 1 || program.Types[0].Name != "Service" {
 		t.Fatalf("unexpected types: %#v", program.Types)
 	}
+	if len(program.PublicOperations) != 1 || len(program.PublicOperations[0].Parameters) != 2 || len(program.PublicOperations[0].Results) != 1 {
+		t.Fatalf("unexpected public operations: %#v", program.PublicOperations)
+	}
 	if got := program.Types[0].MethodFields["calculate#0"]; len(got) != 1 || got[0] != "total" {
 		t.Fatalf("unexpected method fields: %#v", program.Types[0].MethodFields)
 	}
@@ -62,7 +65,10 @@ func buildHelper(t *testing.T, root, javac, jar string) string {
 		t.Fatal(err)
 	}
 	sourceRoot := filepath.Join("..", "..", "adapters", "java", "src", "dev", "slopslap", "structural")
-	sources := []string{"Facts.java", "Protocol.java", "JavaAnalyzer.java", "Main.java"}
+	sources := []string{
+		"Facts.java", "Protocol.java", "JavaAnalyzer.java", "JavaParser.java",
+		"JavaStatements.java", "Main.java",
+	}
 	arguments := []string{"--release", "17", "-d", classes}
 	for _, source := range sources {
 		arguments = append(arguments, filepath.Join(sourceRoot, source))

@@ -1,0 +1,181 @@
+package follow
+
+import (
+	"fmt"
+	"math"
+	"sort"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/slopslap/slopslap/internal/report"
+)
+
+func (model Model) detailView() string {
+	file, ok := model.selectedFile()
+	if !ok {
+		return ""
+	}
+	outerWidth, outerHeight, titleHeight, bodyHeight, contentWidth := model.detailDimensions()
+	innerWidth := max(1, outerWidth-2)
+	lines := model.detailContent(file, contentWidth)
+	maximumOffset := max(0, len(lines)-bodyHeight)
+	offset := min(maximumOffset, max(0, model.detailOffset))
+
+	titleBackground := lipgloss.Color("#0b1e2d")
+	bodyBackground := lipgloss.Color("#091723")
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#68f6c8")).Background(titleBackground)
+	bodyStyle := lipgloss.NewStyle().Foreground(colourText).Background(bodyBackground)
+	inner := make([]string, 0, outerHeight-2)
+	for row := 0; row < titleHeight; row++ {
+		text := ""
+		if row == titleHeight/2 {
+			text = "  FULL ANALYSIS"
+			closeLabel := "ESC / Q CLOSE  "
+			if lipgloss.Width(text)+lipgloss.Width(closeLabel) <= innerWidth {
+				text += strings.Repeat(" ", innerWidth-lipgloss.Width(text)-lipgloss.Width(closeLabel)) + closeLabel
+			}
+		}
+		inner = append(inner, titleStyle.Render(padANSI(truncateANSI(text, innerWidth), innerWidth)))
+	}
+	thumbStart, thumbSize := scrollbar(offset, len(lines), bodyHeight)
+	for row := 0; row < bodyHeight; row++ {
+		content := strings.Repeat(" ", contentWidth)
+		if index := offset + row; index < len(lines) {
+			content = lines[index]
+		}
+		track := " "
+		trackColour := lipgloss.Color("#31536b")
+		if len(lines) > bodyHeight {
+			track = "│"
+			if row >= thumbStart && row < thumbStart+thumbSize {
+				track = "█"
+			}
+		}
+		inner = append(inner,
+			bodyStyle.Render("  ")+
+				content+
+				lipgloss.NewStyle().Foreground(trackColour).Background(bodyBackground).Render(track)+
+				bodyStyle.Render(" "),
+		)
+	}
+	dialog := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#31506a")).Render(strings.Join(inner, "\n"))
+	return dialog
+}
+
+type detailLine struct {
+	text   string
+	colour lipgloss.Color
+	bold   bool
+}
+
+func (model Model) detailContent(file report.File, width int) []string {
+	logical := []detailLine{
+		{file.Path, lipgloss.Color("#d8e7f0"), true},
+		{fmt.Sprintf("%s  ·  rank %d  ·  score %.1f", file.Language, file.Rank, file.Score), lipgloss.Color("#7893a7"), false},
+		{"", colourText, false},
+		{"METRIC SUMMARY", lipgloss.Color("#68f6c8"), true},
+	}
+	labels := []struct{ id, label string }{
+		{"cognitive_complexity", "Cognitive complexity"},
+		{"npath_complexity", "NPath complexity"},
+		{"cyclomatic_method_complexity", "Cyclomatic method complexity"},
+		{"cyclomatic_class_complexity", "Cyclomatic class complexity"},
+		{"module_shallowness", "Module shallowness penalty"},
+		{"god_class", "God class score"},
+	}
+	for _, item := range labels {
+		component, exists := file.Components[item.id]
+		if !exists {
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s unavailable", item.label), lipgloss.Color("#91aabd"), false})
+			continue
+		}
+		values := make([]float64, 0, len(component.Subjects))
+		for _, subject := range component.Subjects {
+			values = append(values, subject.Value)
+		}
+		maximum, total := 0.0, 0.0
+		for _, value := range values {
+			maximum = math.Max(maximum, value)
+			total += value
+		}
+		if item.id == "god_class" {
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s %.1f across %d types", item.label, component.Contribution, component.Observations), lipgloss.Color("#91aabd"), false})
+		} else if item.id == "module_shallowness" {
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s %s/100 penalty", item.label, report.DisplayNumber(maximum)), lipgloss.Color("#91aabd"), false})
+		} else {
+			unit := "routines"
+			if item.id == "cyclomatic_class_complexity" {
+				unit = "types"
+			}
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s maximum %s across %d %s", item.label, report.DisplayNumber(maximum), component.Observations, unit), lipgloss.Color("#91aabd"), false})
+		}
+	}
+	logical = append(logical, detailLine{"", colourText, false}, detailLine{"COMPONENTS", lipgloss.Color("#68f6c8"), true})
+	componentIDs := make([]string, 0, len(file.Components))
+	for id := range file.Components {
+		componentIDs = append(componentIDs, id)
+	}
+	sort.Strings(componentIDs)
+	for _, id := range componentIDs {
+		component := file.Components[id]
+		logical = append(logical, detailLine{fmt.Sprintf("%s  contribution %.1f  ·  observations %d", id, component.Contribution, component.Observations), lipgloss.Color("#b9cad8"), true})
+		for _, subject := range component.Subjects {
+			logical = append(logical, detailLine{fmt.Sprintf("  • %s = %s  (+%s)", subject.Subject, report.DisplayNumber(subject.Value), report.DisplayNumber(subject.Contribution)), lipgloss.Color("#7893a7"), false})
+		}
+	}
+	result := []string{}
+	for _, line := range logical {
+		wrapped := []string{""}
+		if line.text != "" {
+			wrapped = strings.Split(ansi.Hardwrap(line.text, max(1, width), false), "\n")
+		}
+		for _, part := range wrapped {
+			style := lipgloss.NewStyle().Foreground(line.colour).Background(lipgloss.Color("#091723")).Bold(line.bold)
+			result = append(result, style.Render(padANSI(clip(part, width), width)))
+		}
+	}
+	return result
+}
+
+func (model Model) detailDimensions() (outerWidth, outerHeight, titleHeight, bodyHeight, contentWidth int) {
+	outerWidth = min(model.width, max(4, int(math.Round(float64(model.width)*0.92))))
+	outerHeight = min(model.height, max(4, int(math.Round(float64(model.height)*0.88))))
+	innerWidth := max(1, outerWidth-2)
+	innerHeight := max(2, outerHeight-2)
+	titleHeight = min(3, max(1, innerHeight-1))
+	bodyHeight = max(1, innerHeight-titleHeight)
+	contentWidth = max(1, innerWidth-4)
+	return
+}
+
+func (model Model) detailBodyHeight() int {
+	_, _, _, bodyHeight, _ := model.detailDimensions()
+	return bodyHeight
+}
+
+func (model Model) detailMaxOffset() int {
+	file, ok := model.selectedFile()
+	if !ok {
+		return 0
+	}
+	_, _, _, bodyHeight, contentWidth := model.detailDimensions()
+	return max(0, len(model.detailContent(file, contentWidth))-bodyHeight)
+}
+
+func (model *Model) clampDetailOffset() {
+	model.detailOffset = min(max(0, model.detailOffset), model.detailMaxOffset())
+}
+
+func scrollbar(offset, total, viewport int) (start, size int) {
+	if total <= viewport || viewport <= 0 {
+		return 0, 0
+	}
+	size = max(1, viewport*viewport/total)
+	travel := max(0, viewport-size)
+	maximumOffset := max(1, total-viewport)
+	start = int(math.Round(float64(offset) * float64(travel) / float64(maximumOffset)))
+	return start, size
+}

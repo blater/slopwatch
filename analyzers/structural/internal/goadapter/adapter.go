@@ -30,6 +30,7 @@ type analysisContext struct {
 	current        source
 	activeReceiver string
 	functions      []*facts.Function
+	operations     []*facts.PublicOperation
 }
 
 // Adapter is the built-in Go frontend for the structural host.
@@ -106,8 +107,32 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 		}
 	}
 	types := collectTypes(b, sources)
+	representation := make([]*facts.RepresentationExposure, 0)
+	for _, item := range types {
+		for _, field := range item.Fields {
+			if !field.Public || !field.Mutable {
+				continue
+			}
+			representation = append(representation, &facts.RepresentationExposure{
+				StableID: fmt.Sprintf("%s:%s:%s", item.Location.Path, item.Name, field.Name),
+				Kind:     "public-mutable-field", Entity: item.Name + "." + field.Name,
+				Location: item.Location, Evidence: "exported Go struct field is mutable at the language boundary",
+				Confidence: "exact",
+			})
+		}
+	}
 	sort.Slice(b.functions, func(left, right int) bool {
 		a, c := b.functions[left].Location, b.functions[right].Location
+		if a.Path != c.Path {
+			return a.Path < c.Path
+		}
+		if a.Line != c.Line {
+			return a.Line < c.Line
+		}
+		return a.Column < c.Column
+	})
+	sort.Slice(b.operations, func(left, right int) bool {
+		a, c := b.operations[left].Location, b.operations[right].Location
 		if a.Path != c.Path {
 			return a.Path < c.Path
 		}
@@ -134,7 +159,7 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 			"god_class":                reason,
 		}
 	}
-	return &facts.Program{Functions: b.functions, Types: types, Files: files, Unavailable: unavailable}, nil
+	return &facts.Program{Functions: b.functions, Types: types, PublicOperations: b.operations, Representation: representation, Files: files, Unavailable: unavailable}, nil
 }
 
 func canonicalSource(workspace, raw string) (string, string, error) {

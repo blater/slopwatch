@@ -53,7 +53,7 @@ export interface Measurement {
   component_id: string;
   definition_version: string;
   path: string;
-  scope: "function" | "expression";
+  scope: "file" | "function" | "type" | "expression";
   value: JsonInteger;
   subject: Subject;
   attributes: Record<string, unknown>;

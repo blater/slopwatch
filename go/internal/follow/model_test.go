@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -37,6 +39,69 @@ func TestArrowNavigationMovesImmediatelyWithoutATimer(t *testing.T) {
 	}
 }
 
+func TestInitialScanRendersCenteredAnimatedStatus(t *testing.T) {
+	model := Model{width: 80, height: 20, analyzing: true, animationFrame: 1}
+	view := ansi.Strip(model.tableView())
+	if !strings.Contains(view, "SCANNING WORKSPACE") {
+		t.Fatalf("initial scan status is missing: %q", view)
+	}
+	if !strings.Contains(view, "⠙") {
+		t.Fatalf("initial scan animation frame is missing: %q", view)
+	}
+	lines := strings.Split(view, "\n")
+	statusLine := -1
+	for index, line := range lines {
+		if strings.Contains(line, "SCANNING WORKSPACE") {
+			statusLine = index
+			break
+		}
+	}
+	if statusLine != (model.bodyHeight()/2)+2 {
+		t.Fatalf("status line = %d, want centered body line %d", statusLine, (model.bodyHeight()/2)+2)
+	}
+}
+
+func TestFindSearchesMainTableAndAdvancesWithNext(t *testing.T) {
+	files := []report.File{testFile("alpha.go", 3), testFile("beta.go", 2), testFile("gamma.go", 1)}
+	document := report.Document{Files: files}
+	document.SortAndRank()
+	model := Model{
+		document: document, cursor: 0, selected: "alpha.go",
+		rows: map[string]rowState{}, visible: map[string]bool{}, findInput: textinput.New(),
+	}
+	model.findQuery = "a"
+	model.findNext(1)
+	if model.selected != "beta.go" {
+		t.Fatalf("first find selected %q, want beta.go", model.selected)
+	}
+	model.findNext(1)
+	if model.selected != "gamma.go" {
+		t.Fatalf("next find selected %q, want gamma.go", model.selected)
+	}
+}
+
+func TestFindUsesFWithSlashAsHiddenSynonym(t *testing.T) {
+	for _, key := range []rune{'f', '/'} {
+		model := Model{findInput: textinput.New()}
+		updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+		if !updated.(*Model).findOpen {
+			t.Fatalf("%q did not open find", key)
+		}
+	}
+}
+
+func TestFindSearchesSourceAndMovesViewport(t *testing.T) {
+	model := Model{
+		findSource: true, findQuery: "needle", sourceSearchText: "first\nfiller\nsecond needle\nlast",
+		sourceViewport: viewport.New(40, 2),
+	}
+	model.sourceViewport.SetContent(highlightSource("example.go", model.sourceSearchText))
+	model.findNext(1)
+	if model.sourceViewport.YOffset != 2 {
+		t.Fatalf("source find offset = %d, want 2", model.sourceViewport.YOffset)
+	}
+}
+
 func TestTargetedMergeLeavesUnchangedRowsAlone(t *testing.T) {
 	model := Model{
 		document: report.Document{Files: []report.File{testFile("a.go", 20), testFile("b.go", 10)}},
@@ -51,8 +116,127 @@ func TestTargetedMergeLeavesUnchangedRowsAlone(t *testing.T) {
 	if len(model.document.Files) != 2 || model.document.Files[0].Path != "b.go" || model.document.Files[1].Path != "a.go" {
 		t.Fatalf("unexpected targeted merge: %#v", model.document.Files)
 	}
-	if model.rows["b.go"].direction != 1 || !model.rows["a.go"].editedAt.IsZero() {
+	if model.rows["b.go"].direction != 1 || model.rows["b.go"].movementDelta != 1 || model.rows["b.go"].scoreChangedAt.IsZero() {
+		t.Fatalf("changed row movement was not recorded: %#v", model.rows["b.go"])
+	}
+	if !model.rows["a.go"].editedAt.IsZero() || model.rows["a.go"].movementDelta != 0 || !model.rows["a.go"].scoreChangedAt.IsZero() {
 		t.Fatalf("targeted row history was not isolated: %#v", model.rows)
+	}
+}
+
+func TestInitialFullMergeDoesNotMarkEveryFileAsNew(t *testing.T) {
+	model := Model{
+		document: report.Document{}, rows: map[string]rowState{},
+		visible: map[string]bool{}, options: Options{TrendWindow: 10 * time.Minute},
+	}
+	model.merge(analysisResult{
+		document: report.Document{Files: []report.File{testFile("existing.go", 10)}},
+		full:     true,
+	})
+	if state := model.rows["existing.go"]; !state.newFileAt.IsZero() {
+		t.Fatalf("initial full scan marked existing.go as new: %#v", state)
+	}
+}
+
+func TestUnchangedRowsPassedByChangedRowStayNeutral(t *testing.T) {
+	files := []report.File{
+		testFile("a.go", 60), testFile("b.go", 50), testFile("c.go", 40),
+		testFile("d.go", 30), testFile("e.go", 20), testFile("f.go", 10),
+	}
+	model := Model{
+		document: report.Document{Files: files}, rows: map[string]rowState{},
+		visible: map[string]bool{}, selected: "a.go", options: Options{TrendWindow: 10 * time.Minute},
+	}
+	model.document.SortAndRank()
+	model.merge(analysisResult{
+		document: report.Document{Files: []report.File{testFile("f.go", 70)}},
+		replace:  []string{"f.go"},
+	})
+
+	if got := model.rows["f.go"].movementDelta; got != 5 {
+		t.Fatalf("changed row movement = %d, want 5", got)
+	}
+	if got := movementArrow(model.rows["f.go"].movementDelta); got != "⇈" {
+		t.Fatalf("changed row arrow = %q, want ⇈", got)
+	}
+	for _, path := range []string{"a.go", "b.go", "c.go", "d.go", "e.go"} {
+		state := model.rows[path]
+		if state.movementDelta != 0 || !state.scoreChangedAt.IsZero() {
+			t.Fatalf("unchanged passer %s received movement state: %#v", path, state)
+		}
+	}
+}
+
+func TestMovementArrowThresholds(t *testing.T) {
+	for _, test := range []struct {
+		delta int
+		want  string
+	}{
+		{1, "↑"}, {4, "↑"}, {5, "⇈"}, {-1, "↓"}, {-4, "↓"}, {-5, "⇊"}, {0, ""},
+	} {
+		if got := movementArrow(test.delta); got != test.want {
+			t.Errorf("movementArrow(%d) = %q, want %q", test.delta, got, test.want)
+		}
+	}
+}
+
+func TestMovementIndicatorExpiresWithTrendWindow(t *testing.T) {
+	model := Model{
+		rows: map[string]rowState{"a.go": {
+			scoreChangedAt: time.Now().Add(-2 * time.Minute), movementDelta: 1,
+		}},
+		options: Options{TrendWindow: time.Minute},
+	}
+	model.expireTrends(time.Now())
+	state := model.rows["a.go"]
+	if !state.scoreChangedAt.IsZero() || state.movementDelta != 0 {
+		t.Fatalf("expired movement indicator retained state: %#v", state)
+	}
+}
+
+func TestNewFileMarkerUsesRAGColoursAndExpires(t *testing.T) {
+	now := time.Now()
+	state := rowState{newFileAt: now}
+	if marker, colour, ok := newFileMarker(90, 100, state, now); !ok || marker != "●" || colour != colourGreen {
+		t.Fatalf("initial new-file marker = %q, %q, %t; want green dot", marker, colour, ok)
+	}
+	state.newFileMoved = true
+	if _, colour, _ := newFileMarker(50, 100, state, now); colour != colourAmber {
+		t.Fatalf("top-half new-file colour = %q, want amber", colour)
+	}
+	if _, colour, _ := newFileMarker(10, 100, state, now); colour != colourRed {
+		t.Fatalf("top-ten-percent new-file colour = %q, want red", colour)
+	}
+	if _, _, ok := newFileMarker(10, 100, state, now.Add(newFileIndicatorWindow)); ok {
+		t.Fatal("new-file marker remained active after its ten-minute window")
+	}
+}
+
+func TestNewFileStateTransitionsFromGreenWhenItsRankChanges(t *testing.T) {
+	model := Model{
+		document: report.Document{Files: []report.File{testFile("a.go", 20)}},
+		rows:     map[string]rowState{"a.go": {}}, visible: map[string]bool{},
+		options: Options{TrendWindow: 10 * time.Minute}, selected: "a.go",
+	}
+	model.document.SortAndRank()
+	model.merge(analysisResult{
+		document: report.Document{Files: []report.File{testFile("b.go", 10)}},
+		replace:  []string{"b.go"},
+	})
+	if state := model.rows["b.go"]; state.newFileAt.IsZero() || state.newFileMoved {
+		t.Fatalf("new file did not start in the green state: %#v", state)
+	}
+
+	model.merge(analysisResult{
+		document: report.Document{Files: []report.File{testFile("b.go", 30)}},
+		replace:  []string{"b.go"},
+	})
+	state := model.rows["b.go"]
+	if !state.newFileMoved || state.movementDelta != 1 {
+		t.Fatalf("new file rank transition was not recorded: %#v", state)
+	}
+	if marker, colour := model.rowMarker(model.document.Files[0], state, time.Now()); marker != "●" || colour != colourRed {
+		t.Fatalf("top-ranked new file marker = %q, %q; want red dot", marker, colour)
 	}
 }
 
@@ -139,8 +323,57 @@ func TestFooterOnlyAdvertisesUsefulActions(t *testing.T) {
 			t.Errorf("footer still contains %q: %q", unwanted, footer)
 		}
 	}
-	if !strings.Contains(footer, "sort") {
+	if !strings.Contains(ansi.Strip(footer), "sort") {
 		t.Fatalf("footer does not advertise sorting: %q", footer)
+	}
+}
+
+func TestKeyHintHighlightsHotkeyWhereItOccurs(t *testing.T) {
+	ConfigureTerminalColours()
+	hint := keyHint("o", "columns", footerBackground)
+	if got := ansi.Strip(hint); got != "columns" {
+		t.Fatalf("key hint changed label to %q", got)
+	}
+	if !strings.Contains(hint, "o") {
+		t.Fatalf("key hint does not contain highlighted hotkey: %q", hint)
+	}
+}
+
+func TestHelpShortcutShowsCompactWideColumnHelp(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{width: 100, height: 24}
+	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	if command != nil || !updated.(*Model).help {
+		t.Fatal("h did not open help")
+	}
+	view := updated.(*Model).helpView()
+	if lines := strings.Count(view, "\n") + 1; lines >= 20 {
+		t.Fatalf("help popup has %d lines, want fewer than 20", lines)
+	}
+	if width := lipgloss.Width(view); width < 60 {
+		t.Fatalf("help popup width = %d, want a wide popup", width)
+	}
+	for _, title := range []string{"SCORE", "COG", "NPATH", "CYCLO", "SHALLOW", "GOD", "PATH"} {
+		if !strings.Contains(view, title) {
+			t.Errorf("help popup does not explain %s", title)
+		}
+	}
+	closed, _ := updated.(*Model).handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if closed.(*Model).help {
+		t.Fatal("q did not close help")
+	}
+}
+
+func TestHelpOverlayLeavesTitleRowVisible(t *testing.T) {
+	model := Model{width: 80, height: 20}
+	baseLines := []string{"TITLE"}
+	for len(baseLines) < model.height {
+		baseLines = append(baseLines, "background")
+	}
+	base := strings.Join(baseLines, "\n")
+	view := model.overlayBelowTitle(base, strings.Repeat("help\n", 14))
+	if !strings.Contains(strings.Split(view, "\n")[0], "TITLE") {
+		t.Fatal("help overlay covered the title row")
 	}
 }
 
@@ -205,7 +438,7 @@ func TestActiveSortIsMarkedImmediatelyBeforeItsHeading(t *testing.T) {
 	}
 	for key, title := range map[string]string{
 		"score": "SCORE", "cog": "COG", "npath": "NPATH",
-		"cyclo": "CYCLO", "deep": "DEEP", "god": "GOD",
+		"cyclo": "CYCLO", "deep": "SHALLOW", "god": "GOD",
 	} {
 		model.sortKey, model.sortReverse = key, false
 		if heading := model.header(); !strings.Contains(heading, "▲"+title) {
@@ -219,6 +452,24 @@ func TestActiveSortIsMarkedImmediatelyBeforeItsHeading(t *testing.T) {
 	model.sortKey, model.sortReverse = "filename", false
 	if heading := model.header(); !strings.Contains(heading, " ▲") {
 		t.Fatalf("filename heading has no ascending indicator: %q", heading)
+	}
+}
+
+func TestHeaderUsesRequestedShallowTitleOffsets(t *testing.T) {
+	model := Model{
+		width: 100, sortKey: "filename",
+		visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+	}
+	heading := ansi.Strip(model.header())
+	for _, want := range []struct {
+		title string
+		at    int
+	}{
+		{"SCORE", 0}, {"COG", 8}, {"NPATH", 14}, {"CYCLO", 23}, {"SHALLOW", 29},
+	} {
+		if at := strings.Index(heading, want.title); at != want.at {
+			t.Errorf("%s starts at %d, want %d in %q", want.title, at, want.at, heading)
+		}
 	}
 }
 
@@ -237,8 +488,8 @@ func TestOverviewOmitsRankAndSeparatesScoreFromMetrics(t *testing.T) {
 	if !strings.Contains(heading, "▼SCORE  COG") {
 		t.Fatalf("score/COG spacing is wrong: %q", heading)
 	}
-	if !strings.Contains(heading, "DEEP    GOD  ") {
-		t.Fatalf("DEEP/GOD/path spacing is wrong: %q", heading)
+	if !strings.Contains(heading, "SHALLOW   GOD") {
+		t.Fatalf("SHALLOW/GOD/path spacing is wrong: %q", heading)
 	}
 	row := ansi.Strip(model.renderRow(file, false))
 	if !strings.HasPrefix(row, "   12.0  3") {
@@ -342,6 +593,66 @@ func TestDetailPopupShrinksWithTerminal(t *testing.T) {
 	}
 }
 
+func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "example.go")
+	lines := []string{"package example", "", "func Run() {", "\treturn", "}"}
+	for index := 0; index < 40; index++ {
+		lines = append(lines, fmt.Sprintf("// line %02d", index))
+	}
+	contents := strings.Join(lines, "\n")
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	model := Model{
+		width: 80, height: 24, selected: "example.go", options: Options{Workspace: root},
+		document: report.Document{Files: []report.File{testFile("example.go", 1)}},
+		rows:     map[string]rowState{"example.go": {}}, visible: map[string]bool{},
+	}
+	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if command != nil || !updated.(*Model).sourceView {
+		t.Fatal("v did not open source view")
+	}
+	model = *updated.(*Model)
+	if !strings.Contains(ansi.Strip(model.sourceViewView()), "func Run()") {
+		t.Fatal("source view did not render selected file")
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if model.sourceViewport.YOffset != 1 {
+		t.Fatalf("first j moved source viewport by %d lines, want 1", model.sourceViewport.YOffset)
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if model.sourceViewport.YOffset != 2 {
+		t.Fatalf("second j moved source viewport by %d lines, want 2 total", model.sourceViewport.YOffset)
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if model.sourceViewport.YOffset != 4 {
+		t.Fatalf("established repeat moved source viewport by %d lines, want 4 total", model.sourceViewport.YOffset)
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlF})
+	if model.sourceViewport.YOffset == 0 {
+		t.Fatal("Ctrl-F did not advance source viewport")
+	}
+	longLine := strings.Repeat("x", 200)
+	model.sourceViewport.SetContent(longLine + "\n" + contents)
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	if model.sourceViewport.HorizontalScrollPercent() == 0 {
+		t.Fatal("l did not horizontally scroll source viewport")
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.sourceViewport.YOffset != 0 {
+		t.Fatalf("g moved source viewport to line %d, want top", model.sourceViewport.YOffset)
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if model.sourceViewport.YOffset == 0 {
+		t.Fatal("G did not jump to the bottom of the source viewport")
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if model.sourceView || model.sourcePath != "" {
+		t.Fatal("Esc did not close source view")
+	}
+}
+
 func sortableFile(path string, rank int, score, cog, npath, cyclo, deep, god float64) report.File {
 	file := testFile(path, score)
 	file.Rank = rank
@@ -349,7 +660,7 @@ func sortableFile(path string, rank int, score, cog, npath, cyclo, deep, god flo
 		"cognitive_complexity":         {Subjects: []report.SubjectContribution{{Value: cog}}},
 		"npath_complexity":             {Subjects: []report.SubjectContribution{{Value: npath}}},
 		"cyclomatic_method_complexity": {Subjects: []report.SubjectContribution{{Value: cyclo}}},
-		"deeply_nested_if":             {Subjects: []report.SubjectContribution{{Value: deep}}},
+		"module_shallowness":           {Subjects: []report.SubjectContribution{{Value: deep}}},
 		"god_class":                    {Contribution: god},
 	}
 	return file

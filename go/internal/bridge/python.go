@@ -73,7 +73,7 @@ func findApplication(start string) (string, error) {
 	return "", fmt.Errorf("cannot locate slopslap.py; set SLOPSLAP_PYTHON_APP")
 }
 
-func (analyzer *Analyzer) Analyze(ctx context.Context, targets []string, languages []string) (report.Document, error) {
+func (analyzer *Analyzer) analysisOptions(targets, languages []string) Options {
 	options := analyzer.Base
 	if targets != nil {
 		options.Targets = targets
@@ -93,6 +93,10 @@ func (analyzer *Analyzer) Analyze(ctx context.Context, targets []string, languag
 		}
 		options.Backends = backends
 	}
+	return options
+}
+
+func (analyzer *Analyzer) analysisArgs(options Options) []string {
 	args := []string{analyzer.Script, "analyze", "--format", "json", "--limit", "0"}
 	if options.Config != "" {
 		args = append(args, "--config", options.Config)
@@ -113,21 +117,31 @@ func (analyzer *Analyzer) Analyze(ctx context.Context, targets []string, languag
 		args = append(args, "--pass-score", strconv.FormatFloat(*options.PassScore, 'f', -1, 64))
 	}
 	args = append(args, options.Targets...)
+	return args
+}
+
+func decodeCommandFailure(err error, stdout, stderr *bytes.Buffer) (report.Document, error) {
+	var exitError *exec.ExitError
+	if errors.As(err, &exitError) && exitError.ExitCode() == 3 && stdout.Len() > 0 {
+		return report.Decode(stdout.Bytes())
+	}
+	message := strings.TrimSpace(stderr.String())
+	if message == "" {
+		message = err.Error()
+	}
+	return report.Document{}, fmt.Errorf("analysis failed: %s", message)
+}
+
+func (analyzer *Analyzer) Analyze(ctx context.Context, targets []string, languages []string) (report.Document, error) {
+	options := analyzer.analysisOptions(targets, languages)
+	args := analyzer.analysisArgs(options)
 	command := exec.CommandContext(ctx, analyzer.Python, args...)
 	command.Dir = options.Workspace
 	var stdout, stderr bytes.Buffer
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	if err := command.Run(); err != nil {
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) && exitError.ExitCode() == 3 && stdout.Len() > 0 {
-			return report.Decode(stdout.Bytes())
-		}
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = err.Error()
-		}
-		return report.Document{}, fmt.Errorf("analysis failed: %s", message)
+		return decodeCommandFailure(err, &stdout, &stderr)
 	}
 	if stderr.Len() > 0 {
 		_, _ = os.Stderr.Write(stderr.Bytes())

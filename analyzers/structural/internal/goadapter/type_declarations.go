@@ -57,6 +57,7 @@ func declaredType(b *analysisContext, item source, typeSpec *ast.TypeSpec) *type
 	fact := &facts.Type{
 		Name: typeSpec.Name.Name, Kind: kind, Location: location(b, typeSpec),
 		InterfaceMethodCount: interfaceMethods, MethodFields: make(map[string][]string),
+		Fields: declaredFields(typeSpec),
 	}
 	identity := typeSpec.Name.Name
 	if item.typesAvailable {
@@ -70,6 +71,28 @@ func declaredType(b *analysisContext, item source, typeSpec *ast.TypeSpec) *type
 		fact.ForeignTypes = namedTypes(typeSpec.Type, typeSpec.Name.Name)
 	}
 	return &typeRecord{fact: fact, fields: fields, identity: identity}
+}
+
+func declaredFields(typeSpec *ast.TypeSpec) []facts.Field {
+	structure, ok := typeSpec.Type.(*ast.StructType)
+	if !ok {
+		return nil
+	}
+	fields := make([]facts.Field, 0)
+	for _, field := range structure.Fields.List {
+		if len(field.Names) == 0 {
+			name := receiver(field.Type)
+			if name == "" {
+				continue
+			}
+			fields = append(fields, facts.Field{Name: name, Public: ast.IsExported(name), Mutable: true, Type: signatureShape(field.Type)})
+			continue
+		}
+		for _, name := range field.Names {
+			fields = append(fields, facts.Field{Name: name.Name, Public: ast.IsExported(name.Name), Mutable: true, Type: signatureShape(field.Type)})
+		}
+	}
+	return fields
 }
 
 func collectTypeDeclarations(b *analysisContext, sources []source) map[string]*typeRecord {
