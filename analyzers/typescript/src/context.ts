@@ -2,7 +2,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import ts from "typescript";
 
-import type { AnalyzerRequest, Diagnostic, SourceEntry, TypeMode } from "./model.js";
+import type {
+  AnalyzerRequest,
+  Diagnostic,
+  SourceEntry,
+  TypeMode,
+} from "./model.js";
 import { createTypedContext } from "./typed-context.js";
 
 const SUPPORTED_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
@@ -58,7 +63,9 @@ export class AnalysisContext {
 
     for (const unit of request.units) {
       if (unit.language !== "typescript") {
-        throw new Error(`Unit ${unit.unit_id} has unsupported language ${String(unit.language)}`);
+        throw new Error(
+          `Unit ${unit.unit_id} has unsupported language ${String(unit.language)}`,
+        );
       }
       for (const requestedPath of unit.source_paths) {
         const candidate = path.isAbsolute(requestedPath)
@@ -71,16 +78,21 @@ export class AnalysisContext {
           relativeNative.startsWith(`..${path.sep}`) ||
           path.isAbsolute(relativeNative)
         ) {
-          throw new Error(`Requested source is outside workspace: ${requestedPath}`);
+          throw new Error(
+            `Requested source is outside workspace: ${requestedPath}`,
+          );
         }
         const extension = path.extname(absolutePath).toLowerCase();
-        if (!SUPPORTED_EXTENSIONS.has(extension) || isDeclarationFile(absolutePath)) {
+        if (
+          !SUPPORTED_EXTENSIONS.has(extension) ||
+          isDeclarationFile(absolutePath)
+        ) {
           throw new Error(`Unsupported TypeScript source: ${requestedPath}`);
         }
         const previousOwner = seen.get(absolutePath);
         if (previousOwner !== undefined && previousOwner !== unit.unit_id) {
           throw new Error(
-            `Source ${posixPath(relativeNative)} is owned by both ${previousOwner} and ${unit.unit_id}`
+            `Source ${posixPath(relativeNative)} is owned by both ${previousOwner} and ${unit.unit_id}`,
           );
         }
         if (previousOwner !== undefined) continue;
@@ -92,29 +104,36 @@ export class AnalysisContext {
           text,
           ts.ScriptTarget.Latest,
           true,
-          scriptKind(absolutePath)
+          scriptKind(absolutePath),
         );
         parseCounts.set(absolutePath, (parseCounts.get(absolutePath) ?? 0) + 1);
-        const syntaxErrors = (
-          sourceFile as ts.SourceFile & { parseDiagnostics?: readonly ts.Diagnostic[] }
-        ).parseDiagnostics ?? [];
+        const syntaxErrors =
+          (
+            sourceFile as ts.SourceFile & {
+              parseDiagnostics?: readonly ts.Diagnostic[];
+            }
+          ).parseDiagnostics ?? [];
         sources.push({
           unitId: unit.unit_id,
           absolutePath,
           relativePath: posixPath(relativeNative),
           sourceFile,
-          syntaxErrors
+          syntaxErrors,
         });
       }
     }
 
     sources.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
     const context = new AnalysisContext(workspace, sources);
-    for (const [file, count] of parseCounts) context.syntaxParseCounts.set(file, count);
+    for (const [file, count] of parseCounts)
+      context.syntaxParseCounts.set(file, count);
     return context;
   }
 
-  createTypedContext(request: AnalyzerRequest, mode: TypeMode): TypedContextResult {
+  createTypedContext(
+    request: AnalyzerRequest,
+    mode: TypeMode,
+  ): TypedContextResult {
     return createTypedContext(this, request, mode);
   }
 
@@ -124,20 +143,27 @@ export class AnalysisContext {
       : path.resolve(this.workspace, configured);
     const canonical = fs.realpathSync(candidate);
     const relative = path.relative(this.workspace, canonical);
-    if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    if (
+      relative === ".." ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative)
+    ) {
       throw new Error(`tsconfig is outside workspace: ${configured}`);
     }
     return canonical;
   }
 
-  public configFailure(items: readonly ts.Diagnostic[], config: string): TypedContextResult {
+  public configFailure(
+    items: readonly ts.Diagnostic[],
+    config: string,
+  ): TypedContextResult {
     return {
       diagnostics: items.map((item) => ({
         code: `typescript.config.${item.code}`,
         severity: "error" as const,
-        message: `${posixPath(path.relative(this.workspace, config))}: ${formatTsDiagnostic(item)}`
+        message: `${posixPath(path.relative(this.workspace, config))}: ${formatTsDiagnostic(item)}`,
       })),
-      unavailableReason: "unusable TypeScript project configuration"
+      unavailableReason: "unusable TypeScript project configuration",
     };
   }
 
@@ -148,7 +174,11 @@ export class AnalysisContext {
 
   public relativeIfInside(file: string): string | undefined {
     const relative = path.relative(this.workspace, path.resolve(file));
-    if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    if (
+      relative === ".." ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative)
+    ) {
       return undefined;
     }
     return posixPath(relative);

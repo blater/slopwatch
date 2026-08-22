@@ -3,7 +3,7 @@ package native
 import (
 	"math"
 
-	"github.com/slopslap/slopslap/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func scoreComponent(descriptor componentDescriptor, state string, raw []observation) (report.Component, error) {

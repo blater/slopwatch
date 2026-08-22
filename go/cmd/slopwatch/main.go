@@ -12,7 +12,7 @@ func main() {
 		panic(err)
 	}
 	args := append([]string{"--follow"}, os.Args[1:]...)
-	command := exec.Command(filepath.Join(filepath.Dir(executable), "slopslap"), args...)
+	command := exec.Command(filepath.Join(filepath.Dir(executable), "slopmark"), args...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr

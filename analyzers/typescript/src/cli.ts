@@ -14,11 +14,13 @@ function main(): void {
     parsed = JSON.parse(input);
   } catch (error) {
     // Protocol v1 is one NDJSON request record. Pretty-printed JSON is also accepted.
-    const lines = input.split(/\r?\n/u).filter((line) => line.trim().length > 0);
+    const lines = input
+      .split(/\r?\n/u)
+      .filter((line) => line.trim().length > 0);
     if (lines.length !== 1) {
       parsed = {
         type: "invalid",
-        parse_error: error instanceof Error ? error.message : String(error)
+        parse_error: error instanceof Error ? error.message : String(error),
       };
     } else {
       try {
@@ -26,7 +28,8 @@ function main(): void {
       } catch (lineError) {
         parsed = {
           type: "invalid",
-          parse_error: lineError instanceof Error ? lineError.message : String(lineError)
+          parse_error:
+            lineError instanceof Error ? lineError.message : String(lineError),
         };
       }
     }

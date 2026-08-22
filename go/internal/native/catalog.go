@@ -55,7 +55,7 @@ func (defaults componentDefaults) weight() (float64, error) {
 }
 
 func loadCatalog(installationRoot string) (catalogDocument, error) {
-	path := filepath.Join(installationRoot, "slopslap_core", "component-catalog.json")
+	path := filepath.Join(installationRoot, "component-catalog.json")
 	payload, err := os.ReadFile(path)
 	if err != nil {
 		return catalogDocument{}, fmt.Errorf("read component catalog: %w", err)

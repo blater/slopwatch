@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/slopslap/slopslap/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func (model Model) renderRow(file report.File, selected bool) string {

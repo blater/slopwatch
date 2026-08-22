@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/slopslap/slopslap/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 var ErrUnsupported = errors.New("native analyzer path is not yet supported")
@@ -73,13 +72,6 @@ func (analyzer *Analyzer) analyzeLanguage(parent context.Context, executable, la
 		return nil, err
 	}
 	requestOptions := map[string]any{"include_tests": options.IncludeTests}
-	if language == "java" {
-		if java, lookErr := exec.LookPath("java"); lookErr == nil {
-			if absolute, absErr := filepath.Abs(java); absErr == nil {
-				requestOptions["java_path"] = absolute
-			}
-		}
-	}
 	request := analyzerRequest{"request", 1, invocation, analyzer.workspace, []protocolUnit{{language + "-unit", language, files, map[string]any{}}}, components, requestOptions, map[string]int{"max_seconds": int(options.Timeout)}}
 	timeout := time.Duration(options.Timeout * float64(time.Second))
 	if timeout <= 0 {
@@ -114,7 +106,7 @@ func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, lang
 	for _, language := range selected {
 		executable := filepath.Join(analyzer.root, "analyzers", "structural", "slopslap-structural")
 		if language == "typescript" {
-			executable = filepath.Join(analyzer.root, "analyzers", "typescript", "slopslap-typescript")
+			executable = filepath.Join(analyzer.root, "build", "typescript", "slopslap-typescript")
 		}
 		records, runErr := analyzer.analyzeLanguage(parent, executable, language, discovered[language], options)
 		if runErr != nil {

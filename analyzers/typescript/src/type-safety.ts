@@ -1,6 +1,12 @@
 import ts from "typescript";
 
-import { ANALYZER_NAME, ANALYZER_VERSION, type Measurement, type SourceEntry, type Subject } from "./model.js";
+import {
+  ANALYZER_NAME,
+  ANALYZER_VERSION,
+  type Measurement,
+  type SourceEntry,
+  type Subject,
+} from "./model.js";
 import type { TypedContext } from "./context.js";
 
 interface Candidate {
@@ -26,10 +32,13 @@ const PRECEDENCE: Record<string, number> = {
   assertion: 20,
   explicit_any: 10,
   condition: 10,
-  switch: 10
+  switch: 10,
 };
 
-function sourcePosition(source: ts.SourceFile, offset: number): { line: number; column: number; offset: number } {
+function sourcePosition(
+  source: ts.SourceFile,
+  offset: number,
+): { line: number; column: number; offset: number } {
   const point = source.getLineAndCharacterOfPosition(offset);
   return { line: point.line + 1, column: point.character + 1, offset };
 }
@@ -39,7 +48,7 @@ function subject(source: ts.SourceFile, node: ts.Node, name: string): Subject {
   return {
     name,
     start: sourcePosition(source, start),
-    end: sourcePosition(source, node.getEnd())
+    end: sourcePosition(source, node.getEnd()),
   };
 }
 
@@ -48,15 +57,14 @@ function isAny(type: ts.Type): boolean {
 }
 
 function isNullish(type: ts.Type): boolean {
-  if ((type.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) !== 0) return true;
+  if ((type.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) !== 0)
+    return true;
   return type.isUnion() && type.types.some(isNullish);
 }
 
 function isBooleanOnly(type: ts.Type): boolean {
   const allowed =
-    ts.TypeFlags.Boolean |
-    ts.TypeFlags.BooleanLiteral |
-    ts.TypeFlags.Never;
+    ts.TypeFlags.Boolean | ts.TypeFlags.BooleanLiteral | ts.TypeFlags.Never;
   const parts = type.isUnion() ? type.types : [type];
   return parts.every((part) => (part.flags & allowed) !== 0);
 }
@@ -65,7 +73,11 @@ function normalizedText(node: ts.Node, source: ts.SourceFile): string {
   return node.getText(source).replace(/\s+/gu, " ").slice(0, 160);
 }
 
-function symbolName(checker: ts.TypeChecker, node: ts.Node, source: ts.SourceFile): string {
+function symbolName(
+  checker: ts.TypeChecker,
+  node: ts.Node,
+  source: ts.SourceFile,
+): string {
   let target: ts.Node | undefined = node;
   if (ts.isPropertyAccessExpression(node)) target = node.name;
   const symbol = checker.getSymbolAtLocation(target);
@@ -79,38 +91,67 @@ function symbolName(checker: ts.TypeChecker, node: ts.Node, source: ts.SourceFil
       }
     }
     const declaration = resolved.valueDeclaration ?? resolved.declarations?.[0];
-    const suffix = declaration === undefined ? "" : `@${declaration.getStart()}`;
+    const suffix =
+      declaration === undefined ? "" : `@${declaration.getStart()}`;
     return `${checker.symbolToString(resolved)}${suffix}`;
   }
   return normalizedText(node, source);
 }
 
 function enclosingFunction(node: ts.Node): ts.SignatureDeclaration | undefined {
-  for (let current = node.parent; current !== undefined; current = current.parent) {
+  for (
+    let current = node.parent;
+    current !== undefined;
+    current = current.parent
+  ) {
     if (ts.isFunctionLike(current)) return current;
   }
   return undefined;
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
-  return ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((item) => item.kind === kind) ?? false);
+  return (
+    ts.canHaveModifiers(node) &&
+    (ts.getModifiers(node)?.some((item) => item.kind === kind) ?? false)
+  );
 }
 
 function isExported(node: ts.Node): boolean {
-  if (hasModifier(node, ts.SyntaxKind.ExportKeyword) || hasModifier(node, ts.SyntaxKind.DefaultKeyword)) return true;
-  if (ts.isVariableDeclaration(node) && ts.isVariableDeclarationList(node.parent)) return isExported(node.parent.parent);
+  if (
+    hasModifier(node, ts.SyntaxKind.ExportKeyword) ||
+    hasModifier(node, ts.SyntaxKind.DefaultKeyword)
+  )
+    return true;
+  if (
+    ts.isVariableDeclaration(node) &&
+    ts.isVariableDeclarationList(node.parent)
+  )
+    return isExported(node.parent.parent);
   return false;
 }
 
 function isPublicMember(node: ts.Node): boolean {
   if (!ts.isClassElement(node) && !ts.isTypeElement(node)) return false;
-  if (hasModifier(node, ts.SyntaxKind.PrivateKeyword) || hasModifier(node, ts.SyntaxKind.ProtectedKeyword)) return false;
+  if (
+    hasModifier(node, ts.SyntaxKind.PrivateKeyword) ||
+    hasModifier(node, ts.SyntaxKind.ProtectedKeyword)
+  )
+    return false;
   const owner = node.parent;
   if (ts.isInterfaceDeclaration(owner)) return isExported(owner);
-  if (ts.isClassDeclaration(owner) || ts.isClassExpression(owner)) return isExported(owner);
+  if (ts.isClassDeclaration(owner) || ts.isClassExpression(owner))
+    return isExported(owner);
   if (ts.isTypeLiteralNode(owner)) {
-    for (let current: ts.Node | undefined = owner.parent; current !== undefined; current = current.parent) {
-      if (ts.isTypeAliasDeclaration(current) || ts.isInterfaceDeclaration(current)) return isExported(current);
+    for (
+      let current: ts.Node | undefined = owner.parent;
+      current !== undefined;
+      current = current.parent
+    ) {
+      if (
+        ts.isTypeAliasDeclaration(current) ||
+        ts.isInterfaceDeclaration(current)
+      )
+        return isExported(current);
       if (ts.isSourceFile(current) || ts.isFunctionLike(current)) return false;
     }
   }
@@ -121,9 +162,17 @@ function isPublicFunction(node: ts.SignatureDeclaration): boolean {
   return isExported(node) || isPublicMember(node);
 }
 
-function parameterType(checker: ts.TypeChecker, symbol: ts.Symbol, at: ts.Node): ts.Type {
+function parameterType(
+  checker: ts.TypeChecker,
+  symbol: ts.Symbol,
+  at: ts.Node,
+): ts.Type {
   const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
-  if (declaration !== undefined && ts.isParameter(declaration) && declaration.dotDotDotToken !== undefined) {
+  if (
+    declaration !== undefined &&
+    ts.isParameter(declaration) &&
+    declaration.dotDotDotToken !== undefined
+  ) {
     const rest = checker.getTypeOfSymbolAtLocation(symbol, at);
     const index = checker.getIndexTypeOfType(rest, ts.IndexKind.Number);
     return index ?? rest;
@@ -131,24 +180,36 @@ function parameterType(checker: ts.TypeChecker, symbol: ts.Symbol, at: ts.Node):
   return checker.getTypeOfSymbolAtLocation(symbol, at);
 }
 
-function caseKey(checker: ts.TypeChecker, expression: ts.Expression): string | undefined {
+function caseKey(
+  checker: ts.TypeChecker,
+  expression: ts.Expression,
+): string | undefined {
   if (ts.isStringLiteralLike(expression)) return `string:${expression.text}`;
   if (ts.isNumericLiteral(expression)) return `number:${expression.text}`;
   if (expression.kind === ts.SyntaxKind.TrueKeyword) return "boolean:true";
   if (expression.kind === ts.SyntaxKind.FalseKeyword) return "boolean:false";
   if (expression.kind === ts.SyntaxKind.NullKeyword) return "null";
-  if (ts.isIdentifier(expression) && expression.text === "undefined") return "undefined";
-  if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+  if (ts.isIdentifier(expression) && expression.text === "undefined")
+    return "undefined";
+  if (
+    ts.isPropertyAccessExpression(expression) ||
+    ts.isElementAccessExpression(expression)
+  ) {
     const value = checker.getConstantValue(expression);
     if (typeof value === "string") return `string:${value}`;
     if (typeof value === "number") return `number:${value}`;
-    const symbol = checker.getSymbolAtLocation(ts.isPropertyAccessExpression(expression) ? expression.name : expression);
+    const symbol = checker.getSymbolAtLocation(
+      ts.isPropertyAccessExpression(expression) ? expression.name : expression,
+    );
     if (symbol !== undefined) return `enum:${checker.symbolToString(symbol)}`;
   }
   return undefined;
 }
 
-function typeCaseKey(checker: ts.TypeChecker, type: ts.Type): string | undefined {
+function typeCaseKey(
+  checker: ts.TypeChecker,
+  type: ts.Type,
+): string | undefined {
   if ((type.flags & ts.TypeFlags.StringLiteral) !== 0) {
     return `string:${(type as ts.StringLiteralType).value}`;
   }
@@ -160,21 +221,31 @@ function typeCaseKey(checker: ts.TypeChecker, type: ts.Type): string | undefined
   }
   if ((type.flags & ts.TypeFlags.Null) !== 0) return "null";
   if ((type.flags & ts.TypeFlags.Undefined) !== 0) return "undefined";
-  if ((type.flags & ts.TypeFlags.EnumLiteral) !== 0 && type.symbol !== undefined) {
+  if (
+    (type.flags & ts.TypeFlags.EnumLiteral) !== 0 &&
+    type.symbol !== undefined
+  ) {
     return `enum:${checker.symbolToString(type.symbol)}`;
   }
   return undefined;
 }
 
-function isOutermostUnsafeMember(node: ts.PropertyAccessExpression | ts.ElementAccessExpression): boolean {
+function isOutermostUnsafeMember(
+  node: ts.PropertyAccessExpression | ts.ElementAccessExpression,
+): boolean {
   const parent = node.parent;
   if (
-    (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+    (ts.isPropertyAccessExpression(parent) ||
+      ts.isElementAccessExpression(parent)) &&
     parent.expression === node
   ) {
     return false;
   }
-  if ((ts.isCallExpression(parent) || ts.isNewExpression(parent)) && parent.expression === node) return false;
+  if (
+    (ts.isCallExpression(parent) || ts.isNewExpression(parent)) &&
+    parent.expression === node
+  )
+    return false;
   return true;
 }
 
@@ -183,13 +254,15 @@ type AddCandidate = (
   node: ts.Node,
   kind: string,
   symbolNode?: ts.Node,
-  attributes?: Record<string, unknown>
+  attributes?: Record<string, unknown>,
 ) => void;
 
 function explicitAnySubject(node: ts.Node): ts.Node {
   for (let parent = node.parent; parent !== undefined; parent = parent.parent) {
     if (
-      (ts.isParameter(parent) || ts.isVariableDeclaration(parent) || ts.isPropertyDeclaration(parent)) &&
+      (ts.isParameter(parent) ||
+        ts.isVariableDeclaration(parent) ||
+        ts.isPropertyDeclaration(parent)) &&
       parent.name !== undefined
     ) {
       return parent.name;
@@ -208,50 +281,65 @@ function collectExplicitAny(node: ts.Node, add: AddCandidate): void {
 function collectUnsafeAssertions(
   node: ts.Node,
   checker: ts.TypeChecker,
-  add: AddCandidate
+  add: AddCandidate,
 ): void {
   if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
     const sourceType = checker.getTypeAtLocation(node.expression);
     const targetType = checker.getTypeAtLocation(node);
-    if (isAny(sourceType) || isAny(targetType) || !checker.isTypeAssignableTo(sourceType, targetType)) {
+    if (
+      isAny(sourceType) ||
+      isAny(targetType) ||
+      !checker.isTypeAssignableTo(sourceType, targetType)
+    ) {
       add("unsafe_type_assertion", node, "assertion", node.expression, {
         source_type: checker.typeToString(sourceType),
-        target_type: checker.typeToString(targetType)
+        target_type: checker.typeToString(targetType),
       });
     }
   } else if (ts.isNonNullExpression(node)) {
     const sourceType = checker.getTypeAtLocation(node.expression);
     if (isAny(sourceType) || isNullish(sourceType)) {
       add("unsafe_type_assertion", node, "non_null", node.expression, {
-        source_type: checker.typeToString(sourceType)
+        source_type: checker.typeToString(sourceType),
       });
     }
   }
 }
 
-function collectUnsafePropagation(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+function collectUnsafePropagation(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
   if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
     const sourceType = checker.getTypeAtLocation(node.initializer);
     const targetType = checker.getTypeAtLocation(node.name);
     if (isAny(sourceType) && !isAny(targetType)) {
       add("unsafe_type_propagation", node, "declaration", node.name, {
         source_type: checker.typeToString(sourceType),
-        target_type: checker.typeToString(targetType)
+        target_type: checker.typeToString(targetType),
       });
     }
-  } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+  } else if (
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+  ) {
     const sourceType = checker.getTypeAtLocation(node.right);
     const targetType = checker.getTypeAtLocation(node.left);
     if (isAny(sourceType) && !isAny(targetType)) {
       add("unsafe_type_propagation", node, "assignment", node.left, {
         source_type: checker.typeToString(sourceType),
-        target_type: checker.typeToString(targetType)
+        target_type: checker.typeToString(targetType),
       });
     }
   }
 }
 
-function collectUnsafeCalls(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+function collectUnsafeCalls(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
   if (!ts.isCallExpression(node) && !ts.isNewExpression(node)) return;
   const signature = checker.getResolvedSignature(node);
   if (signature !== undefined) {
@@ -265,7 +353,7 @@ function collectUnsafeCalls(node: ts.Node, checker: ts.TypeChecker, add: AddCand
         add("unsafe_type_propagation", argument, "argument", argument, {
           parameter: checker.symbolToString(parameter),
           source_type: checker.typeToString(sourceType),
-          target_type: checker.typeToString(targetType)
+          target_type: checker.typeToString(targetType),
         });
       }
     });
@@ -273,107 +361,166 @@ function collectUnsafeCalls(node: ts.Node, checker: ts.TypeChecker, add: AddCand
   const calleeType = checker.getTypeAtLocation(node.expression);
   if (isAny(calleeType)) {
     add("unsafe_type_use", node, "call", node.expression, {
-      receiver_type: checker.typeToString(calleeType)
+      receiver_type: checker.typeToString(calleeType),
     });
   }
 }
 
-function collectUnsafeMembers(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
-  if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) return;
+function collectUnsafeMembers(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
+  if (
+    !ts.isPropertyAccessExpression(node) &&
+    !ts.isElementAccessExpression(node)
+  )
+    return;
   if (!isOutermostUnsafeMember(node)) return;
   const receiverType = checker.getTypeAtLocation(node.expression);
   if (isAny(receiverType)) {
     add("unsafe_type_use", node, "member", node.expression, {
-      receiver_type: checker.typeToString(receiverType)
+      receiver_type: checker.typeToString(receiverType),
     });
   }
 }
 
-function collectUnsafeReturn(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+function collectUnsafeReturn(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
   if (!ts.isReturnStatement(node) || node.expression === undefined) return;
   const fn = enclosingFunction(node);
-  const signature = fn === undefined ? undefined : checker.getSignatureFromDeclaration(fn);
+  const signature =
+    fn === undefined ? undefined : checker.getSignatureFromDeclaration(fn);
   const sourceType = checker.getTypeAtLocation(node.expression);
   const targetType = signature?.getReturnType();
   if (targetType !== undefined && isAny(sourceType) && !isAny(targetType)) {
     add("unsafe_type_boundary", node, "return", node.expression, {
       source_type: checker.typeToString(sourceType),
-      target_type: checker.typeToString(targetType)
+      target_type: checker.typeToString(targetType),
     });
   }
 }
 
-function collectPublicFunctionBoundary(node: ts.SignatureDeclaration, checker: ts.TypeChecker, add: AddCandidate): void {
+function collectPublicFunctionBoundary(
+  node: ts.SignatureDeclaration,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
   const signature = checker.getSignatureFromDeclaration(node);
   if (signature !== undefined && isAny(signature.getReturnType())) {
     add("unsafe_type_boundary", node, "public_return", node.name ?? node, {
-      boundary_type: "return", type: checker.typeToString(signature.getReturnType())
+      boundary_type: "return",
+      type: checker.typeToString(signature.getReturnType()),
     });
   }
   for (const parameter of node.parameters) {
     const parameterType = checker.getTypeAtLocation(parameter.name);
     if (isAny(parameterType)) {
-      add("unsafe_type_boundary", parameter, "public_parameter", parameter.name, {
-        boundary_type: "parameter", type: checker.typeToString(parameterType)
-      });
+      add(
+        "unsafe_type_boundary",
+        parameter,
+        "public_parameter",
+        parameter.name,
+        {
+          boundary_type: "parameter",
+          type: checker.typeToString(parameterType),
+        },
+      );
     }
   }
 }
 
-function collectPublicPropertyBoundary(node: ts.PropertyDeclaration | ts.PropertySignature | ts.VariableDeclaration, checker: ts.TypeChecker, add: AddCandidate): void {
+function collectPublicPropertyBoundary(
+  node: ts.PropertyDeclaration | ts.PropertySignature | ts.VariableDeclaration,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
   if (!isPublicMember(node) && !isExported(node)) return;
   const valueType = checker.getTypeAtLocation(node.name);
   if (isAny(valueType)) {
     add("unsafe_type_boundary", node, "public_property", node.name, {
-      boundary_type: "property", type: checker.typeToString(valueType)
+      boundary_type: "property",
+      type: checker.typeToString(valueType),
     });
   }
 }
 
-function collectPublicBoundary(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+function collectPublicBoundary(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
   if (ts.isFunctionLike(node) && isPublicFunction(node)) {
     collectPublicFunctionBoundary(node, checker, add);
     return;
   }
   if (
-    (ts.isPropertyDeclaration(node) || ts.isPropertySignature(node) || ts.isVariableDeclaration(node)) &&
+    (ts.isPropertyDeclaration(node) ||
+      ts.isPropertySignature(node) ||
+      ts.isVariableDeclaration(node)) &&
     (isPublicMember(node) || isExported(node))
   ) {
     collectPublicPropertyBoundary(node, checker, add);
   }
 }
 
-function collectAmbiguousCondition(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
+function collectAmbiguousCondition(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
   let condition: ts.Expression | undefined;
-  if (ts.isIfStatement(node) || ts.isWhileStatement(node) || ts.isDoStatement(node)) condition = node.expression;
+  if (
+    ts.isIfStatement(node) ||
+    ts.isWhileStatement(node) ||
+    ts.isDoStatement(node)
+  )
+    condition = node.expression;
   else if (ts.isForStatement(node)) condition = node.condition;
   else if (ts.isConditionalExpression(node)) condition = node.condition;
   if (condition === undefined) return;
   const conditionType = checker.getTypeAtLocation(condition);
   if (!isBooleanOnly(conditionType)) {
     add("ambiguous_boolean_expression", condition, "condition", condition, {
-      type: checker.typeToString(conditionType)
+      type: checker.typeToString(conditionType),
     });
   }
 }
 
-function collectNonExhaustiveSwitch(node: ts.Node, checker: ts.TypeChecker, add: AddCandidate): void {
-  if (!ts.isSwitchStatement(node) || node.caseBlock.clauses.some(ts.isDefaultClause)) return;
+function collectNonExhaustiveSwitch(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  add: AddCandidate,
+): void {
+  if (
+    !ts.isSwitchStatement(node) ||
+    node.caseBlock.clauses.some(ts.isDefaultClause)
+  )
+    return;
   const discriminant = checker.getTypeAtLocation(node.expression);
   const parts = discriminant.isUnion() ? discriminant.types : [discriminant];
   const expected = parts.map((part) => typeCaseKey(checker, part));
-  if (parts.length <= 1 || !expected.every((item): item is string => item !== undefined)) return;
+  if (
+    parts.length <= 1 ||
+    !expected.every((item): item is string => item !== undefined)
+  )
+    return;
   const present = new Set(
     node.caseBlock.clauses
       .filter(ts.isCaseClause)
       .map((clause) => caseKey(checker, clause.expression))
-      .filter((item): item is string => item !== undefined)
+      .filter((item): item is string => item !== undefined),
   );
-  const missing = (expected as string[]).filter((item) => !present.has(item)).sort();
+  const missing = (expected as string[])
+    .filter((item) => !present.has(item))
+    .sort();
   if (missing.length > 0) {
     add("non_exhaustive_union", node.expression, "switch", node.expression, {
       discriminant_type: checker.typeToString(discriminant),
-      missing
+      missing,
     });
   }
 }
@@ -381,7 +528,7 @@ function collectNonExhaustiveSwitch(node: ts.Node, checker: ts.TypeChecker, add:
 export function analyzeTypeSafety(
   entry: SourceEntry,
   typed: TypedContext,
-  requested: ReadonlySet<string>
+  requested: ReadonlySet<string>,
 ): Measurement[] {
   const source = typed.sourceFiles.get(entry.absolutePath);
   if (source === undefined) return [];
@@ -393,7 +540,7 @@ export function analyzeTypeSafety(
     node: ts.Node,
     kind: string,
     symbolNode: ts.Node = node,
-    attributes: Record<string, unknown> = {}
+    attributes: Record<string, unknown> = {},
   ): void => {
     if (!requested.has(component)) return;
     candidates.push({
@@ -402,7 +549,7 @@ export function analyzeTypeSafety(
       symbol: symbolName(checker, symbolNode, source),
       kind,
       precedence: PRECEDENCE[kind] ?? 100,
-      attributes: { kind, ...attributes }
+      attributes: { kind, ...attributes },
     });
   };
 
@@ -428,13 +575,14 @@ export function analyzeTypeSafety(
       entry.relativePath,
       candidate.node.getStart(source),
       candidate.node.getEnd(),
-      candidate.symbol
+      candidate.symbol,
     ].join("|");
     const previous = deduplicated.get(key);
     if (
       previous === undefined ||
       candidate.precedence < previous.precedence ||
-      (candidate.precedence === previous.precedence && candidate.kind.localeCompare(previous.kind) < 0)
+      (candidate.precedence === previous.precedence &&
+        candidate.kind.localeCompare(previous.kind) < 0)
     ) {
       deduplicated.set(key, candidate);
     }
@@ -445,7 +593,7 @@ export function analyzeTypeSafety(
       (a, b) =>
         a.node.getStart(source) - b.node.getStart(source) ||
         a.component.localeCompare(b.component) ||
-        a.symbol.localeCompare(b.symbol)
+        a.symbol.localeCompare(b.symbol),
     )
     .map((candidate) => ({
       unit_id: entry.unitId,
@@ -458,12 +606,13 @@ export function analyzeTypeSafety(
       attributes: {
         ...candidate.attributes,
         normalized_symbol: candidate.symbol,
-        deduplication_key: "component,canonical-file,start,end,normalized-symbol"
+        deduplication_key:
+          "component,canonical-file,start,end,normalized-symbol",
       },
       provenance: {
         analyzer: ANALYZER_NAME,
         analyzer_version: ANALYZER_VERSION,
-        rule: `${candidate.component}/typescript-local-sink-v1`
-      }
+        rule: `${candidate.component}/typescript-local-sink-v1`,
+      },
     }));
 }

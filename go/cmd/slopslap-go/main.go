@@ -14,9 +14,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/slopslap/slopslap/internal/follow"
-	"github.com/slopslap/slopslap/internal/native"
-	"github.com/slopslap/slopslap/internal/report"
+	"github.com/blater/slopwatch/internal/follow"
+	"github.com/blater/slopwatch/internal/native"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 type stringList []string
@@ -47,7 +47,7 @@ type options struct {
 var errThreshold = errors.New("pass score exceeded")
 
 func parser() (*flag.FlagSet, *options) {
-	flags := flag.NewFlagSet("slopslap", flag.ContinueOnError)
+	flags := flag.NewFlagSet("slopmark", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	options := &options{}
 	flags.StringVar(&options.format, "format", "text", "select text or json output")
@@ -64,7 +64,7 @@ func parser() (*flag.FlagSet, *options) {
 	flags.Float64Var(&options.timeout, "timeout", 120, "analyzer timeout in seconds")
 	flags.StringVar(&options.passScore, "pass-score", "", "maximum passing score")
 	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "usage: slopslap [OPTIONS] [TARGET ...]")
+		fmt.Fprintln(flags.Output(), "usage: slopmark [OPTIONS] [TARGET ...]")
 		fmt.Fprintln(flags.Output(), "\nNative Go frontend (analysis core transition build).")
 		flags.PrintDefaults()
 	}
@@ -96,6 +96,10 @@ func run(arguments []string) error {
 	if err != nil {
 		return err
 	}
+	installationRoot, err := executableInstallationRoot()
+	if err != nil {
+		return err
+	}
 	targets := flags.Args()
 	if len(targets) == 0 {
 		targets = []string{"."}
@@ -106,9 +110,9 @@ func run(arguments []string) error {
 		return err
 	}
 	if parsed.follow {
-		return runFollow(workspace, targets, languages, parsed, passScore)
+		return runFollow(workspace, installationRoot, targets, languages, parsed, passScore)
 	}
-	return runReport(workspace, targets, languages, parsed, passScore)
+	return runReport(workspace, installationRoot, targets, languages, parsed, passScore)
 }
 
 func validateOptions(parsed *options) error {
@@ -135,6 +139,19 @@ func absoluteWorkspace() (string, error) {
 	return filepath.Abs(workspace)
 }
 
+func executableInstallationRoot() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	executable, err = filepath.EvalSymlinks(executable)
+	if err != nil {
+		return "", err
+	}
+	// The bundled layout is <root>/build/slopmark.
+	return filepath.Dir(filepath.Dir(executable)), nil
+}
+
 func parsePassScore(raw string) (*float64, error) {
 	if raw == "" {
 		return nil, nil
@@ -146,8 +163,8 @@ func parsePassScore(raw string) (*float64, error) {
 	return &value, nil
 }
 
-func runFollow(workspace string, targets, languages []string, parsed *options, passScore *float64) error {
-	nativeAnalyzer, err := native.New(workspace, workspace, native.Options{
+func runFollow(workspace, installationRoot string, targets, languages []string, parsed *options, passScore *float64) error {
+	nativeAnalyzer, err := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
 		Timeout: parsed.timeout, PassScore: passScore,
 	})
@@ -170,10 +187,10 @@ func runFollow(workspace string, targets, languages []string, parsed *options, p
 	return runErr
 }
 
-func runReport(workspace string, targets, languages []string, parsed *options, passScore *float64) error {
+func runReport(workspace, installationRoot string, targets, languages []string, parsed *options, passScore *float64) error {
 	var document report.Document
 	var err error
-	nativeAnalyzer, nativeErr := native.New(workspace, workspace, native.Options{
+	nativeAnalyzer, nativeErr := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, Timeout: parsed.timeout, PassScore: passScore,
 	})

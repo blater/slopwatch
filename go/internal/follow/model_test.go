@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/slopslap/slopslap/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func testFile(path string, score float64) report.File {
@@ -465,7 +465,7 @@ func TestHeaderUsesRequestedShallowTitleOffsets(t *testing.T) {
 		title string
 		at    int
 	}{
-		{"SCORE", 0}, {"COG", 8}, {"NPATH", 14}, {"CYCLO", 23}, {"SHALLOW", 29},
+		{"SCORE", 0}, {"COG", 9}, {"NPATH", 14}, {"CYCLO", 23}, {"SHALLOW", 29},
 	} {
 		if at := strings.Index(heading, want.title); at != want.at {
 			t.Errorf("%s starts at %d, want %d in %q", want.title, at, want.at, heading)
@@ -485,7 +485,7 @@ func TestOverviewOmitsRankAndSeparatesScoreFromMetrics(t *testing.T) {
 	if strings.Contains(heading, "#") {
 		t.Fatalf("rank heading remains: %q", heading)
 	}
-	if !strings.Contains(heading, "▼SCORE  COG") {
+	if !strings.Contains(heading, "▼SCORE   COG") {
 		t.Fatalf("score/COG spacing is wrong: %q", heading)
 	}
 	if !strings.Contains(heading, "SHALLOW   GOD") {

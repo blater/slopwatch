@@ -45,6 +45,14 @@ func defaultHelperJar() string {
 	return filepath.Join(directory, helperName)
 }
 
+func defaultJavaExecutable() string {
+	host, err := os.Executable()
+	if err != nil {
+		return filepath.Join("java-runtime", "bin", "java")
+	}
+	return filepath.Join(filepath.Dir(host), "java-runtime", "bin", "java")
+}
+
 func (Adapter) Language() string       { return "java" }
 func (Adapter) FactSchemaVersion() int { return facts.SchemaVersion }
 func (Adapter) ParserModes() []string  { return []string{"jdk-compiler-tree-no-processing"} }
@@ -56,11 +64,7 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 		java = configured
 	}
 	if java == "" {
-		var err error
-		java, err = exec.LookPath("java")
-		if err != nil {
-			return nil, fmt.Errorf("Java structural analysis requires a JDK runtime: %w", err)
-		}
+		java = defaultJavaExecutable()
 	}
 	jar := adapter.HelperJar
 	if jar == "" {

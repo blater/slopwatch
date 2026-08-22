@@ -4,6 +4,7 @@ mod expression;
 mod location;
 mod model;
 mod parser;
+mod surface;
 
 use model::{Request, Response, SCHEMA_VERSION};
 use std::io::{self, Read};

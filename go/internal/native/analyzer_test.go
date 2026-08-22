@@ -42,7 +42,7 @@ func TestNativeJavaAndRustScoresMatchBalancedReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"slopslap-structural", "slopslap-structural-java.jar", "slopslap-structural-rust"} {
+	for _, required := range []string{"slopslap-structural", "slopslap-structural-java.jar", "slopslap-structural-rust", filepath.Join("java-runtime", "bin", "java")} {
 		if _, statErr := os.Stat(filepath.Join(root, "analyzers", "structural", required)); statErr != nil {
 			t.Skip("structural analyzer helpers are not built")
 		}

@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 
-	"github.com/slopslap/slopslap/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func ConfigureTerminalColours() {
@@ -99,13 +99,13 @@ type column struct {
 }
 
 func columnNames() []column {
-	return []column{{"cog", "COG", 7, false}, {"npath", "NPATH", 8, false}, {"cyclo", "CYCLO", 7, false}, {"deep", "SHALLOW", 4, false}, {"god", "GOD", 6, true}}
+	return []column{{"cog", "COG", 6, false}, {"npath", "NPATH", 8, false}, {"cyclo", "CYCLO", 7, false}, {"deep", "SHALLOW", 4, false}, {"god", "GOD", 6, true}}
 }
 
 func headerShift(key string) int {
 	switch key {
 	case "score":
-		return 1
+		return 0
 	case "cog":
 		return -1
 	case "npath":
@@ -115,7 +115,7 @@ func headerShift(key string) int {
 	case "deep":
 		return -5
 	case "god":
-		return 3
+		return 0
 	default:
 		return 0
 	}
@@ -135,7 +135,7 @@ func (model Model) activeColumns() []column {
 }
 
 func (model Model) header() string {
-	columns := []column{{key: "score", title: "SCORE", width: 7, right: true}}
+	columns := []column{{key: "score", title: "SCORE", width: 8, right: true}}
 	if !model.options.Compact {
 		columns = append(columns, model.activeColumns()...)
 	}

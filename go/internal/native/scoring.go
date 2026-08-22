@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/slopslap/slopslap/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 type observation struct {

@@ -1,6 +1,31 @@
 import ts from "typescript";
 
-import { ANALYZER_NAME, ANALYZER_VERSION, type Measurement, type SourceEntry, type Subject } from "./model.js";
+import {
+  ANALYZER_NAME,
+  ANALYZER_VERSION,
+  type Measurement,
+  type SourceEntry,
+  type Subject,
+} from "./model.js";
+import { cognitive } from "./cognitive.js";
+import { publicOperations } from "./operations.js";
+import { typeMetricMeasurements as collectTypeMetrics } from "./type-metrics.js";
+import {
+  fieldsUsedByMethod,
+  foreignFieldsUsedByMethod,
+  functionReturnType,
+  isTypeDeclaration,
+  methodLike,
+  type PublicOperation,
+  publicMember,
+  returnsValue,
+  typeComplexity,
+  typeFunctionFact,
+  typeMemberCount,
+  typeMembers,
+  typeReferences,
+  uniqueStrings,
+} from "./surface.js";
 
 type FunctionNode =
   | ts.FunctionDeclaration
@@ -46,24 +71,33 @@ function isFunctionNode(node: ts.Node): node is FunctionNode {
   );
 }
 
-function sourcePosition(source: ts.SourceFile, offset: number): { line: number; column: number; offset: number } {
+function sourcePosition(
+  source: ts.SourceFile,
+  offset: number,
+): { line: number; column: number; offset: number } {
   const point = source.getLineAndCharacterOfPosition(offset);
   return { line: point.line + 1, column: point.character + 1, offset };
 }
 
-function nodeSubject(source: ts.SourceFile, node: ts.Node, name: string): Subject {
+function nodeSubject(
+  source: ts.SourceFile,
+  node: ts.Node,
+  name: string,
+): Subject {
   const start = node.getStart(source);
   return {
     name,
     start: sourcePosition(source, start),
-    end: sourcePosition(source, node.getEnd())
+    end: sourcePosition(source, node.getEnd()),
   };
 }
 
 function functionName(node: FunctionNode, source: ts.SourceFile): string {
-  if ("name" in node && node.name !== undefined) return node.name.getText(source);
+  if ("name" in node && node.name !== undefined)
+    return node.name.getText(source);
   const parent = node.parent;
-  if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
+  if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name))
+    return parent.name.text;
   if (ts.isPropertyAssignment(parent)) return parent.name.getText(source);
   const point = source.getLineAndCharacterOfPosition(node.getStart(source));
   return `<anonymous@${point.line + 1}:${point.character + 1}>`;
@@ -79,7 +113,9 @@ function collectFunctions(source: ts.SourceFile): FunctionFact[] {
     ts.forEachChild(node, visit);
   };
   visit(source);
-  return facts.sort((a, b) => a.node.getStart(source) - b.node.getStart(source));
+  return facts.sort(
+    (a, b) => a.node.getStart(source) - b.node.getStart(source),
+  );
 }
 
 function isLogical(node: ts.BinaryExpression): boolean {
@@ -90,7 +126,9 @@ function isLogical(node: ts.BinaryExpression): boolean {
 }
 
 /** PMD 7.26 CycloVisitor.booleanExpressionComplexity mapping. */
-function booleanExpressionComplexity(expression: ts.Expression | undefined): number {
+function booleanExpressionComplexity(
+  expression: ts.Expression | undefined,
+): number {
   if (expression === undefined) return 0;
   if (ts.isConditionalExpression(expression)) {
     return (
@@ -127,7 +165,11 @@ function cyclomatic(fact: FunctionFact): number {
       value += 1;
     } else if (ts.isConditionalExpression(node)) {
       value += 1 + booleanExpressionComplexity(node.condition);
-    } else if (ts.isThrowStatement(node) || ts.isBreakStatement(node) || ts.isContinueStatement(node)) {
+    } else if (
+      ts.isThrowStatement(node) ||
+      ts.isBreakStatement(node) ||
+      ts.isContinueStatement(node)
+    ) {
       value += 1;
     } else if (ts.isSwitchStatement(node)) {
       value += booleanExpressionComplexity(node.expression);
@@ -139,7 +181,7 @@ function cyclomatic(fact: FunctionFact): number {
   return value;
 }
 
-interface CognitiveState {
+/* interface CognitiveState {
   complexity: number;
   nesting: number;
   booleanOperation: "and" | "or" | undefined;
@@ -219,9 +261,10 @@ function isCognitiveStructural(node: ts.Node): boolean {
   return ts.isForStatement(node) || ts.isForInStatement(node) || ts.isForOfStatement(node) || ts.isWhileStatement(node) || ts.isDoStatement(node) || ts.isSwitchStatement(node) || ts.isCatchClause(node) || ts.isConditionalExpression(node);
 }
 
-function cognitive(fact: FunctionFact, source: ts.SourceFile): number {
+function oldCognitive(fact: FunctionFact, source: ts.SourceFile): number {
   return new CognitiveWalker(fact, source).run();
 }
+*/
 
 function emptyFlow(next: number): Flow {
   return { next, returns: 0, throws: 0, breaks: 0, continues: 0, loopbacks: 0 };
@@ -234,41 +277,57 @@ function combineFlow(left: Flow, right: Flow): Flow {
     throws: left.throws + right.throws,
     breaks: left.breaks + right.breaks,
     continues: left.continues + right.continues,
-    loopbacks: left.loopbacks + right.loopbacks
+    loopbacks: left.loopbacks + right.loopbacks,
   };
 }
 
-function expressionPaths(expression: ts.Expression, incoming: number): ConditionPaths {
-  if (ts.isParenthesizedExpression(expression)) return expressionPaths(expression.expression, incoming);
-  if (ts.isPrefixUnaryExpression(expression) && expression.operator === ts.SyntaxKind.ExclamationToken) {
+function expressionPaths(
+  expression: ts.Expression,
+  incoming: number,
+): ConditionPaths {
+  if (ts.isParenthesizedExpression(expression))
+    return expressionPaths(expression.expression, incoming);
+  if (
+    ts.isPrefixUnaryExpression(expression) &&
+    expression.operator === ts.SyntaxKind.ExclamationToken
+  ) {
     const operand = expressionPaths(expression.operand, incoming);
-    return { end: operand.end, whenTrue: operand.whenFalse, whenFalse: operand.whenTrue };
+    return {
+      end: operand.end,
+      whenTrue: operand.whenFalse,
+      whenFalse: operand.whenTrue,
+    };
   }
   if (ts.isBinaryExpression(expression) && isLogical(expression)) {
     const left = expressionPaths(expression.left, incoming);
-    if (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+    if (
+      expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+    ) {
       const right = expressionPaths(expression.right, left.whenTrue);
       return {
         end: left.whenFalse + right.end,
         whenTrue: right.whenTrue,
-        whenFalse: left.whenFalse + right.whenFalse
+        whenFalse: left.whenFalse + right.whenFalse,
       };
     }
     const right = expressionPaths(expression.right, left.whenFalse);
     return {
       end: left.whenTrue + right.end,
       whenTrue: left.whenTrue + right.whenTrue,
-      whenFalse: right.whenFalse
+      whenFalse: right.whenFalse,
     };
   }
   if (ts.isConditionalExpression(expression)) {
     const condition = expressionPaths(expression.condition, incoming);
     const whenTrue = expressionPaths(expression.whenTrue, condition.whenTrue);
-    const whenFalse = expressionPaths(expression.whenFalse, condition.whenFalse);
+    const whenFalse = expressionPaths(
+      expression.whenFalse,
+      condition.whenFalse,
+    );
     return {
       end: whenTrue.end + whenFalse.end,
       whenTrue: whenTrue.whenTrue + whenFalse.whenTrue,
-      whenFalse: whenTrue.whenFalse + whenFalse.whenFalse
+      whenFalse: whenTrue.whenFalse + whenFalse.whenFalse,
     };
   }
   // Optional chaining and ?? have no Java equivalent and are deliberately linear in pmd-v1.
@@ -285,7 +344,7 @@ function sequence(statements: readonly ts.Statement[], incoming: number): Flow {
       throws: flow.throws + current.throws,
       breaks: flow.breaks + current.breaks,
       continues: flow.continues + current.continues,
-      loopbacks: flow.loopbacks + current.loopbacks
+      loopbacks: flow.loopbacks + current.loopbacks,
     };
   }
   return flow;
@@ -294,17 +353,24 @@ function sequence(statements: readonly ts.Statement[], incoming: number): Flow {
 function branchFlow(statement: ts.IfStatement, incoming: number): Flow {
   const condition = expressionPaths(statement.expression, incoming);
   const thenFlow = statementFlow(statement.thenStatement, condition.whenTrue);
-  const elseFlow = statement.elseStatement === undefined
-    ? emptyFlow(condition.whenFalse)
-    : statementFlow(statement.elseStatement, condition.whenFalse);
+  const elseFlow =
+    statement.elseStatement === undefined
+      ? emptyFlow(condition.whenFalse)
+      : statementFlow(statement.elseStatement, condition.whenFalse);
   return combineFlow(thenFlow, elseFlow);
 }
 
-function loopFlow(statement: ts.WhileStatement | ts.ForStatement, incoming: number): Flow {
-  const expression = ts.isForStatement(statement) ? statement.condition : statement.expression;
-  const condition = expression === undefined
-    ? { end: incoming, whenTrue: incoming, whenFalse: 0 }
-    : expressionPaths(expression, incoming);
+function loopFlow(
+  statement: ts.WhileStatement | ts.ForStatement,
+  incoming: number,
+): Flow {
+  const expression = ts.isForStatement(statement)
+    ? statement.condition
+    : statement.expression;
+  const condition =
+    expression === undefined
+      ? { end: incoming, whenTrue: incoming, whenFalse: 0 }
+      : expressionPaths(expression, incoming);
   const body = statementFlow(statement.statement, condition.whenTrue);
   return {
     next: condition.whenFalse + body.breaks,
@@ -312,13 +378,17 @@ function loopFlow(statement: ts.WhileStatement | ts.ForStatement, incoming: numb
     throws: body.throws,
     breaks: 0,
     continues: 0,
-    loopbacks: body.loopbacks + body.next + body.continues
+    loopbacks: body.loopbacks + body.next + body.continues,
   };
 }
 
 function tryFlow(statement: ts.TryStatement, incoming: number): Flow {
   let total = statementFlow(statement.tryBlock, incoming);
-  if (statement.catchClause !== undefined) total = combineFlow(total, statementFlow(statement.catchClause.block, incoming));
+  if (statement.catchClause !== undefined)
+    total = combineFlow(
+      total,
+      statementFlow(statement.catchClause.block, incoming),
+    );
   if (statement.finallyBlock === undefined) return total;
   const finallyFlow = statementFlow(statement.finallyBlock, total.next);
   return {
@@ -327,48 +397,94 @@ function tryFlow(statement: ts.TryStatement, incoming: number): Flow {
     throws: total.throws + finallyFlow.throws,
     breaks: total.breaks + finallyFlow.breaks,
     continues: total.continues + finallyFlow.continues,
-    loopbacks: total.loopbacks + finallyFlow.loopbacks
+    loopbacks: total.loopbacks + finallyFlow.loopbacks,
   };
 }
 
-function terminalFlow(statement: ts.ReturnStatement | ts.ThrowStatement | ts.BreakStatement | ts.ContinueStatement, incoming: number): Flow {
+function terminalFlow(
+  statement:
+    | ts.ReturnStatement
+    | ts.ThrowStatement
+    | ts.BreakStatement
+    | ts.ContinueStatement,
+  incoming: number,
+): Flow {
   if (ts.isReturnStatement(statement)) {
-    const exits = statement.expression === undefined ? incoming : expressionPaths(statement.expression, incoming).end;
+    const exits =
+      statement.expression === undefined
+        ? incoming
+        : expressionPaths(statement.expression, incoming).end;
     return { ...emptyFlow(0), returns: exits };
   }
-  if (ts.isThrowStatement(statement)) return { ...emptyFlow(0), throws: expressionPaths(statement.expression, incoming).end };
-  if (ts.isBreakStatement(statement)) return { ...emptyFlow(0), breaks: incoming };
+  if (ts.isThrowStatement(statement))
+    return {
+      ...emptyFlow(0),
+      throws: expressionPaths(statement.expression, incoming).end,
+    };
+  if (ts.isBreakStatement(statement))
+    return { ...emptyFlow(0), breaks: incoming };
   return { ...emptyFlow(0), continues: incoming };
 }
 
 function variableFlow(statement: ts.VariableStatement, incoming: number): Flow {
   let next = incoming;
   for (const declaration of statement.declarationList.declarations) {
-    if (declaration.initializer !== undefined) next = expressionPaths(declaration.initializer, next).end;
+    if (declaration.initializer !== undefined)
+      next = expressionPaths(declaration.initializer, next).end;
   }
   return emptyFlow(next);
 }
 
-function collectionLoopFlow(statement: ts.ForInStatement | ts.ForOfStatement, incoming: number): Flow {
+function collectionLoopFlow(
+  statement: ts.ForInStatement | ts.ForOfStatement,
+  incoming: number,
+): Flow {
   const body = statementFlow(statement.statement, incoming);
-  return { next: incoming + body.breaks, returns: body.returns, throws: body.throws, breaks: 0, continues: 0, loopbacks: body.loopbacks + body.next + body.continues };
+  return {
+    next: incoming + body.breaks,
+    returns: body.returns,
+    throws: body.throws,
+    breaks: 0,
+    continues: 0,
+    loopbacks: body.loopbacks + body.next + body.continues,
+  };
 }
 
 function doLoopFlow(statement: ts.DoStatement, incoming: number): Flow {
   const body = statementFlow(statement.statement, incoming);
-  const condition = expressionPaths(statement.expression, body.next + body.continues);
-  return { next: body.breaks + condition.whenFalse, returns: body.returns, throws: body.throws, breaks: 0, continues: 0, loopbacks: body.loopbacks + condition.whenTrue };
+  const condition = expressionPaths(
+    statement.expression,
+    body.next + body.continues,
+  );
+  return {
+    next: body.breaks + condition.whenFalse,
+    returns: body.returns,
+    throws: body.throws,
+    breaks: 0,
+    continues: 0,
+    loopbacks: body.loopbacks + condition.whenTrue,
+  };
 }
 
 function statementFlow(statement: ts.Statement, incoming: number): Flow {
   if (incoming === 0) return emptyFlow(0);
   if (ts.isBlock(statement)) return sequence(statement.statements, incoming);
   if (ts.isIfStatement(statement)) return branchFlow(statement, incoming);
-  if (ts.isReturnStatement(statement) || ts.isThrowStatement(statement) || ts.isBreakStatement(statement) || ts.isContinueStatement(statement)) return terminalFlow(statement, incoming);
-  if (ts.isExpressionStatement(statement)) return emptyFlow(expressionPaths(statement.expression, incoming).end);
-  if (ts.isVariableStatement(statement)) return variableFlow(statement, incoming);
-  if (ts.isWhileStatement(statement) || ts.isForStatement(statement)) return loopFlow(statement, incoming);
-  if (ts.isForInStatement(statement) || ts.isForOfStatement(statement)) return collectionLoopFlow(statement, incoming);
+  if (
+    ts.isReturnStatement(statement) ||
+    ts.isThrowStatement(statement) ||
+    ts.isBreakStatement(statement) ||
+    ts.isContinueStatement(statement)
+  )
+    return terminalFlow(statement, incoming);
+  if (ts.isExpressionStatement(statement))
+    return emptyFlow(expressionPaths(statement.expression, incoming).end);
+  if (ts.isVariableStatement(statement))
+    return variableFlow(statement, incoming);
+  if (ts.isWhileStatement(statement) || ts.isForStatement(statement))
+    return loopFlow(statement, incoming);
+  if (ts.isForInStatement(statement) || ts.isForOfStatement(statement))
+    return collectionLoopFlow(statement, incoming);
   if (ts.isDoStatement(statement)) return doLoopFlow(statement, incoming);
   if (ts.isSwitchStatement(statement)) return switchFlow(statement, incoming);
   if (ts.isTryStatement(statement)) return tryFlow(statement, incoming);
@@ -390,7 +506,7 @@ function switchFlow(statement: ts.SwitchStatement, incoming: number): Flow {
       throws: result.throws + branch.throws,
       breaks: 0,
       continues: result.continues + branch.continues,
-      loopbacks: result.loopbacks + branch.loopbacks
+      loopbacks: result.loopbacks + branch.loopbacks,
     };
   }
   result.next += fallthrough;
@@ -404,31 +520,63 @@ function npath(fact: FunctionFact): number {
   let flow: Flow;
   if (ts.isBlock(body)) flow = sequence(body.statements, 1);
   else flow = emptyFlow(expressionPaths(body, 1).end);
-  return minNPath(flow.next + flow.returns + flow.throws + flow.loopbacks, MAX_NPATH);
+  return minNPath(
+    flow.next + flow.returns + flow.throws + flow.loopbacks,
+    MAX_NPATH,
+  );
 }
 
 function minNPath(value: number, limit: number): number {
   return value < limit ? value : limit;
 }
 
-function walkDeepIf(node: ts.Node, depth: number, fact: FunctionFact, entry: SourceEntry, measurements: Measurement[]): void {
+function walkDeepIf(
+  node: ts.Node,
+  depth: number,
+  fact: FunctionFact,
+  entry: SourceEntry,
+  measurements: Measurement[],
+): void {
   if (node !== fact.node && isFunctionNode(node)) return;
   if (!ts.isIfStatement(node)) {
-    ts.forEachChild(node, (child) => walkDeepIf(child, depth, fact, entry, measurements));
+    ts.forEachChild(node, (child) =>
+      walkDeepIf(child, depth, fact, entry, measurements),
+    );
     return;
   }
   if (depth + 1 === 3) {
-    measurements.push(measurement(entry, "deeply_nested_if", "pmd-v1", "expression", 1, nodeSubject(entry.sourceFile, node, "if"), { problem_depth: 3 }));
+    measurements.push(
+      measurement(
+        entry,
+        "deeply_nested_if",
+        "pmd-v1",
+        "expression",
+        1,
+        nodeSubject(entry.sourceFile, node, "if"),
+        { problem_depth: 3 },
+      ),
+    );
     return;
   }
   walkDeepIf(node.expression, depth, fact, entry, measurements);
   walkDeepIf(node.thenStatement, depth + 1, fact, entry, measurements);
-  if (node.elseStatement !== undefined) walkDeepIf(node.elseStatement, ts.isIfStatement(node.elseStatement) ? depth : depth + 1, fact, entry, measurements);
+  if (node.elseStatement !== undefined)
+    walkDeepIf(
+      node.elseStatement,
+      ts.isIfStatement(node.elseStatement) ? depth : depth + 1,
+      fact,
+      entry,
+      measurements,
+    );
 }
 
-function deepIfMeasurements(entry: SourceEntry, fact: FunctionFact): Measurement[] {
+function deepIfMeasurements(
+  entry: SourceEntry,
+  fact: FunctionFact,
+): Measurement[] {
   const measurements: Measurement[] = [];
-  if (fact.node.body !== undefined) walkDeepIf(fact.node.body, 0, fact, entry, measurements);
+  if (fact.node.body !== undefined)
+    walkDeepIf(fact.node.body, 0, fact, entry, measurements);
   return measurements;
 }
 
@@ -439,7 +587,7 @@ function measurement(
   scope: "file" | "function" | "type" | "expression",
   value: number,
   subject: Subject,
-  attributes: Record<string, unknown> = {}
+  attributes: Record<string, unknown> = {},
 ): Measurement {
   return {
     unit_id: entry.unitId,
@@ -453,12 +601,12 @@ function measurement(
     provenance: {
       analyzer: ANALYZER_NAME,
       analyzer_version: ANALYZER_VERSION,
-      rule: `${component}/${definition}`
-    }
+      rule: `${component}/${definition}`,
+    },
   };
 }
 
-function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+/* function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
   return ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) === true;
 }
 
@@ -596,9 +744,9 @@ function foreignFieldsUsedByMethod(fact: FunctionFact): Set<string> {
 
 function uniqueStrings(values: Iterable<string>): string[] {
   return [...new Set(values)].sort();
-}
+} */
 
-function typeMetricMeasurements(
+/* function typeMetricMeasurements(
   entry: SourceEntry,
   requestedComponents: ReadonlySet<string>
 ): Measurement[] {
@@ -642,9 +790,9 @@ function typeMetricMeasurements(
     }
   }
   return output;
-}
+} */
 
-function publicOperations(source: ts.SourceFile): { operations: PublicOperation[]; publicTypes: number; exposedState: number; exposedRepresentation: number } {
+/* function publicOperations(source: ts.SourceFile): { operations: PublicOperation[]; publicTypes: number; exposedState: number; exposedRepresentation: number } {
   const operations: PublicOperation[] = [];
   let publicTypes = 0;
   let exposedState = 0;
@@ -706,25 +854,59 @@ function directAccessorExposure(node: ts.GetAccessorDeclaration | ts.SetAccessor
   return exposed;
 }
 
+} */
+
 function moduleShallowness(entry: SourceEntry): Measurement {
   const surface = publicOperations(entry.sourceFile);
-  const parameterCount = surface.operations.reduce((sum, operation) => sum + operation.node.parameters.length, 0);
-  const resultCount = surface.operations.filter((operation) => returnsValue(operation.node)).length;
-  const entries = surface.operations.reduce((sum, operation) => sum + Math.max(1, operation.node.parameters.length), 0);
+  const parameterCount = surface.operations.reduce(
+    (sum, operation) => sum + operation.node.parameters.length,
+    0,
+  );
+  const resultCount = surface.operations.filter((operation) =>
+    returnsValue(operation.node),
+  ).length;
+  const entries = surface.operations.reduce(
+    (sum, operation) => sum + Math.max(1, operation.node.parameters.length),
+    0,
+  );
   const exits = resultCount;
   const functionality = entries + exits;
   const operationCost = surface.operations.length;
-  const typeCost = surface.operations.reduce((sum, operation) => sum + operation.typeCost, 0);
+  const typeCost = surface.operations.reduce(
+    (sum, operation) => sum + operation.typeCost,
+    0,
+  );
   const exposedStateCost = surface.exposedState;
-  const signatureRepresentation = surface.operations.reduce((sum, operation) => sum + operation.representationCost, 0);
+  const signatureRepresentation = surface.operations.reduce(
+    (sum, operation) => sum + operation.representationCost,
+    0,
+  );
   const interfaceCost = operationCost + typeCost + exposedStateCost;
   const available = interfaceCost > 0;
   const depth = available ? functionality / interfaceCost : 0;
   const depthPenalty = available ? 100 * Math.max(0, 1 - depth) : 0;
-  const leakagePenalty = available ? 100 * Math.min(1, (surface.exposedRepresentation + signatureRepresentation) / interfaceCost) : 0;
-  const value = available ? Math.max(0, Math.min(100, Math.round(0.8 * depthPenalty + 0.2 * leakagePenalty))) : 0;
-  return measurement(entry, "module_shallowness", "ousterhout-v2", "file", value,
-    nodeSubject(entry.sourceFile, entry.sourceFile, entry.relativePath), {
+  const leakagePenalty = available
+    ? 100 *
+      Math.min(
+        1,
+        (surface.exposedRepresentation + signatureRepresentation) /
+          interfaceCost,
+      )
+    : 0;
+  const value = available
+    ? Math.max(
+        0,
+        Math.min(100, Math.round(0.8 * depthPenalty + 0.2 * leakagePenalty)),
+      )
+    : 0;
+  return measurement(
+    entry,
+    "module_shallowness",
+    "ousterhout-v2",
+    "file",
+    value,
+    nodeSubject(entry.sourceFile, entry.sourceFile, entry.relativePath),
+    {
       available,
       functionality,
       entries,
@@ -742,37 +924,63 @@ function moduleShallowness(entry: SourceEntry): Measurement {
       public_types: surface.publicTypes,
       exposed_state_cost: exposedStateCost,
       information_hiding_cost: 0,
-      exposed_representation: surface.exposedRepresentation + signatureRepresentation,
+      exposed_representation:
+        surface.exposedRepresentation + signatureRepresentation,
       raw_depth_ratio: depth,
       depth_reference: 1,
       depth_penalty: depthPenalty,
       leakage_penalty: leakagePenalty,
       available_weight: 1,
-      total_weight: 1
-    });
+      total_weight: 1,
+    },
+  );
 }
 
 export function analyzeStructural(
   entry: SourceEntry,
-  requestedComponents: ReadonlySet<string>
+  requestedComponents: ReadonlySet<string>,
 ): Measurement[] {
   const output: Measurement[] = [];
-  if (requestedComponents.has("module_shallowness")) output.push(moduleShallowness(entry));
-  output.push(...typeMetricMeasurements(entry, requestedComponents));
+  if (requestedComponents.has("module_shallowness"))
+    output.push(moduleShallowness(entry));
+  output.push(...collectTypeMetrics(entry, requestedComponents, cyclomatic));
   const functions = collectFunctions(entry.sourceFile);
   for (const fact of functions) {
     if (requestedComponents.has("cognitive_complexity")) {
       output.push(
-        measurement(entry, "cognitive_complexity", "pmd-sonar-v1", "function", cognitive(fact, entry.sourceFile), fact.subject)
+        measurement(
+          entry,
+          "cognitive_complexity",
+          "pmd-sonar-v1",
+          "function",
+          cognitive(fact, entry.sourceFile),
+          fact.subject,
+        ),
       );
     }
     if (requestedComponents.has("cyclomatic_method_complexity")) {
       output.push(
-        measurement(entry, "cyclomatic_method_complexity", "pmd-v1", "function", cyclomatic(fact), fact.subject)
+        measurement(
+          entry,
+          "cyclomatic_method_complexity",
+          "pmd-v1",
+          "function",
+          cyclomatic(fact),
+          fact.subject,
+        ),
       );
     }
     if (requestedComponents.has("npath_complexity")) {
-      output.push(measurement(entry, "npath_complexity", "pmd-v1", "function", npath(fact), fact.subject));
+      output.push(
+        measurement(
+          entry,
+          "npath_complexity",
+          "pmd-v1",
+          "function",
+          npath(fact),
+          fact.subject,
+        ),
+      );
     }
     if (requestedComponents.has("deeply_nested_if")) {
       output.push(...deepIfMeasurements(entry, fact));

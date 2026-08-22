@@ -4,7 +4,8 @@ export const PROTOCOL_VERSION = 1 as const;
 export const ANALYZER_NAME = "slopslap-typescript";
 export const ANALYZER_VERSION = "0.1.0";
 
-export type CoverageState = "complete" | "unavailable" | "failed" | "not_requested";
+export type CoverageState =
+  "complete" | "unavailable" | "failed" | "not_requested";
 export type TypeMode = "auto" | "require" | "off";
 
 export interface ComponentRequest {

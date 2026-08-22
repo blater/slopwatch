@@ -1,7 +1,4 @@
 .DS_Store
-.slopslap-runtime/
-.slopslap-go/
-.slopslap-build/
 node_modules/
 dist/
 build/
@@ -14,6 +11,7 @@ analyzers/structural/slopslap-structural
 analyzers/structural/slopslap-structural.exe
 analyzers/structural/slopslap-structural-rust
 analyzers/structural/slopslap-structural-java.jar
+analyzers/structural/java-runtime/
 analyzers/structural/adapters/java/build/
 analyzers/structural/slopslap-structural-rust.exe
 analyzers/typescript/slopslap-typescript

@@ -21,7 +21,7 @@ runs:
         SLOPSLAP_PATH: ${{ inputs.path }}
       run: |
         if [[ -n "$SLOPSLAP_PASS_SCORE" ]]; then
-          "$GITHUB_ACTION_PATH/build/slopslap" "$SLOPSLAP_PATH" --pass-score "$SLOPSLAP_PASS_SCORE"
+          "$GITHUB_ACTION_PATH/build/slopmark" "$SLOPSLAP_PATH" --pass-score "$SLOPSLAP_PASS_SCORE"
         else
-          "$GITHUB_ACTION_PATH/build/slopslap" "$SLOPSLAP_PATH"
+          "$GITHUB_ACTION_PATH/build/slopmark" "$SLOPSLAP_PATH"
         fi

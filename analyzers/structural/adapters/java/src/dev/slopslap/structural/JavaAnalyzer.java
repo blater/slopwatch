@@ -95,16 +95,7 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                     fieldFact.mutable = !field.getModifiers().getFlags().contains(javax.lang.model.element.Modifier.FINAL);
                     fieldFact.type = shape(field.getType());
                     type.fieldFacts.add(fieldFact);
-                    if (fieldFact.publicField && fieldFact.mutable) {
-                        Facts.RepresentationExposure exposure = new Facts.RepresentationExposure();
-                        exposure.stableId = path + ":" + name + ":" + fieldFact.name;
-                        exposure.kind = "public-mutable-field";
-                        exposure.entity = name + "." + fieldFact.name;
-                        exposure.location = location(field);
-                        exposure.evidence = "public non-final Java field exposes mutable representation";
-                        exposure.confidence = "exact";
-                        program.representation.add(exposure);
-                    }
+                    addRepresentationExposure(name, field, fieldFact);
                 }
             }
             int ordinal = 0;
@@ -153,6 +144,18 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
         method.getThrows().forEach(value -> collectTypes(value, output));
     }
 
+    private void addRepresentationExposure(String owner, VariableTree field, Facts.FieldFact fieldFact) {
+        if (!fieldFact.publicField || !fieldFact.mutable) return;
+        Facts.RepresentationExposure exposure = new Facts.RepresentationExposure();
+        exposure.stableId = path + ":" + owner + ":" + fieldFact.name;
+        exposure.kind = "public-mutable-field";
+        exposure.entity = owner + "." + fieldFact.name;
+        exposure.location = location(field);
+        exposure.evidence = "public non-final Java field exposes mutable representation";
+        exposure.confidence = "exact";
+        program.representation.add(exposure);
+    }
+
     private void collectTypes(Tree tree, Set<String> output) {
         new TypeNames(output).scan(tree, null);
     }
@@ -182,107 +185,15 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
     }
 
     private Facts.TypeShape shape(Tree tree) {
-        Facts.TypeShape result = new Facts.TypeShape();
-        result.kind = tree.getKind().toString().toLowerCase(Locale.ROOT);
-        result.name = tree.toString();
-        if (tree instanceof ParameterizedTypeTree parameterized) {
-            for (Tree argument : parameterized.getTypeArguments()) result.children.add(shape(argument));
-        } else if (tree instanceof ArrayTypeTree array) {
-            result.children.add(shape(array.getType()));
-        }
-        result.complexity = 1;
-        for (Facts.TypeShape child : result.children) result.complexity += child.complexity;
-        result.complexity = Math.min(32, result.complexity);
-        result.stableId = result.kind + ":" + result.name + ":" + result.complexity;
-        return result;
+        return JavaTypeShapes.shape(tree);
     }
 
-    private List<Facts.Statement> statements(List<? extends StatementTree> input) {
+    List<Facts.Statement> statements(List<? extends StatementTree> input) {
         return new JavaStatements(this).translate(input);
     }
 
     Facts.Expression expression(ExpressionTree value) {
-        if (value instanceof ParenthesizedTree parenthesized) {
-            return expression(parenthesized.getExpression());
-        }
-        Facts.Expression result = new Facts.Expression();
-        if (value instanceof BinaryTree binary
-                && (value.getKind() == Tree.Kind.CONDITIONAL_AND
-                    || value.getKind() == Tree.Kind.CONDITIONAL_OR)) {
-            result.kind = value.getKind() == Tree.Kind.CONDITIONAL_AND
-                    ? Facts.EXPR_AND : Facts.EXPR_OR;
-            result.children.add(expression(binary.getLeftOperand()));
-            result.children.add(expression(binary.getRightOperand()));
-            return result;
-        }
-        if (value instanceof UnaryTree unary && value.getKind() == Tree.Kind.LOGICAL_COMPLEMENT) {
-            result.kind = Facts.EXPR_NOT;
-            result.children.add(expression(unary.getExpression()));
-            return result;
-        }
-        if (value instanceof ConditionalExpressionTree conditional) {
-            result.kind = Facts.EXPR_CONDITIONAL;
-            result.children.add(expression(conditional.getCondition()));
-            result.children.add(expression(conditional.getTrueExpression()));
-            result.children.add(expression(conditional.getFalseExpression()));
-            return result;
-        }
-        new ExpressionMetadata(result).scan(value, null);
-        result.calls.sort(String::compareTo);
-        return result;
-    }
-
-    private final class ExpressionMetadata extends TreeScanner<Void, Void> {
-        private final Facts.Expression result;
-
-        private ExpressionMetadata(Facts.Expression result) {
-            this.result = result;
-        }
-
-        @Override
-        public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {
-            if (node.getMethodSelect() instanceof IdentifierTree selected) {
-                result.calls.add(selected.getName().toString());
-            } else if (node.getMethodSelect() instanceof MemberSelectTree selected
-                    && selected.getExpression().toString().equals("this")) {
-                result.calls.add(selected.getIdentifier().toString());
-            }
-            return super.visitMethodInvocation(node, unused);
-        }
-
-        @Override
-        public Void visitConditionalExpression(ConditionalExpressionTree node, Void unused) {
-            result.children.add(expression(node));
-            return null;
-        }
-
-        @Override
-        public Void visitBinary(BinaryTree node, Void unused) {
-            if (node.getKind() == Tree.Kind.CONDITIONAL_AND
-                    || node.getKind() == Tree.Kind.CONDITIONAL_OR) {
-                result.children.add(expression(node));
-                return null;
-            }
-            return super.visitBinary(node, unused);
-        }
-
-        @Override
-        public Void visitLambdaExpression(LambdaExpressionTree node, Void unused) {
-            Facts.Function nested = new Facts.Function();
-            nested.name = "<lambda>";
-            nested.location = location(node);
-            if (node.getBody() instanceof BlockTree block) {
-                nested.body.addAll(statements(block.getStatements()));
-            } else if (node.getBody() instanceof ExpressionTree body) {
-                Facts.Statement statement = new Facts.Statement();
-                statement.kind = Facts.STMT_LINEAR;
-                statement.location = location(body);
-                statement.expressions.add(expression(body));
-                nested.body.add(statement);
-            }
-            result.nested.add(nested);
-            return null;
-        }
+        return JavaExpressions.translate(this, value);
     }
 
     private static final class TypeNames extends TreeScanner<Void, Void> {

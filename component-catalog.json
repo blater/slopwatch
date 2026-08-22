@@ -11,7 +11,7 @@
       "version": "0.1.0",
       "installation_method": "jdk",
       "execution_method": "direct",
-      "source": "../analyzers/structural",
+      "source": "analyzers/structural",
       "entrypoint": "slopslap-structural",
       "ready_path": "slopslap-structural-java.jar"
     },
@@ -23,7 +23,7 @@
       "version": "0.1.0",
       "installation_method": "go",
       "execution_method": "direct",
-      "source": "../analyzers/structural",
+      "source": "analyzers/structural",
       "entrypoint": "slopslap-structural",
       "ready_path": "slopslap-structural"
     },
@@ -35,7 +35,7 @@
       "version": "0.1.0",
       "installation_method": "scriptc",
       "execution_method": "direct",
-      "source": "../analyzers/typescript",
+      "source": "analyzers/typescript",
       "entrypoint": "slopslap-typescript",
       "ready_path": "slopslap-typescript"
     },
@@ -47,7 +47,7 @@
       "version": "0.1.0",
       "installation_method": "cargo",
       "execution_method": "direct",
-      "source": "../analyzers/structural",
+      "source": "analyzers/structural",
       "entrypoint": "slopslap-structural",
       "ready_path": "slopslap-structural-rust"
     }

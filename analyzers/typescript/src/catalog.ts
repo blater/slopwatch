@@ -22,7 +22,7 @@ export const COMPONENTS = [
     evidence_posture: "oracle_aligned",
     support_level: "conformant",
     required_capability: "syntax",
-    deduplication_key: "canonical-file,function-start"
+    deduplication_key: "canonical-file,function-start",
   },
   {
     component_id: "cyclomatic_method_complexity",
@@ -34,7 +34,7 @@ export const COMPONENTS = [
     evidence_posture: "oracle_aligned",
     support_level: "conformant",
     required_capability: "syntax",
-    deduplication_key: "canonical-file,function-start"
+    deduplication_key: "canonical-file,function-start",
   },
   {
     component_id: "npath_complexity",
@@ -46,7 +46,7 @@ export const COMPONENTS = [
     evidence_posture: "oracle_aligned",
     support_level: "conformant",
     required_capability: "syntax",
-    deduplication_key: "canonical-file,function-start"
+    deduplication_key: "canonical-file,function-start",
   },
   {
     component_id: "deeply_nested_if",
@@ -58,7 +58,7 @@ export const COMPONENTS = [
     evidence_posture: "oracle_aligned",
     support_level: "conformant",
     required_capability: "syntax",
-    deduplication_key: "canonical-file,start,end"
+    deduplication_key: "canonical-file,start,end",
   },
   {
     component_id: "module_shallowness",
@@ -82,7 +82,7 @@ export const COMPONENTS = [
     evidence_posture: "oracle_aligned",
     support_level: "supported",
     required_capability: "syntax",
-    deduplication_key: "canonical-file,type-start"
+    deduplication_key: "canonical-file,type-start",
   },
   {
     component_id: "coupling_between_objects",
@@ -94,7 +94,7 @@ export const COMPONENTS = [
     evidence_posture: "supported",
     support_level: "supported",
     required_capability: "syntax",
-    deduplication_key: "canonical-file,type-start"
+    deduplication_key: "canonical-file,type-start",
   },
   {
     component_id: "god_class",
@@ -106,7 +106,7 @@ export const COMPONENTS = [
     evidence_posture: "supported",
     support_level: "supported",
     required_capability: "syntax",
-    deduplication_key: "canonical-file,type-start"
+    deduplication_key: "canonical-file,type-start",
   },
   ...[
     "explicit_any",
@@ -115,7 +115,7 @@ export const COMPONENTS = [
     "unsafe_type_use",
     "unsafe_type_boundary",
     "ambiguous_boolean_expression",
-    "non_exhaustive_union"
+    "non_exhaustive_union",
   ].map((component_id) => ({
     component_id,
     definition_version: "typescript-local-sink-v1",
@@ -126,14 +126,20 @@ export const COMPONENTS = [
     evidence_posture: "supported" as const,
     support_level: "supported" as const,
     required_capability: "types" as const,
-    deduplication_key: "component,canonical-file,start,end,normalized-symbol"
-  }))
+    deduplication_key: "component,canonical-file,start,end,normalized-symbol",
+  })),
 ] satisfies ComponentDefinition[];
 
-export const COMPONENT_BY_ID = new Map(COMPONENTS.map((item) => [item.component_id, item]));
+export const COMPONENT_BY_ID = new Map(
+  COMPONENTS.map((item) => [item.component_id, item]),
+);
 export const STRUCTURAL_COMPONENTS = new Set(
-  COMPONENTS.filter((item) => item.required_capability === "syntax").map((item) => item.component_id)
+  COMPONENTS.filter((item) => item.required_capability === "syntax").map(
+    (item) => item.component_id,
+  ),
 );
 export const TYPED_COMPONENTS = new Set(
-  COMPONENTS.filter((item) => item.required_capability === "types").map((item) => item.component_id)
+  COMPONENTS.filter((item) => item.required_capability === "types").map(
+    (item) => item.component_id,
+  ),
 );

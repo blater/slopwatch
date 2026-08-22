@@ -3,7 +3,7 @@ package follow
 import (
 	"time"
 
-	"github.com/slopslap/slopslap/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func (model *Model) mergeRowState(file report.File, state rowState, result analysisResult, oldScores map[string]float64, oldRanks map[string]int, now time.Time, baseline bool) rowState {

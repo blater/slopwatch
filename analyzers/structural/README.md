@@ -43,6 +43,7 @@ Build and test locally with:
 ```sh
 go test ./...
 javac --release 17 -d build/java-classes adapters/java/src/dev/slopslap/structural/*.java
+jlink --add-modules java.base,jdk.compiler --strip-debug --no-man-pages --no-header-files --compress=2 --output java-runtime
 cargo test --manifest-path adapters/rust/Cargo.toml
 go build -o slopslap-structural ./cmd/slopslap-structural
 ```

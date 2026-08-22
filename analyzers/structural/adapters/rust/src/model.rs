@@ -128,6 +128,7 @@ pub struct Program {
     pub functions: Vec<Function>,
     pub types: Vec<TypeFact>,
     pub public_operations: Vec<PublicOperation>,
+    #[serde(rename = "representation_exposure")]
     pub representation: Vec<RepresentationExposure>,
     pub files: Vec<String>,
     pub unavailable: BTreeMap<String, BTreeMap<String, String>>,

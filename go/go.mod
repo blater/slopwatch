@@ -1,4 +1,4 @@
-module github.com/slopslap/slopslap
+module github.com/blater/slopwatch
 
 go 1.25.0
 

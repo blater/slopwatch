@@ -1,25 +1,23 @@
-# Slopslap
+# Slopwatch
 
-Slopslap finds design smells in Go, Java and TypeScript (Rust is experimental),
-and gives them a score weighted on coupling, cohesion, depth, and cognitive complexity. 
+Slop causes us humans painful extra cognitive load, while agents have DEEP slop tolerance.
+But we do see them drop in performance as slop causes reasoning chains to lengthen,
+evidence to conflict, distraction to increase. Planning becomes more elaborate with more subtasks,
+they start overlooking constraints more often, forgetting goals, and prioritising irrelvancies.
 
-Slop builds up, as extraneous cognitive load for humans, we've all seen impossible spaghetti code 
-which is painful to read, review, and reason about.
+*Slopslap*  is your quality measuring tool
+It finds design & abstraction smells in Go, Java, TypeScript, and Rust, giving the code a weighted score
+based on coupling, cohesion, module depth, and cognitive complexity.  It is not a substitute for a linter.
+It is designed to be run by agents and lets you give them *one clear and simple KPI* to stop the descent to slop.
+Give them a simple rule - keep score under target, gates pass, go over it & rework until it's clean.
+Use it as *continuous forcing function*, pushing agents towards good.
 
-We've also all seen that agents have deep slop tolerance.  However, they suffer in different ways,
-as reasoning chains lengthen, evidence conflicts, and distraction increases. 
-Symptoms start to show - planning becomes more elaborate with more subtasks, they start overlooking 
-constraints more often, forgetting goals, and prioritising irrelvancies. 
+*Slopwatch* is your window into your code health.
+Use this to keep any eye on what's creeping upwards, how refactors are really progressing, and where the slop is.
 
-This tool condenses a complex mix of measures into *one clear and simple number* for agents - stay 
-under that, gates pass, go over it & they have to rework until it's clean.
 
-I use this in AGENTS.md as a *continuous forcing function*, pushing agents towards good. 
 
-It is aimed larger projects where you want a solid, sustainable architecture, where each module
-needs crystal clear focus & clean well defined interfaces.  
-
-## Install 
+## Install
 
 Slopslap is a native Go CLI and GitHub Action with all analysis targets bundled.
 
@@ -32,7 +30,7 @@ make build
 
 ## Usage
 
-The simplest usage is: 
+The simplest usage is:
 ```sh
 slopslap <project path>
 ```
@@ -48,7 +46,7 @@ slopslap myproj/src anotherProj/prod/src
 For a live dashboard that remeasures only changed source units:
 
 ```sh
-slopslap --follow .
+slopmark --follow .
 ```
 
 ![Slopslap follow-mode dashboard](docs/follow-mode.svg)
@@ -57,7 +55,7 @@ Full command list:
 
 | Command | Purpose | Example |
 | --- | --- | --- |
-| `slopslap` | Show help and analyze the current directory | `slopslap` |
+| `slopmark` | Show help and analyze the current directory | `slopmark` |
 | `slopslap analyze [TARGET ...]` | Analyze directories or files | `slopslap src` |
 
 The `analyze` word may be omitted. Common analysis options are:
@@ -65,13 +63,13 @@ The `analyze` word may be omitted. Common analysis options are:
 | Option | Purpose | Example |
 | --- | --- | --- |
 | `--config FILE` | Use an exact configuration file | `slopslap . --config team.toml` |
-| `-c`, `--compact` | Show only score and path in text output | `slopslap --compact .` |
-| `-f`, `--follow` | Open the live, scrollable ranking dashboard | `slopslap --follow --limit 100 .` |
-| `--trend-window DURATION` | Set follow-mode movement-indicator and edit-highlight window | `slopslap --follow --trend-window 30m .` |
-| `--include-tests` | Include test source files | `slopslap --include-tests .` |
-| `--backend LANGUAGE=BACKEND` | Override one language's analyzer | `slopslap --backend java=pmd .` |
-| `--limit NUMBER` | Return at most this many ranked files (all by default) | `slopslap --limit 20 .` |
-| `--pass-score SCORE` | Pass files scoring at or below this value | `slopslap --pass-score 100 .` |
+| `-c`, `--compact` | Show only score and path in text output | `slopmark --compact .` |
+| `-f`, `--follow` | Open the live, scrollable ranking dashboard | `slopmark --follow --limit 100 .` |
+| `--trend-window DURATION` | Set follow-mode movement-indicator and edit-highlight window | `slopmark --follow --trend-window 30m .` |
+| `--include-tests` | Include test source files | `slopmark --include-tests .` |
+| `--backend LANGUAGE=BACKEND` | Override one language's analyzer | `slopmark --backend java=pmd .` |
+| `--limit NUMBER` | Return at most this many ranked files (all by default) | `slopmark --limit 20 .` |
+| `--pass-score SCORE` | Pass files scoring at or below this value | `slopmark --pass-score 100 .` |
 | `--format json` | Emit the standard JSON report | `slopslap . --format json` |
 
 Every result is returned by default; `--limit 0` is the explicit equivalent.

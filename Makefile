@@ -4,13 +4,15 @@ ROOT := $(abspath .)
 BUILD_DIR := $(ROOT)/build
 STRUCTURAL_DIR := $(ROOT)/analyzers/structural
 TYPESCRIPT_DIR := $(ROOT)/analyzers/typescript
+TYPESCRIPT_BUILD_DIR := $(BUILD_DIR)/typescript
 STRUCTURAL_BIN := $(STRUCTURAL_DIR)/slopslap-structural
 RUST_BIN := $(STRUCTURAL_DIR)/slopslap-structural-rust
 JAVA_JAR := $(STRUCTURAL_DIR)/slopslap-structural-java.jar
-GO_BIN := $(BUILD_DIR)/slopslap
+JAVA_RUNTIME_BIN := $(STRUCTURAL_DIR)/java-runtime/bin/java
+GO_BIN := $(BUILD_DIR)/slopmark
 WATCH_BIN := $(BUILD_DIR)/slopwatch
-TS_MARKER := $(TYPESCRIPT_DIR)/dist/src/cli.js
-TS_NATIVE_BIN := $(TYPESCRIPT_DIR)/slopslap-typescript
+TS_MARKER := $(TYPESCRIPT_BUILD_DIR)/dist/src/cli.js
+TS_NATIVE_BIN := $(TYPESCRIPT_BUILD_DIR)/slopslap-typescript
 
 GO_ENV := CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off
 GO_FLAGS := -trimpath -buildvcs=false
@@ -53,7 +55,11 @@ $(JAVA_JAR): $(STRUCTURAL_JAVA_SOURCES)
 	@javac --release 17 -g:none -d $(BUILD_DIR)/java-classes $(STRUCTURAL_JAVA_SOURCES)
 	@jar --create --file $@ --date $(JAR_DATE) --main-class dev.slopslap.structural.Main -C $(BUILD_DIR)/java-classes .
 
-build-java: $(JAVA_JAR)
+$(JAVA_RUNTIME_BIN): $(JAVA_JAR)
+	@rm -rf $(STRUCTURAL_DIR)/java-runtime
+	@jlink --add-modules java.base,jdk.compiler --strip-debug --no-man-pages --no-header-files --compress=2 --output $(STRUCTURAL_DIR)/java-runtime
+
+build-java: $(JAVA_JAR) $(JAVA_RUNTIME_BIN)
 
 $(GO_BIN): $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
@@ -66,13 +72,18 @@ $(WATCH_BIN): $(WATCH_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 build-go: $(GO_BIN) $(WATCH_BIN)
 
 $(TS_MARKER): $(TS_SOURCES) $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json $(TYPESCRIPT_DIR)/tsconfig.json
-	@npm --prefix $(TYPESCRIPT_DIR) ci --ignore-scripts
-	@npm --prefix $(TYPESCRIPT_DIR) run build
+	@rm -rf $(TYPESCRIPT_BUILD_DIR)/src $(TYPESCRIPT_BUILD_DIR)/test $(TYPESCRIPT_BUILD_DIR)/dist $(TYPESCRIPT_BUILD_DIR)/node_modules
+	@mkdir -p $(TYPESCRIPT_BUILD_DIR)
+	@cp -R $(TYPESCRIPT_DIR)/src $(TYPESCRIPT_BUILD_DIR)/src
+	@cp -R $(TYPESCRIPT_DIR)/test $(TYPESCRIPT_BUILD_DIR)/test
+	@cp $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json $(TYPESCRIPT_DIR)/tsconfig.json $(TYPESCRIPT_BUILD_DIR)/
+	@npm --prefix $(TYPESCRIPT_BUILD_DIR) ci --ignore-scripts
+	@npm --prefix $(TYPESCRIPT_BUILD_DIR) run build
 
 $(TS_NATIVE_BIN): $(TS_MARKER) $(TYPESCRIPT_DIR)/src/scriptc-entry.ts
-	@mkdir -p $(TYPESCRIPT_DIR)/node_modules/@slopslap
-	@ln -sfn $(TYPESCRIPT_DIR) $(TYPESCRIPT_DIR)/node_modules/@slopslap/typescript-analyzer
-	@cd $(TYPESCRIPT_DIR) && npm exec --offline -- scriptc build src/scriptc-entry.ts --dynamic --out $(TS_NATIVE_BIN)
+	@mkdir -p $(TYPESCRIPT_BUILD_DIR)/node_modules/@slopslap
+	@ln -sfn $(TYPESCRIPT_BUILD_DIR) $(TYPESCRIPT_BUILD_DIR)/node_modules/@slopslap/typescript-analyzer
+	@cd $(TYPESCRIPT_BUILD_DIR) && npm exec --offline -- scriptc build src/scriptc-entry.ts --dynamic --out $(TS_NATIVE_BIN)
 
 build-typescript: $(TS_NATIVE_BIN)
 
@@ -81,9 +92,9 @@ test-structural: build-structural build-rust build-java
 	@cargo test --locked --manifest-path $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml
 
 test-typescript: build-typescript
-	@npm --prefix $(TYPESCRIPT_DIR) test
+	@npm --prefix $(TYPESCRIPT_BUILD_DIR) test
 
 test: test-structural test-typescript
 
 clean:
-	@rm -rf $(BUILD_DIR) $(ROOT)/.slopslap-go $(STRUCTURAL_BIN) $(RUST_BIN) $(JAVA_JAR) $(GO_BIN) $(WATCH_BIN) $(TS_NATIVE_BIN) $(TYPESCRIPT_DIR)/dist $(TYPESCRIPT_DIR)/node_modules
+	@rm -rf $(TYPESCRIPT_BUILD_DIR)/dist $(TYPESCRIPT_BUILD_DIR)/node_modules
