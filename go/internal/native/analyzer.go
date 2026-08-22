@@ -48,12 +48,9 @@ func selectedLanguages(requested []string, discovered map[string][]string) ([]st
 		sort.Strings(selected)
 	}
 	if len(selected) == 0 {
-		return nil, fmt.Errorf("no supported Go, Java, or Rust source files found")
+		return nil, fmt.Errorf("no supported source files found")
 	}
 	for _, language := range selected {
-		if language == "typescript" {
-			return nil, ErrUnsupported
-		}
 		if len(discovered[language]) == 0 {
 			return nil, fmt.Errorf("no source files discovered for: %s", language)
 		}
@@ -113,12 +110,12 @@ func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, lang
 	if err != nil {
 		return report.Document{}, err
 	}
-	executable := filepath.Join(analyzer.root, "analyzers", "structural", "slopslap-structural")
-	if info, statErr := os.Stat(executable); statErr != nil || info.IsDir() {
-		return report.Document{}, fmt.Errorf("%w: structural analyzer is not installed", ErrUnsupported)
-	}
 	allRecords := []protocolRecord{}
 	for _, language := range selected {
+		executable := filepath.Join(analyzer.root, "analyzers", "structural", "slopslap-structural")
+		if language == "typescript" {
+			executable = filepath.Join(analyzer.root, "analyzers", "typescript", "slopslap-typescript")
+		}
 		records, runErr := analyzer.analyzeLanguage(parent, executable, language, discovered[language], options)
 		if runErr != nil {
 			return report.Document{}, runErr

@@ -1,10 +1,4 @@
-__pycache__/
 .DS_Store
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 .slopslap-runtime/
 .slopslap-go/
 .slopslap-build/
@@ -22,3 +16,5 @@ analyzers/structural/slopslap-structural-rust
 analyzers/structural/slopslap-structural-java.jar
 analyzers/structural/adapters/java/build/
 analyzers/structural/slopslap-structural-rust.exe
+analyzers/typescript/slopslap-typescript
+analyzers/typescript/scriptc-entry.ll

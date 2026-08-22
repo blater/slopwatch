@@ -18,10 +18,6 @@ func (model Model) helpView() string {
 		"SHALLOW Depth is functionality per unit of interface complexity. Shallowness is bad",
 		"GOD     God classes -bloated modules with a low-cohesion class score. Keep this low",
 		"",
-		keyHint("V", "       Open the highlighted source file", lipgloss.Color("#0d1d29")),
-		keyHint("f", "       Find file paths or source text (/ also works)", lipgloss.Color("#0d1d29")),
-		keyHint("n / N", "   Next or previous find match", lipgloss.Color("#0d1d29")),
-		"",
 		keyHint("Esc", " to close help", lipgloss.Color("#0d1d29")),
 	}
 	return lipgloss.NewStyle().Width(width).Padding(1, 2).

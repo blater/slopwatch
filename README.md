@@ -21,13 +21,13 @@ needs crystal clear focus & clean well defined interfaces.
 
 ## Install 
 
-Slopslap works as a CLI command, as an MCP server, or as a github action and runs on Python 3.10 or later.
+Slopslap is a native Go CLI and GitHub Action with all analysis targets bundled.
 
 Install it with:
 ```sh
 git clone <repository-url> slopslap
 cd slopslap
-python3 -m pip install .
+make build
 ```
 
 ## Usage
@@ -57,15 +57,8 @@ Full command list:
 
 | Command | Purpose | Example |
 | --- | --- | --- |
-| `slopslap` | Show help and installed analyzer status | `slopslap` |
+| `slopslap` | Show help and analyze the current directory | `slopslap` |
 | `slopslap analyze [TARGET ...]` | Analyze directories or files | `slopslap src` |
-| `slopslap action add` | Add the GitHub Actions workflow | `slopslap action add` |
-| `slopslap action list` | Show the managed workflow | `slopslap action list` |
-| `slopslap action remove` | Remove the managed workflow | `slopslap action remove` |
-| `slopslap action set-pass-score SCORE` | Set its optional pass score | `slopslap action set-pass-score 100` |
-| `slopslap install LANGUAGE` | Install an analyzer | `slopslap install typescript` |
-| `slopslap config` | Show configurations, analyzers, and components | `slopslap config` |
-| `slopslap config edit [FILE\|global]` | Create or edit a configuration | `slopslap config edit` |
 
 The `analyze` word may be omitted. Common analysis options are:
 
@@ -164,28 +157,3 @@ Without `--config`, Slopslap selects the first existing configuration from:
 3. `~/.slopslap.toml`
 
 `slopslap config edit` opens the config file or editing (and creates it if it doesn't already exist)
-
-## MCP server
-
-The STDIO MCP server exposes three read-only tools:
-
-| Task | Tool |
-| --- | --- |
-| Rank supported source files | `rank_files(directories=[], languages=["auto"], limit=0, include_tests=false, backends={})` |
-| Score exact supported files | `score_files(files=[...], include_tests=false, backends={})` |
-| Inspect configuration and analyzers | `get_config()` |
-
-The analysis tools return the same report format as `slopslap --format json`.
-All three tools are read-only.
-
-Register the server with Codex:
-
-```sh
-codex mcp add slopslap -- slopslap-mcp
-```
-
-Or register it with Claude Code:
-
-```sh
-claude mcp add --transport stdio slopslap -- slopslap-mcp
-```

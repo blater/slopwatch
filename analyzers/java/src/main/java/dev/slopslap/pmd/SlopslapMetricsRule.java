@@ -21,7 +21,7 @@ import org.apache.commons.lang3.mutable.MutableInt;
 
 /** Emits complete PMD metric observations as stable machine-readable violations.
  *
- * <p>The rule deliberately emits observations below lint thresholds. The Python
+ * <p>The rule deliberately emits observations below lint thresholds. The native
  * adapter converts these records to Slopslap's normalized measurement protocol;
  * scoring and gating never occur in this rule.</p>
  */

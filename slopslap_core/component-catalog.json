@@ -33,11 +33,11 @@
       "extensions": [".ts", ".tsx", ".mts", ".cts"],
       "dependency": "@slopslap/typescript-analyzer",
       "version": "0.1.0",
-      "installation_method": "npm",
-      "execution_method": "node",
+      "installation_method": "scriptc",
+      "execution_method": "direct",
       "source": "../analyzers/typescript",
-      "entrypoint": "dist/src/cli.js",
-      "ready_path": "dist/src/cli.js"
+      "entrypoint": "slopslap-typescript",
+      "ready_path": "slopslap-typescript"
     },
     {
       "language": "rust",
@@ -50,20 +50,6 @@
       "source": "../analyzers/structural",
       "entrypoint": "slopslap-structural",
       "ready_path": "slopslap-structural-rust"
-    }
-  ],
-  "analyzer_backends": [
-    {
-      "language": "java",
-      "backend": "pmd",
-      "extensions": [".java"],
-      "dependency": "dev.slopslap:slopslap-pmd-bridge",
-      "version": "0.1.0",
-      "installation_method": "maven",
-      "execution_method": "python",
-      "source": "../analyzers/java",
-      "entrypoint": "cli.py",
-      "ready_path": "target/slopslap-pmd-bridge-0.1.0.jar"
     }
   ],
   "components": [

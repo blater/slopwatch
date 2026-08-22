@@ -292,7 +292,7 @@ func TestSelectedRowCarriesReferenceBackgroundAcrossEveryCell(t *testing.T) {
 	}
 }
 
-func TestOverviewUsesPythonReferencePalette(t *testing.T) {
+func TestOverviewUsesReferencePalette(t *testing.T) {
 	palette := map[string]lipgloss.Color{
 		"text": colourText, "muted": colourMuted, "green": colourGreen,
 		"amber": colourAmber, "red": colourRed, "score amber": scoreAmber,

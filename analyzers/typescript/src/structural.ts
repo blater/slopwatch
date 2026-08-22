@@ -1,6 +1,6 @@
 import ts from "typescript";
 
-import { ANALYZER_NAME, ANALYZER_VERSION, jsonInteger, type Measurement, type SourceEntry, type Subject } from "./model.js";
+import { ANALYZER_NAME, ANALYZER_VERSION, type Measurement, type SourceEntry, type Subject } from "./model.js";
 
 type FunctionNode =
   | ts.FunctionDeclaration
@@ -18,21 +18,21 @@ interface FunctionFact {
 }
 
 interface Flow {
-  next: bigint;
-  returns: bigint;
-  throws: bigint;
-  breaks: bigint;
-  continues: bigint;
-  loopbacks: bigint;
+  next: number;
+  returns: number;
+  throws: number;
+  breaks: number;
+  continues: number;
+  loopbacks: number;
 }
 
 interface ConditionPaths {
-  end: bigint;
-  whenTrue: bigint;
-  whenFalse: bigint;
+  end: number;
+  whenTrue: number;
+  whenFalse: number;
 }
 
-const MAX_NPATH = 9999n;
+const MAX_NPATH = 9999;
 
 function isFunctionNode(node: ts.Node): node is FunctionNode {
   return (
@@ -223,8 +223,8 @@ function cognitive(fact: FunctionFact, source: ts.SourceFile): number {
   return new CognitiveWalker(fact, source).run();
 }
 
-function emptyFlow(next: bigint): Flow {
-  return { next, returns: 0n, throws: 0n, breaks: 0n, continues: 0n, loopbacks: 0n };
+function emptyFlow(next: number): Flow {
+  return { next, returns: 0, throws: 0, breaks: 0, continues: 0, loopbacks: 0 };
 }
 
 function combineFlow(left: Flow, right: Flow): Flow {
@@ -238,7 +238,7 @@ function combineFlow(left: Flow, right: Flow): Flow {
   };
 }
 
-function expressionPaths(expression: ts.Expression, incoming: bigint): ConditionPaths {
+function expressionPaths(expression: ts.Expression, incoming: number): ConditionPaths {
   if (ts.isParenthesizedExpression(expression)) return expressionPaths(expression.expression, incoming);
   if (ts.isPrefixUnaryExpression(expression) && expression.operator === ts.SyntaxKind.ExclamationToken) {
     const operand = expressionPaths(expression.operand, incoming);
@@ -275,7 +275,7 @@ function expressionPaths(expression: ts.Expression, incoming: bigint): Condition
   return { end: incoming, whenTrue: incoming, whenFalse: incoming };
 }
 
-function sequence(statements: readonly ts.Statement[], incoming: bigint): Flow {
+function sequence(statements: readonly ts.Statement[], incoming: number): Flow {
   let flow = emptyFlow(incoming);
   for (const statement of statements) {
     const current = statementFlow(statement, flow.next);
@@ -291,7 +291,7 @@ function sequence(statements: readonly ts.Statement[], incoming: bigint): Flow {
   return flow;
 }
 
-function branchFlow(statement: ts.IfStatement, incoming: bigint): Flow {
+function branchFlow(statement: ts.IfStatement, incoming: number): Flow {
   const condition = expressionPaths(statement.expression, incoming);
   const thenFlow = statementFlow(statement.thenStatement, condition.whenTrue);
   const elseFlow = statement.elseStatement === undefined
@@ -300,23 +300,23 @@ function branchFlow(statement: ts.IfStatement, incoming: bigint): Flow {
   return combineFlow(thenFlow, elseFlow);
 }
 
-function loopFlow(statement: ts.WhileStatement | ts.ForStatement, incoming: bigint): Flow {
+function loopFlow(statement: ts.WhileStatement | ts.ForStatement, incoming: number): Flow {
   const expression = ts.isForStatement(statement) ? statement.condition : statement.expression;
   const condition = expression === undefined
-    ? { end: incoming, whenTrue: incoming, whenFalse: 0n }
+    ? { end: incoming, whenTrue: incoming, whenFalse: 0 }
     : expressionPaths(expression, incoming);
   const body = statementFlow(statement.statement, condition.whenTrue);
   return {
     next: condition.whenFalse + body.breaks,
     returns: body.returns,
     throws: body.throws,
-    breaks: 0n,
-    continues: 0n,
+    breaks: 0,
+    continues: 0,
     loopbacks: body.loopbacks + body.next + body.continues
   };
 }
 
-function tryFlow(statement: ts.TryStatement, incoming: bigint): Flow {
+function tryFlow(statement: ts.TryStatement, incoming: number): Flow {
   let total = statementFlow(statement.tryBlock, incoming);
   if (statement.catchClause !== undefined) total = combineFlow(total, statementFlow(statement.catchClause.block, incoming));
   if (statement.finallyBlock === undefined) return total;
@@ -331,17 +331,17 @@ function tryFlow(statement: ts.TryStatement, incoming: bigint): Flow {
   };
 }
 
-function terminalFlow(statement: ts.ReturnStatement | ts.ThrowStatement | ts.BreakStatement | ts.ContinueStatement, incoming: bigint): Flow {
+function terminalFlow(statement: ts.ReturnStatement | ts.ThrowStatement | ts.BreakStatement | ts.ContinueStatement, incoming: number): Flow {
   if (ts.isReturnStatement(statement)) {
     const exits = statement.expression === undefined ? incoming : expressionPaths(statement.expression, incoming).end;
-    return { ...emptyFlow(0n), returns: exits };
+    return { ...emptyFlow(0), returns: exits };
   }
-  if (ts.isThrowStatement(statement)) return { ...emptyFlow(0n), throws: expressionPaths(statement.expression, incoming).end };
-  if (ts.isBreakStatement(statement)) return { ...emptyFlow(0n), breaks: incoming };
-  return { ...emptyFlow(0n), continues: incoming };
+  if (ts.isThrowStatement(statement)) return { ...emptyFlow(0), throws: expressionPaths(statement.expression, incoming).end };
+  if (ts.isBreakStatement(statement)) return { ...emptyFlow(0), breaks: incoming };
+  return { ...emptyFlow(0), continues: incoming };
 }
 
-function variableFlow(statement: ts.VariableStatement, incoming: bigint): Flow {
+function variableFlow(statement: ts.VariableStatement, incoming: number): Flow {
   let next = incoming;
   for (const declaration of statement.declarationList.declarations) {
     if (declaration.initializer !== undefined) next = expressionPaths(declaration.initializer, next).end;
@@ -349,19 +349,19 @@ function variableFlow(statement: ts.VariableStatement, incoming: bigint): Flow {
   return emptyFlow(next);
 }
 
-function collectionLoopFlow(statement: ts.ForInStatement | ts.ForOfStatement, incoming: bigint): Flow {
+function collectionLoopFlow(statement: ts.ForInStatement | ts.ForOfStatement, incoming: number): Flow {
   const body = statementFlow(statement.statement, incoming);
-  return { next: incoming + body.breaks, returns: body.returns, throws: body.throws, breaks: 0n, continues: 0n, loopbacks: body.loopbacks + body.next + body.continues };
+  return { next: incoming + body.breaks, returns: body.returns, throws: body.throws, breaks: 0, continues: 0, loopbacks: body.loopbacks + body.next + body.continues };
 }
 
-function doLoopFlow(statement: ts.DoStatement, incoming: bigint): Flow {
+function doLoopFlow(statement: ts.DoStatement, incoming: number): Flow {
   const body = statementFlow(statement.statement, incoming);
   const condition = expressionPaths(statement.expression, body.next + body.continues);
-  return { next: body.breaks + condition.whenFalse, returns: body.returns, throws: body.throws, breaks: 0n, continues: 0n, loopbacks: body.loopbacks + condition.whenTrue };
+  return { next: body.breaks + condition.whenFalse, returns: body.returns, throws: body.throws, breaks: 0, continues: 0, loopbacks: body.loopbacks + condition.whenTrue };
 }
 
-function statementFlow(statement: ts.Statement, incoming: bigint): Flow {
-  if (incoming === 0n) return emptyFlow(0n);
+function statementFlow(statement: ts.Statement, incoming: number): Flow {
+  if (incoming === 0) return emptyFlow(0);
   if (ts.isBlock(statement)) return sequence(statement.statements, incoming);
   if (ts.isIfStatement(statement)) return branchFlow(statement, incoming);
   if (ts.isReturnStatement(statement) || ts.isThrowStatement(statement) || ts.isBreakStatement(statement) || ts.isContinueStatement(statement)) return terminalFlow(statement, incoming);
@@ -375,9 +375,9 @@ function statementFlow(statement: ts.Statement, incoming: bigint): Flow {
   return emptyFlow(incoming);
 }
 
-function switchFlow(statement: ts.SwitchStatement, incoming: bigint): Flow {
-  let fallthrough = 0n;
-  let result = emptyFlow(0n);
+function switchFlow(statement: ts.SwitchStatement, incoming: number): Flow {
+  let fallthrough = 0;
+  let result = emptyFlow(0);
   let hasDefault = false;
   for (const clause of statement.caseBlock.clauses) {
     const branchStart = incoming;
@@ -388,7 +388,7 @@ function switchFlow(statement: ts.SwitchStatement, incoming: bigint): Flow {
       next: result.next + branch.breaks,
       returns: result.returns + branch.returns,
       throws: result.throws + branch.throws,
-      breaks: 0n,
+      breaks: 0,
       continues: result.continues + branch.continues,
       loopbacks: result.loopbacks + branch.loopbacks
     };
@@ -398,16 +398,16 @@ function switchFlow(statement: ts.SwitchStatement, incoming: bigint): Flow {
   return result;
 }
 
-function npath(fact: FunctionFact): bigint {
+function npath(fact: FunctionFact): number {
   const body = fact.node.body;
-  if (body === undefined) return 1n;
+  if (body === undefined) return 1;
   let flow: Flow;
-  if (ts.isBlock(body)) flow = sequence(body.statements, 1n);
-  else flow = emptyFlow(expressionPaths(body, 1n).end);
-  return minBigInt(flow.next + flow.returns + flow.throws + flow.loopbacks, MAX_NPATH);
+  if (ts.isBlock(body)) flow = sequence(body.statements, 1);
+  else flow = emptyFlow(expressionPaths(body, 1).end);
+  return minNPath(flow.next + flow.returns + flow.throws + flow.loopbacks, MAX_NPATH);
 }
 
-function minBigInt(value: bigint, limit: bigint): bigint {
+function minNPath(value: number, limit: number): number {
   return value < limit ? value : limit;
 }
 
@@ -437,7 +437,7 @@ function measurement(
   component: string,
   definition: string,
   scope: "file" | "function" | "type" | "expression",
-  value: number | bigint,
+  value: number,
   subject: Subject,
   attributes: Record<string, unknown> = {}
 ): Measurement {
@@ -447,7 +447,7 @@ function measurement(
     definition_version: definition,
     path: entry.relativePath,
     scope,
-    value: typeof value === "bigint" ? jsonInteger(value) : value,
+    value,
     subject,
     attributes,
     provenance: {

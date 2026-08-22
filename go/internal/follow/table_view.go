@@ -11,9 +11,8 @@ import (
 )
 
 func ConfigureTerminalColours() {
-	// This interface has a deliberate application palette. Textual renders that
-	// palette even when NO_COLOR is inherited from the caller, so doing anything
-	// different here makes the Go and Python dashboards visibly disagree.
+	// This interface has a deliberate application palette, including when
+	// NO_COLOR is inherited from the caller.
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	lipgloss.SetHasDarkBackground(true)
 }

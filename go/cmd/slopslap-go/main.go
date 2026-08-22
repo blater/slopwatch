@@ -14,7 +14,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/slopslap/slopslap/internal/bridge"
 	"github.com/slopslap/slopslap/internal/follow"
 	"github.com/slopslap/slopslap/internal/native"
 	"github.com/slopslap/slopslap/internal/report"
@@ -65,7 +64,7 @@ func parser() (*flag.FlagSet, *options) {
 	flags.Float64Var(&options.timeout, "timeout", 120, "analyzer timeout in seconds")
 	flags.StringVar(&options.passScore, "pass-score", "", "maximum passing score")
 	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "usage: slopslap-go [OPTIONS] [TARGET ...]")
+		fmt.Fprintln(flags.Output(), "usage: slopslap [OPTIONS] [TARGET ...]")
 		fmt.Fprintln(flags.Output(), "\nNative Go frontend (analysis core transition build).")
 		flags.PrintDefaults()
 	}
@@ -106,14 +105,10 @@ func run(arguments []string) error {
 	if err != nil {
 		return err
 	}
-	reference, err := bridge.New(workspace, bridge.Options{Targets: targets, Languages: languages, IncludeTests: parsed.includeTests, Backends: parsed.backends, Config: parsed.config, Timeout: parsed.timeout, PassScore: passScore})
-	if err != nil {
-		return err
-	}
 	if parsed.follow {
-		return runFollow(workspace, targets, languages, parsed, passScore, reference)
+		return runFollow(workspace, targets, languages, parsed, passScore)
 	}
-	return runReport(parsed, passScore, reference)
+	return runReport(workspace, targets, languages, parsed, passScore)
 }
 
 func validateOptions(parsed *options) error {
@@ -151,21 +146,15 @@ func parsePassScore(raw string) (*float64, error) {
 	return &value, nil
 }
 
-func runFollow(workspace string, targets, languages []string, parsed *options, passScore *float64, reference *bridge.Analyzer) error {
-	var liveAnalyzer follow.Analyzer = reference
-	if nativeEligible(workspace, parsed) {
-		nativeAnalyzer, nativeErr := native.New(workspace, filepath.Dir(reference.Script), native.Options{
-			Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
-			Timeout: parsed.timeout, PassScore: passScore,
-		})
-		if nativeErr == nil {
-			liveAnalyzer = fallbackAnalyzer{primary: nativeAnalyzer, fallback: reference}
-		}
-		if nativeErr != nil && !errors.Is(nativeErr, native.ErrUnsupported) {
-			return nativeErr
-		}
+func runFollow(workspace string, targets, languages []string, parsed *options, passScore *float64) error {
+	nativeAnalyzer, err := native.New(workspace, workspace, native.Options{
+		Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
+		Timeout: parsed.timeout, PassScore: passScore,
+	})
+	if err != nil {
+		return err
 	}
-	model, modelErr := follow.New(report.Document{}, liveAnalyzer, follow.Options{
+	model, modelErr := follow.New(report.Document{}, nativeAnalyzer, follow.Options{
 		Workspace: workspace, Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, Limit: parsed.limit,
 		TrendWindow: parsed.trendWindow, Compact: parsed.compact,
@@ -181,21 +170,17 @@ func runFollow(workspace string, targets, languages []string, parsed *options, p
 	return runErr
 }
 
-type fallbackAnalyzer struct {
-	primary  follow.Analyzer
-	fallback follow.Analyzer
-}
-
-func (analyzer fallbackAnalyzer) Analyze(ctx context.Context, targets, languages []string) (report.Document, error) {
-	document, err := analyzer.primary.Analyze(ctx, targets, languages)
-	if err == nil || (!errors.Is(err, native.ErrUnsupported) && !strings.Contains(strings.ToLower(err.Error()), "unsupported")) {
-		return document, err
+func runReport(workspace string, targets, languages []string, parsed *options, passScore *float64) error {
+	var document report.Document
+	var err error
+	nativeAnalyzer, nativeErr := native.New(workspace, workspace, native.Options{
+		Targets: targets, Languages: languages,
+		IncludeTests: parsed.includeTests, Timeout: parsed.timeout, PassScore: passScore,
+	})
+	if nativeErr != nil {
+		return nativeErr
 	}
-	return analyzer.fallback.Analyze(ctx, targets, languages)
-}
-
-func runReport(parsed *options, passScore *float64, reference *bridge.Analyzer) error {
-	document, err := reference.Analyze(context.Background(), nil, nil)
+	document, err = nativeAnalyzer.Analyze(context.Background(), targets, languages)
 	if err != nil {
 		return err
 	}
@@ -221,33 +206,6 @@ func runReport(parsed *options, passScore *float64, reference *bridge.Analyzer) 
 		return errThreshold
 	}
 	return nil
-}
-
-func nativeEligible(workspace string, parsed *options) bool {
-	if parsed.config != "" {
-		return false
-	}
-	for _, backend := range parsed.backends {
-		_, name, found := strings.Cut(backend, "=")
-		if !found || name != "structural" {
-			return false
-		}
-	}
-	locations := []string{filepath.Join(workspace, ".slopslap.toml")}
-	if home, err := os.UserHomeDir(); err == nil {
-		locations = append(locations, filepath.Join(home, ".slopslap.toml"))
-		xdg := os.Getenv("XDG_CONFIG_HOME")
-		if xdg == "" || !filepath.IsAbs(xdg) {
-			xdg = filepath.Join(home, ".config")
-		}
-		locations = append(locations, filepath.Join(xdg, "slopslap", "config.toml"))
-	}
-	for _, path := range locations {
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			return false
-		}
-	}
-	return true
 }
 
 func summaryPassed(document report.Document) bool {

@@ -11,17 +11,9 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install Slopslap
+    - name: Build bundled analyzers
       shell: bash
-      run: python3 -m pip install "$GITHUB_ACTION_PATH"
-    - name: Install required analysis drivers
-      shell: bash
-      env:
-        SLOPSLAP_PATH: ${{ inputs.path }}
-      run: |
-        if [[ -n "$(find "$SLOPSLAP_PATH" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' \) -print -quit)" ]]; then
-          slopslap install typescript
-        fi
+      run: make -C "$GITHUB_ACTION_PATH" build
     - name: Analyze design debt
       shell: bash
       env:
@@ -29,7 +21,7 @@ runs:
         SLOPSLAP_PATH: ${{ inputs.path }}
       run: |
         if [[ -n "$SLOPSLAP_PASS_SCORE" ]]; then
-          slopslap "$SLOPSLAP_PATH" --pass-score "$SLOPSLAP_PASS_SCORE"
+          "$GITHUB_ACTION_PATH/build/slopslap" "$SLOPSLAP_PATH" --pass-score "$SLOPSLAP_PASS_SCORE"
         else
-          slopslap "$SLOPSLAP_PATH"
+          "$GITHUB_ACTION_PATH/build/slopslap" "$SLOPSLAP_PATH"
         fi

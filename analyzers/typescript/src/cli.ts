@@ -1,14 +1,14 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+
 import { analyze } from "./analyzer.js";
 
 function emit(record: Record<string, unknown>): void {
-  process.stdout.write(`${JSON.stringify(record)}\n`);
+  console.log(JSON.stringify(record));
 }
 
-async function main(): Promise<void> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
-  const input = Buffer.concat(chunks).toString("utf8").trim();
+function main(): void {
+  const input = readFileSync(0, "utf8").trim();
   let parsed: unknown;
   try {
     parsed = JSON.parse(input);
@@ -37,4 +37,4 @@ async function main(): Promise<void> {
   if (terminal?.status === "failure") process.exitCode = 1;
 }
 
-void main();
+main();
