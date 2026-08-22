@@ -85,7 +85,7 @@ func TestDefaultRegistryOwnsAllVersionedStrategies(t *testing.T) {
 		"cyclomatic_class_complexity":  "pmd-v1",
 		"coupling_between_objects":     "pmd-v1",
 		"god_class":                    "pmd-v1",
-		"module_shallowness":           "ousterhout-v2",
+		"module_shallowness":           "ousterhout-v3",
 	}
 	got := DefaultRegistry().Definitions()
 	if len(got) != len(want) {

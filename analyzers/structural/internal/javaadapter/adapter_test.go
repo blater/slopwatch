@@ -67,7 +67,7 @@ func buildHelper(t *testing.T, root, javac, jar string) string {
 	sourceRoot := filepath.Join("..", "..", "adapters", "java", "src", "dev", "slopslap", "structural")
 	sources := []string{
 		"Facts.java", "Protocol.java", "JavaAnalyzer.java", "JavaParser.java",
-		"JavaStatements.java", "Main.java",
+		"JavaStatements.java", "JavaExpressions.java", "JavaTypeShapes.java", "Main.java",
 	}
 	arguments := []string{"--release", "17", "-d", classes}
 	for _, source := range sources {

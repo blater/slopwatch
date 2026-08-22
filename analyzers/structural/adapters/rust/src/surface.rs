@@ -74,6 +74,17 @@ pub(crate) fn operations(items: &[syn::Item], path: &str, output: &mut Vec<Publi
                     }
                 }
             }
+            syn::Item::Trait(value) if matches!(value.vis, syn::Visibility::Public(_)) => {
+                for member in &value.items {
+                    if let syn::TraitItem::Method(method) = member {
+                        output.push(trait_method_operation(
+                            method,
+                            path,
+                            &value.ident.to_string(),
+                        ));
+                    }
+                }
+            }
             syn::Item::Mod(module) => {
                 if let Some((_, nested)) = &module.content {
                     operations(nested, path, output);
@@ -123,6 +134,30 @@ fn method_operation(method: &syn::ImplItemMethod, path: &str, owner: &str) -> Pu
     operation
 }
 
+fn trait_method_operation(
+    method: &syn::TraitItemMethod,
+    path: &str,
+    owner: &str,
+) -> PublicOperation {
+    let mut operation = PublicOperation {
+        stable_id: format!("{path}:{owner}:{}", method.sig.ident),
+        name: method.sig.ident.to_string(),
+        owner_type: owner.to_owned(),
+        location: location(path, method.span()),
+        ..PublicOperation::default()
+    };
+    for input in &method.sig.inputs {
+        if let syn::FnArg::Typed(value) = input {
+            operation.parameters.push(shape(&value.ty));
+        }
+    }
+    if let syn::ReturnType::Type(_, value) = &method.sig.output {
+        operation.results.push(shape(value));
+        operation.emits_output = true;
+    }
+    operation
+}
+
 pub(crate) fn exposures(items: &[syn::Item], path: &str, output: &mut Vec<RepresentationExposure>) {
     for item in items {
         match item {
@@ -152,5 +187,34 @@ pub(crate) fn exposures(items: &[syn::Item], path: &str, output: &mut Vec<Repres
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::operations;
+    use crate::model::PublicOperation;
+
+    #[test]
+    fn public_trait_methods_are_public_operations() {
+        let syntax = syn::parse_file(
+            "pub trait Participant { fn commit(&self, transaction_id: u64) -> StatusCode; }",
+        )
+        .expect("trait parses");
+        let mut operations_out: Vec<PublicOperation> = Vec::new();
+        operations(&syntax.items, "participant.rs", &mut operations_out);
+        assert_eq!(operations_out.len(), 1);
+        assert_eq!(operations_out[0].name, "commit");
+        assert_eq!(operations_out[0].parameters.len(), 1);
+        assert_eq!(operations_out[0].results.len(), 1);
+    }
+
+    #[test]
+    fn private_trait_methods_are_not_public_operations() {
+        let syntax =
+            syn::parse_file("trait Participant { fn commit(&self); }").expect("trait parses");
+        let mut operations_out: Vec<PublicOperation> = Vec::new();
+        operations(&syntax.items, "participant.rs", &mut operations_out);
+        assert!(operations_out.is_empty());
     }
 }

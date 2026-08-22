@@ -152,7 +152,7 @@ test("module shallowness reports signature evidence", () => {
     request(
       root,
       ["src/service.ts"],
-      [["module_shallowness", "ousterhout-v2"]],
+      [["module_shallowness", "ousterhout-v3"]],
     ),
   );
   const measurement = recordsOf(records, "measurement")[0];
@@ -163,6 +163,27 @@ test("module shallowness reports signature evidence", () => {
   assert.equal(attributes.exits, 1);
   assert.equal(attributes.parameter_count, 1);
   assert.equal(attributes.result_count, 1);
+});
+
+test("module shallowness applies the role-shaped reference to protocols", () => {
+  const root = workspace({
+    "src/service.ts":
+      "export interface Service { run(request: Request): Response; }\n",
+  });
+  const records = analyze(
+    request(
+      root,
+      ["src/service.ts"],
+      [["module_shallowness", "ousterhout-v3"]],
+    ),
+  );
+  const attributes = recordsOf(records, "measurement")[0]?.attributes as Record<
+    string,
+    unknown
+  >;
+  assert.equal(attributes.reference_role, "protocol");
+  assert.equal(attributes.reference_policy, "role-shape-v2");
+  assert.ok((attributes.depth_reference as number) < 1);
 });
 
 test("module shallowness distinguishes immutable state from representation exposure", () => {
@@ -181,7 +202,7 @@ test("module shallowness distinguishes immutable state from representation expos
     request(
       root,
       ["src/service.ts"],
-      [["module_shallowness", "ousterhout-v2"]],
+      [["module_shallowness", "ousterhout-v3"]],
     ),
   );
   const measurement = recordsOf(records, "measurement")[0];
@@ -199,7 +220,7 @@ test("module shallowness counts mutable structured signature members as exposure
     request(
       root,
       ["src/service.ts"],
-      [["module_shallowness", "ousterhout-v2"]],
+      [["module_shallowness", "ousterhout-v3"]],
     ),
   );
   const measurement = recordsOf(records, "measurement")[0];

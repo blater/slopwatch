@@ -107,7 +107,7 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                 Facts.Function function = function(method, name);
                 program.functions.add(function);
                 type.methods.add(function);
-                if (method.getModifiers().getFlags().contains(javax.lang.model.element.Modifier.PUBLIC)) {
+                if (type.kind.equals("interface") || method.getModifiers().getFlags().contains(javax.lang.model.element.Modifier.PUBLIC)) {
                     program.publicOperations.add(operation(method, name));
                 }
                 if (type.kind.equals("interface")) {

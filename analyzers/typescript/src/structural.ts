@@ -8,7 +8,7 @@ import {
   type Subject,
 } from "./model.js";
 import { cognitive } from "./cognitive.js";
-import { publicOperations } from "./operations.js";
+import { classifyInterfaceRole, publicOperations } from "./operations.js";
 import { typeMetricMeasurements as collectTypeMetrics } from "./type-metrics.js";
 import {
   fieldsUsedByMethod,
@@ -858,6 +858,7 @@ function directAccessorExposure(node: ts.GetAccessorDeclaration | ts.SetAccessor
 
 function moduleShallowness(entry: SourceEntry): Measurement {
   const surface = publicOperations(entry.sourceFile);
+  const role = classifyInterfaceRole(entry.sourceFile);
   const parameterCount = surface.operations.reduce(
     (sum, operation) => sum + operation.node.parameters.length,
     0,
@@ -883,8 +884,16 @@ function moduleShallowness(entry: SourceEntry): Measurement {
   );
   const interfaceCost = operationCost + typeCost + exposedStateCost;
   const available = interfaceCost > 0;
+  const depthReference = depthReferenceForRole(
+    role.role,
+    role.confidence,
+    surface.operations.length,
+    surface.publicTypes,
+  );
   const depth = available ? functionality / interfaceCost : 0;
-  const depthPenalty = available ? 100 * Math.max(0, 1 - depth) : 0;
+  const depthPenalty = available
+    ? 100 * Math.max(0, 1 - depth / depthReference)
+    : 0;
   const leakagePenalty = available
     ? 100 *
       Math.min(
@@ -902,7 +911,7 @@ function moduleShallowness(entry: SourceEntry): Measurement {
   return measurement(
     entry,
     "module_shallowness",
-    "ousterhout-v2",
+    "ousterhout-v3",
     "file",
     value,
     nodeSubject(entry.sourceFile, entry.sourceFile, entry.relativePath),
@@ -927,13 +936,39 @@ function moduleShallowness(entry: SourceEntry): Measurement {
       exposed_representation:
         surface.exposedRepresentation + signatureRepresentation,
       raw_depth_ratio: depth,
-      depth_reference: 1,
+      depth_reference: depthReference,
       depth_penalty: depthPenalty,
       leakage_penalty: leakagePenalty,
       available_weight: 1,
       total_weight: 1,
+      reference_role: role.role,
+      role_confidence: role.confidence,
+      role_basis: role.basis,
+      reference_basis: "role-shape-v2",
+      reference_policy: "role-shape-v2",
+      reference_sample_count: 0,
     },
   );
+}
+
+function depthReferenceForRole(
+  role: string,
+  confidence: number,
+  operationCount: number,
+  publicTypeCount: number,
+): number {
+  const priors: Record<string, number> = {
+    protocol: 0.72,
+    command: 1.12,
+    query: 1.05,
+    data: 0.85,
+    general: 1,
+    unknown: 1,
+  };
+  const prior = priors[role] ?? 1;
+  const boundedConfidence = Math.max(0, Math.min(1, confidence));
+  const surfaceSize = Math.min(1, (operationCount + publicTypeCount) / 4);
+  return 1 + (prior - 1) * boundedConfidence * surfaceSize;
 }
 
 export function analyzeStructural(

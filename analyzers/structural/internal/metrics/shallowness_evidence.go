@@ -13,6 +13,8 @@ func moduleShallownessWithEvidence(operations []*facts.PublicOperation, types []
 	entries, exits, parameterCount, resultCount := 0, 0, 0, 0
 	operationCost, typeCost := 0.0, 0.0
 	publicTypes, exposedStateCost, exposedRepresentation := 0, 0.0, 0
+	role, roleConfidence, roleBasis := interfaceRole(operations, types)
+	depthReference, referenceBasis := depthReferenceForRole(role, roleConfidence, len(operations), len(types))
 	for _, operation := range operations {
 		operationCost++
 		entries += max(1, len(operation.Parameters))
@@ -66,7 +68,8 @@ func moduleShallownessWithEvidence(operations []*facts.PublicOperation, types []
 		"interface_cost": interfaceCost, "operation_cost": operationCost, "type_cost": typeCost, "public_types": publicTypes,
 		"exposed_state_cost": exposedStateCost, "information_hiding_cost": 0.0, "exposed_representation": exposedRepresentation,
 		"raw_depth_ratio": depth, "depth_reference": depthReference, "depth_penalty": depthPenalty,
-		"leakage_penalty": leakagePenalty, "available_weight": 1.0, "total_weight": 1.0,
+		"leakage_penalty": leakagePenalty, "available_weight": 1.0, "total_weight": 1.0, "reference_role": role, "role_confidence": roleConfidence, "role_basis": roleBasis,
+		"reference_basis": referenceBasis, "reference_policy": referencePolicy, "reference_sample_count": 0,
 	}
 }
 

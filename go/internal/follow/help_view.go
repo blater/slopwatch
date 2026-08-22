@@ -11,12 +11,13 @@ func (model Model) helpView() string {
 	lines := []string{
 		"HELP",
 		"",
-		"SCORE   Weighted sum of the COG, NPath, Cyclo, SHALLOW, and God metrics. Lower is better",
+		"SCORE   Weighted sum of all enabled metrics and rules. Lower is better",
 		"COG     Cognitive effort needed to understand nested decisions. Lower is better",
 		"NPATH   Number of possible execution paths. Lower is better",
 		"CYCLO   Cyclomatic complexity - independent control-flow paths. Lower is better",
-		"SHALLOW Depth is functionality per unit of interface complexity. Shallowness is bad",
-		"GOD     God classes -bloated modules with a low-cohesion class score. Keep this low",
+		"SHALLOW Functionality delivered per unit of interface complexity. Higher is worse",
+		"GOD     God classes - bloated modules with a low-cohesion class score. Keep this low",
+		"PATH    Source file being measured",
 		"",
 		keyHint("Esc", " to close help", lipgloss.Color("#0d1d29")),
 	}

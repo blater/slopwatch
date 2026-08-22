@@ -63,7 +63,7 @@ Structural components are `cognitive_complexity/pmd-sonar-v1`,
 `cyclomatic_method_complexity/pmd-v1`, `npath_complexity/pmd-v1`,
 `deeply_nested_if/pmd-v1`, `cyclomatic_class_complexity/pmd-v1`,
 `coupling_between_objects/pmd-v1`, `god_class/pmd-v1`, and
-`module_shallowness/ousterhout-v2`. The traversal follows the pinned PMD 7.26 control
+`module_shallowness/ousterhout-v3`. The traversal follows the pinned PMD 7.26 control
 flow contracts: method entry, control statements, short-circuit paths,
 ternaries, abrupt completion, switch alternatives, nesting, else-if treatment,
 recursion, and problem depth 3. TypeScript constructs with no Java equivalent

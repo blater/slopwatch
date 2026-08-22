@@ -62,7 +62,7 @@ export const COMPONENTS = [
   },
   {
     component_id: "module_shallowness",
-    definition_version: "ousterhout-v2",
+    definition_version: "ousterhout-v3",
     axis: "structural_core",
     taxonomy: "structural.modularity.shallowness",
     kind: "continuous",

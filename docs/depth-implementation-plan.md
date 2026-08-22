@@ -1,6 +1,6 @@
 # Functional module depth implementation plan
 
-Target definition: `module_shallowness/ousterhout-v2`
+Target definition: `module_shallowness/ousterhout-v3`
 
 The normative algorithm is in [`depth-design.md`](depth-design.md). This file
 defines the implementation sequence, interfaces, and acceptance criteria.
@@ -16,7 +16,7 @@ are in [`depth-delivery-plan.md`](depth-delivery-plan.md).
 
 ## 1. Freeze the versioned contract
 
-1. Add `ousterhout-v2` to the component catalog with the same file scope and
+1. Add `ousterhout-v3` to the component catalog with the same file scope and
    0–100 integer range as the current component.
 2. Decide the migration switch: v2 becomes the default only when every bundled
    adapter can provide at least the static-approximation capability basis;

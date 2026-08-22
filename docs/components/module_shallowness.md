@@ -1,12 +1,14 @@
 # Module shallowness
 
-`module_shallowness/ousterhout-v2` is a file-scoped, 0–100 penalty measuring
+`module_shallowness/ousterhout-v3` is a file-scoped, 0–100 penalty measuring
 useful functional capability per caller-visible interface cost. Its numerator
 is COSMIC-inspired functional capability, not LOC or implementation
 complexity; its denominator includes API surface, type cost, exposed state,
 and Rising–Calliss information-hiding cost. The current implementation uses
 the explicitly reported static approximation while adapters are extended with
-full signature, data-group, persistence, and information-hiding facts. See
+full signature, data-group, persistence, and information-hiding facts. Its
+depth reference is selected by the versioned `role-shape-v2` policy from
+caller-visible role evidence. See
 [`../depth-design.md`](../depth-design.md) and the
 [`implementation plan`](../depth-implementation-plan.md).
 

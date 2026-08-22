@@ -8,8 +8,33 @@ import (
 	"slopslap.dev/structural/internal/facts"
 )
 
-const shallowDefinition = "ousterhout-v2"
-const depthReference = 1.0
+const shallowDefinition = "ousterhout-v3"
+
+// Shape priors for the fast release path. They are blended with classifier
+// confidence and surface size below, so ambiguous or tiny surfaces stay near
+// the historical neutral reference.
+const (
+	referencePolicy       = "role-shape-v2"
+	defaultDepthReference = 1.0
+)
+
+func depthReferenceForRole(role string, confidence float64, operationCount, publicTypeCount int) (float64, string) {
+	prior := defaultDepthReference
+	switch role {
+	case roleProtocol:
+		prior = 0.72
+	case roleCommand:
+		prior = 1.12
+	case roleQuery:
+		prior = 1.05
+	case roleData:
+		prior = 0.85
+	}
+	confidence = math.Max(0, math.Min(1, confidence))
+	surfaceSize := math.Min(1, float64(operationCount+publicTypeCount)/4)
+	depthReference := 1 + (prior-1)*confidence*surfaceSize
+	return depthReference, referencePolicy
+}
 
 func ModuleShallowness(functions []*facts.Function, types []*facts.Type) (int, map[string]any) {
 	entries, exits, operationCost := 0, 0, 0.0
@@ -36,14 +61,14 @@ func ModuleShallowness(functions []*facts.Function, types []*facts.Type) (int, m
 	}
 	functionality := float64(entries + exits)
 	depth := functionality / interfaceCost
-	depthPenalty := 100 * math.Max(0, 1-depth/depthReference)
+	depthPenalty := 100 * math.Max(0, 1-depth/defaultDepthReference)
 	penalty := int(math.Round(clamp(0, 100, 0.80*depthPenalty)))
 	return penalty, map[string]any{
 		"available": true, "functionality": functionality, "entries": entries, "exits": exits,
 		"reads": 0, "writes": 0, "capability_basis": "static-approximation", "interface_cost": interfaceCost,
 		"operation_cost": operationCost, "type_cost": typeCost, "public_types": publicTypes,
 		"exposed_state_cost": 0, "information_hiding_cost": 0, "exposed_representation": 0,
-		"raw_depth_ratio": depth, "depth_reference": depthReference, "depth_penalty": depthPenalty,
+		"raw_depth_ratio": depth, "depth_reference": defaultDepthReference, "depth_penalty": depthPenalty,
 		"leakage_penalty": 0, "available_weight": 1, "total_weight": 1,
 	}
 }
@@ -104,10 +129,9 @@ func moduleFiles(program *facts.Program) []string {
 func moduleShallownessMeasurements(program *facts.Program) []Measurement {
 	output := make([]Measurement, 0, len(moduleFiles(program)))
 	for _, path := range moduleFiles(program) {
-		functions := filterFunctions(program.Functions, path)
 		types := filterTypes(program.Types, path)
 		operations := filterOperations(program.PublicOperations, path)
-		value, attributes := ModuleShallowness(functions, types)
+		value, attributes := 0, map[string]any{"available": false, "unavailable_reason": "no statically identifiable public operations"}
 		if len(operations) > 0 {
 			value, attributes = moduleShallownessWithEvidence(operations, types, filterExposures(program.Representation, path))
 		}
@@ -116,15 +140,6 @@ func moduleShallownessMeasurements(program *facts.Program) []Measurement {
 	return output
 }
 
-func filterFunctions(items []*facts.Function, path string) []*facts.Function {
-	output := make([]*facts.Function, 0)
-	for _, item := range items {
-		if item.Location.Path == path {
-			output = append(output, item)
-		}
-	}
-	return output
-}
 func filterTypes(items []*facts.Type, path string) []*facts.Type {
 	output := make([]*facts.Type, 0)
 	for _, item := range items {

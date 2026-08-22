@@ -2,7 +2,7 @@
 
 Status: approved design; Go/TypeScript signature and representation evidence implemented
 
-Definition version: `ousterhout-v2`
+Definition version: `ousterhout-v3`
 
 ## Purpose
 
@@ -234,10 +234,13 @@ the ratio to a bounded penalty using a versioned reference depth `D_ref`:
 depthPenalty = 100 × max(0, 1 - D / D_ref)
 ```
 
-The initial v2 reference is `D_ref = 1.0`: one COSMIC-inspired capability
-point per unit of interface cost is the neutral reference, not a scientific
-universal threshold. This constant is explicitly calibratable and must not be
-described as an empirical law.
+v3 selects `D_ref` from normalized interface shape. The fast-path policy uses
+priors of `0.72` for protocols, `1.12` for commands, `1.05` for queries, and
+`0.85` for data surfaces; general and unknown surfaces use `1.0`. Each prior
+is blended toward `1.0` by classifier confidence and surface size, capped at
+four normalized public items. The policy is reported as
+`reference_policy: role-shape-v2` and is a versioned heuristic, not a claim
+of empirical calibration.
 
 Apply information-hiding leakage as a separate penalty:
 
@@ -255,8 +258,8 @@ SHALLOW = round(clamp(0, 100,
 The 80/20 split ensures that the metric remains primarily about capability
 per interface burden while still making direct representation leakage visible.
 The raw `IH` value and all available components are reported so the score is
-auditable. These constants are part of `ousterhout-v2`; changing them requires
-`ousterhout-v3`.
+auditable. These constants are part of `ousterhout-v3`; changing them requires
+a new definition version.
 
 If capability or interface cost is unavailable, the measurement is unavailable
 with a reason. If only the optional leakage evidence is unavailable, calculate
@@ -278,7 +281,7 @@ either module does not change `F`, `I`, or `D`.
 
 ## Reporting contract
 
-Emit one `module_shallowness/ousterhout-v2` observation per report file with:
+Emit one `module_shallowness/ousterhout-v3` observation per report file with:
 
 ```text
 value: SHALLOW
@@ -298,6 +301,11 @@ attributes:
   exposed_representation
   raw_depth_ratio
   depth_reference
+  reference_role
+  role_confidence
+  role_basis
+  reference_policy
+  reference_basis
   depth_penalty
   leakage_penalty
   available_weight

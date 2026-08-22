@@ -88,7 +88,7 @@ $(TS_NATIVE_BIN): $(TS_MARKER) $(TYPESCRIPT_DIR)/src/scriptc-entry.ts
 build-typescript: $(TS_NATIVE_BIN)
 
 test-structural: build-structural build-rust build-java
-	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test $(GO_FLAGS) ./...
+	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(STRUCTURAL_DIR) $(GO_FLAGS) ./...
 	@cargo test --locked --manifest-path $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml
 
 test-typescript: build-typescript

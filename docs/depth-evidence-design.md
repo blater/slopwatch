@@ -5,7 +5,7 @@ Status: design complete; implementation estimate
 The staged delivery sequence is specified in
 [`depth-delivery-plan.md`](depth-delivery-plan.md).
 
-Target metric: `module_shallowness/ousterhout-v2`
+Target metric: `module_shallowness/ousterhout-v3`
 
 This document retires the three evidence risks left open by the initial depth
 implementation:

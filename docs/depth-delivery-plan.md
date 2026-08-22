@@ -1,6 +1,6 @@
 # Functional depth delivery plan
 
-Target: improve `module_shallowness/ousterhout-v2` from the current
+Target: improve `module_shallowness/ousterhout-v3` from the current
 `static-approximation` toward signature-based evidence.
 
 This plan prioritizes the largest immediate improvement: making caller-visible

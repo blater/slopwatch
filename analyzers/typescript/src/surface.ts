@@ -118,6 +118,14 @@ export function returnsValue(node: FunctionNode): boolean {
     returnType.kind !== ts.SyntaxKind.UndefinedKeyword
   )
     return true;
+  if (!("body" in node) || node.body === undefined) {
+    const returnType = functionReturnType(node);
+    return (
+      returnType !== undefined &&
+      returnType.kind !== ts.SyntaxKind.VoidKeyword &&
+      returnType.kind !== ts.SyntaxKind.UndefinedKeyword
+    );
+  }
   let result = false;
   const visit = (child: ts.Node): void => {
     if (child !== node && isFunctionNode(child)) return;
@@ -125,7 +133,7 @@ export function returnsValue(node: FunctionNode): boolean {
       result = true;
     ts.forEachChild(child, visit);
   };
-  if (node.body !== undefined) visit(node.body);
+  visit(node.body);
   return result;
 }
 export function typeRepresentationCost(
