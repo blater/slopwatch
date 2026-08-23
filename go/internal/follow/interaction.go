@@ -10,15 +10,19 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/blater/slopwatch/internal/report"
 )
+
+const pathScrollStep = 4
 
 func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := message.(type) {
 	case tea.WindowSizeMsg:
 		model.width, model.height = message.Width, message.Height
 		model.ensureVisible()
+		model.clampPathOffset()
 		model.clampDetailOffset()
 		if model.sourceView {
 			model.resizeSourceViewport()
@@ -51,6 +55,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			model.status = ""
 			model.merge(message)
+			model.clampPathOffset()
 		}
 		if len(model.queued) > 0 {
 			paths := model.takeQueue()
@@ -114,21 +119,24 @@ func (model *Model) takeQueue() []string {
 }
 
 func (model *Model) mergeDocument(result analysisResult) {
+	if len(model.baseDocument.Files) == 0 && len(model.document.Files) > 0 {
+		model.baseDocument = model.document
+	}
 	if result.full {
-		model.document = result.document
+		model.baseDocument = result.document
 		return
 	}
 	replace := map[string]bool{}
 	for _, path := range result.replace {
 		replace[filepath.ToSlash(path)] = true
 	}
-	kept := make([]report.File, 0, len(model.document.Files)+len(result.document.Files))
-	for _, file := range model.document.Files {
+	kept := make([]report.File, 0, len(model.baseDocument.Files)+len(result.document.Files))
+	for _, file := range model.baseDocument.Files {
 		if !replace[file.Path] {
 			kept = append(kept, file)
 		}
 	}
-	model.document.Files = append(kept, result.document.Files...)
+	model.baseDocument.Files = append(kept, result.document.Files...)
 }
 
 func compareScore(current, previous float64) int {
@@ -150,6 +158,7 @@ func (model *Model) merge(result analysisResult) {
 		oldRanks[file.Path] = file.Rank
 	}
 	model.mergeDocument(result)
+	model.rebuildWeightedDocument()
 	model.document.SortAndRank()
 	now := time.Now()
 	model.mergeRows(result, oldScores, oldRanks, now, result.full && len(oldScores) == 0)
@@ -196,15 +205,33 @@ func (model Model) displayFiles() []report.File {
 }
 
 type sortField struct {
-	key   string
-	label string
+	column
 }
 
 func sortFields() []sortField {
-	return []sortField{
-		{"score", "Score"}, {"cog", "COG"},
-		{"npath", "NPath"}, {"cyclo", "Cyclomatic"}, {"deep", "Shallowness"},
-		{"god", "God"}, {"filename", "Filename"},
+	fields := make([]sortField, 0, len(columnDefinitions)+1)
+	for _, column := range columnDefinitions {
+		fields = append(fields, sortField{column: column})
+	}
+	fields = append(fields, sortField{column: column{key: "filename", title: "PATH", shortDescription: "filename", width: 1, defaultVisible: true}})
+	return fields
+}
+
+func (model Model) sortOptionEnabled(index int) bool {
+	field := sortFields()[index]
+	return field.key == "score" || field.key == "filename" || model.visible[field.key]
+}
+
+func (model *Model) moveSortCursor(delta int) {
+	items := sortFields()
+	if len(items) == 0 {
+		return
+	}
+	for step := 0; step < len(items); step++ {
+		model.sortCursor = (model.sortCursor + delta + len(items)) % len(items)
+		if model.sortOptionEnabled(model.sortCursor) {
+			return
+		}
 	}
 }
 
@@ -239,7 +266,7 @@ func (model Model) sortValue(file report.File) (float64, bool) {
 	switch model.sortKey {
 	case "score":
 		return file.Score, true
-	case "cog", "npath", "cyclo", "deep", "god":
+	case "cog", "npath", "cyclo", "deep", "god", "coupling", "nesting", "typesafety":
 		value, exists, _ := metric(file, model.sortKey)
 		return value, exists
 	default:
@@ -411,6 +438,10 @@ func (model *Model) handleColumnKey(name string) (tea.Model, tea.Cmd) {
 	switch name {
 	case "esc", "escape", "q", "enter":
 		model.columns = false
+		if model.columnsFromSettings {
+			model.columnsFromSettings = false
+			model.settings = true
+		}
 	case "up", "k":
 		model.columnCursor = max(0, model.columnCursor-1)
 	case "down", "j":
@@ -418,35 +449,76 @@ func (model *Model) handleColumnKey(name string) (tea.Model, tea.Cmd) {
 	case " ":
 		key := items[model.columnCursor].key
 		model.visible[key] = !model.visible[key]
+		if !model.visible[key] && model.sortKey == key {
+			model.sortKey = "score"
+			model.sortReverse = true
+		}
+		if key == "typesafety" || key == "nesting" || key == "coupling" {
+			model.setColumnWeightEnabled(key, model.visible[key])
+			model.rebuildWeightedDocument()
+			model.restoreSelection()
+		}
+		model.clampPathOffset()
 	}
 	return model, nil
 }
 
 func (model *Model) handleSortKey(name string) (tea.Model, tea.Cmd) {
-	items := sortFields()
 	switch name {
 	case "esc", "escape", "q":
 		model.sortOpen = false
-	case "enter":
-		model.sortKey = items[model.sortCursor].key
-		model.sortReverse = model.pendingSort
-		if _, exists := model.visible[model.sortKey]; exists && !model.options.Compact {
-			model.visible[model.sortKey] = true
-		}
-		model.sortOpen = false
-		model.restoreSelection()
 	case "up", "k":
-		model.sortCursor = max(0, model.sortCursor-1)
+		model.moveSortCursor(-1)
 	case "down", "j":
-		model.sortCursor = min(len(items)-1, model.sortCursor+1)
+		model.moveSortCursor(1)
 	case "left", "h":
-		model.pendingSort = false
+		model.activateHighlightedSort(false, true)
 	case "right", "l":
-		model.pendingSort = true
+		model.activateHighlightedSort(true, true)
 	case " ":
-		model.pendingSort = !model.pendingSort
+		model.activateHighlightedSort(false, false)
 	}
 	return model, nil
+}
+
+func (model *Model) prepareSortDirections() {
+	if model.sortDirections == nil {
+		model.sortDirections = make(map[string]bool, len(sortFields()))
+		for _, item := range sortFields() {
+			model.sortDirections[item.key] = true
+		}
+	}
+	model.sortDirections[model.sortKey] = model.sortReverse
+}
+
+func (model Model) sortDirection(key string) bool {
+	if direction, ok := model.sortDirections[key]; ok {
+		return direction
+	}
+	if key == model.sortKey {
+		return model.sortReverse
+	}
+	return true
+}
+
+func (model *Model) activateHighlightedSort(direction bool, changeDirection bool) {
+	if !model.sortOptionEnabled(model.sortCursor) {
+		return
+	}
+	model.prepareSortDirections()
+	key := sortFields()[model.sortCursor].key
+	if changeDirection {
+		model.sortDirections[key] = direction
+	}
+	model.sortKey = key
+	model.sortReverse = model.sortDirections[key]
+	model.restoreSelection()
+}
+
+func (model *Model) openSelectedFileInfo() {
+	if len(model.displayFiles()) > 0 {
+		model.detail = true
+	}
 }
 
 func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -454,11 +526,14 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if model.findOpen {
 		return model.handleFindKey(key)
 	}
-	if model.help {
-		if name == "esc" || name == "escape" || name == "q" || name == "h" {
-			model.help = false
+	if model.infoOpen {
+		if model.handleDialogKey(name) {
+			return model, nil
 		}
-		return model, nil
+		return model.handleInfoKey(name)
+	}
+	if model.help {
+		return model.handleHelpKey(name)
 	}
 	if model.detail {
 		return model.handleDetailKey(name)
@@ -475,6 +550,12 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if model.sortOpen {
 		return model.handleSortKey(name)
 	}
+	if model.weightsOpen {
+		return model.handleWeightsKey(name)
+	}
+	if model.settings {
+		return model.handleSettingsKey(name)
+	}
 	switch name {
 	case "ctrl+c", "q":
 		return model, tea.Quit
@@ -482,6 +563,10 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		model.move(-1)
 	case "down", "j":
 		model.move(1)
+	case "left":
+		model.movePath(-pathScrollStep)
+	case "right":
+		model.movePath(pathScrollStep)
 	case "ctrl+f", "pgdown":
 		model.move(max(1, model.bodyHeight()))
 	case "ctrl+b", "pgup":
@@ -494,25 +579,32 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		model.cursor = max(0, len(model.displayFiles())-1)
 		model.selectCursor()
 		model.ensureVisible()
-	case "enter":
-		if len(model.displayFiles()) > 0 {
-			model.detail = true
-		}
+	case "enter", "i":
+		model.openSelectedFileInfo()
 	case "v":
 		model.openSourceView()
 	case "c":
-		model.columns = true
+		model.settings = true
+		model.settingsCursor = 1
 	case "s":
+		model.settings = true
+		model.settingsCursor = 0
+	case "o":
 		model.sortOpen = true
-		model.pendingSort = model.sortReverse
+		model.prepareSortDirections()
+		model.sortCursor = 0
 		for index, item := range sortFields() {
-			if item.key == model.sortKey {
+			if item.key == model.sortKey && model.sortOptionEnabled(index) {
 				model.sortCursor = index
 				break
 			}
 		}
+		if !model.sortOptionEnabled(model.sortCursor) {
+			model.moveSortCursor(1)
+		}
 	case "h":
 		model.help = true
+		model.helpCursor = 0
 	case "f", "/":
 		return model.openFind(false)
 	case "n":
@@ -540,6 +632,26 @@ func (model *Model) move(delta int) {
 	model.cursor = min(len(files)-1, max(0, model.cursor+delta))
 	model.selectCursor()
 	model.ensureVisible()
+}
+
+func (model *Model) movePath(delta int) {
+	model.pathOffset = min(model.maxPathOffset(), max(0, model.pathOffset+delta))
+}
+
+func (model *Model) clampPathOffset() {
+	model.pathOffset = min(model.maxPathOffset(), max(0, model.pathOffset))
+}
+
+func (model Model) maxPathOffset() int {
+	viewportWidth := model.pathViewportWidth()
+	if viewportWidth <= 0 {
+		return 0
+	}
+	longest := 0
+	for _, file := range model.displayFiles() {
+		longest = max(longest, lipgloss.Width(file.Path))
+	}
+	return max(0, longest-viewportWidth)
 }
 
 func (model *Model) selectCursor() {

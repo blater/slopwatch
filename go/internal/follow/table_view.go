@@ -8,6 +8,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func ConfigureTerminalColours() {
@@ -20,30 +21,35 @@ func ConfigureTerminalColours() {
 func (model Model) tableView() string {
 	lines := make([]string, 0, model.height)
 	top := model.options.Workspace
+	if model.repositoryIdentity != "" {
+		top = model.repositoryIdentity + "  " + top
+	}
 	status := ""
-	if model.analyzing {
-		status = "SCANNING"
-	} else if model.status != "" {
+	if !model.analyzing && model.status != "" {
 		status = model.status
 	}
 	if status != "" {
 		top += "  " + status
 	}
-	logo := lipgloss.NewStyle().Foreground(colourGreen).Bold(true).Render("-=[slopwatch]=-")
-	path := lipgloss.NewStyle().Foreground(lipgloss.Color("#9fb4c6")).Render("  " + top)
-	topText := truncateANSI(logo+path, model.width)
-	lines = append(lines, lipgloss.NewStyle().Background(topBackground).Render(padANSI(topText, model.width)))
+	logo := lipgloss.NewStyle().Foreground(style.AccentPositive).Bold(true).Render("-=[slopwatch]=-")
+	path := lipgloss.NewStyle().Foreground(style.TextPrimary).Render("  " + top)
+	topText := logo + path
+	if model.analyzing {
+		indicator := model.scanningIndicator()
+		leftWidth := max(0, model.width-lipgloss.Width(indicator))
+		left := truncateANSI(topText, leftWidth)
+		topText = padANSI(left, leftWidth) + indicator
+	} else {
+		topText = truncateANSI(topText, model.width)
+	}
+	lines = append(lines, lipgloss.NewStyle().Background(style.SurfaceTop).Render(padANSI(topText, model.width)))
 	lines = append(lines, model.header())
 	files := model.displayFiles()
 	page := model.bodyHeight()
 	for row := 0; row < page; row++ {
-		if model.analyzing && len(files) == 0 && row == page/2 {
-			lines = append(lines, model.loadingRow())
-			continue
-		}
 		index := model.offset + row
 		if index >= len(files) {
-			lines = append(lines, lipgloss.NewStyle().Background(screenBackground).Render(strings.Repeat(" ", model.width)))
+			lines = append(lines, lipgloss.NewStyle().Background(style.SurfaceScreen).Render(strings.Repeat(" ", model.width)))
 			continue
 		}
 		lines = append(lines, model.renderRow(files[index], index == model.cursor))
@@ -57,19 +63,20 @@ func (model Model) tableView() string {
 }
 
 func (model Model) findFooter(width int) string {
-	background := lipgloss.NewStyle().Background(footerBackground)
+	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
 	input := model.findInput.View()
-	text := " FIND " + input + "  ENTER find  ESC cancel"
+	text := background.Render(" FIND "+input+"  ") + hintRow(style.SurfaceFooter,
+		hintItem{"ENTER", "find"},
+		hintItem{"ESC", "cancel"},
+	)
 	return background.Render(padANSI(truncateANSI(text, width), width))
 }
 
-func (model Model) loadingRow() string {
+func (model Model) scanningIndicator() string {
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	frame := frames[model.animationFrame%len(frames)]
-	message := frame + "  SCANNING WORKSPACE  " + frame
-	left := max(0, (model.width-lipgloss.Width(message))/2)
-	line := strings.Repeat(" ", left) + message
-	return lipgloss.NewStyle().Foreground(colourGreen).Background(screenBackground).Render(padANSI(truncate(line, model.width), model.width))
+	message := frame + "SCANNING" + frame
+	return lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceScreen).Render(message)
 }
 
 func (model Model) selectedFile() (report.File, bool) {
@@ -81,46 +88,79 @@ func (model Model) selectedFile() (report.File, bool) {
 }
 
 func (model Model) footer() string {
-	background := lipgloss.NewStyle().Background(footerBackground)
-	result := background.Render(" ")
-	for _, item := range [][2]string{{"c", "columns"}, {"s", "sort"}, {"r", "rescan"}, {"v", "view"}, {"f", "find"}, {"n", "next"}, {"h", "help"}, {"q", "quit"}} {
-		result += keyHint(item[0], item[1], footerBackground)
-		result += background.Render("  ")
+	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
+	screenItems := [][2]string{{"o", "sort"}, {"r", "rescan"}, {"v", "view"}, {"i", "info"}}
+	generalItems := [][2]string{{"f", "find"}, {"n", "next"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
+	screenFunctions := footerItems(screenItems)
+	generalFunctions := footerItems(generalItems)
+	for len(generalItems) > 2 && lipgloss.Width(screenFunctions)+lipgloss.Width(generalFunctions)+1 > model.width {
+		generalItems = generalItems[:len(generalItems)-1]
+		generalFunctions = footerItems(generalItems)
 	}
-	result = truncateANSI(result, model.width)
-	if remaining := model.width - lipgloss.Width(result); remaining > 0 {
-		result += background.Render(strings.Repeat(" ", remaining))
+	for len(screenItems) > 2 && lipgloss.Width(screenFunctions)+lipgloss.Width(generalFunctions)+1 > model.width {
+		screenItems = screenItems[:len(screenItems)-1]
+		screenFunctions = footerItems(screenItems)
 	}
-	return result
+	if lipgloss.Width(screenFunctions)+lipgloss.Width(generalFunctions)+1 > model.width {
+		generalItems = nil
+		generalFunctions = ""
+	}
+	result := screenFunctions
+	if gap := model.width - lipgloss.Width(screenFunctions) - lipgloss.Width(generalFunctions); gap > 0 {
+		result += background.Render(strings.Repeat(" ", gap))
+	}
+	return truncateANSI(result+generalFunctions, model.width)
+}
+
+func footerItems(items [][2]string) string {
+	hints := make([]hintItem, 0, len(items))
+	for _, item := range items {
+		hints = append(hints, hintItem{key: item[0], label: item[1]})
+	}
+	return hintRow(style.SurfaceFooter, hints...)
 }
 
 type column struct {
-	key, title string
-	width      int
-	right      bool
+	key, title, shortDescription string
+	width                        int
+	right, defaultVisible        bool
+	configurable                 bool
+	headerShift                  int
+}
+
+var columnDefinitions = []column{
+	{"score", "SCORE", "overall score", 8, true, true, false, 0},
+	{"cog", "COG", "cognitive", 6, false, true, true, -1},
+	{"npath", "NPATH", "execution path complexity", 8, false, true, true, -3},
+	{"cyclo", "CYCLO", "cyclomatic complexity", 7, false, true, true, -3},
+	{"deep", "SHALLOW", "module depth", 4, false, true, true, -5},
+	{"god", "GOD", "responsibility concentration", 6, true, true, true, 0},
+	{"coupling", "CPL", "dependency entanglement", 5, true, true, true, 0},
+	{"nesting", "NEST", "deep nesting", 7, true, false, true, 0},
+	{"typesafety", "TYPE", "type safety", 5, true, false, true, 0},
 }
 
 func columnNames() []column {
-	return []column{{"cog", "COG", 6, false}, {"npath", "NPATH", 8, false}, {"cyclo", "CYCLO", 7, false}, {"deep", "SHALLOW", 4, false}, {"god", "GOD", 6, true}}
+	return columnDefinitions[1:]
+}
+
+func defaultColumnVisibility() map[string]bool {
+	visible := make(map[string]bool)
+	for _, column := range columnNames() {
+		if column.defaultVisible {
+			visible[column.key] = true
+		}
+	}
+	return visible
 }
 
 func headerShift(key string) int {
-	switch key {
-	case "score":
-		return 0
-	case "cog":
-		return -1
-	case "npath":
-		return -3
-	case "cyclo":
-		return -3
-	case "deep":
-		return -5
-	case "god":
-		return 0
-	default:
-		return 0
+	for _, column := range columnDefinitions {
+		if column.key == key {
+			return column.headerShift
+		}
 	}
+	return 0
 }
 
 func (model Model) activeColumns() []column {
@@ -137,7 +177,7 @@ func (model Model) activeColumns() []column {
 }
 
 func (model Model) header() string {
-	columns := []column{{key: "score", title: "SCORE", width: 8, right: true}}
+	columns := []column{columnDefinitions[0]}
 	if !model.options.Compact {
 		columns = append(columns, model.activeColumns()...)
 	}
@@ -177,7 +217,7 @@ func (model Model) header() string {
 	} else if !model.sortColumnVisible() && lipgloss.Width(heading) < model.width {
 		heading += " " + model.sortIndicator() + model.sortTitle()
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#6f8ca2")).Background(headerBackground).Bold(true).Render(padANSI(heading, model.width))
+	return lipgloss.NewStyle().Foreground(style.TextHeader).Background(style.SurfaceHeader).Bold(true).Render(padANSI(heading, model.width))
 }
 
 func (model Model) sortColumnVisible() bool {
@@ -190,7 +230,7 @@ func (model Model) sortColumnVisible() bool {
 func (model Model) sortTitle() string {
 	for _, field := range sortFields() {
 		if field.key == model.sortKey {
-			return strings.ToUpper(field.label)
+			return field.title
 		}
 	}
 	return ""

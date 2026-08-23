@@ -83,11 +83,17 @@ func encodedValue(value any) any {
 }
 
 func subject(measurement metrics.Measurement) map[string]any {
-	return map[string]any{
-		"name": measurement.Subject,
+	result := map[string]any{
+		"name": measurement.Subject, "symbol": measurement.Subject,
 		"line": measurement.Location.Line, "column": measurement.Location.Column,
 		"end_line": measurement.Location.EndLine, "end_column": measurement.Location.EndColumn,
 	}
+	if measurement.Scope == "function" {
+		result["routine"] = measurement.Subject
+	} else if routine, ok := measurement.Attributes["routine_symbol"].(string); ok {
+		result["routine"] = routine
+	}
+	return result
 }
 
 func failUnit(out emitter, item unit, components []component, message string) {

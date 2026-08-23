@@ -10,6 +10,8 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func (model *Model) openSourceView() {
@@ -58,20 +60,21 @@ func (model Model) sourceViewView() string {
 	if lipgloss.Width(header)+lipgloss.Width(closeLabel) <= innerWidth {
 		header += strings.Repeat(" ", innerWidth-lipgloss.Width(header)-lipgloss.Width(closeLabel)) + closeLabel
 	}
-	header = lipgloss.NewStyle().Bold(true).Foreground(colourGreen).Background(headerBackground).Render(padANSI(truncateANSI(header, innerWidth), innerWidth))
+	header = lipgloss.NewStyle().Bold(true).Foreground(style.AccentPositive).Background(style.SurfaceHeader).Render(padANSI(truncateANSI(header, innerWidth), innerWidth))
 	body := model.sourceViewport.View()
 	bodyLines := strings.Split(body, "\n")
 	contentWidth := max(1, innerWidth-2)
 	for index, line := range bodyLines {
-		bodyLines[index] = lipgloss.NewStyle().Foreground(colourText).Background(lipgloss.Color("#091723")).Render(padANSI(ansi.Cut(line, 0, contentWidth), contentWidth))
+		bodyLines[index] = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceDetailBody).Render(padANSI(ansi.Cut(line, 0, contentWidth), contentWidth))
 	}
 	lines := []string{header}
 	lines = append(lines, bodyLines...)
-	separator := lipgloss.NewStyle().Background(footerBackground).Render("  ")
-	footer := "  " + keyHint("ctrl-f/b", " page", footerBackground) + separator +
-		keyHint("g/G", " jump", footerBackground) + separator +
-		keyHint("f", " find", footerBackground) + separator +
-		keyHint("n/N", " next", footerBackground)
+	footer := "  " + hintRow(style.SurfaceFooter,
+		hintItem{"ctrl-f/b", "page"},
+		hintItem{"g/G", "jump"},
+		hintItem{"f", "find"},
+		hintItem{"n/N", "next"},
+	)
 	if model.findOpen {
 		footer = model.findFooter(innerWidth)
 	}
@@ -82,5 +85,5 @@ func (model Model) sourceViewView() string {
 	if len(lines) > outerHeight-2 {
 		lines = lines[:outerHeight-2]
 	}
-	return lipgloss.NewStyle().Width(innerWidth).Height(outerHeight - 2).Border(lipgloss.RoundedBorder()).BorderForeground(colourBlue).Render(strings.Join(lines, "\n"))
+	return lipgloss.NewStyle().Width(innerWidth).Height(outerHeight - 2).Border(lipgloss.RoundedBorder()).BorderForeground(style.AccentInfo).Render(strings.Join(lines, "\n"))
 }

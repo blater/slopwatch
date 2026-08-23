@@ -64,7 +64,7 @@ Structural components are `cognitive_complexity/pmd-sonar-v1`,
 `deeply_nested_if/pmd-v1`, `cyclomatic_class_complexity/pmd-v1`,
 `coupling_between_objects/pmd-v1`, `god_class/pmd-v1`, and
 `module_shallowness/ousterhout-v3`. The traversal follows the pinned PMD 7.26 control
-flow contracts: method entry, control statements, short-circuit paths,
+flow contracts: routine entry, control statements, short-circuit paths,
 ternaries, abrupt completion, switch alternatives, nesting, else-if treatment,
 recursion, and problem depth 3. TypeScript constructs with no Java equivalent
 are explicit exceptions: optional chaining and nullish coalescing are linear;
@@ -73,8 +73,8 @@ functions are independent cyclomatic/NPath subjects while cognitive traversal
 also treats them as nesting structures.
 
 Type-level structural metrics are syntax-level approximations of the shared
-Go/Java/Rust contract: class WMC uses interface members plus method cyclomatic
-complexity, CBO counts referenced type names, and God Class reports WMC, ATFD,
+Go/Java/Rust contract: type WMC uses interface members plus routine cyclomatic
+complexity, CBO counts referenced type names, and responsibility concentration reports WMC, ATFD,
 and TCC from member-access facts. They do not claim project-wide symbol
 resolution when a TypeScript compiler graph is unavailable.
 

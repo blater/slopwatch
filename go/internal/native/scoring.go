@@ -14,9 +14,11 @@ type observation struct {
 	component  string
 	path       string
 	language   string
+	scope      string
 	value      float64
 	subject    protocolSubject
 	attributes map[string]any
+	provenance map[string]any
 }
 
 func number(value any) (float64, error) {
@@ -113,7 +115,19 @@ func subjectKey(subject protocolSubject) string {
 	if symbol == "" {
 		symbol = subject.Name
 	}
-	return fmt.Sprintf("%s@%d:%d-%d:%d", symbol, subject.Line, subject.Column, subject.EndLine, subject.EndColumn)
+	start, end := subjectPositions(subject)
+	return fmt.Sprintf("%s@%d:%d-%d:%d", symbol, start.Line, start.Column, end.Line, end.Column)
+}
+
+func subjectPositions(subject protocolSubject) (protocolPosition, protocolPosition) {
+	start, end := subject.Start, subject.End
+	if start.Line == 0 {
+		start.Line, start.Column = subject.Line, subject.Column
+	}
+	if end.Line == 0 {
+		end.Line, end.Column = subject.EndLine, subject.EndColumn
+	}
+	return start, end
 }
 
 func scoreRecords(catalog catalogDocument, selected []string, records []protocolRecord, passScore *float64) (report.Document, error) {

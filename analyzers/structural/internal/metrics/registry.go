@@ -50,10 +50,20 @@ func functionValueStrategy(component, definition string, value func(*facts.Funct
 	return strategy{component, definition, func(program *facts.Program) []Measurement {
 		output := make([]Measurement, 0, len(program.Functions))
 		for _, function := range program.Functions {
-			output = append(output, Measurement{component, definition, "function", value(function), function.Name, function.Location, map[string]any{}})
+			output = append(output, Measurement{component, definition, "function", value(function), qualifiedFunctionName(function), function.Location, map[string]any{}})
 		}
 		return output
 	}}
+}
+
+func qualifiedFunctionName(function *facts.Function) string {
+	if function.Receiver == "" {
+		return function.Name
+	}
+	if function.Name == function.Receiver {
+		return function.Receiver + ".<init>"
+	}
+	return function.Receiver + "." + function.Name
 }
 
 func defaultStrategies() []Strategy {
@@ -67,7 +77,9 @@ func defaultStrategies() []Strategy {
 				locations := make([]facts.Location, 0)
 				deepIf(function.Body, 0, &locations)
 				for _, location := range locations {
-					output = append(output, Measurement{"deeply_nested_if", "pmd-v1", "expression", 1, "if", location, map[string]any{"problem_depth": 3}})
+					output = append(output, Measurement{"deeply_nested_if", "pmd-v1", "expression", 1, "if", location, map[string]any{
+						"problem_depth": 3, "routine_symbol": qualifiedFunctionName(function),
+					}})
 				}
 			}
 			return output

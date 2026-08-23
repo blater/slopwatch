@@ -17,6 +17,7 @@ function subject(source: ts.SourceFile, node: ts.Node, name: string): Subject {
   const end = source.getLineAndCharacterOfPosition(node.getEnd());
   return {
     name,
+    symbol: name,
     start: {
       line: start.line + 1,
       column: start.character + 1,

@@ -43,6 +43,8 @@ export interface Position {
 
 export interface Subject {
   name: string;
+  symbol: string;
+  routine?: string;
   start: Position;
   end: Position;
 }

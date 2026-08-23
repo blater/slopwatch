@@ -2,6 +2,7 @@ package follow
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -10,11 +11,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func metricColour(key string, value float64, exists bool) lipgloss.Color {
 	if !exists {
-		return colourMuted
+		return style.TextMuted
 	}
 	hot, warm := false, false
 	switch key {
@@ -28,28 +30,45 @@ func metricColour(key string, value float64, exists bool) lipgloss.Color {
 		hot, warm = value >= 60, value >= 30
 	case "god":
 		hot, warm = value >= 20, value > 0
+	case "typesafety":
+		hot, warm = value >= 50, value >= 20
+	case "nesting":
+		hot, warm = value >= 20, value >= 5
+	case "coupling":
+		hot, warm = value >= 30, value >= 15
 	}
 	if hot {
-		return colourRed
+		return style.AccentCritical
 	}
 	if warm {
-		return colourAmber
+		return style.AccentWarning
 	}
-	return colourGreen
+	return style.AccentPositive
 }
 
-func renderPath(path string, width int, background lipgloss.Color) string {
-	displayed := clip(path, width)
-	separator := strings.LastIndex(displayed, "/")
+func renderPath(path string, width, offset int, background lipgloss.Color) string {
+	separator := strings.LastIndex(path, "/")
 	if separator < 0 {
-		return styleCell(displayed, colourText, background)
+		return ansi.Cut(styleCell(path, style.TextPrimary, background), offset, offset+width)
 	}
-	parent := styleCell(displayed[:separator+1], lipgloss.Color("#607b91"), background)
-	name := styleCell(displayed[separator+1:], colourText, background)
-	return parent + name
+	parent := styleCell(path[:separator+1], style.TextMuted, background)
+	name := styleCell(path[separator+1:], style.TextPrimary, background)
+	return ansi.Cut(parent+name, offset, offset+width)
 }
 
 func metric(file report.File, key string) (float64, bool, float64) {
+	if key == "typesafety" {
+		value, exists := file.Axes["typescript_type_safety"]
+		return value, exists, value
+	}
+	if key == "nesting" {
+		component, exists := file.Components["deeply_nested_if"]
+		return component.Contribution, exists, component.Contribution
+	}
+	if key == "coupling" {
+		component, exists := file.Components["coupling_between_objects"]
+		return component.Contribution, exists, component.Contribution
+	}
 	componentID := map[string]string{"cog": "cognitive_complexity", "npath": "npath_complexity", "cyclo": "cyclomatic_method_complexity", "deep": "module_shallowness", "god": "god_class"}[key]
 	contribution, exists := report.Contribution(file, componentID)
 	if !exists {
@@ -68,16 +87,16 @@ func metric(file report.File, key string) (float64, bool, float64) {
 
 func scoreColour(value float64) lipgloss.Color {
 	if value >= 100 {
-		return scoreRed
+		return style.ScoreCritical
 	}
 	if value >= 50 {
-		return scoreAmber
+		return style.ScoreWarning
 	}
-	return colourGreen
+	return style.AccentPositive
 }
 
 func decimalWithin(value float64, width int) string {
-	result := report.OneDecimal(value)
+	result := roundedIntegerText(value)
 	if len(result) <= width {
 		return result
 	}
@@ -90,14 +109,18 @@ func decimalWithin(value float64, width int) string {
 	return truncate(result, width)
 }
 
+func roundedIntegerText(value float64) string {
+	return strconv.FormatInt(int64(math.Round(value)), 10)
+}
+
 func directionColour(delta int) lipgloss.Color {
 	if delta > 0 {
-		return scoreRed
+		return style.AccentCritical
 	}
 	if delta < 0 {
-		return colourGreen
+		return style.AccentPositive
 	}
-	return colourMuted
+	return style.TextMuted
 }
 
 func editBackground(state rowState, now time.Time, window time.Duration) lipgloss.Color {

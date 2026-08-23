@@ -8,12 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-
-	"github.com/blater/slopwatch/internal/report"
 )
 
 type Options struct {
@@ -56,43 +55,57 @@ type rankPoint struct {
 }
 
 type Model struct {
-	analyzer         Analyzer
-	watcher          *sourceWatcher
-	options          Options
-	document         report.Document
-	rows             map[string]rowState
-	width            int
-	height           int
-	cursor           int
-	offset           int
-	selected         string
-	analyzing        bool
-	queued           map[string]bool
-	status           string
-	initialAnalysis  bool
-	animationFrame   int
-	detail           bool
-	detailOffset     int
-	help             bool
-	columns          bool
-	columnCursor     int
-	sortOpen         bool
-	sortCursor       int
-	sortKey          string
-	sortReverse      bool
-	pendingSort      bool
-	sourceView       bool
-	sourcePath       string
-	sourceViewport   viewport.Model
-	sourceLastKey    string
-	sourceLastAt     time.Time
-	sourceRapid      int
-	sourceSearchText string
-	findInput        textinput.Model
-	findOpen         bool
-	findQuery        string
-	findSource       bool
-	visible          map[string]bool
+	analyzer            Analyzer
+	watcher             *sourceWatcher
+	options             Options
+	repositoryIdentity  string
+	document            report.Document
+	rows                map[string]rowState
+	width               int
+	height              int
+	cursor              int
+	offset              int
+	pathOffset          int
+	selected            string
+	analyzing           bool
+	queued              map[string]bool
+	status              string
+	initialAnalysis     bool
+	animationFrame      int
+	detail              bool
+	detailOffset        int
+	help                bool
+	helpCursor          int
+	infoOpen            bool
+	infoKey             string
+	columns             bool
+	columnCursor        int
+	sortOpen            bool
+	sortCursor          int
+	sortKey             string
+	sortReverse         bool
+	sortDirections      map[string]bool
+	settings            bool
+	settingsCursor      int
+	weightsOpen         bool
+	weightCursor        int
+	weightsResetConfirm bool
+	weights             map[string]float64
+	weightEnabled       map[string]bool
+	baseDocument        report.Document
+	columnsFromSettings bool
+	sourceView          bool
+	sourcePath          string
+	sourceViewport      viewport.Model
+	sourceLastKey       string
+	sourceLastAt        time.Time
+	sourceRapid         int
+	sourceSearchText    string
+	findInput           textinput.Model
+	findOpen            bool
+	findQuery           string
+	findSource          bool
+	visible             map[string]bool
 }
 
 func New(document report.Document, analyzer Analyzer, options Options) (*Model, error) {
@@ -117,11 +130,14 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	findInput.CharLimit = 256
 	model := &Model{
 		analyzer: analyzer, watcher: watcher, options: options, document: document,
+		repositoryIdentity: repositoryIdentity(options.Workspace),
+		baseDocument:       document, weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
 		rows: rows, queued: map[string]bool{},
 		findInput: findInput,
 		sortKey:   "score", sortReverse: true,
-		visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+		visible: defaultColumnVisibility(),
 	}
+	model.rebuildWeightedDocument()
 	if len(document.Files) > 0 {
 		model.selected = document.Files[0].Path
 	}
@@ -221,6 +237,15 @@ func (model Model) View() string {
 	if model.sourceView {
 		return model.overlay(base, model.sourceViewView())
 	}
+	if model.infoOpen {
+		underlay := base
+		if model.weightsOpen {
+			underlay = model.overlay(base, model.weightsView())
+		} else if model.help {
+			underlay = model.overlayBelowTitle(base, model.helpView())
+		}
+		return model.overlay(underlay, model.infoView())
+	}
 	if model.help {
 		return model.overlayBelowTitle(base, model.helpView())
 	}
@@ -230,59 +255,43 @@ func (model Model) View() string {
 	if model.sortOpen {
 		return model.overlay(base, model.sortView())
 	}
+	if model.weightsOpen {
+		return model.overlay(base, model.weightsView())
+	}
+	if model.settings {
+		return model.overlay(base, model.settingsView())
+	}
 	return base
 }
 
-var (
-	colourMuted        = lipgloss.Color("#668298")
-	colourText         = lipgloss.Color("#d5e2eb")
-	colourGreen        = lipgloss.Color("#58e7ad")
-	colourAmber        = lipgloss.Color("#f0c765")
-	colourRed          = lipgloss.Color("#ff8291")
-	scoreAmber         = lipgloss.Color("#f5c451")
-	scoreRed           = lipgloss.Color("#ff6174")
-	colourBlue         = lipgloss.Color("#6fb9e8")
-	selectedBackground = lipgloss.Color("#183b52")
-	screenBackground   = lipgloss.Color("#071019")
-	topBackground      = lipgloss.Color("#0a1622")
-	headerBackground   = lipgloss.Color("#0b1e2d")
-	footerBackground   = lipgloss.Color("#061019")
-)
-
 func (model Model) columnsView() string {
-	lines := []string{lipgloss.NewStyle().Bold(true).Foreground(colourBlue).Render("Columns"), ""}
+	body := make([]string, 0, len(columnNames()))
 	for index, column := range columnNames() {
-		cursor := "  "
-		if index == model.columnCursor {
-			cursor = "› "
-		}
 		mark := " "
 		if model.visible[column.key] {
 			mark = "✓"
 		}
-		lines = append(lines, fmt.Sprintf("%s[%s] %s", cursor, mark, column.title))
+		body = append(body, style.ModalOption(fmt.Sprintf("[%s] %s", mark, column.title), index == model.columnCursor, 34))
 	}
-	lines = append(lines, "", "space toggle   Enter/Esc close")
-	return lipgloss.NewStyle().Width(38).Padding(1, 2).Border(lipgloss.RoundedBorder()).BorderForeground(colourBlue).Background(lipgloss.Color("#0d1d29")).Foreground(colourText).Render(strings.Join(lines, "\n"))
+	return style.Popup(style.Heading("Columns"), scrollModalLines(body, model.columnCursor, model.modalBodyHeight()), "", 38)
 }
 
 func (model Model) sortView() string {
-	lines := []string{lipgloss.NewStyle().Bold(true).Foreground(colourBlue).Render("SORT RESULTS"), ""}
+	const sortOptionWidth = 52
+	body := make([]string, 0, len(sortFields()))
 	for index, item := range sortFields() {
-		cursor := "  "
-		if index == model.sortCursor {
-			cursor = "› "
+		active := item.key == model.sortKey
+		arrow := "▲"
+		if model.sortDirection(item.key) {
+			arrow = "▼"
 		}
-		direction := "ascending"
-		if model.pendingSort {
-			direction = "descending"
+		label := fmt.Sprintf("%-11s (%s)", item.title, item.shortDescription)
+		lineText := arrow + " " + label
+		if !model.sortOptionEnabled(index) {
+			body = append(body, style.DisabledOption(lineText, sortOptionWidth))
+			continue
 		}
-		line := fmt.Sprintf("%s%-12s", cursor, item.label)
-		if index == model.sortCursor {
-			line += lipgloss.NewStyle().Foreground(colourGreen).Render(direction)
-		}
-		lines = append(lines, line)
+		body = append(body, style.SortOption(arrow, label, active, index == model.sortCursor, sortOptionWidth))
 	}
-	lines = append(lines, "", "←/→ direction   Enter apply   Esc cancel")
-	return lipgloss.NewStyle().Width(46).Padding(1, 2).Border(lipgloss.RoundedBorder()).BorderForeground(colourBlue).Background(lipgloss.Color("#0d1d29")).Foreground(colourText).Render(strings.Join(lines, "\n"))
+	return style.Popup(style.Heading("SORT RESULTS"), body, "", 56)
 }

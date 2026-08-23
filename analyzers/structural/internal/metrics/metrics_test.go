@@ -28,6 +28,21 @@ func TestPMDAlignedFunctionStrategies(t *testing.T) {
 	}
 }
 
+func TestRoutineMeasurementsUseOwnerQualifiedSymbols(t *testing.T) {
+	method := &facts.Function{Name: "Run", Receiver: "Service", Location: location(4)}
+	constructor := &facts.Function{Name: "Service", Receiver: "Service", Location: location(8)}
+	measurements := Analyze(
+		&facts.Program{Functions: []*facts.Function{method, constructor}},
+		map[string]bool{"cognitive_complexity": true},
+	)
+	if len(measurements) != 2 {
+		t.Fatalf("measurements = %#v", measurements)
+	}
+	if measurements[0].Subject != "Service.Run" || measurements[1].Subject != "Service.<init>" {
+		t.Fatalf("subjects = %q, %q", measurements[0].Subject, measurements[1].Subject)
+	}
+}
+
 func TestNPathIsUnboundedAndDeepIfStopsAtProblemDepth(t *testing.T) {
 	body := make([]*facts.Statement, 0, 70)
 	for index := 0; index < 70; index++ {

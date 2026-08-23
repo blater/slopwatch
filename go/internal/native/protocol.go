@@ -52,6 +52,7 @@ type protocolRecord struct {
 	Value      any             `json:"value"`
 	Subject    protocolSubject `json:"subject"`
 	Attributes map[string]any  `json:"attributes"`
+	Provenance map[string]any  `json:"provenance"`
 	State      string          `json:"state"`
 	Reason     string          `json:"reason"`
 	Severity   string          `json:"severity"`
@@ -62,12 +63,21 @@ type protocolRecord struct {
 }
 
 type protocolSubject struct {
-	Name      string `json:"name"`
-	Symbol    string `json:"symbol"`
-	Line      int    `json:"line"`
-	Column    int    `json:"column"`
-	EndLine   int    `json:"end_line"`
-	EndColumn int    `json:"end_column"`
+	Name      string           `json:"name"`
+	Symbol    string           `json:"symbol"`
+	Routine   string           `json:"routine"`
+	Line      int              `json:"line"`
+	Column    int              `json:"column"`
+	EndLine   int              `json:"end_line"`
+	EndColumn int              `json:"end_column"`
+	Start     protocolPosition `json:"start"`
+	End       protocolPosition `json:"end"`
+}
+
+type protocolPosition struct {
+	Line   int `json:"line"`
+	Column int `json:"column"`
+	Offset int `json:"offset"`
 }
 
 func invocationID() (string, error) {

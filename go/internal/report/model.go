@@ -41,10 +41,34 @@ type Component struct {
 	Axis                     string                `json:"axis,omitempty"`
 	Contribution             float64               `json:"contribution"`
 	DeduplicatedObservations int                   `json:"deduplicated_observations"`
+	Evidence                 []MeasurementEvidence `json:"evidence,omitempty"`
 	Observations             int                   `json:"observations"`
 	ObservedContribution     float64               `json:"observed_contribution"`
 	Subjects                 []SubjectContribution `json:"subjects"`
 	Waivers                  []map[string]any      `json:"waivers"`
+}
+
+type SourcePosition struct {
+	Line   int `json:"line"`
+	Column int `json:"column"`
+	Offset int `json:"offset,omitempty"`
+}
+
+type SourceRange struct {
+	Path  string         `json:"path"`
+	Start SourcePosition `json:"start"`
+	End   SourcePosition `json:"end"`
+}
+
+type MeasurementEvidence struct {
+	Name       string         `json:"name"`
+	Symbol     string         `json:"symbol"`
+	Routine    string         `json:"routine,omitempty"`
+	Scope      string         `json:"scope"`
+	Value      float64        `json:"value"`
+	Location   SourceRange    `json:"location"`
+	Attributes map[string]any `json:"attributes,omitempty"`
+	Provenance map[string]any `json:"provenance,omitempty"`
 }
 
 type SubjectContribution struct {

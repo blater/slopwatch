@@ -8,6 +8,7 @@ import {
   type Subject,
 } from "./model.js";
 import type { TypedContext } from "./context.js";
+import { enclosingRoutineName } from "./surface.js";
 
 interface Candidate {
   component: string;
@@ -45,8 +46,11 @@ function sourcePosition(
 
 function subject(source: ts.SourceFile, node: ts.Node, name: string): Subject {
   const start = node.getStart(source);
+  const routine = enclosingRoutineName(node, source);
   return {
     name,
+    symbol: name,
+    ...(routine === undefined ? {} : { routine }),
     start: sourcePosition(source, start),
     end: sourcePosition(source, node.getEnd()),
   };

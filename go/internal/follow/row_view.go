@@ -7,11 +7,22 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func (model Model) renderRow(file report.File, selected bool) string {
 	state := model.rows[file.Path]
 	background := rowBackground(state, selected, model.options.TrendWindow)
+	prefix := model.renderFixedColumns(file, state, background)
+	pathWidth := max(0, model.width-lipgloss.Width(prefix))
+	line := prefix + renderPath(file.Path, pathWidth, model.pathOffset, background)
+	if remaining := model.width - lipgloss.Width(line); remaining > 0 {
+		line += lipgloss.NewStyle().Background(background).Render(strings.Repeat(" ", remaining))
+	}
+	return line
+}
+
+func (model Model) renderFixedColumns(file report.File, state rowState, background lipgloss.Color) string {
 	separator := lipgloss.NewStyle().Background(background).Render(" ")
 	marker, markerColour := model.rowMarker(file, state, time.Now())
 	scoreWidth := max(1, 7-lipgloss.Width(marker))
@@ -30,13 +41,12 @@ func (model Model) renderRow(file report.File, selected bool) string {
 			parts[len(parts)-1] += separator
 		}
 	}
-	prefix := strings.Join(parts, separator) + separator
-	pathWidth := max(0, model.width-lipgloss.Width(prefix))
-	line := prefix + renderPath(file.Path, pathWidth, background)
-	if remaining := model.width - lipgloss.Width(line); remaining > 0 {
-		line += lipgloss.NewStyle().Background(background).Render(strings.Repeat(" ", remaining))
-	}
-	return line
+	return strings.Join(parts, separator) + separator
+}
+
+func (model Model) pathViewportWidth() int {
+	prefix := model.renderFixedColumns(report.File{}, rowState{}, style.SurfaceScreen)
+	return max(0, model.width-lipgloss.Width(prefix))
 }
 
 func (model Model) rowMarker(file report.File, state rowState, now time.Time) (string, lipgloss.Color) {
@@ -44,26 +54,26 @@ func (model Model) rowMarker(file report.File, state rowState, now time.Time) (s
 		return marker, colour
 	}
 	if state.scoreChangedAt.IsZero() {
-		return "", colourMuted
+		return "", style.TextMuted
 	}
 	arrow := movementArrow(state.movementDelta)
 	if arrow == "" {
-		return "", colourMuted
+		return "", style.TextMuted
 	}
 	return arrow, directionColour(state.movementDelta)
 }
 
 func rowBackground(state rowState, selected bool, window time.Duration) lipgloss.Color {
 	if selected {
-		return selectedBackground
+		return style.SelectionSurface(true)
 	}
 	if state.editedAt.IsZero() {
-		return screenBackground
+		return style.SelectionSurface(false)
 	}
 	if edited := editBackground(state, time.Now(), window); edited != "" {
 		return edited
 	}
-	return screenBackground
+	return style.SelectionSurface(false)
 }
 
 func movementArrow(delta int) string {
@@ -93,8 +103,5 @@ func renderMetricCell(file report.File, column column, background lipgloss.Color
 }
 
 func metricText(key string, value float64) string {
-	if key == "god" {
-		return report.OneDecimal(value)
-	}
-	return report.DisplayNumber(value)
+	return roundedIntegerText(value)
 }

@@ -32,7 +32,11 @@ function isFunctionNode(node: ts.Node): node is FunctionNode {
     ts.isArrowFunction(node)
   );
 }
-function functionName(node: FunctionNode, source: ts.SourceFile): string {
+export function functionName(
+  node: FunctionNode,
+  source: ts.SourceFile,
+): string {
+  if (ts.isConstructorDeclaration(node)) return "<init>";
   if ("name" in node && node.name !== undefined)
     return node.name.getText(source);
   const parent = node.parent;
@@ -42,11 +46,44 @@ function functionName(node: FunctionNode, source: ts.SourceFile): string {
   const point = source.getLineAndCharacterOfPosition(node.getStart(source));
   return `<anonymous@${point.line + 1}:${point.character + 1}>`;
 }
+
+export function qualifiedFunctionName(
+  node: FunctionNode,
+  source: ts.SourceFile,
+): string {
+  const names = [functionName(node, source)];
+  let parent: ts.Node | undefined = node.parent;
+  while (parent !== undefined) {
+    if (isFunctionNode(parent)) {
+      names.push(functionName(parent, source));
+    } else if (isTypeDeclaration(parent) && parent.name !== undefined) {
+      names.push(parent.name.text);
+    }
+    parent = parent.parent;
+  }
+  return names.reverse().join(".");
+}
+
+export function enclosingRoutineName(
+  node: ts.Node,
+  source: ts.SourceFile,
+): string | undefined {
+  let current: ts.Node | undefined = node;
+  while (current !== undefined) {
+    if (isFunctionNode(current)) return qualifiedFunctionName(current, source);
+    current = current.parent;
+  }
+  return undefined;
+}
+
 function position(source: ts.SourceFile, node: ts.Node): Subject {
   const start = source.getLineAndCharacterOfPosition(node.getStart(source));
   const end = source.getLineAndCharacterOfPosition(node.getEnd());
+  const symbol = qualifiedFunctionName(node as FunctionNode, source);
   return {
-    name: functionName(node as FunctionNode, source),
+    name: symbol,
+    symbol,
+    routine: symbol,
     start: {
       line: start.line + 1,
       column: start.character + 1,
@@ -197,7 +234,7 @@ export function typeFunctionFact(
   node: FunctionNode,
   source: ts.SourceFile,
 ): FunctionFact {
-  const name = functionName(node, source);
+  const name = qualifiedFunctionName(node, source);
   return { node, name, subject: position(source, node) };
 }
 export function typeMembers(

@@ -16,6 +16,7 @@ import {
   functionReturnType,
   isTypeDeclaration,
   methodLike,
+  qualifiedFunctionName,
   type PublicOperation,
   publicMember,
   returnsValue,
@@ -83,32 +84,24 @@ function nodeSubject(
   source: ts.SourceFile,
   node: ts.Node,
   name: string,
+  routine?: string,
 ): Subject {
   const start = node.getStart(source);
   return {
     name,
+    symbol: name,
+    ...(routine === undefined ? {} : { routine }),
     start: sourcePosition(source, start),
     end: sourcePosition(source, node.getEnd()),
   };
-}
-
-function functionName(node: FunctionNode, source: ts.SourceFile): string {
-  if ("name" in node && node.name !== undefined)
-    return node.name.getText(source);
-  const parent = node.parent;
-  if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name))
-    return parent.name.text;
-  if (ts.isPropertyAssignment(parent)) return parent.name.getText(source);
-  const point = source.getLineAndCharacterOfPosition(node.getStart(source));
-  return `<anonymous@${point.line + 1}:${point.character + 1}>`;
 }
 
 function collectFunctions(source: ts.SourceFile): FunctionFact[] {
   const facts: FunctionFact[] = [];
   const visit = (node: ts.Node): void => {
     if (isFunctionNode(node) && node.body !== undefined) {
-      const name = functionName(node, source);
-      facts.push({ node, name, subject: nodeSubject(source, node, name) });
+      const name = qualifiedFunctionName(node, source);
+      facts.push({ node, name, subject: nodeSubject(source, node, name, name) });
     }
     ts.forEachChild(node, visit);
   };
@@ -552,8 +545,8 @@ function walkDeepIf(
         "pmd-v1",
         "expression",
         1,
-        nodeSubject(entry.sourceFile, node, "if"),
-        { problem_depth: 3 },
+        nodeSubject(entry.sourceFile, node, "if", fact.name),
+        { problem_depth: 3, routine_symbol: fact.name },
       ),
     );
     return;

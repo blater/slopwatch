@@ -15,6 +15,10 @@ func scoreComponent(descriptor componentDescriptor, state string, raw []observat
 	if err != nil {
 		return report.Component{}, err
 	}
+	component.Evidence = make([]report.MeasurementEvidence, 0, len(raw))
+	for _, item := range raw {
+		component.Evidence = append(component.Evidence, measurementEvidence(item))
+	}
 	threshold, hasThreshold, err := descriptor.Defaults.threshold()
 	if err != nil {
 		return report.Component{}, err
@@ -52,4 +56,30 @@ func scoreComponent(descriptor componentDescriptor, state string, raw []observat
 	component.Contribution = roundScore(component.Contribution)
 	component.ObservedContribution = component.Contribution
 	return component, nil
+}
+
+func measurementEvidence(item observation) report.MeasurementEvidence {
+	start, end := subjectPositions(item.subject)
+	symbol := item.subject.Symbol
+	if symbol == "" {
+		symbol = item.subject.Name
+	}
+	routine := item.subject.Routine
+	if routine == "" && item.scope == "function" {
+		routine = symbol
+	}
+	if routine == "" {
+		if value, ok := item.attributes["routine_symbol"].(string); ok {
+			routine = value
+		}
+	}
+	return report.MeasurementEvidence{
+		Name: item.subject.Name, Symbol: symbol, Routine: routine, Scope: item.scope, Value: item.value,
+		Location: report.SourceRange{
+			Path:  item.path,
+			Start: report.SourcePosition{Line: start.Line, Column: start.Column, Offset: start.Offset},
+			End:   report.SourcePosition{Line: end.Line, Column: end.Column, Offset: end.Offset},
+		},
+		Attributes: item.attributes, Provenance: item.provenance,
+	}
 }

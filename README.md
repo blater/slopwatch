@@ -85,13 +85,21 @@ descriptions are also available in the dashboard with `h`.
 | `NPATH` | Number of possible execution paths. Lower is better |
 | `CYCLO` | Cyclomatic complexity - independent control-flow paths. Lower is better |
 | `SHALLOW` | Functionality delivered per unit of interface complexity. Higher is worse |
-| `GOD` | God classes - bloated modules with a low-cohesion class score. Keep this low |
+| `GOD` | Responsibility concentration in a type. Keep this low |
 | `PATH` | Source file being measured |
 
 ### SCORE
 
 `SCORE` adds the weighted contributions from the enabled components supported
 for the file's language. It does not add the raw values shown in the report.
+
+Type-safety checks are disabled in the dashboard score by default. They apply
+only to TypeScript. To include them, enable `TYPE SAFETY` in Settings →
+Columns. That column then shows the type-safety contribution for each file.
+
+Deep-nesting checks are also disabled in the dashboard score by default. To
+include them, enable `NESTING` in Settings → Columns. This keeps the separate
+nesting penalty from silently adding to the nesting already reflected in COG.
 
 ```text
 raw measurements
@@ -202,20 +210,24 @@ SHALLOW = 80  → contribution 15
 ```
 
 
-### GOD — God Class
+### GOD — responsibility concentration
 
-GOD uses PMD's God Class signal. For each concrete class, the candidate test is:
+GOD uses PMD's God Class signal, generalized to the type systems supported by
+each analyzer. A type is a candidate when all three conditions hold:
 
 ```text
-WMC >= 47       weighted methods per class is high
+WMC >= 47       weighted routine complexity is high
 ATFD > 5        access to foreign data is high
-TCC < 1/3       tight class cohesion is low
+TCC < 1/3       type cohesion is low
 ```
 
-WMC is the sum of method complexities, ATFD counts distinct foreign data
-accesses, and TCC is the proportion of method pairs sharing access to a field.
-The displayed GOD value is the weighted penalty for the candidate; zero means
-the PMD conjunction did not trigger, and `-` means unavailable.
+WMC is the sum of routine complexities, ATFD counts distinct foreign data
+accesses, and TCC is the proportion of routine pairs sharing access to state.
+The analyzer applies the test to the type-level declaration for which it has
+the required evidence. This may be a class, struct, record, or interface,
+depending on the language and analyzer. The displayed GOD value is the
+weighted penalty for the candidate; zero means the combined conditions did not
+trigger, and `-` means unavailable.
 
 ### PATH
 

@@ -25,7 +25,11 @@ func collectScoreInputs(records []protocolRecord) (scoreInputs, error) {
 			if err != nil {
 				return scoreInputs{}, err
 			}
-			item := observation{record.Component, *record.Path, record.Language, value, record.Subject, record.Attributes}
+			item := observation{
+				component: record.Component, path: *record.Path, language: record.Language,
+				scope: record.Scope, value: value, subject: record.Subject,
+				attributes: record.Attributes, provenance: record.Provenance,
+			}
 			if inputs.observations[item.path] == nil {
 				inputs.observations[item.path] = map[string][]observation{}
 			}

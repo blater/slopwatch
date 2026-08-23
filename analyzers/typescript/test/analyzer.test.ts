@@ -99,6 +99,49 @@ test("structural kernels share one syntax parse and emit PMD-aligned measurement
   assert.equal(records.at(-1)?.status, "success");
 });
 
+test("routine evidence uses qualified symbols and precise source ranges", () => {
+  const root = workspace({
+    "src/service.ts": `
+      export class Service {
+        constructor() {}
+        run(): number {
+          const worker = (): number => 1;
+          return worker();
+        }
+      }
+    `,
+  });
+  const records = analyze(
+    request(root, ["src/service.ts"], [
+      ["cognitive_complexity", "pmd-sonar-v1"],
+    ]),
+  );
+  const measurements = recordsOf(records, "measurement");
+  const subjects = measurements.map((item) =>
+    item.subject as {
+      name: string;
+      symbol: string;
+      routine: string;
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    },
+  );
+  assert.deepEqual(
+    subjects.map((item) => item.symbol),
+    ["Service.<init>", "Service.run", "Service.run.worker"],
+  );
+  assert.ok(subjects.every((item) => item.name === item.symbol));
+  assert.ok(subjects.every((item) => item.routine === item.symbol));
+  assert.ok(
+    subjects.every(
+      (item) =>
+        item.start.line > 0 &&
+        item.start.column > 0 &&
+        item.end.offset > item.start.offset,
+    ),
+  );
+});
+
 test("type-level structural metrics match the shared PMD measurement contract", () => {
   const root = workspace({
     "src/service.ts": `

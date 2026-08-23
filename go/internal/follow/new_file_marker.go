@@ -3,6 +3,8 @@ package follow
 import (
 	"time"
 
+	"github.com/blater/slopwatch/internal/style"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -10,18 +12,18 @@ const newFileIndicatorWindow = 10 * time.Minute
 
 func newFileMarker(rank, total int, state rowState, now time.Time) (string, lipgloss.Color, bool) {
 	if state.newFileAt.IsZero() || now.Sub(state.newFileAt) >= newFileIndicatorWindow {
-		return "", colourMuted, false
+		return "", style.TextMuted, false
 	}
 	if !state.newFileMoved {
-		return "●", colourGreen, true
+		return "●", style.AccentPositive, true
 	}
 	if rank <= topRank(total, 10) {
-		return "●", colourRed, true
+		return "●", style.AccentCritical, true
 	}
 	if rank <= topRank(total, 50) {
-		return "●", colourAmber, true
+		return "●", style.AccentWarning, true
 	}
-	return "●", colourGreen, true
+	return "●", style.AccentPositive, true
 }
 
 func topRank(total, percentage int) int {

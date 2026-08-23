@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func (model Model) detailView() string {
@@ -23,10 +24,8 @@ func (model Model) detailView() string {
 	maximumOffset := max(0, len(lines)-bodyHeight)
 	offset := min(maximumOffset, max(0, model.detailOffset))
 
-	titleBackground := lipgloss.Color("#0b1e2d")
-	bodyBackground := lipgloss.Color("#091723")
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#68f6c8")).Background(titleBackground)
-	bodyStyle := lipgloss.NewStyle().Foreground(colourText).Background(bodyBackground)
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(style.AccentPositive).Background(style.SurfaceDetailTitle)
+	bodyStyle := lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceDetailBody)
 	inner := make([]string, 0, outerHeight-2)
 	for row := 0; row < titleHeight; row++ {
 		text := ""
@@ -46,7 +45,7 @@ func (model Model) detailView() string {
 			content = lines[index]
 		}
 		track := " "
-		trackColour := lipgloss.Color("#31536b")
+		trackColour := style.TextMuted
 		if len(lines) > bodyHeight {
 			track = "│"
 			if row >= thumbStart && row < thumbStart+thumbSize {
@@ -56,12 +55,12 @@ func (model Model) detailView() string {
 		inner = append(inner,
 			bodyStyle.Render("  ")+
 				content+
-				lipgloss.NewStyle().Foreground(trackColour).Background(bodyBackground).Render(track)+
+				lipgloss.NewStyle().Foreground(trackColour).Background(style.SurfaceDetailBody).Render(track)+
 				bodyStyle.Render(" "),
 		)
 	}
 	dialog := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#31506a")).Render(strings.Join(inner, "\n"))
+		BorderForeground(style.TextMuted).Render(strings.Join(inner, "\n"))
 	return dialog
 }
 
@@ -73,23 +72,23 @@ type detailLine struct {
 
 func (model Model) detailContent(file report.File, width int) []string {
 	logical := []detailLine{
-		{file.Path, lipgloss.Color("#d8e7f0"), true},
-		{fmt.Sprintf("%s  ·  rank %d  ·  score %.1f", file.Language, file.Rank, file.Score), lipgloss.Color("#7893a7"), false},
-		{"", colourText, false},
-		{"METRIC SUMMARY", lipgloss.Color("#68f6c8"), true},
+		{file.Path, style.TextPrimary, true},
+		{fmt.Sprintf("%s  ·  rank %d  ·  score %.1f", file.Language, file.Rank, file.Score), style.TextMuted, false},
+		{"", style.TextPrimary, false},
+		{"METRIC SUMMARY", style.AccentPositive, true},
 	}
 	labels := []struct{ id, label string }{
 		{"cognitive_complexity", "Cognitive complexity"},
 		{"npath_complexity", "NPath complexity"},
-		{"cyclomatic_method_complexity", "Cyclomatic method complexity"},
-		{"cyclomatic_class_complexity", "Cyclomatic class complexity"},
+		{"cyclomatic_method_complexity", "Cyclomatic routine complexity"},
+		{"cyclomatic_class_complexity", "Cyclomatic type complexity"},
 		{"module_shallowness", "Module shallowness penalty"},
-		{"god_class", "God class score"},
+		{"god_class", "Responsibility concentration"},
 	}
 	for _, item := range labels {
 		component, exists := file.Components[item.id]
 		if !exists {
-			logical = append(logical, detailLine{fmt.Sprintf("%-24s unavailable", item.label), lipgloss.Color("#91aabd"), false})
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s unavailable", item.label), style.TextMuted, false})
 			continue
 		}
 		values := make([]float64, 0, len(component.Subjects))
@@ -102,18 +101,18 @@ func (model Model) detailContent(file report.File, width int) []string {
 			total += value
 		}
 		if item.id == "god_class" {
-			logical = append(logical, detailLine{fmt.Sprintf("%-24s %.1f across %d types", item.label, component.Contribution, component.Observations), lipgloss.Color("#91aabd"), false})
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s %.1f across %d types", item.label, component.Contribution, component.Observations), style.TextMuted, false})
 		} else if item.id == "module_shallowness" {
-			logical = append(logical, detailLine{fmt.Sprintf("%-24s %s/100 penalty", item.label, report.DisplayNumber(maximum)), lipgloss.Color("#91aabd"), false})
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s %s/100 penalty", item.label, report.DisplayNumber(maximum)), style.TextMuted, false})
 		} else {
 			unit := "routines"
 			if item.id == "cyclomatic_class_complexity" {
 				unit = "types"
 			}
-			logical = append(logical, detailLine{fmt.Sprintf("%-24s maximum %s across %d %s", item.label, report.DisplayNumber(maximum), component.Observations, unit), lipgloss.Color("#91aabd"), false})
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s maximum %s across %d %s", item.label, report.DisplayNumber(maximum), component.Observations, unit), style.TextMuted, false})
 		}
 	}
-	logical = append(logical, detailLine{"", colourText, false}, detailLine{"COMPONENTS", lipgloss.Color("#68f6c8"), true})
+	logical = append(logical, detailLine{"", style.TextPrimary, false}, detailLine{"COMPONENTS", style.AccentPositive, true})
 	componentIDs := make([]string, 0, len(file.Components))
 	for id := range file.Components {
 		componentIDs = append(componentIDs, id)
@@ -121,9 +120,9 @@ func (model Model) detailContent(file report.File, width int) []string {
 	sort.Strings(componentIDs)
 	for _, id := range componentIDs {
 		component := file.Components[id]
-		logical = append(logical, detailLine{fmt.Sprintf("%s  contribution %.1f  ·  observations %d", id, component.Contribution, component.Observations), lipgloss.Color("#b9cad8"), true})
+		logical = append(logical, detailLine{fmt.Sprintf("%s  contribution %.1f  ·  observations %d", id, component.Contribution, component.Observations), style.TextPrimary, true})
 		for _, subject := range component.Subjects {
-			logical = append(logical, detailLine{fmt.Sprintf("  • %s = %s  (+%s)", subject.Subject, report.DisplayNumber(subject.Value), report.DisplayNumber(subject.Contribution)), lipgloss.Color("#7893a7"), false})
+			logical = append(logical, detailLine{fmt.Sprintf("  • %s = %s  (+%s)", subject.Subject, report.DisplayNumber(subject.Value), report.DisplayNumber(subject.Contribution)), style.TextMuted, false})
 		}
 	}
 	result := []string{}
@@ -133,7 +132,7 @@ func (model Model) detailContent(file report.File, width int) []string {
 			wrapped = strings.Split(ansi.Hardwrap(line.text, max(1, width), false), "\n")
 		}
 		for _, part := range wrapped {
-			style := lipgloss.NewStyle().Foreground(line.colour).Background(lipgloss.Color("#091723")).Bold(line.bold)
+			style := lipgloss.NewStyle().Foreground(line.colour).Background(style.SurfaceDetailBody).Bold(line.bold)
 			result = append(result, style.Render(padANSI(clip(part, width), width)))
 		}
 	}

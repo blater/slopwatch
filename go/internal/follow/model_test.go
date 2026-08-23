@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func testFile(path string, score float64) report.File {
@@ -39,25 +40,26 @@ func TestArrowNavigationMovesImmediatelyWithoutATimer(t *testing.T) {
 	}
 }
 
-func TestInitialScanRendersCenteredAnimatedStatus(t *testing.T) {
+func TestScanningStatusRendersAnimatedOnTopBar(t *testing.T) {
 	model := Model{width: 80, height: 20, analyzing: true, animationFrame: 1}
 	view := ansi.Strip(model.tableView())
-	if !strings.Contains(view, "SCANNING WORKSPACE") {
+	if !strings.Contains(view, "SCANNING") {
 		t.Fatalf("initial scan status is missing: %q", view)
 	}
 	if !strings.Contains(view, "⠙") {
 		t.Fatalf("initial scan animation frame is missing: %q", view)
 	}
 	lines := strings.Split(view, "\n")
-	statusLine := -1
-	for index, line := range lines {
-		if strings.Contains(line, "SCANNING WORKSPACE") {
-			statusLine = index
-			break
-		}
+	if !strings.Contains(lines[0], "SCANNING") {
+		t.Fatalf("scanning status is not on the top line: %q", lines[0])
 	}
-	if statusLine != (model.bodyHeight()/2)+2 {
-		t.Fatalf("status line = %d, want centered body line %d", statusLine, (model.bodyHeight()/2)+2)
+	if !strings.HasSuffix(strings.TrimRight(lines[0], " "), "⠙") {
+		t.Fatalf("scanning status is not right-aligned: %q", lines[0])
+	}
+	for _, line := range lines[1:] {
+		if strings.Contains(line, "SCANNING") {
+			t.Fatalf("scanning status still appears in the body: %q", line)
+		}
 	}
 }
 
@@ -71,6 +73,39 @@ func TestTableTopBarShowsLogoBeforeWorkspace(t *testing.T) {
 	}
 	if strings.Index(firstLine, "/workspace") <= len(logo) {
 		t.Fatalf("workspace path was not moved after logo: %q", firstLine)
+	}
+}
+
+func TestTableTopBarShowsRepositoryAndBranchBeforeWorkspace(t *testing.T) {
+	model := Model{
+		width: 100, height: 10,
+		options:            Options{Workspace: "/workspace"},
+		repositoryIdentity: "river:feature/display",
+	}
+	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
+	repository := strings.Index(firstLine, "river:feature/display")
+	workspace := strings.Index(firstLine, "/workspace")
+	if repository < 0 || workspace <= repository {
+		t.Fatalf("top bar does not show repo:branch before path: %q", firstLine)
+	}
+}
+
+func TestRepositoryIdentityFindsContainingRepository(t *testing.T) {
+	root := t.TempDir()
+	gitDir := filepath.Join(root, ".git")
+	if err := os.Mkdir(gitDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/feature/display\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(root, "src", "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Base(root) + ":feature/display"
+	if got := repositoryIdentity(nested); got != want {
+		t.Fatalf("repository identity = %q, want %q", got, want)
 	}
 }
 
@@ -210,14 +245,14 @@ func TestMovementIndicatorExpiresWithTrendWindow(t *testing.T) {
 func TestNewFileMarkerUsesRAGColoursAndExpires(t *testing.T) {
 	now := time.Now()
 	state := rowState{newFileAt: now}
-	if marker, colour, ok := newFileMarker(90, 100, state, now); !ok || marker != "●" || colour != colourGreen {
+	if marker, colour, ok := newFileMarker(90, 100, state, now); !ok || marker != "●" || colour != style.AccentPositive {
 		t.Fatalf("initial new-file marker = %q, %q, %t; want green dot", marker, colour, ok)
 	}
 	state.newFileMoved = true
-	if _, colour, _ := newFileMarker(50, 100, state, now); colour != colourAmber {
+	if _, colour, _ := newFileMarker(50, 100, state, now); colour != style.AccentWarning {
 		t.Fatalf("top-half new-file colour = %q, want amber", colour)
 	}
-	if _, colour, _ := newFileMarker(10, 100, state, now); colour != colourRed {
+	if _, colour, _ := newFileMarker(10, 100, state, now); colour != style.AccentCritical {
 		t.Fatalf("top-ten-percent new-file colour = %q, want red", colour)
 	}
 	if _, _, ok := newFileMarker(10, 100, state, now.Add(newFileIndicatorWindow)); ok {
@@ -248,7 +283,7 @@ func TestNewFileStateTransitionsFromGreenWhenItsRankChanges(t *testing.T) {
 	if !state.newFileMoved || state.movementDelta != 1 {
 		t.Fatalf("new file rank transition was not recorded: %#v", state)
 	}
-	if marker, colour := model.rowMarker(model.document.Files[0], state, time.Now()); marker != "●" || colour != colourRed {
+	if marker, colour := model.rowMarker(model.document.Files[0], state, time.Now()); marker != "●" || colour != style.AccentCritical {
 		t.Fatalf("top-ranked new file marker = %q, %q; want red dot", marker, colour)
 	}
 }
@@ -279,15 +314,15 @@ func TestTableFillsAvailableHeight(t *testing.T) {
 
 func TestSelectedRowCarriesReferenceBackgroundAcrossEveryCell(t *testing.T) {
 	ConfigureTerminalColours()
-	file := testFile("parent/example.go", 12)
+	file := testFile("parent/with/a/long/path/to/example.go", 12)
 	model := Model{
-		width: 80, rows: map[string]rowState{file.Path: {}},
+		width: 80, pathOffset: 7, rows: map[string]rowState{file.Path: {}},
 		visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
 	}
 	row := model.renderRow(file, true)
-	// termenv rounds the final channel of #183b52 down by one while encoding it.
+	// termenv rounds the green channel of #245a78 down by one while encoding it.
 	// Match the common RGB payload whether or not a foreground shares its CSI.
-	wantBackground := "48;2;24;59;81m"
+	wantBackground := "48;2;36;89;120m"
 	if !strings.Contains(row, wantBackground) {
 		t.Fatalf("selected row does not use the reference background: %q", row)
 	}
@@ -305,18 +340,62 @@ func TestSelectedRowCarriesReferenceBackgroundAcrossEveryCell(t *testing.T) {
 	}
 }
 
+func TestHorizontalScrollMovesOnlyFileNames(t *testing.T) {
+	ConfigureTerminalColours()
+	file := testFile("a/very/long/source/path/that/exceeds/the/available/filename/viewport/example.go", 12)
+	file.Components["cognitive_complexity"] = report.Component{Contribution: 3, Subjects: []report.SubjectContribution{{Value: 7}}}
+	model := Model{
+		width: 52, document: report.Document{Files: []report.File{file}},
+		rows: map[string]rowState{file.Path: {}}, visible: map[string]bool{"cog": true},
+	}
+	before := ansi.Strip(model.renderRow(file, true))
+	fixedWidth := model.width - model.pathViewportWidth()
+	model.movePath(6)
+	after := ansi.Strip(model.renderRow(file, true))
+	if model.pathOffset != 6 {
+		t.Fatalf("path offset = %d, want 6", model.pathOffset)
+	}
+	if got, want := ansi.Cut(after, 0, fixedWidth), ansi.Cut(before, 0, fixedWidth); got != want {
+		t.Fatalf("fixed metric columns moved: before %q, after %q", want, got)
+	}
+	if ansi.Cut(after, fixedWidth, model.width) == ansi.Cut(before, fixedWidth, model.width) {
+		t.Fatalf("filename did not scroll: before %q, after %q", before, after)
+	}
+	if lipgloss.Width(model.renderRow(file, true)) != model.width {
+		t.Fatal("horizontal scrolling changed the row width")
+	}
+}
+
+func TestHorizontalScrollDoesNotChangeVerticalSelection(t *testing.T) {
+	first := testFile("one/very/long/path/that/needs/horizontal/scrolling/first.go", 2)
+	second := testFile("two/very/long/path/that/needs/horizontal/scrolling/second.go", 1)
+	model := Model{
+		width: 30, height: 8, cursor: 0, selected: first.Path,
+		document: report.Document{Files: []report.File{first, second}},
+		rows:     map[string]rowState{first.Path: {}, second.Path: {}}, visible: map[string]bool{},
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRight})
+	if model.pathOffset != pathScrollStep || model.cursor != 0 || model.offset != 0 || model.selected != first.Path {
+		t.Fatalf("horizontal scroll changed vertical state: path=%d cursor=%d offset=%d selected=%q", model.pathOffset, model.cursor, model.offset, model.selected)
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyDown})
+	if model.pathOffset != pathScrollStep || model.cursor != 1 || model.selected != second.Path {
+		t.Fatalf("vertical movement regressed after horizontal scroll: path=%d cursor=%d selected=%q", model.pathOffset, model.cursor, model.selected)
+	}
+}
+
 func TestOverviewUsesReferencePalette(t *testing.T) {
 	palette := map[string]lipgloss.Color{
-		"text": colourText, "muted": colourMuted, "green": colourGreen,
-		"amber": colourAmber, "red": colourRed, "score amber": scoreAmber,
-		"score red": scoreRed, "blue": colourBlue, "selection": selectedBackground,
-		"screen": screenBackground, "top": topBackground,
-		"header": headerBackground, "footer": footerBackground,
+		"text": style.TextPrimary, "muted": style.TextMuted, "green": style.AccentPositive,
+		"amber": style.AccentWarning, "red": style.AccentCritical, "score amber": style.ScoreWarning,
+		"score red": style.ScoreCritical, "blue": style.AccentInfo, "selection": style.SurfaceSelected,
+		"screen": style.SurfaceScreen, "top": style.SurfaceTop,
+		"header": style.SurfaceHeader, "footer": style.SurfaceFooter,
 	}
 	want := map[string]string{
 		"text": "#d5e2eb", "muted": "#668298", "green": "#58e7ad",
 		"amber": "#f0c765", "red": "#ff8291", "score amber": "#f5c451",
-		"score red": "#ff6174", "blue": "#6fb9e8", "selection": "#183b52",
+		"score red": "#ff6174", "blue": "#6fb9e8", "selection": "#245a78",
 		"screen": "#071019", "top": "#0a1622",
 		"header": "#0b1e2d", "footer": "#061019",
 	}
@@ -331,7 +410,7 @@ func TestFooterOnlyAdvertisesUsefulActions(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80}
 	footer := model.footer()
-	for _, unwanted := range []string{"Enter", "details", "space", "pause"} {
+	for _, unwanted := range []string{"Enter", "details", "space", "pause", "columns"} {
 		if strings.Contains(footer, unwanted) {
 			t.Errorf("footer still contains %q: %q", unwanted, footer)
 		}
@@ -339,16 +418,484 @@ func TestFooterOnlyAdvertisesUsefulActions(t *testing.T) {
 	if !strings.Contains(ansi.Strip(footer), "sort") {
 		t.Fatalf("footer does not advertise sorting: %q", footer)
 	}
+	if !strings.Contains(ansi.Strip(footer), "settings") {
+		t.Fatalf("footer does not advertise settings: %q", footer)
+	}
+	if !strings.Contains(ansi.Strip(footer), "info") {
+		t.Fatalf("footer does not advertise file info: %q", footer)
+	}
+	if !strings.Contains(ansi.Strip(footer), "o") {
+		t.Fatalf("footer does not advertise the o sort shortcut: %q", footer)
+	}
+}
+
+func TestMainInfoKeyOpensTheSamePageAsEnter(t *testing.T) {
+	file := report.File{Path: "main.go", Complete: true, Components: map[string]report.Component{}}
+	base := Model{document: report.Document{Files: []report.File{file}}}
+
+	enterModel := base
+	enterModel.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	infoModel := base
+	infoModel.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+
+	if !enterModel.detail || !infoModel.detail {
+		t.Fatalf("detail state differs: enter=%t info=%t", enterModel.detail, infoModel.detail)
+	}
+	if enterModel.View() != infoModel.View() {
+		t.Fatal("i and Enter opened different file information pages")
+	}
+}
+
+func TestFooterPlacesGenericActionsOnTheRightWithoutOverlap(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{width: 100}
+	text := ansi.Strip(model.footer())
+	left := strings.Index(text, "sort")
+	right := strings.Index(text, "settings")
+	if left < 0 || right < 0 || left >= right {
+		t.Fatalf("footer groups are not ordered left-to-right: %q", text)
+	}
+	if !strings.Contains(text, "help") || !strings.Contains(text, "quit") {
+		t.Fatalf("footer omitted generic actions: %q", text)
+	}
+	if strings.Index(text, "find") > strings.Index(text, "next") {
+		t.Fatalf("find and next are out of order: %q", text)
+	}
+}
+
+func TestFooterDropsGenericActionsBeforeLeftActionsOnNarrowScreens(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{width: 30}
+	text := ansi.Strip(model.footer())
+	if !strings.Contains(text, "sort") || !strings.Contains(text, "rescan") {
+		t.Fatalf("narrow footer dropped left actions: %q", text)
+	}
+	if !strings.Contains(text, "find") || !strings.Contains(text, "next") {
+		t.Fatalf("narrow footer dropped Find/Next: %q", text)
+	}
+	if strings.Contains(text, "settings") && strings.Index(text, "settings") < strings.Index(text, "rescan") {
+		t.Fatalf("generic actions overlap the left group: %q", text)
+	}
+}
+
+func TestSettingsOpensWeightsAndAdjustsScore(t *testing.T) {
+	component := report.Component{
+		Contribution: 10,
+		Subjects:     []report.SubjectContribution{{Subject: "x", Value: 20, Contribution: 10}},
+	}
+	base := report.Document{Files: []report.File{{
+		Path: "a.go", Complete: true, Score: 10,
+		Components: map[string]report.Component{"cognitive_complexity": component},
+	}}}
+	model := Model{document: base, baseDocument: base, weights: defaultWeights()}
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	result := updated.(*Model)
+	if !result.settings || result.weightsOpen {
+		t.Fatal("s did not open settings")
+	}
+	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	result = updated.(*Model)
+	if !result.weightsOpen || result.settings {
+		t.Fatal("Enter did not open weights")
+	}
+	for index, item := range componentWeights {
+		if item.id == "cognitive_complexity" {
+			result.weightCursor = index
+			break
+		}
+	}
+	result.handleWeightsKey("left")
+	if result.weights["cognitive_complexity"] != 9.5 {
+		t.Fatalf("weight = %v, want 9.5", result.weights["cognitive_complexity"])
+	}
+	if result.document.Files[0].Score != 9.5 {
+		t.Fatalf("score = %v, want 9.5", result.document.Files[0].Score)
+	}
+}
+
+func TestWeightsResetCurrentAndAll(t *testing.T) {
+	model := Model{weights: defaultWeights(), visible: defaultColumnVisibility()}
+	model.weightCursor = 0
+	model.weights["cognitive_complexity"] = 2
+	model.handleWeightsKey("r")
+	if got := model.weights["cognitive_complexity"]; got != 10 {
+		t.Fatalf("reset current weight = %v, want 10", got)
+	}
+	model.weights["cognitive_complexity"] = 2
+	model.weights["god_class"] = 19
+	model.handleWeightsKey("c")
+	if !model.weightsResetConfirm {
+		t.Fatal("reset all did not ask for confirmation")
+	}
+	model.handleWeightsKey("n")
+	if model.weights["cognitive_complexity"] != 2 || model.weights["god_class"] != 19 {
+		t.Fatal("cancelled reset all changed weights")
+	}
+	model.handleWeightsKey("c")
+	model.handleWeightsKey("y")
+	if model.weights["cognitive_complexity"] != 10 || model.weights["god_class"] != 1 {
+		t.Fatalf("reset all weights = %v, %v", model.weights["cognitive_complexity"], model.weights["god_class"])
+	}
+}
+
+func TestWeightsAndHelpOpenTheSharedInfoPopup(t *testing.T) {
+	model := Model{weights: defaultWeights(), visible: defaultColumnVisibility(), width: 80, height: 20}
+	model.weightCursor = 0
+	model.handleWeightsKey("i")
+	if !model.infoOpen || model.infoKey != "cog" || !strings.Contains(ansi.Strip(model.infoView()), "COG") {
+		t.Fatal("weights info did not open the shared COG popup")
+	}
+	model.handleInfoKey("esc")
+	model.handleWeightsKey("enter")
+	if !model.infoOpen || model.infoKey != "cog" {
+		t.Fatal("Enter did not open weight info")
+	}
+	model.infoOpen = false
+	model.help = true
+	model.helpCursor = 1
+	model.handleHelpKey("i")
+	if !model.infoOpen || model.infoKey != "cog" {
+		t.Fatal("help info did not open the shared COG popup")
+	}
+	model.handleInfoKey("esc")
+	if !model.help {
+		t.Fatal("closing info unexpectedly closed help")
+	}
+}
+
+func TestEnterClosesPurelyInformationalDialog(t *testing.T) {
+	model := Model{infoOpen: true, infoKey: "cog"}
+	model.handleInfoKey("enter")
+	if model.infoOpen {
+		t.Fatal("Enter did not close the informational dialog")
+	}
+}
+
+func TestEnterDoesNotCloseHelpDialogWithOptions(t *testing.T) {
+	model := Model{help: true, helpCursor: 0}
+	model.handleHelpKey("enter")
+	if !model.help || !model.infoOpen {
+		t.Fatal("Enter did not preserve Help while opening its info option")
+	}
+}
+
+func TestInfoPopupOverlaysItsParentPopup(t *testing.T) {
+	model := Model{width: 80, height: 20, weights: defaultWeights(), visible: defaultColumnVisibility(), weightsOpen: true, infoOpen: true, infoKey: "cog"}
+	view := ansi.Strip(model.View())
+	if !strings.Contains(view, "WEIGHTS") || !strings.Contains(view, "COG  cognitive complexity") {
+		t.Fatalf("info did not overlay the weights popup: %q", view)
+	}
+	model = Model{width: 80, height: 20, help: true, helpCursor: 1, infoOpen: true, infoKey: "cog"}
+	view = ansi.Strip(model.View())
+	if !strings.Contains(view, "HELP") || !strings.Contains(view, "COG  cognitive complexity") {
+		t.Fatalf("info did not overlay the help popup: %q", view)
+	}
+}
+
+func TestHelpScrollsAndHasNoCloseHint(t *testing.T) {
+	model := Model{help: true, helpCursor: len(metricInformation) - 1, width: 60, height: 10}
+	view := ansi.Strip(model.helpView())
+	if !strings.Contains(view, "PATH") || strings.Contains(view, "SCORE") {
+		t.Fatalf("help did not scroll to the selected entry: %q", view)
+	}
+	if strings.Contains(view, "Esc") || strings.Contains(view, "close help") {
+		t.Fatalf("help still shows a close hint: %q", view)
+	}
+	if !strings.Contains(view, "info") {
+		t.Fatalf("help is missing its info option: %q", view)
+	}
+}
+
+func TestWeightsViewGroupsIndentedMetricsByCategory(t *testing.T) {
+	view := ansi.Strip((Model{weights: defaultWeights()}).weightsView())
+	for _, text := range []string{"Structural", "  COG", "  CYCLO", "  NPATH", "  SHALLOW", "Type safety", "Ambiguous boolean"} {
+		if !strings.Contains(view, text) {
+			t.Errorf("weights view does not contain %q", text)
+		}
+	}
+	lines := strings.Split(view, "\n")
+	lineWith := func(text string) string {
+		for _, line := range lines {
+			if strings.Contains(line, text) {
+				return line
+			}
+		}
+		return ""
+	}
+	categoryLine := strings.TrimPrefix(lineWith("COG"), "│")
+	metricLine := strings.TrimPrefix(lineWith("Cognitive complexity"), "│")
+	if !strings.HasPrefix(categoryLine, "   COG") || !strings.HasPrefix(metricLine, "     [✓]") {
+		t.Fatalf("measure hierarchy is not indented: %q / %q", lineWith("COG"), lineWith("Cognitive complexity"))
+	}
+}
+
+func TestWeightsEnablementControlsScoreIndependently(t *testing.T) {
+	component := report.Component{Contribution: 10}
+	base := report.Document{Files: []report.File{{Path: "a.go", Complete: true, Components: map[string]report.Component{
+		"cognitive_complexity": component,
+	}}}}
+	model := Model{document: base, baseDocument: base, weights: defaultWeights(), weightEnabled: defaultWeightEnabled()}
+	model.rebuildWeightedDocument()
+	if got := model.document.Files[0].Score; got != 10 {
+		t.Fatalf("enabled weight score = %v, want 10", got)
+	}
+	model.handleWeightsKey(" ")
+	if model.isWeightEnabled("cognitive_complexity") || model.document.Files[0].Score != 0 {
+		t.Fatalf("space did not disable weight: enabled=%t score=%v", model.isWeightEnabled("cognitive_complexity"), model.document.Files[0].Score)
+	}
+	model.handleWeightsKey(" ")
+	if !model.isWeightEnabled("cognitive_complexity") || model.document.Files[0].Score != 10 {
+		t.Fatalf("space did not re-enable weight: enabled=%t score=%v", model.isWeightEnabled("cognitive_complexity"), model.document.Files[0].Score)
+	}
+}
+
+func TestWeightEnablementIncludesAndExcludesEveryApplicableComponent(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		language string
+		include  func(item struct {
+			id       string
+			label    string
+			category string
+			parent   string
+			axis     string
+			value    float64
+		}) bool
+	}{
+		{name: "typescript", language: "typescript", include: func(item struct {
+			id       string
+			label    string
+			category string
+			parent   string
+			axis     string
+			value    float64
+		}) bool {
+			return true
+		}},
+		{name: "java", language: "java", include: func(item struct {
+			id       string
+			label    string
+			category string
+			parent   string
+			axis     string
+			value    float64
+		}) bool {
+			return item.axis != "typescript_type_safety"
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			components := make(map[string]report.Component)
+			applicable := make([]string, 0, len(componentWeights))
+			for _, item := range componentWeights {
+				if !test.include(item) {
+					continue
+				}
+				components[item.id] = report.Component{Axis: item.axis, Contribution: 1}
+				applicable = append(applicable, item.id)
+			}
+			base := report.Document{Files: []report.File{{Path: "example." + test.language, Language: test.language, Complete: true, Components: components}}}
+			model := Model{document: base, baseDocument: base, weights: defaultWeights(), weightEnabled: map[string]bool{}}
+			for _, item := range componentWeights {
+				model.weightEnabled[item.id] = test.include(item)
+			}
+			model.rebuildWeightedDocument()
+			if got, want := model.document.Files[0].Score, float64(len(applicable)); got != want {
+				t.Fatalf("all applicable weights score = %v, want %v", got, want)
+			}
+
+			for _, disabledID := range applicable {
+				model.weightEnabled[disabledID] = false
+				model.rebuildWeightedDocument()
+				if got, want := model.document.Files[0].Score, float64(len(applicable)-1); got != want {
+					t.Fatalf("disabled %s score = %v, want %v", disabledID, got, want)
+				}
+				model.weightEnabled[disabledID] = true
+			}
+		})
+	}
+}
+
+func TestTypeSafetyColumnIsOffByDefaultAndUsesItsAxis(t *testing.T) {
+	model := Model{visible: map[string]bool{}}
+	for _, column := range model.activeColumns() {
+		if column.key == "typesafety" {
+			t.Fatal("type safety column is enabled by default")
+		}
+	}
+	file := testFile("example.ts", 0)
+	file.Axes = map[string]float64{"typescript_type_safety": 12}
+	value, exists, _ := metric(file, "typesafety")
+	if !exists || value != 12 {
+		t.Fatalf("type safety metric = %v, %t; want 12, true", value, exists)
+	}
+	component := report.Component{Axis: "typescript_type_safety", Contribution: 12}
+	base := report.Document{Files: []report.File{{Path: "example.ts", Complete: true, Score: 12, Components: map[string]report.Component{
+		"explicit_any": component,
+	}}}}
+	model = Model{document: base, baseDocument: base, visible: map[string]bool{}, weights: defaultWeights()}
+	model.rebuildWeightedDocument()
+	if got := model.document.Files[0].Score; got != 0 {
+		t.Fatalf("default type safety score = %v, want 0", got)
+	}
+	for index, column := range columnNames() {
+		if column.key == "typesafety" {
+			model.columnCursor = index
+			break
+		}
+	}
+	model.handleColumnKey(" ")
+	if got := model.document.Files[0].Score; got != 12 {
+		t.Fatalf("enabled type safety score = %v, want 12", got)
+	}
+}
+
+func TestNestingColumnIsOffByDefaultAndControlsItsScore(t *testing.T) {
+	model := Model{visible: map[string]bool{}}
+	for _, column := range model.activeColumns() {
+		if column.key == "nesting" {
+			t.Fatal("nesting column is enabled by default")
+		}
+	}
+	component := report.Component{Axis: "structural_core", Contribution: 6}
+	base := report.Document{Files: []report.File{{Path: "example.go", Complete: true, Score: 6, Components: map[string]report.Component{
+		"deeply_nested_if": component,
+	}}}}
+	model = Model{document: base, baseDocument: base, visible: map[string]bool{}, weights: defaultWeights()}
+	model.rebuildWeightedDocument()
+	if got := model.document.Files[0].Score; got != 0 {
+		t.Fatalf("default nesting score = %v, want 0", got)
+	}
+	for index, column := range columnNames() {
+		if column.key == "nesting" {
+			model.columnCursor = index
+			break
+		}
+	}
+	model.handleColumnKey(" ")
+	if got := model.document.Files[0].Score; got != 6 {
+		t.Fatalf("enabled nesting score = %v, want 6", got)
+	}
+}
+
+func TestCouplingColumnIsOnByDefaultAndControlsItsScore(t *testing.T) {
+	model := Model{visible: map[string]bool{"coupling": true}}
+	found := false
+	for _, column := range model.activeColumns() {
+		if column.key == "coupling" && column.title == "CPL" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("CPL column is not enabled by default")
+	}
+	component := report.Component{Axis: "structural_language", Contribution: 10}
+	base := report.Document{Files: []report.File{{Path: "example.go", Complete: true, Score: 10, Components: map[string]report.Component{
+		"coupling_between_objects": component,
+	}}}}
+	model = Model{document: base, baseDocument: base, visible: map[string]bool{"coupling": true}, weights: defaultWeights()}
+	model.rebuildWeightedDocument()
+	if got := model.document.Files[0].Score; got != 10 {
+		t.Fatalf("default coupling score = %v, want 10", got)
+	}
+	for index, column := range columnNames() {
+		if column.key == "coupling" {
+			model.columnCursor = index
+			break
+		}
+	}
+	model.handleColumnKey(" ")
+	if got := model.document.Files[0].Score; got != 0 {
+		t.Fatalf("disabled coupling score = %v, want 0", got)
+	}
+}
+
+func TestShortWeightsPopupScrollsToSelectedEntry(t *testing.T) {
+	model := Model{height: 10, weightCursor: len(componentWeights) - 1, weights: defaultWeights()}
+	view := ansi.Strip(model.weightsView())
+	if !strings.Contains(view, "space on/off") || !strings.Contains(view, "←/→ weights") || !strings.Contains(view, "clear") || !strings.Contains(view, "info") {
+		t.Fatalf("weights popup is missing its adjustment hint: %q", view)
+	}
+	if !strings.Contains(view, "Unsafe type use") {
+		t.Fatalf("short weights popup did not scroll to selected entry: %q", view)
+	}
+	if strings.Contains(view, "COG (cognitive complexity)") {
+		t.Fatalf("short weights popup did not scroll its body: %q", view)
+	}
+}
+
+func TestOOpensSortAndSDoesNot(t *testing.T) {
+	model := Model{}
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	if !updated.(*Model).sortOpen {
+		t.Fatal("o did not open sorting")
+	}
+	model = Model{}
+	updated, _ = model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if updated.(*Model).sortOpen || !updated.(*Model).settings {
+		t.Fatal("s still opens sorting")
+	}
+}
+
+func TestSettingsContainsColumnsAndReturnsAfterEditing(t *testing.T) {
+	model := Model{}
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	result := updated.(*Model)
+	if !strings.Contains(ansi.Strip(result.settingsView()), "Columns") {
+		t.Fatal("settings does not contain Columns")
+	}
+	result.settingsCursor = 1
+	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	result = updated.(*Model)
+	if !result.columns || !result.columnsFromSettings || result.settings {
+		t.Fatal("settings did not open Columns")
+	}
+	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	result = updated.(*Model)
+	if result.columns || !result.settings {
+		t.Fatal("Columns did not return to Settings")
+	}
+}
+
+func TestModalSelectionsUseBackgroundInsteadOfTextCursors(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{width: 80, settingsCursor: 0, weightCursor: 0}
+	for name, view := range map[string]string{
+		"settings": model.settingsView(),
+		"weights":  model.weightsView(),
+		"columns":  model.columnsView(),
+		"sort":     model.sortView(),
+	} {
+		for _, line := range strings.Split(ansi.Strip(view), "\n") {
+			if strings.Contains(line, "←/→ weights") {
+				continue
+			}
+			if strings.Contains(line, "›") || strings.Contains(line, ">") {
+				t.Errorf("%s view still uses a text cursor", name)
+			}
+		}
+	}
 }
 
 func TestKeyHintHighlightsHotkeyWhereItOccurs(t *testing.T) {
 	ConfigureTerminalColours()
-	hint := keyHint("o", "columns", footerBackground)
+	hint := keyHint("o", "columns", style.SurfaceFooter)
 	if got := ansi.Strip(hint); got != "columns" {
 		t.Fatalf("key hint changed label to %q", got)
 	}
 	if !strings.Contains(hint, "o") {
 		t.Fatalf("key hint does not contain highlighted hotkey: %q", hint)
+	}
+}
+
+func TestHintRowUsesSharedSpacingAndHyphenation(t *testing.T) {
+	ConfigureTerminalColours()
+	got := ansi.Strip(hintRow(style.SurfaceFooter,
+		hintItem{"r", "reset"},
+		hintItem{"a", "are you sure?"},
+		hintItem{"i", "info"},
+	))
+	if got != "reset  are-you-sure?  info" {
+		t.Fatalf("hint row = %q", got)
 	}
 }
 
@@ -390,6 +937,19 @@ func TestHelpOverlayLeavesTitleRowVisible(t *testing.T) {
 	}
 }
 
+func TestHelpWrappedLinesAlignUnderDescriptions(t *testing.T) {
+	lines := wrapText("Weighted sum of all enabled metrics and rules. Lower is better", 30, "SCORE   ", "        ")
+	if len(lines) < 2 {
+		t.Fatal("help entry did not wrap")
+	}
+	if !strings.HasPrefix(lines[0], "SCORE   ") {
+		t.Fatalf("first help line = %q", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "        ") {
+		t.Fatalf("continuation line is not indented: %q", lines[1])
+	}
+}
+
 func TestDisplayFilesSortsEveryOverviewColumnInBothDirections(t *testing.T) {
 	first := sortableFile("zeta.go", 1, 80, 8, 18, 28, 2, 38)
 	second := sortableFile("alpha.go", 2, 20, 2, 12, 14, 1, 24)
@@ -425,21 +985,33 @@ func TestDisplayFilesSortsEveryOverviewColumnInBothDirections(t *testing.T) {
 	}
 }
 
-func TestApplyingSortPreservesSelectedFile(t *testing.T) {
+func TestSpaceAppliesSortWithoutChangingDirectionAndPreservesSelectedFile(t *testing.T) {
 	first := sortableFile("a.go", 1, 90, 9, 9, 9, 0, 0)
 	second := sortableFile("b.go", 2, 10, 1, 1, 1, 0, 0)
 	model := Model{
 		document: report.Document{Files: []report.File{first, second}},
 		selected: "a.go", cursor: 0, sortOpen: true, sortCursor: 0,
-		pendingSort: false, options: Options{TrendWindow: time.Minute},
+		sortKey: "score", sortReverse: false, sortDirections: map[string]bool{"score": false},
+		options: Options{TrendWindow: time.Minute},
 	}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeySpace})
 	result := updated.(*Model)
 	if result.sortKey != "score" || result.sortReverse {
 		t.Fatalf("sort = %s reverse=%t", result.sortKey, result.sortReverse)
 	}
+	if !result.sortOpen {
+		t.Fatal("applying sort unexpectedly closed the popup")
+	}
 	if result.selected != "a.go" || result.cursor != 1 {
 		t.Fatalf("selection = %q at %d", result.selected, result.cursor)
+	}
+}
+
+func TestEnterDoesNotApplyOrCloseSort(t *testing.T) {
+	model := Model{sortOpen: true, sortCursor: 1, sortKey: "score", sortReverse: true, visible: defaultColumnVisibility()}
+	model.handleSortKey("enter")
+	if !model.sortOpen || model.sortKey != "score" || !model.sortReverse {
+		t.Fatalf("Enter changed sort popup state: open=%t key=%q reverse=%t", model.sortOpen, model.sortKey, model.sortReverse)
 	}
 }
 
@@ -505,11 +1077,117 @@ func TestOverviewOmitsRankAndSeparatesScoreFromMetrics(t *testing.T) {
 		t.Fatalf("SHALLOW/GOD/path spacing is wrong: %q", heading)
 	}
 	row := ansi.Strip(model.renderRow(file, false))
-	if !strings.HasPrefix(row, "   12.0  3") {
+	if !strings.HasPrefix(row, "     12  3") {
 		t.Fatalf("rank or score/COG spacing is wrong: %q", row)
 	}
-	if !strings.Contains(row, "100.0  example.go") {
+	if !strings.Contains(row, "100  example.go") {
 		t.Fatalf("GOD/path spacing is wrong: %q", row)
+	}
+}
+
+func TestGodAndCouplingDisplayAsRoundedIntegers(t *testing.T) {
+	for key, want := range map[string]string{"god": "11", "coupling": "11"} {
+		if got := metricText(key, 10.6); got != want {
+			t.Errorf("%s display = %q, want %q", key, got, want)
+		}
+	}
+	if got := decimalWithin(10.6, 8); got != "11" {
+		t.Fatalf("score display = %q, want 11", got)
+	}
+}
+
+func TestEveryDisplayedColumnIsSortable(t *testing.T) {
+	columns := columnNames()
+	fields := sortFields()
+	for _, column := range columns {
+		found := false
+		for _, field := range fields {
+			if field.key == column.key {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("displayed column %q has no sort field", column.key)
+		}
+	}
+}
+
+func TestSortUsesSharedColumnDescriptionsAndSkipsHiddenColumns(t *testing.T) {
+	model := Model{visible: defaultColumnVisibility(), sortCursor: 1}
+	view := ansi.Strip(model.sortView())
+	for _, text := range []string{
+		"COG         (cognitive)",
+		"NPATH       (execution path complexity)",
+		"SHALLOW     (module depth)",
+		"GOD         (responsibility concentration)",
+		"CPL         (dependency entanglement)",
+		"NEST        (deep nesting)",
+		"TYPE        (type safety)",
+	} {
+		if !strings.Contains(view, text) {
+			t.Errorf("sort description missing %q: %q", text, view)
+		}
+	}
+	for model.sortCursor != len(sortFields())-1 {
+		model.handleSortKey("down")
+		if model.sortCursor == 0 {
+			t.Fatal("sort cursor wrapped while moving down")
+		}
+	}
+	if sortFields()[model.sortCursor].key != "filename" {
+		t.Fatalf("sort cursor landed on %q, want filename", sortFields()[model.sortCursor].key)
+	}
+}
+
+func TestSortDirectionChangesOnlyHighlightedMetricAndActivatesIt(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{
+		visible: defaultColumnVisibility(), sortCursor: 1,
+		sortKey: "score", sortReverse: true,
+		sortDirections: map[string]bool{"score": true, "cog": false, "npath": false},
+	}
+	model.handleSortKey("right")
+	if model.sortKey != "cog" || !model.sortReverse {
+		t.Fatalf("right did not activate descending COG: key=%q reverse=%t", model.sortKey, model.sortReverse)
+	}
+	if !model.sortDirections["score"] || model.sortDirections["npath"] {
+		t.Fatalf("right changed another metric's direction: %#v", model.sortDirections)
+	}
+	view := ansi.Strip(model.sortView())
+	for _, want := range []string{"▼ SCORE", "▼ COG", "▲ NPATH"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("sort view is missing %q: %q", want, view)
+		}
+	}
+}
+
+func TestSortCursorBackgroundDoesNotRemainOnActiveMetric(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{
+		visible: defaultColumnVisibility(), sortCursor: 1,
+		sortKey: "score", sortReverse: true, sortDirections: map[string]bool{"score": true, "cog": true},
+	}
+	lines := strings.Split(model.sortView(), "\n")
+	lineWith := func(title string) string {
+		for _, line := range lines {
+			if strings.Contains(ansi.Strip(line), title) {
+				return line
+			}
+		}
+		return ""
+	}
+	wantBackground := "48;2;36;89;120m"
+	if strings.Contains(lineWith("SCORE"), wantBackground) {
+		t.Fatal("active sort metric retained the cursor background")
+	}
+	if !strings.Contains(lineWith("COG"), wantBackground) {
+		t.Fatal("highlighted sort metric has no cursor background")
+	}
+	model.handleSortKey("down")
+	lines = strings.Split(model.sortView(), "\n")
+	if strings.Contains(lineWith("COG"), wantBackground) || !strings.Contains(lineWith("NPATH"), wantBackground) {
+		t.Fatal("cursor background did not move with the highlighted row")
 	}
 }
 
