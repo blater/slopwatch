@@ -90,15 +90,29 @@ descriptions are also available in the dashboard with `h`.
 
 ### SCORE
 
-`SCORE` is the sum of the contributions from the enabled measurements and
-rules for the file:
+`SCORE` adds the weighted contributions from the enabled components supported
+for the file's language. It does not add the raw values shown in the report.
 
 ```text
-SCORE = Σ component contribution
+raw measurements
+→ component aggregation
+→ threshold and formula
+→ weight
+→ component contribution
+→ SCORE
 ```
 
-Each contribution applies its PMD-style threshold and weight, so the displayed
-score is a weighted penalty rather than an average of the visible raw values.
+Below a component's threshold, its contribution is zero when its formula uses
+a threshold. At or above the threshold, that formula sets the contribution.
+For a component configured with `log-ratio`:
+
+```text
+contribution = weight × (1 + log₂(value / threshold))
+```
+
+The score sums component contributions through their configured axes. A
+missing or unavailable component contributes zero and marks the file
+incomplete; it does not silently become a raw zero measurement.
 
 ### COG — cognitive complexity
 
@@ -146,30 +160,47 @@ more useful functionality through a smaller caller-visible interface. Higher
 SHALLOW is worse. The calculation uses a COSMIC-inspired static approximation
 of functional capability, not LOC or private implementation size.
 
+*Formula*
 ```text
+F = Functionality
+I = InterfaceCost
+D = DepthRatio
+
 F = entries + exits + reads + writes
-I = operation cost + type cost + exposed state cost
+I = public operation count
+    + recursive costs of their parameter and result type shapes
+    + public type/state surface costs
 D = F / I
+
 depth penalty = 100 × max(0, 1 - D / D_ref)
 leakage penalty = 100 × min(1, exposed representation / I)
 SHALLOW = round(clamp(0, 100,
     0.80 × depth penalty + 0.20 × leakage penalty))
 ```
 
-An entry is data or an event supplied to a public operation; an exit is a
-result or observable output; reads and writes are recognized persistent-store
-movements. The static implementation estimates these terms from public
-operations, their parameters/results, public types, and exposed mutable
-representation. `I` charges one per public operation, the structural cost of
-each public signature type, and each exposed public state item. A module with
-no identifiable public interface is unavailable rather than being given a
-misleading zero.
+An entry is data or an event supplied to a public operation. An exit is a
+result or observable output. Reads and writes are recognized persistent-store
+movements. The analyzer estimates these terms from public operations, their
+signatures, public types, and exposed mutable representation.
 
-The raw ratio `D` is retained for diagnosis; SHALLOW is the bounded penalty
-shown in the report. See [`docs/depth-design.md`](docs/depth-design.md) for
-the full definition and references. `D_ref` is selected from caller-visible
-role evidence by the versioned `role-shape-v2` policy and is reported with the
-measurement.
+`D_ref` is selected from caller-visible role evidence by the versioned
+`role-shape-v2` policy. The report includes the raw `D`, the reference, and
+the penalty components. A module with no identifiable public interface is
+unavailable rather than being assigned a misleading zero.
+
+For nested types, each wrapper and child contributes one. The structural
+analyzers cap each type shape at 32 so one enormous type cannot dominate the
+metric.
+
+SHALLOW uses a threshold of `20`, a weight of `5`, and `log-ratio`. Therefore:
+
+```text
+SHALLOW < 20  → contribution 0
+SHALLOW = 20  → contribution 5
+SHALLOW = 40  → contribution 10
+SHALLOW = 80  → contribution 15
+```
+
 
 ### GOD — God Class
 

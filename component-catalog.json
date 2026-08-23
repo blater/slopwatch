@@ -186,12 +186,12 @@
       "required_capability": "structural_metrics",
       "evidence_posture": "supported",
       "documentation": "docs/components/module_shallowness.md",
-      "allowed_formulas": ["linear-over-threshold"],
+      "allowed_formulas": ["linear-over-threshold", "log-ratio"],
       "value_constraint": {"minimum": "0", "maximum": "100"},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
       "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
-      "defaults": {"enabled": true, "severity": "warning", "threshold": "100", "weight": "2", "formula": "linear-over-threshold", "cap": null}
+      "defaults": {"enabled": true, "severity": "warning", "threshold": "20", "weight": "5", "formula": "log-ratio", "cap": null}
     },
     {
       "component_id": "explicit_any",

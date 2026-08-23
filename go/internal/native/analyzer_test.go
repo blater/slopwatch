@@ -29,8 +29,8 @@ func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 	if len(document.Files) != 1 {
 		t.Fatalf("got %d files", len(document.Files))
 	}
-	if difference := math.Abs(document.Files[0].Score - 45.849625007212); difference > 1e-9 {
-		t.Fatalf("native score = %.12f, reference = 45.849625007212", document.Files[0].Score)
+	if difference := math.Abs(document.Files[0].Score - 54.677298739027); difference > 1e-9 {
+		t.Fatalf("native score = %.12f, reference = 54.677298739027", document.Files[0].Score)
 	}
 	if document.Files[0].Path != target {
 		t.Fatalf("path = %q", document.Files[0].Path)
@@ -51,8 +51,8 @@ func TestNativeJavaAndRustScoresMatchBalancedReference(t *testing.T) {
 		path  string
 		score float64
 	}{
-		{"analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaAnalyzer.java", 41.328624631025},
-		{"analyzers/structural/adapters/rust/src/parser.rs", 0},
+		{"analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaAnalyzer.java", 48.221182747294},
+		{"analyzers/structural/adapters/rust/src/parser.rs", 11.315172029169},
 	}
 	for _, test := range tests {
 		t.Run(filepath.Ext(test.path), func(t *testing.T) {
