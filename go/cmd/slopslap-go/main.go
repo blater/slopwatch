@@ -73,6 +73,9 @@ func parser() (*flag.FlagSet, *options) {
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
 		if errors.Is(err, errThreshold) {
 			os.Exit(3)
 		}

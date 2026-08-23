@@ -231,6 +231,9 @@ func (model Model) View() string {
 		return ""
 	}
 	base := model.tableView()
+	if model.initialAnalysis && model.analyzing {
+		return model.startupView(base)
+	}
 	if model.detail {
 		return model.overlay(base, model.detailView())
 	}

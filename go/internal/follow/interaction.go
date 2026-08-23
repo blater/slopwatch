@@ -50,6 +50,9 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return model, tea.Batch(command, model.analyzeExisting(paths))
 	case analysisResult:
 		model.analyzing = false
+		if message.full {
+			model.initialAnalysis = false
+		}
 		if message.err != nil {
 			model.status = message.err.Error()
 		} else {

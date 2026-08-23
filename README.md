@@ -232,3 +232,18 @@ trigger, and `-` means unavailable.
 ### PATH
 
 PATH is the source path only; it is not a quality measurement.
+
+## Release
+
+Configure the `HOMEBREW_TAP_TOKEN` GitHub Actions secret, authenticate `gh`,
+and run:
+
+```sh
+./release.sh X.Y.Z
+```
+
+The script requires a clean working tree and a version higher than the latest
+local release tag. It tags and pushes the current commit, waits for the release
+workflow, then verifies the GitHub assets and Homebrew formula. The workflow
+builds and smoke-tests the packaged Go, Java, Rust, and TypeScript analyzers
+before it publishes anything.

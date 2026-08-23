@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build or rebuild, such as v0.2.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Validate release tag and secret
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error title=Invalid release tag::$RELEASE_TAG must use vX.Y.Z"
+            exit 1
+          }
+          [[ -n "$HOMEBREW_TAP_TOKEN" ]] || {
+            echo "::error title=Missing HOMEBREW_TAP_TOKEN::Configure the tap token before releasing."
+            exit 1
+          }
+          echo "VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: analyzers/typescript/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Test all analyzers and the application
+        shell: bash
+        run: |
+          set -euo pipefail
+          make test
+          GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go test -C go ./...
+
+      - name: Build complete distribution
+        run: make -B build
+
+      - name: Package distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/slopwatch-stage"
+          mkdir -p \
+            "$stage/build/typescript" \
+            "$stage/analyzers/structural" \
+            dist
+          cp build/slopmark build/slopwatch "$stage/build/"
+          cp build/typescript/slopslap-typescript "$stage/build/typescript/"
+          cp \
+            analyzers/structural/slopslap-structural \
+            analyzers/structural/slopslap-structural-rust \
+            analyzers/structural/slopslap-structural-java.jar \
+            "$stage/analyzers/structural/"
+          cp -R analyzers/structural/java-runtime "$stage/analyzers/structural/"
+          cp component-catalog.json LICENSE "$stage/"
+          archive="dist/slopwatch-${VERSION}-darwin-arm64.tar.gz"
+          tar -C "$stage" -czf "$archive" .
+          shasum -a 256 "$archive" > dist/SHA256SUMS
+
+      - name: Smoke-test packaged bundle across every language
+        shell: bash
+        run: |
+          set -euo pipefail
+          unpack="$RUNNER_TEMP/slopwatch-unpack"
+          source="$RUNNER_TEMP/slopwatch-smoke"
+          mkdir -p "$unpack" "$source"
+          tar -xzf "dist/slopwatch-${VERSION}-darwin-arm64.tar.gz" -C "$unpack"
+          cat > "$source/main.go" <<'GO'
+          package smoke
+          func GoRoutine(ok bool) { if ok {} }
+          GO
+          cat > "$source/Main.java" <<'JAVA'
+          class Main { void javaRoutine(boolean ok) { if (ok) {} } }
+          JAVA
+          cat > "$source/main.rs" <<'RUST'
+          fn rust_routine(ok: bool) { if ok {} }
+          RUST
+          cat > "$source/main.ts" <<'TYPESCRIPT'
+          export function typeScriptRoutine(ok: boolean): void { if (ok) {} }
+          TYPESCRIPT
+          cat > "$source/tsconfig.json" <<'JSON'
+          {"compilerOptions":{"strict":true},"include":["main.ts"]}
+          JSON
+          "$unpack/build/slopmark" --format json "$source" > "$RUNNER_TEMP/report.json"
+          for language in go java rust typescript; do
+            grep -Eq "\"language\"[[:space:]]*:[[:space:]]*\"$language\"" "$RUNNER_TEMP/report.json" || {
+              echo "Packaged smoke test omitted $language"
+              exit 1
+            }
+          done
+          "$unpack/build/slopmark" --help >/dev/null
+          "$unpack/build/slopwatch" --help >/dev/null
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --verify-tag \
+              --title "SlopWatch $VERSION" \
+              --generate-notes
+          fi
+
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SLOPWATCH_RELEASE_VERSION: ${{ env.VERSION }}
+        run: |
+          gh auth setup-git --hostname github.com --force
+          ./util/build_brew

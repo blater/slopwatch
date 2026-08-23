@@ -63,6 +63,75 @@ func TestScanningStatusRendersAnimatedOnTopBar(t *testing.T) {
 	}
 }
 
+func TestInitialScanCentersLogoOverTable(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{
+		width: 20, height: 7, analyzing: true, initialAnalysis: true,
+		options: Options{Workspace: "/workspace"},
+	}
+	view := ansi.Strip(model.startupOverlay(model.tableView(), "XX\nYY"))
+	lines := strings.Split(view, "\n")
+	if len(lines) != model.height {
+		t.Fatalf("startup view has %d lines, want %d: %q", len(lines), model.height, view)
+	}
+	if strings.TrimSpace(lines[2]) != "XX" || strings.TrimSpace(lines[3]) != "YY" {
+		t.Fatalf("logo is not vertically centered: %q", view)
+	}
+	if strings.Index(lines[2], "XX") != 9 || strings.Index(lines[3], "YY") != 9 {
+		t.Fatalf("logo is not horizontally centered: %q", view)
+	}
+	if !strings.Contains(lines[0], "SCANNING") || !strings.Contains(lines[len(lines)-1], "sort") {
+		t.Fatalf("dashboard is not visible behind startup logo: %q", view)
+	}
+}
+
+func TestInitialViewUsesEmbeddedLogoWithoutReplacingDashboard(t *testing.T) {
+	model := Model{
+		width: 120, height: 20, analyzing: true, initialAnalysis: true,
+		options: Options{Workspace: "/workspace"},
+	}
+	base := ansi.Strip(model.tableView())
+	view := ansi.Strip(model.View())
+	if view == base {
+		t.Fatal("initial view did not overlay the embedded logo")
+	}
+	baseLines := strings.Split(base, "\n")
+	viewLines := strings.Split(view, "\n")
+	if viewLines[0] != baseLines[0] || viewLines[len(viewLines)-1] != baseLines[len(baseLines)-1] {
+		t.Fatalf("logo replaced dashboard chrome: %q", view)
+	}
+	if !strings.Contains(viewLines[0], "SCANNING") {
+		t.Fatalf("initial view lost scanning status: %q", viewLines[0])
+	}
+}
+
+func TestInitialScanCompletionReplacesLogoWithTable(t *testing.T) {
+	model := Model{
+		width: 80, height: 10, analyzing: true, initialAnalysis: true,
+		options: Options{Workspace: "/workspace"},
+		rows:    map[string]rowState{}, queued: map[string]bool{}, visible: map[string]bool{},
+	}
+	updated, _ := model.Update(analysisResult{
+		full:     true,
+		document: report.Document{Files: []report.File{testFile("main.go", 1)}},
+	})
+	result := updated.(*Model)
+	view := ansi.Strip(result.View())
+	if result.initialAnalysis || result.analyzing {
+		t.Fatalf("initial scan state was not cleared: initial=%t analyzing=%t", result.initialAnalysis, result.analyzing)
+	}
+	if !strings.Contains(view, "main.go") {
+		t.Fatalf("table did not replace startup logo: %q", view)
+	}
+}
+
+func TestStartupLogoRemovesCursorModeControls(t *testing.T) {
+	logo := "\x1b[?25lART\x1b[?25h"
+	if got := cleanStartupLogo(logo); got != "ART" {
+		t.Fatalf("cleaned logo = %q", got)
+	}
+}
+
 func TestTableTopBarShowsLogoBeforeWorkspace(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80, height: 10, options: Options{Workspace: "/workspace"}}
