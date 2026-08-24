@@ -265,8 +265,9 @@ Then release with:
 ./release.sh X.Y.Z
 ```
 
-The script requires a clean working tree and a version higher than the latest
-local release tag. It tags and pushes the current commit, waits for the release
-workflow, then verifies the GitHub assets and Homebrew formula. The workflow
-builds and smoke-tests the packaged Go, Java, Rust, and TypeScript analyzers
-before it publishes anything.
+Run the script locally from a clean working tree, using a version higher than
+the latest local release tag. It pushes the current branch, creates and pushes
+the release tag, then monitors the tag-triggered GitHub Release workflow. That
+workflow builds and smoke-tests the packaged Go, Java, Rust, and TypeScript
+analyzers before publishing them. Finally, the local script verifies the GitHub
+assets and Homebrew formula.

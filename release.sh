@@ -25,9 +25,10 @@ usage() {
   cat <<'USAGE'
 Usage: ./release.sh X.Y.Z
 
-Tag and push the current clean commit, wait for GitHub Actions to build and
-publish the complete SlopWatch bundle, then verify the GitHub release and the
-Homebrew tap update.
+Run this script locally from a clean working tree. It pushes the current branch,
+creates and pushes the release tag, then monitors the tag-triggered GitHub
+Release workflow. After that workflow publishes the SlopWatch bundle, the
+script verifies the GitHub release and Homebrew tap update.
 USAGE
 }
 
