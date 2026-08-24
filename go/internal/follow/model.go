@@ -29,6 +29,10 @@ type Analyzer interface {
 	Analyze(context.Context, []string, []string) (report.Document, error)
 }
 
+type typeScriptTypesController interface {
+	SetTypeScriptTypes(bool)
+}
+
 type analysisResult struct {
 	document report.Document
 	replace  []string
@@ -94,6 +98,7 @@ type Model struct {
 	weightEnabled       map[string]bool
 	baseDocument        report.Document
 	columnsFromSettings bool
+	pendingFullAnalysis bool
 	sourceView          bool
 	sourcePath          string
 	sourceViewport      viewport.Model

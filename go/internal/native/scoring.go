@@ -131,14 +131,14 @@ func subjectPositions(subject protocolSubject) (protocolPosition, protocolPositi
 }
 
 func scoreRecords(catalog catalogDocument, selected []string, records []protocolRecord, passScore *float64) (report.Document, error) {
-	descriptors := map[string]componentDescriptor{}
-	for _, descriptor := range catalog.Components {
-		descriptors[descriptor.ID] = descriptor
-	}
 	inputs, err := collectScoreInputs(records)
 	if err != nil {
 		return report.Document{}, err
 	}
+	return scoreInputsReport(catalog, selected, inputs, passScore)
+}
+
+func scoreInputsReport(catalog catalogDocument, selected []string, inputs scoreInputs, passScore *float64) (report.Document, error) {
 	observations, coverage, languages := inputs.observations, inputs.coverage, inputs.languages
 	diagnostics, plans := inputs.diagnostics, inputs.plans
 	paths := make([]string, 0, len(coverage))

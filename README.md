@@ -68,6 +68,7 @@ Common analysis options:
 | `-f`, `--follow` | Open the live, scrollable ranking dashboard | `slopmark --follow --limit 100 .` |
 | `--trend-window DURATION` | Set the follow-mode movement and edit-highlight window | `slopwatch --trend-window 30m .` |
 | `--include-tests` | Include test source files | `slopmark --include-tests .` |
+| `--typescript-types` | Enable slower compiler-aware TypeScript type-safety analysis | `slopmark --typescript-types .` |
 | `--limit NUMBER` | Return at most this many ranked files | `slopmark --limit 20 .` |
 | `--pass-score SCORE` | Pass files scoring at or below this value | `slopmark --pass-score 100 .` |
 | `--format json` | Emit the standard JSON report | `slopmark . --format json` |
@@ -97,9 +98,12 @@ descriptions are also available in the dashboard with `h`.
 `SCORE` adds the weighted contributions from the enabled components supported
 for the file's language. It does not add the raw values shown in the report.
 
-Type-safety checks are disabled in the dashboard score by default. They apply
-only to TypeScript. To include them, enable `TYPE SAFETY` in Settings →
-Columns. That column then shows the type-safety contribution for each file.
+Type-safety checks are disabled by default because constructing and validating
+a repository-wide TypeScript compiler graph can dominate startup on mature
+projects. They apply only to TypeScript. Enabling `TYPE SAFETY` in Settings →
+Columns automatically runs compiler-aware analysis and refreshes the dashboard;
+no restart or extra flag is required. For non-interactive reports, or to preload
+the graph before opening the dashboard, use `--typescript-types`.
 
 Deep-nesting checks are also disabled in the dashboard score by default. To
 include them, enable `NESTING` in Settings → Columns. This keeps the separate

@@ -75,3 +75,7 @@ func (component componentDescriptor) supported(language string) bool {
 		return false
 	}
 }
+
+func (component componentDescriptor) requiresTypeScriptTypes() bool {
+	return component.Axis == "typescript_type_safety"
+}

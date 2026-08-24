@@ -150,7 +150,12 @@ export function createTypedContext(
   }
 
   const defaultHost = ts.createCompilerHost(compilerOptions, true);
-  const sourceCache = new Map<string, ts.SourceFile>();
+  const sourceCache = new Map(
+    owner.sources.map((item) => [
+      owner.canonicalKey(item.absolutePath),
+      item.sourceFile,
+    ]),
+  );
   const requested = new Map(
     owner.sources.map((item) => [
       owner.canonicalKey(item.absolutePath),
@@ -165,10 +170,8 @@ export function createTypedContext(
     shouldCreateNewSourceFile,
   ) => {
     const key = owner.canonicalKey(fileName);
-    if (!shouldCreateNewSourceFile) {
-      const cached = sourceCache.get(key);
-      if (cached !== undefined) return cached;
-    }
+    const cached = sourceCache.get(key);
+    if (cached !== undefined) return cached;
     const source = originalGetSourceFile(
       fileName,
       languageVersion,

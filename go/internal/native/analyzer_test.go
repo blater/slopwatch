@@ -12,6 +12,24 @@ import (
 	"testing"
 )
 
+func TestActiveCatalogMakesTypeScriptTypesOptInWithoutMutatingSource(t *testing.T) {
+	catalog := catalogDocument{Components: []componentDescriptor{
+		{ID: "cognitive_complexity", Axis: "structural_core", Defaults: componentDefaults{Enabled: true}},
+		{ID: "explicit_any", Axis: "typescript_type_safety", Defaults: componentDefaults{Enabled: true}},
+	}}
+	fast := activeCatalog(catalog, Options{})
+	if !fast.Components[0].Defaults.Enabled || fast.Components[1].Defaults.Enabled {
+		t.Fatalf("fast catalog components = %#v", fast.Components)
+	}
+	if !catalog.Components[1].Defaults.Enabled {
+		t.Fatal("activeCatalog mutated the loaded catalog")
+	}
+	typed := activeCatalog(catalog, Options{TypeScriptTypes: true})
+	if !typed.Components[1].Defaults.Enabled {
+		t.Fatal("TypeScript type analysis was not enabled explicitly")
+	}
+}
+
 func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {

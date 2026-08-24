@@ -1,6 +1,8 @@
 package follow
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +19,20 @@ import (
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/style"
 )
+
+type settingsAnalyzer struct {
+	typeScriptTypes bool
+	analyzeCalls    int
+}
+
+func (analyzer *settingsAnalyzer) SetTypeScriptTypes(enabled bool) {
+	analyzer.typeScriptTypes = enabled
+}
+
+func (analyzer *settingsAnalyzer) Analyze(context.Context, []string, []string) (report.Document, error) {
+	analyzer.analyzeCalls++
+	return report.Document{}, nil
+}
 
 func testFile(path string, score float64) report.File {
 	return report.File{
@@ -707,6 +723,149 @@ func TestWeightsViewGroupsIndentedMetricsByCategory(t *testing.T) {
 	metricLine := strings.TrimPrefix(lineWith("Cognitive complexity"), "│")
 	if !strings.HasPrefix(categoryLine, "   COG") || !strings.HasPrefix(metricLine, "     [✓]") {
 		t.Fatalf("measure hierarchy is not indented: %q / %q", lineWith("COG"), lineWith("Cognitive complexity"))
+	}
+}
+
+func TestEveryWeightSettingMapsToAnEnabledCatalogComponent(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(filepath.Join(root, "component-catalog.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var catalog struct {
+		Components []struct {
+			ID       string            `json:"component_id"`
+			Axis     string            `json:"axis"`
+			Support  map[string]string `json:"support"`
+			Defaults struct {
+				Enabled bool `json:"enabled"`
+			} `json:"defaults"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(payload, &catalog); err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[string]int, len(catalog.Components))
+	for index, component := range catalog.Components {
+		byID[component.ID] = index
+	}
+	seen := map[string]bool{}
+	for _, setting := range componentWeights {
+		if seen[setting.id] {
+			t.Errorf("duplicate weight setting %s", setting.id)
+		}
+		seen[setting.id] = true
+		index, exists := byID[setting.id]
+		if !exists {
+			t.Errorf("weight setting %s has no catalog component", setting.id)
+			continue
+		}
+		component := catalog.Components[index]
+		if !component.Defaults.Enabled {
+			t.Errorf("weight setting %s exposes a disabled catalog component", setting.id)
+		}
+		if component.Axis != setting.axis {
+			t.Errorf("weight setting %s axis = %s, catalog = %s", setting.id, setting.axis, component.Axis)
+		}
+		supported := false
+		for _, level := range component.Support {
+			if level == "supported" || level == "conformant" || level == "best_effort" {
+				supported = true
+			}
+		}
+		if !supported {
+			t.Errorf("weight setting %s is unsupported by every language", setting.id)
+		}
+	}
+}
+
+func TestTypeSafetySettingsEnableAnalysisAndScheduleRefresh(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		selectSetting func(*Model)
+		apply         func(*Model) tea.Cmd
+	}{
+		{
+			name: "column",
+			selectSetting: func(model *Model) {
+				for index, column := range columnNames() {
+					if column.key == "typesafety" {
+						model.columnCursor = index
+						return
+					}
+				}
+			},
+			apply: func(model *Model) tea.Cmd {
+				_, command := model.handleColumnKey(" ")
+				return command
+			},
+		},
+		{
+			name: "individual weight",
+			selectSetting: func(model *Model) {
+				for index, item := range componentWeights {
+					if item.id == "explicit_any" {
+						model.weightCursor = index
+						return
+					}
+				}
+			},
+			apply: func(model *Model) tea.Cmd {
+				_, command := model.handleWeightsKey(" ")
+				return command
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			analyzer := &settingsAnalyzer{}
+			model := &Model{
+				analyzer: analyzer, visible: defaultColumnVisibility(),
+				weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
+				queued: map[string]bool{},
+			}
+			test.selectSetting(model)
+			command := test.apply(model)
+			if !analyzer.typeScriptTypes {
+				t.Fatal("setting did not enable compiler-aware TypeScript analysis")
+			}
+			if !model.analyzing || command == nil {
+				t.Fatalf("refresh was not scheduled: analyzing=%t command=%v", model.analyzing, command)
+			}
+			if _, ok := command().(analysisResult); !ok || analyzer.analyzeCalls != 1 {
+				t.Fatalf("refresh command did not run analysis: calls=%d", analyzer.analyzeCalls)
+			}
+		})
+	}
+}
+
+func TestTypeSafetyRefreshQueuesBehindAnAnalysisAndDisablingNeedsNoRefresh(t *testing.T) {
+	analyzer := &settingsAnalyzer{}
+	model := &Model{
+		analyzer: analyzer, visible: defaultColumnVisibility(),
+		weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
+		queued: map[string]bool{}, analyzing: true,
+	}
+	for index, column := range columnNames() {
+		if column.key == "typesafety" {
+			model.columnCursor = index
+			break
+		}
+	}
+	_, command := model.handleColumnKey(" ")
+	if command != nil || !model.pendingFullAnalysis || !analyzer.typeScriptTypes {
+		t.Fatalf("enable during analysis = command %v, pending %t, enabled %t", command, model.pendingFullAnalysis, analyzer.typeScriptTypes)
+	}
+	_, command = model.Update(analysisResult{document: report.Document{}, full: true})
+	if command == nil || model.pendingFullAnalysis || !model.analyzing {
+		t.Fatalf("queued refresh = command %v, pending %t, analyzing %t", command, model.pendingFullAnalysis, model.analyzing)
+	}
+	model.analyzing = false
+	_, command = model.handleColumnKey(" ")
+	if command != nil || analyzer.typeScriptTypes || model.visible["typesafety"] {
+		t.Fatalf("disable = command %v, analyzer enabled %t, visible %t", command, analyzer.typeScriptTypes, model.visible["typesafety"])
 	}
 }
 

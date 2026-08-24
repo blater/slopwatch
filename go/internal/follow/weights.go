@@ -33,7 +33,6 @@ var componentWeights = []struct {
 	{"ambiguous_boolean_expression", "Ambiguous boolean", "Type safety", "", "typescript_type_safety", 4},
 	{"explicit_any", "Explicit any", "Type safety", "", "typescript_type_safety", 3},
 	{"non_exhaustive_union", "Non-exhaustive union", "Type safety", "", "typescript_type_safety", 8},
-	{"type_complexity", "Type complexity", "Type safety", "", "typescript_type_safety", 7},
 	{"unsafe_type_assertion", "Unsafe assertion", "Type safety", "", "typescript_type_safety", 5},
 	{"unsafe_type_boundary", "Unsafe boundary", "Type safety", "", "typescript_type_safety", 10},
 	{"unsafe_type_propagation", "Unsafe propagation", "Type safety", "", "typescript_type_safety", 4},
@@ -153,6 +152,50 @@ func (model *Model) setColumnWeightEnabled(columnKey string, enabled bool) {
 	}
 }
 
+func (model Model) typeScriptTypesWanted() bool {
+	if model.visible["typesafety"] {
+		return true
+	}
+	for _, item := range componentWeights {
+		if item.axis == "typescript_type_safety" && model.isWeightEnabled(item.id) {
+			return true
+		}
+	}
+	return false
+}
+
+func (model Model) hasTypeScriptTypeData() bool {
+	found := false
+	for _, file := range model.baseDocument.Files {
+		if file.Language != "typescript" {
+			continue
+		}
+		found = true
+		if _, exists := file.Components["explicit_any"]; !exists {
+			return false
+		}
+	}
+	return found
+}
+
+func (model *Model) syncTypeScriptTypes() tea.Cmd {
+	controller, supported := model.analyzer.(typeScriptTypesController)
+	if !supported {
+		return nil
+	}
+	enabled := model.typeScriptTypesWanted()
+	controller.SetTypeScriptTypes(enabled)
+	if !enabled || model.hasTypeScriptTypeData() {
+		return nil
+	}
+	if model.analyzing {
+		model.pendingFullAnalysis = true
+		return nil
+	}
+	model.analyzing = true
+	return model.analyze(nil, true)
+}
+
 func roundWeight(value float64) float64 {
 	return math.Round(value*1e12) / 1e12
 }
@@ -186,6 +229,7 @@ func (model *Model) handleWeightsKey(name string) (tea.Model, tea.Cmd) {
 		case "y", "Y":
 			model.resetAllWeights()
 			model.weightsResetConfirm = false
+			return model, model.syncTypeScriptTypes()
 		case "n", "N", "esc", "escape":
 			model.weightsResetConfirm = false
 		}
@@ -206,8 +250,10 @@ func (model *Model) handleWeightsKey(name string) (tea.Model, tea.Cmd) {
 		model.adjustWeight(componentWeightStep)
 	case "r":
 		model.resetWeight()
+		return model, model.syncTypeScriptTypes()
 	case " ":
 		model.toggleWeight()
+		return model, model.syncTypeScriptTypes()
 	case "c":
 		model.weightsResetConfirm = true
 	case "i", "enter":

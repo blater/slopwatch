@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/blater/slopwatch/internal/report"
@@ -16,11 +17,12 @@ import (
 var ErrUnsupported = errors.New("native analyzer path is not yet supported")
 
 type Options struct {
-	Targets      []string
-	Languages    []string
-	IncludeTests bool
-	Timeout      float64
-	PassScore    *float64
+	Targets         []string
+	Languages       []string
+	IncludeTests    bool
+	TypeScriptTypes bool
+	Timeout         float64
+	PassScore       *float64
 }
 
 type Analyzer struct {
@@ -28,6 +30,15 @@ type Analyzer struct {
 	root      string
 	catalog   catalogDocument
 	options   Options
+	optionsMu sync.RWMutex
+}
+
+// SetTypeScriptTypes changes whether subsequent analyses build the optional
+// compiler-aware TypeScript graph. In-flight analyses retain their snapshot.
+func (analyzer *Analyzer) SetTypeScriptTypes(enabled bool) {
+	analyzer.optionsMu.Lock()
+	analyzer.options.TypeScriptTypes = enabled
+	analyzer.optionsMu.Unlock()
 }
 
 func New(workspace, installationRoot string, options Options) (*Analyzer, error) {
@@ -57,21 +68,39 @@ func selectedLanguages(requested []string, discovered map[string][]string) ([]st
 	return selected, nil
 }
 
-func (analyzer *Analyzer) analyzeLanguage(parent context.Context, executable, language string, files []string, options Options) ([]protocolRecord, error) {
+func activeCatalog(catalog catalogDocument, options Options) catalogDocument {
+	active := catalog
+	active.Components = append([]componentDescriptor(nil), catalog.Components...)
+	if options.TypeScriptTypes {
+		return active
+	}
+	for index := range active.Components {
+		if active.Components[index].requiresTypeScriptTypes() {
+			active.Components[index].Defaults.Enabled = false
+		}
+	}
+	return active
+}
+
+func (analyzer *Analyzer) analyzeLanguage(parent context.Context, catalog catalogDocument, executable, language string, files []string, options Options) (scoreInputs, error) {
 	components := []requestedComponent{}
-	for _, descriptor := range analyzer.catalog.Components {
+	for _, descriptor := range catalog.Components {
 		if descriptor.Defaults.Enabled && descriptor.supported(language) {
 			components = append(components, requestedComponent{descriptor.ID, descriptor.Version})
 		}
 	}
 	if len(components) == 0 {
-		return nil, nil
+		return newScoreInputs(), nil
 	}
 	invocation, err := invocationID()
 	if err != nil {
-		return nil, err
+		return scoreInputs{}, err
 	}
-	requestOptions := map[string]any{"include_tests": options.IncludeTests}
+	typeScriptMode := "off"
+	if options.TypeScriptTypes {
+		typeScriptMode = "auto"
+	}
+	requestOptions := map[string]any{"include_tests": options.IncludeTests, "typescript_types": typeScriptMode}
 	request := analyzerRequest{"request", 1, invocation, analyzer.workspace, []protocolUnit{{language + "-unit", language, files, map[string]any{}}}, components, requestOptions, map[string]int{"max_seconds": int(options.Timeout)}}
 	timeout := time.Duration(options.Timeout * float64(time.Second))
 	if timeout <= 0 {
@@ -81,13 +110,15 @@ func (analyzer *Analyzer) analyzeLanguage(parent context.Context, executable, la
 	defer cancel()
 	records, runErr := runAnalyzer(ctx, executable, request, options.Timeout)
 	if runErr != nil {
-		return nil, fmt.Errorf("%s analyzer failed: %w", language, runErr)
+		return scoreInputs{}, fmt.Errorf("%s analyzer failed: %w", language, runErr)
 	}
 	return records, nil
 }
 
 func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, languages []string) (report.Document, error) {
+	analyzer.optionsMu.RLock()
 	options := analyzer.options
+	analyzer.optionsMu.RUnlock()
 	if targets != nil {
 		options.Targets = targets
 	}
@@ -102,19 +133,39 @@ func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, lang
 	if err != nil {
 		return report.Document{}, err
 	}
-	allRecords := []protocolRecord{}
-	for _, language := range selected {
-		executable := filepath.Join(analyzer.root, "analyzers", "structural", "slopslap-structural")
-		if language == "typescript" {
-			executable = filepath.Join(analyzer.root, "build", "typescript", "slopslap-typescript")
-		}
-		records, runErr := analyzer.analyzeLanguage(parent, executable, language, discovered[language], options)
-		if runErr != nil {
-			return report.Document{}, runErr
-		}
-		allRecords = append(allRecords, records...)
+	catalog := activeCatalog(analyzer.catalog, options)
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	inputsByLanguage := make([]scoreInputs, len(selected))
+	errorsByLanguage := make([]error, len(selected))
+	var workers sync.WaitGroup
+	workers.Add(len(selected))
+	for index, language := range selected {
+		index, language := index, language
+		go func() {
+			defer workers.Done()
+			executable := filepath.Join(analyzer.root, "analyzers", "structural", "slopslap-structural")
+			if language == "typescript" {
+				executable = filepath.Join(analyzer.root, "build", "typescript", "slopslap-typescript")
+			}
+			inputs, runErr := analyzer.analyzeLanguage(ctx, catalog, executable, language, discovered[language], options)
+			if runErr != nil {
+				errorsByLanguage[index] = runErr
+				cancel()
+				return
+			}
+			inputsByLanguage[index] = inputs
+		}()
 	}
-	return scoreRecords(analyzer.catalog, selected, allRecords, options.PassScore)
+	workers.Wait()
+	inputs := newScoreInputs()
+	for index := range selected {
+		if errorsByLanguage[index] != nil {
+			return report.Document{}, errorsByLanguage[index]
+		}
+		inputs.merge(inputsByLanguage[index])
+	}
+	return scoreInputsReport(catalog, selected, inputs, options.PassScore)
 }
 
 var ignored = map[string]bool{".git": true, ".gradle": true, ".idea": true, ".mypy_cache": true, ".pytest_cache": true, ".ruff_cache": true, "build": true, "coverage": true, "dist": true, "node_modules": true, "out": true, "target": true, "vendor": true}

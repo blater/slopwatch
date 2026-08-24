@@ -60,6 +60,12 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.merge(message)
 			model.clampPathOffset()
 		}
+		if model.pendingFullAnalysis {
+			model.pendingFullAnalysis = false
+			model.queued = map[string]bool{}
+			model.analyzing = true
+			return model, model.analyze(nil, true)
+		}
 		if len(model.queued) > 0 {
 			paths := model.takeQueue()
 			model.analyzing = true
@@ -462,6 +468,9 @@ func (model *Model) handleColumnKey(name string) (tea.Model, tea.Cmd) {
 			model.restoreSelection()
 		}
 		model.clampPathOffset()
+		if key == "typesafety" {
+			return model, model.syncTypeScriptTypes()
+		}
 	}
 	return model, nil
 }

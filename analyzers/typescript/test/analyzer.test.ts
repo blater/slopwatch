@@ -346,8 +346,8 @@ test("typed kernels cover all initial local sink components with deterministic d
   ]);
   assert.equal(
     recordsOf(records, "execution_plan")[0]?.parsed_source_count,
-    2,
-    "the exact source is parsed once per declared parser/index mode",
+    1,
+    "the compiler program reuses the structural syntax tree",
   );
 });
 

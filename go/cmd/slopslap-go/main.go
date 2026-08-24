@@ -31,17 +31,18 @@ func (list *stringList) Set(value string) error {
 }
 
 type options struct {
-	format       string
-	compact      bool
-	follow       bool
-	trendWindow  time.Duration
-	includeTests bool
-	limit        int
-	languages    string
-	backends     stringList
-	config       string
-	timeout      float64
-	passScore    string
+	format          string
+	compact         bool
+	follow          bool
+	trendWindow     time.Duration
+	includeTests    bool
+	typescriptTypes bool
+	limit           int
+	languages       string
+	backends        stringList
+	config          string
+	timeout         float64
+	passScore       string
 }
 
 var errThreshold = errors.New("pass score exceeded")
@@ -57,6 +58,7 @@ func parser() (*flag.FlagSet, *options) {
 	flags.BoolVar(&options.follow, "follow", false, "open the live ranking dashboard")
 	flags.DurationVar(&options.trendWindow, "trend-window", 10*time.Minute, "movement indicator and edit-highlight window")
 	flags.BoolVar(&options.includeTests, "include-tests", false, "include test sources")
+	flags.BoolVar(&options.typescriptTypes, "typescript-types", false, "enable compiler-aware TypeScript type-safety analysis")
 	flags.IntVar(&options.limit, "limit", 0, "maximum results; 0 returns all")
 	flags.StringVar(&options.languages, "languages", "", "comma-separated languages")
 	flags.Var(&options.backends, "backend", "language=backend override (repeatable)")
@@ -169,7 +171,7 @@ func parsePassScore(raw string) (*float64, error) {
 func runFollow(workspace, installationRoot string, targets, languages []string, parsed *options, passScore *float64) error {
 	nativeAnalyzer, err := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
-		Timeout: parsed.timeout, PassScore: passScore,
+		TypeScriptTypes: parsed.typescriptTypes, Timeout: parsed.timeout, PassScore: passScore,
 	})
 	if err != nil {
 		return err
@@ -195,7 +197,8 @@ func runReport(workspace, installationRoot string, targets, languages []string, 
 	var err error
 	nativeAnalyzer, nativeErr := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages,
-		IncludeTests: parsed.includeTests, Timeout: parsed.timeout, PassScore: passScore,
+		IncludeTests: parsed.includeTests, TypeScriptTypes: parsed.typescriptTypes,
+		Timeout: parsed.timeout, PassScore: passScore,
 	})
 	if nativeErr != nil {
 		return nativeErr

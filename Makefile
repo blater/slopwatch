@@ -17,6 +17,7 @@ TS_LAUNCHER := $(TYPESCRIPT_RUNTIME_DIR)/slopslap-typescript
 
 GO_ENV := CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off
 GO_FLAGS := -trimpath -buildvcs=false
+GO_TEST_FLAGS := -buildvcs=false
 JAR_DATE := 1980-01-01T00:00:02Z
 
 STRUCTURAL_GO_SOURCES := $(wildcard $(STRUCTURAL_DIR)/cmd/slopslap-structural/*.go) \
@@ -93,14 +94,14 @@ $(TS_LAUNCHER): $(TS_MARKER) $(TYPESCRIPT_DIR)/slopslap-typescript.sh $(TYPESCRI
 build-typescript: $(TS_LAUNCHER)
 
 test-structural: build-structural build-rust build-java
-	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(STRUCTURAL_DIR) $(GO_FLAGS) ./...
+	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(STRUCTURAL_DIR) $(GO_TEST_FLAGS) ./...
 	@cargo test --locked --manifest-path $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml
 
 test-typescript: build-typescript
 	@npm --prefix $(TYPESCRIPT_WORK_DIR) test
 
 test-go: build
-	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_FLAGS) ./...
+	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./...
 
 test: test-structural test-typescript test-go
 

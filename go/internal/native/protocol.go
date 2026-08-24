@@ -39,26 +39,30 @@ type analyzerRequest struct {
 }
 
 type protocolRecord struct {
-	Type       string          `json:"type"`
-	Version    int             `json:"protocol_version"`
-	Invocation string          `json:"invocation_id"`
-	UnitID     string          `json:"unit_id"`
-	Component  string          `json:"component_id"`
-	Definition string          `json:"definition_version"`
-	Path       *string         `json:"path"`
-	Language   string          `json:"language"`
-	Scope      string          `json:"scope"`
-	Value      any             `json:"value"`
-	Subject    protocolSubject `json:"subject"`
-	Attributes map[string]any  `json:"attributes"`
-	Provenance map[string]any  `json:"provenance"`
-	State      string          `json:"state"`
-	Reason     string          `json:"reason"`
-	Severity   string          `json:"severity"`
-	Code       string          `json:"code"`
-	Message    string          `json:"message"`
-	Status     string          `json:"status"`
-	Raw        map[string]any  `json:"-"`
+	Type                  string          `json:"type"`
+	Version               int             `json:"protocol_version"`
+	Invocation            string          `json:"invocation_id"`
+	UnitID                string          `json:"unit_id"`
+	Component             string          `json:"component_id"`
+	Definition            string          `json:"definition_version"`
+	Path                  *string         `json:"path"`
+	Language              string          `json:"language"`
+	Scope                 string          `json:"scope"`
+	Value                 any             `json:"value"`
+	Subject               protocolSubject `json:"subject"`
+	Attributes            map[string]any  `json:"attributes"`
+	Provenance            map[string]any  `json:"provenance"`
+	State                 string          `json:"state"`
+	Reason                string          `json:"reason"`
+	Severity              string          `json:"severity"`
+	Code                  string          `json:"code"`
+	Message               string          `json:"message"`
+	Status                string          `json:"status"`
+	ParserModes           []string        `json:"parser_modes"`
+	Kernels               []string        `json:"kernels"`
+	DiscoveredSourceCount int             `json:"discovered_source_count"`
+	ParsedSourceCount     int             `json:"parsed_source_count"`
+	Raw                   map[string]any  `json:"-"`
 }
 
 type protocolSubject struct {
@@ -90,15 +94,15 @@ func invocationID() (string, error) {
 	return fmt.Sprintf("%s-%s-%s-%s-%s", text[:8], text[8:12], text[12:16], text[16:20], text[20:]), nil
 }
 
-func runAnalyzer(ctx context.Context, executable string, request analyzerRequest, timeoutSeconds float64) ([]protocolRecord, error) {
+func runAnalyzer(ctx context.Context, executable string, request analyzerRequest, timeoutSeconds float64) (scoreInputs, error) {
 	payload, err := json.Marshal(request)
 	if err != nil {
-		return nil, err
+		return scoreInputs{}, err
 	}
 	payload = append(payload, '\n')
 	workdir, err := os.MkdirTemp("", "slopslap-analyzer-")
 	if err != nil {
-		return nil, err
+		return scoreInputs{}, err
 	}
 	defer os.RemoveAll(workdir)
 	command := exec.CommandContext(ctx, executable)
@@ -106,80 +110,100 @@ func runAnalyzer(ctx context.Context, executable string, request analyzerRequest
 	command.Stdin = bytes.NewReader(payload)
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return scoreInputs{}, err
 	}
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	path := os.Getenv("PATH")
 	command.Env = []string{"PATH=" + path, "LANG=C.UTF-8", "SLOPSLAP_WORK_DIR=" + workdir, "SLOPSLAP_CACHE_DIR=" + filepath.Join(workdir, "cache"), "GOROOT=" + runtime.GOROOT()}
 	if err := os.Mkdir(filepath.Join(workdir, "cache"), 0o700); err != nil {
-		return nil, err
+		return scoreInputs{}, err
 	}
 	if err := command.Start(); err != nil {
-		return nil, err
+		return scoreInputs{}, err
 	}
-	records, decodeErr := decodeRecords(stdout, request)
+	inputs, decodeErr := decodeScoreInputs(stdout, request)
 	if decodeErr != nil {
 		_ = command.Process.Kill()
 	}
 	waitErr := command.Wait()
 	if ctx.Err() != nil {
-		return nil, fmt.Errorf("analyzer timed out after %.6g seconds", timeoutSeconds)
+		return scoreInputs{}, fmt.Errorf("analyzer timed out after %.6g seconds", timeoutSeconds)
 	}
 	if waitErr != nil && strings.TrimSpace(stderr.String()) != "" {
-		return nil, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
+		return scoreInputs{}, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
 	}
 	if decodeErr != nil {
-		return nil, decodeErr
+		return scoreInputs{}, decodeErr
 	}
 	if waitErr != nil {
-		return nil, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
+		return scoreInputs{}, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
 	}
-	return records, nil
+	return inputs, nil
 }
 
-func decodeRecords(reader io.Reader, request analyzerRequest) ([]protocolRecord, error) {
+func decodeProtocol(reader io.Reader, request analyzerRequest, consume func(protocolRecord) error) error {
 	stream := json.NewDecoder(reader)
 	stream.UseNumber()
-	var records []protocolRecord
 	terminal := false
 	for {
-		var encoded json.RawMessage
-		if err := stream.Decode(&encoded); err != nil {
+		var record protocolRecord
+		if err := stream.Decode(&record); err != nil {
 			if err == io.EOF {
 				break
 			}
-			return nil, fmt.Errorf("invalid analyzer protocol: %w", err)
+			return fmt.Errorf("invalid analyzer protocol: %w", err)
 		}
 		if terminal {
-			return nil, fmt.Errorf("protocol record after terminal status")
+			return fmt.Errorf("protocol record after terminal status")
 		}
-		decoder := json.NewDecoder(bytes.NewReader(encoded))
-		decoder.UseNumber()
-		var record protocolRecord
-		if err := decoder.Decode(&record); err != nil {
-			return nil, err
-		}
-		if record.Type == "diagnostic" || record.Type == "execution_plan" {
-			decoder = json.NewDecoder(bytes.NewReader(encoded))
-			decoder.UseNumber()
-			if err := decoder.Decode(&record.Raw); err != nil {
-				return nil, err
+		switch record.Type {
+		case "diagnostic":
+			record.Raw = map[string]any{
+				"type": record.Type, "protocol_version": record.Version,
+				"invocation_id": record.Invocation, "unit_id": record.UnitID,
+				"path": record.Path, "severity": record.Severity,
+				"code": record.Code, "message": record.Message,
+			}
+		case "execution_plan":
+			record.Raw = map[string]any{
+				"type": record.Type, "protocol_version": record.Version,
+				"invocation_id": record.Invocation, "unit_id": record.UnitID,
+				"parser_modes": record.ParserModes, "kernels": record.Kernels,
+				"discovered_source_count": record.DiscoveredSourceCount,
+				"parsed_source_count":     record.ParsedSourceCount,
 			}
 		}
 		if record.Version != 1 || record.Invocation != request.Invocation {
-			return nil, fmt.Errorf("mismatched analyzer protocol record")
+			return fmt.Errorf("mismatched analyzer protocol record")
 		}
 		if record.Type == "terminal" {
 			terminal = true
 			if record.Status != "success" {
-				return nil, fmt.Errorf("analyzer terminal status %s: %s", record.Status, record.Message)
+				return fmt.Errorf("analyzer terminal status %s: %s", record.Status, record.Message)
 			}
 		}
-		records = append(records, record)
+		if err := consume(record); err != nil {
+			return err
+		}
 	}
 	if !terminal {
-		return nil, fmt.Errorf("analyzer protocol ended without terminal status")
+		return fmt.Errorf("analyzer protocol ended without terminal status")
 	}
-	return records, nil
+	return nil
+}
+
+func decodeRecords(reader io.Reader, request analyzerRequest) ([]protocolRecord, error) {
+	records := make([]protocolRecord, 0)
+	err := decodeProtocol(reader, request, func(record protocolRecord) error {
+		records = append(records, record)
+		return nil
+	})
+	return records, err
+}
+
+func decodeScoreInputs(reader io.Reader, request analyzerRequest) (scoreInputs, error) {
+	inputs := newScoreInputs()
+	err := decodeProtocol(reader, request, inputs.add)
+	return inputs, err
 }

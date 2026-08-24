@@ -8,6 +8,7 @@ import (
 	"go/types"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -156,6 +157,17 @@ func (resolver *moduleResolver) sourceImportPath(item source) string {
 }
 
 func typeCheck(root string, sources []source, fset *token.FileSet) {
+	// A -trimpath distribution deliberately carries no build-machine GOROOT.
+	// importer.ForCompiler cannot resolve even the standard library in that
+	// environment, so walking and partially checking every package only to use
+	// the AST fallback wastes most of startup on large repositories.
+	goRoot := runtime.GOROOT()
+	if goRoot == "" {
+		return
+	}
+	if metadata, err := os.Stat(filepath.Join(goRoot, "src")); err != nil || !metadata.IsDir() {
+		return
+	}
 	byKey := make(map[string]*typeGroup)
 	modules := newModuleResolver(root)
 	for index, item := range sources {
