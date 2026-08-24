@@ -62,7 +62,10 @@ func (analyzer *Analyzer) analyzeWithPersistentCacheOnce(parent context.Context,
 	if options.TypeScriptTypes {
 		typeScriptMode = unitplan.TypeScriptTyped
 	}
-	plan, err := unitplan.PlanWorkspace(analyzer.workspace, unitplan.Options{TypeScriptMode: typeScriptMode})
+	plan, err := unitplan.PlanWorkspace(analyzer.workspace, unitplan.Options{
+		TypeScriptMode: typeScriptMode,
+		Targets:        options.Targets,
+	})
 	if err != nil {
 		if parent.Err() != nil {
 			return report.Document{}, true, parent.Err()
@@ -167,6 +170,12 @@ func (analyzer *Analyzer) analyzeWithPersistentCacheOnce(parent context.Context,
 	if err != nil {
 		return report.Document{}, true, err
 	}
+	if err := validateDocumentInventory(document, discovered, selected); err != nil {
+		// A planner or stale cache may be conservative, but it may never return a
+		// partial report. Fall back to the ordinary discovery-driven analyzer.
+		return report.Document{}, false, nil
+	}
+	document.Summary["discovered_source_count"] = len(wanted)
 
 	// Cache failures never prevent a verified report from being returned.
 	newRefs, persistErr := persistMissingUnits(parent, store, catalog, prepared.units, unitInputs, unitRefs)

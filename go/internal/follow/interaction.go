@@ -326,11 +326,9 @@ func (model *Model) moveSortCursor(delta int) {
 
 func (model Model) less(left, right report.File) bool {
 	if model.sortKey == "filename" {
-		leftName := strings.ToLower(filepath.Base(left.Path))
-		rightName := strings.ToLower(filepath.Base(right.Path))
-		comparison := strings.Compare(leftName, rightName)
+		comparison := strings.Compare(strings.ToLower(left.Path), strings.ToLower(right.Path))
 		if comparison == 0 {
-			comparison = strings.Compare(strings.ToLower(left.Path), strings.ToLower(right.Path))
+			comparison = strings.Compare(left.Path, right.Path)
 		}
 		if model.sortReverse {
 			return comparison > 0

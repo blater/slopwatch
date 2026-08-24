@@ -52,6 +52,7 @@ func (analyzer *Analyzer) viewKey(options Options) (analysiscache.ViewKey, error
 	return analysiscache.WorkspaceViewKey(analyzer.workspace, analysiscache.ViewOptions{
 		Targets: options.Targets, Languages: options.Languages,
 		IncludeTests: options.IncludeTests, TypeScriptTypes: options.TypeScriptTypes,
+		FollowSymlinks: options.FollowSymlinks,
 	})
 }
 
@@ -65,7 +66,7 @@ func (analyzer *Analyzer) CachedProjection() (report.Document, bool) {
 	analyzer.optionsMu.RLock()
 	options := analyzer.options
 	analyzer.optionsMu.RUnlock()
-	if !options.ReadCache {
+	if !options.ReadCache || options.FollowSymlinks {
 		return report.Document{}, false
 	}
 	view, err := analyzer.viewKey(options)

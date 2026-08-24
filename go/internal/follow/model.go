@@ -16,13 +16,14 @@ import (
 )
 
 type Options struct {
-	Workspace    string
-	Targets      []string
-	Languages    []string
-	IncludeTests bool
-	Limit        int
-	TrendWindow  time.Duration
-	Compact      bool
+	Workspace      string
+	Targets        []string
+	Languages      []string
+	IncludeTests   bool
+	FollowSymlinks bool
+	Limit          int
+	TrendWindow    time.Duration
+	Compact        bool
 }
 
 type Analyzer interface {
@@ -146,7 +147,7 @@ type Model struct {
 
 func New(document report.Document, analyzer Analyzer, options Options) (*Model, error) {
 	watcher, err := newSourceWatcher(
-		options.Workspace, options.Targets, options.IncludeTests, options.Languages,
+		options.Workspace, options.Targets, options.IncludeTests, options.FollowSymlinks, options.Languages,
 	)
 	if err != nil {
 		return nil, err

@@ -66,7 +66,7 @@ export function createTypedContext(
       for (const source of owner.sources) {
         const config = nearestConfig(path.dirname(source.absolutePath));
         if (config !== undefined) {
-          const canonical = fs.realpathSync(config);
+          const canonical = path.resolve(config);
           const relative = path.relative(owner.workspace, canonical);
           if (
             relative !== ".." &&

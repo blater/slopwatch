@@ -13,7 +13,6 @@ import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,10 +27,8 @@ final class JavaParser {
         Path workspace = Path.of(request.workspace()).toRealPath();
         List<Path> sources = new ArrayList<>();
         Set<String> requestedPaths = new HashSet<>(request.paths().size());
-        Set<Path> validatedDirectories = new HashSet<>();
-        validatedDirectories.add(workspace);
         for (String requested : request.paths()) {
-            sources.add(canonicalSource(workspace, requested, validatedDirectories));
+            sources.add(sourcePath(workspace, requested));
             requestedPaths.add(requested.replace('\\', '/'));
         }
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
@@ -74,9 +71,7 @@ final class JavaParser {
         }
     }
 
-    private static Path canonicalSource(
-            Path workspace, String requested, Set<Path> validatedDirectories
-    ) throws IOException {
+    private static Path sourcePath(Path workspace, String requested) throws IOException {
         if (requested.isEmpty() || requested.indexOf('\\') >= 0 || !requested.endsWith(".java")) {
             throw new IllegalArgumentException("non-canonical Java source path: " + requested);
         }
@@ -88,16 +83,9 @@ final class JavaParser {
                 throw new IllegalArgumentException("non-canonical Java source path: " + requested);
             }
             current = current.resolve(part);
-            boolean source = index == parts.length - 1;
-            if (!source && validatedDirectories.add(current)
-                    && (Files.isSymbolicLink(current)
-                    || !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS))) {
-                throw new IllegalArgumentException("symlinked Java source is not allowed: " + requested);
-            }
         }
-        if (Files.isSymbolicLink(current)
-                || !Files.isRegularFile(current, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IllegalArgumentException("Java source escapes workspace: " + requested);
+        if (!Files.isRegularFile(current)) {
+            throw new IllegalArgumentException("Java source is not a regular file: " + requested);
         }
         return current;
     }

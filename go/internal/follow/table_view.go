@@ -2,6 +2,7 @@ package follow
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -21,9 +22,9 @@ func ConfigureTerminalColours() {
 
 func (model Model) tableView() string {
 	lines := make([]string, 0, model.height)
-	top := model.options.Workspace
+	right := model.options.Workspace
 	if model.repositoryIdentity != "" {
-		top = model.repositoryIdentity + "  " + top
+		right = model.repositoryIdentity + "  " + right
 	}
 	status := ""
 	if !model.analyzing && model.status != "" {
@@ -36,19 +37,29 @@ func (model Model) tableView() string {
 		}
 		status += freshness
 	}
-	if status != "" {
-		top += "  " + status
-	}
 	logo := lipgloss.NewStyle().Foreground(style.AccentPositive).Bold(true).Render("-=[slopwatch]=-")
-	path := lipgloss.NewStyle().Foreground(style.TextPrimary).Render("  " + top)
-	topText := logo + path
+	left := logo
 	if model.analyzing {
-		indicator := model.scanningIndicator(freshness)
-		leftWidth := max(0, model.width-lipgloss.Width(indicator))
-		left := truncateANSI(topText, leftWidth)
-		topText = padANSI(left, leftWidth) + indicator
+		status = model.scanningIndicator(freshness)
+	} else if status != "" {
+		status = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(status)
+	}
+	if status != "" {
+		left += "  " + status
+	}
+	usableWidth := max(0, model.width-1)
+	left = truncateANSI(left, usableWidth)
+	rightWidth := max(0, usableWidth-lipgloss.Width(left)-1)
+	if rightWidth > 0 {
+		right = truncateLeft(right, rightWidth)
 	} else {
-		topText = truncateANSI(topText, model.width)
+		right = ""
+	}
+	right = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(right)
+	gap := max(0, usableWidth-lipgloss.Width(left)-lipgloss.Width(right))
+	topText := left + strings.Repeat(" ", gap) + right
+	if model.width > 0 {
+		topText += " "
 	}
 	lines = append(lines, lipgloss.NewStyle().Background(style.SurfaceTop).Render(padANSI(topText, model.width)))
 	lines = append(lines, model.header())
@@ -125,7 +136,7 @@ func (model Model) scanningIndicator(message string) string {
 	if message == "" {
 		message = "SCANNING"
 	}
-	return lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceScreen).Render(frame + message + frame)
+	return lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceTop).Render(frame + message + frame)
 }
 
 func (model Model) selectedFile() (report.File, bool) {
@@ -260,13 +271,33 @@ func (model Model) header() string {
 		heading += strings.Repeat(" ", max(0, target-lipgloss.Width(heading))) + title
 		nominalPosition += column.width
 	}
-	heading = truncate(heading, model.width)
-	if model.sortKey == "filename" && lipgloss.Width(heading) < model.width {
+	if model.sortKey == "filename" {
 		heading += " " + model.sortIndicator()
-	} else if !model.sortColumnVisible() && lipgloss.Width(heading) < model.width {
+	} else if !model.sortColumnVisible() {
 		heading += " " + model.sortIndicator() + model.sortTitle()
 	}
+	fileCount := "FILES: " + formatIntegerWithCommas(len(model.document.Files))
+	usableWidth := max(0, model.width-1)
+	if lipgloss.Width(fileCount) > usableWidth {
+		heading = ""
+		fileCount = truncateLeft(fileCount, usableWidth)
+	} else {
+		heading = truncateANSI(heading, max(0, usableWidth-lipgloss.Width(fileCount)-1))
+	}
+	gap := max(0, usableWidth-lipgloss.Width(heading)-lipgloss.Width(fileCount))
+	heading += strings.Repeat(" ", gap) + fileCount
+	if model.width > 0 {
+		heading += " "
+	}
 	return lipgloss.NewStyle().Foreground(style.TextHeader).Background(style.SurfaceHeader).Bold(true).Render(padANSI(heading, model.width))
+}
+
+func formatIntegerWithCommas(value int) string {
+	digits := strconv.Itoa(value)
+	for index := len(digits) - 3; index > 0; index -= 3 {
+		digits = digits[:index] + "," + digits[index:]
+	}
+	return digits
 }
 
 func (model Model) sortColumnVisible() bool {

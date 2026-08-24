@@ -141,6 +141,7 @@ type Config struct {
 	DependencyPaths    []string
 	ConfigurationPaths []string
 	Classifier         Classifier
+	FollowSymlinks     bool
 
 	// IgnoreDirectory is called during recursive registration. Returning true
 	// prevents descending into that directory. It is not used for source
@@ -220,23 +221,24 @@ func (s *dirtySet) pending() bool {
 // Monitor recursively watches configured scopes and maintains durable dirty
 // state. Construct one with New, call Start, then consume Wake and Drain.
 type Monitor struct {
-	root       string
-	scopes     []Scope
-	inputs     []Input
-	classifier Classifier
-	ignoreDir  func(string, string) bool
-	debounce   time.Duration
-	reconcile  ReconcileHook
-	backend    Backend
-	dirty      dirtySet
-	wake       chan struct{}
-	done       chan struct{}
-	closeOnce  sync.Once
-	startOnce  sync.Once
-	started    chan struct{}
-	startErr   error
-	watchedMu  sync.RWMutex
-	watched    map[string]struct{}
+	root           string
+	scopes         []Scope
+	inputs         []Input
+	classifier     Classifier
+	ignoreDir      func(string, string) bool
+	followSymlinks bool
+	debounce       time.Duration
+	reconcile      ReconcileHook
+	backend        Backend
+	dirty          dirtySet
+	wake           chan struct{}
+	done           chan struct{}
+	closeOnce      sync.Once
+	startOnce      sync.Once
+	started        chan struct{}
+	startErr       error
+	watchedMu      sync.RWMutex
+	watched        map[string]struct{}
 }
 
 // New creates a monitor. It does not touch the filesystem or start goroutines.
@@ -270,7 +272,8 @@ func New(cfg Config) (*Monitor, error) {
 	}
 	m := &Monitor{
 		root: root, classifier: cfg.Classifier, ignoreDir: cfg.IgnoreDirectory,
-		debounce: cfg.Debounce, reconcile: cfg.Reconcile, backend: backend,
+		followSymlinks: cfg.FollowSymlinks,
+		debounce:       cfg.Debounce, reconcile: cfg.Reconcile, backend: backend,
 		wake: make(chan struct{}, 1), done: make(chan struct{}), started: make(chan struct{}),
 		watched: make(map[string]struct{}),
 	}
@@ -363,10 +366,11 @@ func (m *Monitor) registerAll() error {
 func (m *Monitor) registerTarget(path string, recursive bool) error {
 	info, err := os.Stat(path)
 	if err != nil {
-		// A missing explicit file is still watched through its parent so a later
-		// create is observed; missing directories are likewise watched at parent.
+		// A missing explicit path is watched through its nearest existing
+		// ancestor. Its immediate parent may itself be an optional directory
+		// such as .cargo, .mvn, or gradle/wrapper.
 		if errors.Is(err, os.ErrNotExist) {
-			return m.watch(filepath.Dir(path))
+			return m.watchNearestExistingAncestor(path)
 		}
 		return err
 	}
@@ -377,6 +381,23 @@ func (m *Monitor) registerTarget(path string, recursive bool) error {
 		return m.addTree(path)
 	}
 	return m.watch(path)
+}
+
+func (m *Monitor) watchNearestExistingAncestor(path string) error {
+	for candidate := filepath.Dir(path); ; candidate = filepath.Dir(candidate) {
+		info, err := os.Stat(candidate)
+		if err == nil {
+			if info.IsDir() {
+				return m.watch(candidate)
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		parent := filepath.Dir(candidate)
+		if parent == candidate {
+			return fmt.Errorf("no existing directory contains watch target %s", path)
+		}
+	}
 }
 
 func (m *Monitor) watch(path string) error {
@@ -393,18 +414,48 @@ func (m *Monitor) watch(path string) error {
 }
 
 func (m *Monitor) addTree(root string) error {
-	return filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+	return m.addDirectoryTree(root, map[string]bool{})
+}
+
+func (m *Monitor) addDirectoryTree(directory string, visited map[string]bool) error {
+	if m.followSymlinks {
+		resolved, err := filepath.EvalSymlinks(directory)
 		if err != nil {
 			return err
 		}
-		if !entry.IsDir() {
+		if visited[resolved] {
 			return nil
 		}
-		if path != root && m.ignoreDir != nil && m.ignoreDir(path, entry.Name()) {
-			return filepath.SkipDir
+		visited[resolved] = true
+	}
+	if err := m.watch(directory); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		path := filepath.Join(directory, entry.Name())
+		isDirectory := entry.IsDir()
+		if entry.Type()&os.ModeSymlink != 0 {
+			if !m.followSymlinks {
+				continue
+			}
+			metadata, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			isDirectory = metadata.IsDir()
 		}
-		return m.watch(path)
-	})
+		if !isDirectory || m.ignoreDir != nil && m.ignoreDir(path, entry.Name()) {
+			continue
+		}
+		if err := m.addDirectoryTree(path, visited); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *Monitor) isWatched(path string) bool {
@@ -538,14 +589,7 @@ func (m *Monitor) handle(event Event) {
 	}
 	path := m.absolute(event.Name)
 	if event.IsDir && event.Op&OpCreate != 0 {
-		if !m.inScope(path) {
-			return
-		}
-		if err := m.addTree(path); err != nil {
-			m.markAll(ReasonWatcherError | ReasonDirectory)
-			return
-		}
-		m.markAll(ReasonCreate | ReasonDirectory)
+		m.handleCreatedDirectory(path)
 		return
 	}
 	if event.IsDir || (event.Op&(OpRemove|OpRename) != 0 && m.isWatched(path)) {
@@ -564,16 +608,7 @@ func (m *Monitor) handle(event Event) {
 	}
 	if event.Op&OpCreate != 0 {
 		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			if !m.inScope(path) {
-				return
-			}
-			// Register before marking: files created with the directory are
-			// covered even when notifications are coalesced.
-			if err := m.addTree(path); err != nil {
-				m.markAll(ReasonWatcherError | ReasonDirectory)
-				return
-			}
-			m.markAll(ReasonCreate | ReasonDirectory)
+			m.handleCreatedDirectory(path)
 			return
 		}
 	}
@@ -594,6 +629,48 @@ func (m *Monitor) handle(event Event) {
 		reason |= ReasonRename
 	}
 	m.markPath(path, reason, false)
+}
+
+func (m *Monitor) handleCreatedDirectory(path string) {
+	if m.inScope(path) {
+		// Register before marking: files created with the directory are covered
+		// even when notifications are coalesced.
+		if err := m.addTree(path); err != nil {
+			m.markAll(ReasonWatcherError | ReasonDirectory)
+			return
+		}
+		m.markAll(ReasonCreate | ReasonDirectory)
+		return
+	}
+	// A newly-created directory can be an intermediate component of an exact
+	// input that did not exist at startup. Extend the watch chain without
+	// treating the directory itself as an analysis change.
+	if err := m.registerConfiguredTargetsBelow(path); err != nil {
+		m.markAll(ReasonWatcherError | ReasonDirectory)
+	}
+}
+
+func (m *Monitor) registerConfiguredTargetsBelow(directory string) error {
+	for _, scope := range m.scopes {
+		if isStrictAncestor(directory, scope.Path) {
+			if err := m.registerTarget(scope.Path, scope.Recursive); err != nil {
+				return err
+			}
+		}
+	}
+	for _, input := range m.inputs {
+		if isStrictAncestor(directory, input.Path) {
+			if err := m.registerTarget(input.Path, input.Recursive); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func isStrictAncestor(directory, path string) bool {
+	relative, err := filepath.Rel(filepath.Clean(directory), filepath.Clean(path))
+	return err == nil && relative != "." && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 // Wake returns a coalesced notification channel. The channel is not an event

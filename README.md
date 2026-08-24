@@ -68,6 +68,7 @@ Common analysis options:
 | `-f`, `--follow` | Open the live, scrollable ranking dashboard | `slopmark --follow --limit 100 .` |
 | `--trend-window DURATION` | Set the follow-mode movement and edit-highlight window | `slopwatch --trend-window 30m .` |
 | `--include-tests` | Include test source files | `slopmark --include-tests .` |
+| `--follow-symlinks` | Follow symlinks found inside target directories; an explicitly named symlink target is always followed | `slopwatch --follow-symlinks src` |
 | `--typescript-types` | Enable slower compiler-aware TypeScript type-safety analysis | `slopmark --typescript-types .` |
 | `--limit NUMBER` | Return at most this many ranked files | `slopmark --limit 20 .` |
 | `--pass-score SCORE` | Pass files scoring at or below this value | `slopmark --pass-score 100 .` |

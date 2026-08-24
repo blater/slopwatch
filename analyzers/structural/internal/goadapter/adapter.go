@@ -163,26 +163,15 @@ func canonicalSource(workspace, raw string) (string, string, error) {
 		return "", "", fmt.Errorf("non-canonical Go source path: %q", raw)
 	}
 	absolute := filepath.Join(workspace, clean)
-	metadata, err := os.Lstat(absolute)
+	metadata, err := os.Stat(absolute)
 	if err != nil {
 		return "", "", fmt.Errorf("inspect %s: %w", raw, err)
 	}
-	if metadata.Mode()&os.ModeSymlink != 0 {
-		return "", "", fmt.Errorf("symlinked Go source is not allowed: %s", raw)
+	if !metadata.Mode().IsRegular() {
+		return "", "", fmt.Errorf("Go source is not a regular file: %s", raw)
 	}
-	resolved, err := filepath.EvalSymlinks(absolute)
-	if err != nil {
-		return "", "", fmt.Errorf("resolve %s: %w", raw, err)
-	}
-	if resolved != absolute {
-		return "", "", fmt.Errorf("symlinked Go source is not allowed: %s", raw)
-	}
-	relative, err := filepath.Rel(workspace, resolved)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", "", fmt.Errorf("Go source escapes workspace: %s", raw)
-	}
-	if !strings.HasSuffix(strings.ToLower(relative), ".go") {
+	if !strings.HasSuffix(strings.ToLower(raw), ".go") {
 		return "", "", fmt.Errorf("unsupported Go source extension: %s", raw)
 	}
-	return filepath.ToSlash(relative), resolved, nil
+	return raw, absolute, nil
 }

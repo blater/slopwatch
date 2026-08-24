@@ -30,3 +30,21 @@ func TestUseCacheIsExplicitOptIn(t *testing.T) {
 		t.Fatal("--use-cache did not enable verified cache reads")
 	}
 }
+
+func TestFollowSymlinksIsExplicitOptIn(t *testing.T) {
+	flags, defaults := parser()
+	if err := flags.Parse(nil); err != nil {
+		t.Fatal(err)
+	}
+	if defaults.followSymlinks {
+		t.Fatal("nested symlink traversal must be disabled by default")
+	}
+
+	flags, optedIn := parser()
+	if err := flags.Parse([]string{"--follow-symlinks"}); err != nil {
+		t.Fatal(err)
+	}
+	if !optedIn.followSymlinks {
+		t.Fatal("--follow-symlinks did not enable nested symlink traversal")
+	}
+}

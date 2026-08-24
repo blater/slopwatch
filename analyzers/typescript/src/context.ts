@@ -56,7 +56,7 @@ export class AnalysisContext {
   }
 
   static create(request: AnalyzerRequest): AnalysisContext {
-    const workspace = fs.realpathSync(path.resolve(request.workspace));
+    const workspace = path.resolve(request.workspace);
     const seen = new Map<string, string>();
     const sources: SourceEntry[] = [];
     const parseCounts = new Map<string, number>();
@@ -71,7 +71,7 @@ export class AnalysisContext {
         const candidate = path.isAbsolute(requestedPath)
           ? requestedPath
           : path.resolve(workspace, requestedPath);
-        const absolutePath = fs.realpathSync(candidate);
+        const absolutePath = path.resolve(candidate);
         const relativeNative = path.relative(workspace, absolutePath);
         if (
           relativeNative === ".." ||
@@ -141,16 +141,7 @@ export class AnalysisContext {
     const candidate = path.isAbsolute(configured)
       ? configured
       : path.resolve(this.workspace, configured);
-    const canonical = fs.realpathSync(candidate);
-    const relative = path.relative(this.workspace, canonical);
-    if (
-      relative === ".." ||
-      relative.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relative)
-    ) {
-      throw new Error(`tsconfig is outside workspace: ${configured}`);
-    }
-    return canonical;
+    return path.resolve(candidate);
   }
 
   public configFailure(

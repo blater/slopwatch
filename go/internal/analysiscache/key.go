@@ -101,6 +101,7 @@ type ViewOptions struct {
 	Languages       []string `json:"languages"`
 	IncludeTests    bool     `json:"include_tests"`
 	TypeScriptTypes bool     `json:"typescript_types"`
+	FollowSymlinks  bool     `json:"follow_symlinks"`
 }
 
 // WorkspaceViewKey isolates manifests and provisional projections for analysis

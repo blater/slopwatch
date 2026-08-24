@@ -37,6 +37,7 @@ type options struct {
 	trendWindow     time.Duration
 	includeTests    bool
 	typescriptTypes bool
+	followSymlinks  bool
 	limit           int
 	languages       string
 	backends        stringList
@@ -60,6 +61,7 @@ func parser() (*flag.FlagSet, *options) {
 	flags.DurationVar(&options.trendWindow, "trend-window", 10*time.Minute, "movement indicator and edit-highlight window")
 	flags.BoolVar(&options.includeTests, "include-tests", false, "include test sources")
 	flags.BoolVar(&options.typescriptTypes, "typescript-types", false, "enable compiler-aware TypeScript type-safety analysis")
+	flags.BoolVar(&options.followSymlinks, "follow-symlinks", false, "follow symbolic links found inside target directories")
 	flags.IntVar(&options.limit, "limit", 0, "maximum results; 0 returns all")
 	flags.StringVar(&options.languages, "languages", "", "comma-separated languages")
 	flags.Var(&options.backends, "backend", "language=backend override (repeatable)")
@@ -173,7 +175,8 @@ func parsePassScore(raw string) (*float64, error) {
 func runFollow(workspace, installationRoot string, targets, languages []string, parsed *options, passScore *float64) error {
 	nativeAnalyzer, err := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
-		TypeScriptTypes: parsed.typescriptTypes, Timeout: parsed.timeout, PassScore: passScore,
+		TypeScriptTypes: parsed.typescriptTypes, FollowSymlinks: parsed.followSymlinks,
+		Timeout: parsed.timeout, PassScore: passScore,
 		ReadCache: true,
 	})
 	if err != nil {
@@ -191,7 +194,8 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 	model, modelErr := follow.New(initial, nativeAnalyzer, follow.Options{
 		Workspace: workspace, Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, Limit: parsed.limit,
-		TrendWindow: parsed.trendWindow, Compact: parsed.compact,
+		FollowSymlinks: parsed.followSymlinks,
+		TrendWindow:    parsed.trendWindow, Compact: parsed.compact,
 	})
 	if modelErr != nil {
 		return modelErr
@@ -210,7 +214,8 @@ func runReport(workspace, installationRoot string, targets, languages []string, 
 	nativeAnalyzer, nativeErr := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, TypeScriptTypes: parsed.typescriptTypes,
-		Timeout: parsed.timeout, PassScore: passScore, ReadCache: parsed.useCache,
+		FollowSymlinks: parsed.followSymlinks, Timeout: parsed.timeout,
+		PassScore: passScore, ReadCache: parsed.useCache,
 	})
 	if nativeErr != nil {
 		return nativeErr

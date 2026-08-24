@@ -175,6 +175,7 @@ func TestWorkspaceViewKeyIsCanonicalAndScopeSensitive(t *testing.T) {
 		{Targets: []string{"pkg/a", "pkg/b"}, Languages: []string{"go"}, IncludeTests: true},
 		{Targets: []string{"pkg/a", "pkg/b"}, Languages: []string{"go", "rust"}},
 		{Targets: []string{"pkg/a", "pkg/b"}, Languages: []string{"go", "rust"}, IncludeTests: true, TypeScriptTypes: true},
+		{Targets: []string{"pkg/a", "pkg/b"}, Languages: []string{"go", "rust"}, IncludeTests: true, FollowSymlinks: true},
 	}
 	for _, options := range changes {
 		got, keyErr := WorkspaceViewKey(workspace, options)

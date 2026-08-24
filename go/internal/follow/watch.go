@@ -33,14 +33,15 @@ type sourceChange struct {
 }
 
 type sourceWatcher struct {
-	root         string
-	includeTests bool
-	languages    map[string]bool
-	scopes       []watchScope
-	monitor      *workspacefs.Monitor
-	startOnce    sync.Once
-	startErr     error
-	done         chan struct{}
+	root           string
+	includeTests   bool
+	followSymlinks bool
+	languages      map[string]bool
+	scopes         []watchScope
+	monitor        *workspacefs.Monitor
+	startOnce      sync.Once
+	startErr       error
+	done           chan struct{}
 }
 
 type watchScope struct {
@@ -48,13 +49,14 @@ type watchScope struct {
 	directory bool
 }
 
-func newSourceWatcher(root string, targets []string, includeTests bool, languages []string) (*sourceWatcher, error) {
+func newSourceWatcher(root string, targets []string, includeTests, followSymlinks bool, languages []string) (*sourceWatcher, error) {
 	selected := make(map[string]bool, len(languages))
 	for _, language := range languages {
 		selected[language] = true
 	}
 	result := &sourceWatcher{
-		root: root, includeTests: includeTests, languages: selected, done: make(chan struct{}),
+		root: root, includeTests: includeTests, followSymlinks: followSymlinks,
+		languages: selected, done: make(chan struct{}),
 	}
 	if len(targets) == 0 {
 		targets = []string{"."}
@@ -77,6 +79,7 @@ func newSourceWatcher(root string, targets []string, includeTests bool, language
 	}
 	monitor, err := workspacefs.New(workspacefs.Config{
 		Root: root, Scopes: monitorScopes, Inputs: result.configurationInputs(),
+		FollowSymlinks: followSymlinks,
 		Classifier: workspacefs.ClassifierFunc(func(relative string, directory bool) (workspacefs.Classification, bool) {
 			if directory {
 				return workspacefs.Classification{}, false
@@ -292,11 +295,43 @@ func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {
 	if !watcher.inScope(absolute) || watcher.excluded(relative) {
 		return "", "", false
 	}
+	if !watcher.followSymlinks && watcher.isNestedSymlink(absolute) {
+		return "", "", false
+	}
 	language, ok := watcher.languageFor(relative)
 	if !ok || len(watcher.languages) > 0 && !watcher.languages[language] {
 		return "", "", false
 	}
 	return filepath.ToSlash(relative), language, true
+}
+
+func (watcher *sourceWatcher) isNestedSymlink(path string) bool {
+	for _, scope := range watcher.scopes {
+		if !scope.directory {
+			// An explicitly selected symlinked file is a target, not a nested
+			// link discovered while traversing a directory.
+			if filepath.Clean(path) == scope.path {
+				return false
+			}
+			continue
+		}
+		relative, err := filepath.Rel(scope.path, path)
+		if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			continue
+		}
+		current := scope.path
+		for _, part := range strings.Split(relative, string(filepath.Separator)) {
+			current = filepath.Join(current, part)
+			metadata, statErr := os.Lstat(current)
+			if statErr != nil {
+				break
+			}
+			if metadata.Mode()&os.ModeSymlink != 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isTypeScriptTest(name string) bool {

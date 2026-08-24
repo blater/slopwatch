@@ -269,7 +269,7 @@ func (s Service) Value() int { return s.peer.Value }
 	t.Fatal("Service facts were not collected")
 }
 
-func TestAdapterRejectsSymlinkedSource(t *testing.T) {
+func TestAdapterAcceptsDiscoveredSymlinkedSource(t *testing.T) {
 	root := t.TempDir()
 	target := filepath.Join(root, "real.go")
 	if err := os.WriteFile(target, []byte("package sample\n"), 0o600); err != nil {
@@ -278,8 +278,8 @@ func TestAdapterRejectsSymlinkedSource(t *testing.T) {
 	if err := os.Symlink(target, filepath.Join(root, "linked.go")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Analyze(root, []string{"linked.go"}); err == nil {
-		t.Fatal("expected symlink rejection")
+	if _, err := Analyze(root, []string{"linked.go"}); err != nil {
+		t.Fatalf("symlinked source: %v", err)
 	}
 	directory := filepath.Join(root, "real")
 	if err := os.Mkdir(directory, 0o700); err != nil {
@@ -291,8 +291,8 @@ func TestAdapterRejectsSymlinkedSource(t *testing.T) {
 	if err := os.Symlink(directory, filepath.Join(root, "alias")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Analyze(root, []string{"alias/nested.go"}); err == nil {
-		t.Fatal("expected symlinked parent rejection")
+	if _, err := Analyze(root, []string{"alias/nested.go"}); err != nil {
+		t.Fatalf("source beneath symlinked directory: %v", err)
 	}
 	if _, err := Analyze(root, []string{"real/../real/nested.go"}); err == nil {
 		t.Fatal("expected non-canonical path rejection")

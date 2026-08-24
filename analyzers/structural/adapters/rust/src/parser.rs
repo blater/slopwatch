@@ -173,22 +173,12 @@ pub(crate) fn canonical_source(
     {
         return Err(format!("non-canonical Rust source path: {requested}"));
     }
-    let mut current = workspace.to_path_buf();
-    for component in relative.components() {
-        current.push(component);
-        let metadata = fs::symlink_metadata(&current).map_err(|error| error.to_string())?;
-        if metadata.file_type().is_symlink() {
-            return Err(format!("symlinked Rust source is not allowed: {requested}"));
-        }
-    }
     let candidate = workspace.join(relative);
-    let absolute = candidate
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
-    if !absolute.starts_with(workspace) {
-        return Err(format!("Rust source escapes workspace: {requested}"));
+    let metadata = fs::metadata(&candidate).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err(format!("Rust source is not a regular file: {requested}"));
     }
-    Ok((absolute, requested.replace('\\', "/")))
+    Ok((candidate, requested.replace('\\', "/")))
 }
 
 pub fn parse_program(

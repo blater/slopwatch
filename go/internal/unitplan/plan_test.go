@@ -36,6 +36,75 @@ func TestFinalizeContextGrowthIsLinearAcrossLanguages(t *testing.T) {
 	}
 }
 
+func TestJavaPlannerOwnsAllThirtySevenThousandProductionFiles(t *testing.T) {
+	const sourceCount = 37_781
+	const moduleCount = 37
+	root := t.TempDir()
+	context := plannerContext{root: root, fileSet: map[string]bool{}}
+	for module := 0; module < moduleCount; module++ {
+		manifest := fmt.Sprintf("module-%02d/pom.xml", module)
+		context.files = append(context.files, manifest)
+		context.fileSet[manifest] = true
+		absolute := filepath.Join(root, filepath.FromSlash(manifest))
+		if err := os.MkdirAll(filepath.Dir(absolute), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(absolute, []byte("<project/>\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for index := 0; index < sourceCount; index++ {
+		path := fmt.Sprintf("module-%02d/src/main/java/example/Class%05d.java", index%moduleCount, index)
+		context.files = append(context.files, path)
+		context.fileSet[path] = true
+	}
+	sort.Strings(context.files)
+	units, _ := planJava(context, Options{})
+	owned := map[string]bool{}
+	for _, unit := range units {
+		for _, source := range unit.Sources {
+			if owned[source] {
+				t.Fatalf("Java source has multiple owners: %s", source)
+			}
+			owned[source] = true
+		}
+	}
+	if len(owned) != sourceCount {
+		t.Fatalf("Java planner owns %d production files, want %d", len(owned), sourceCount)
+	}
+}
+
+func TestPlannerIncludesExplicitSymlinkDirectoryTarget(t *testing.T) {
+	workspace := t.TempDir()
+	project := fixture(t, map[string]string{
+		"pom.xml":                       "<project/>\n",
+		"module-a/pom.xml":              "<project/>\n",
+		"module-a/src/main/java/A.java": "class A {}\n",
+		"module-b/pom.xml":              "<project/>\n",
+		"module-b/src/main/java/B.java": "class B {}\n",
+	})
+	if err := os.Symlink(project, filepath.Join(workspace, "erBuilder")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	plan, err := PlanWorkspace(workspace, Options{Targets: []string{"erBuilder"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned := map[string]bool{}
+	for _, unit := range plan.Units {
+		if unit.Language == LanguageJava {
+			for _, source := range unit.Sources {
+				owned[source] = true
+			}
+		}
+	}
+	for _, path := range []string{"erBuilder/module-a/src/main/java/A.java", "erBuilder/module-b/src/main/java/B.java"} {
+		if !owned[path] {
+			t.Fatalf("explicit symlink target source %q was not planned: %#v", path, owned)
+		}
+	}
+}
+
 func BenchmarkFinalizeTwentyFiveThousandUnitsAcrossLanguages(b *testing.B) {
 	languages := []Language{LanguageGo, LanguageJava, LanguageRust, LanguageTypeScript}
 	base := make([]Unit, 0, 25_000)

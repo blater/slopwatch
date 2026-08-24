@@ -19,6 +19,19 @@ type fakeBackend struct {
 	closed bool
 }
 
+type existingPathBackend struct{ *fakeBackend }
+
+func (backend *existingPathBackend) Add(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return errors.New("watch path is not a directory")
+	}
+	return backend.fakeBackend.Add(path)
+}
+
 func newFakeBackend() *fakeBackend {
 	return &fakeBackend{events: make(chan Event, 32), errors: make(chan error, 8)}
 }
@@ -151,6 +164,115 @@ func TestMonitorPreservesExactFileScopeAndConfiguredInputs(t *testing.T) {
 	}
 	if _, ok := got["sibling.go"]; ok {
 		t.Fatal("exact file scope admitted sibling")
+	}
+}
+
+func TestMonitorTracksMissingNestedInputsThroughExistingAncestors(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project")
+	if err := os.Mkdir(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	base := newFakeBackend()
+	backend := &existingPathBackend{fakeBackend: base}
+	m, err := New(Config{
+		Root:   root,
+		Scopes: []Scope{{Path: project, Recursive: true, Kind: KindSource, Directory: true}},
+		Inputs: []Input{
+			{Path: ".cargo/config.toml", Kind: KindConfiguration},
+			{Path: ".mvn/maven.config", Kind: KindConfiguration},
+			{Path: "gradle/wrapper/gradle-wrapper.properties", Kind: KindConfiguration},
+		},
+		Classifier:     ClassifierFunc(sourceClassifier),
+		BackendFactory: func() (Backend, error) { return backend, nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("monitor rejected an absent optional input: %v", err)
+	}
+	defer m.Close()
+
+	cargoDirectory := filepath.Join(root, ".cargo")
+	if err := os.Mkdir(cargoDirectory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.handle(Event{Name: cargoDirectory, Op: OpCreate, IsDir: true})
+	if !m.isWatched(cargoDirectory) {
+		t.Fatal("new intermediate directory did not extend the watch chain")
+	}
+	gradleDirectory := filepath.Join(root, "gradle")
+	if err := os.Mkdir(gradleDirectory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.handle(Event{Name: gradleDirectory, Op: OpCreate, IsDir: true})
+	wrapperDirectory := filepath.Join(gradleDirectory, "wrapper")
+	if err := os.Mkdir(wrapperDirectory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.handle(Event{Name: wrapperDirectory, Op: OpCreate, IsDir: true})
+	if !m.isWatched(wrapperDirectory) {
+		t.Fatal("multi-level optional input did not extend the watch chain")
+	}
+	config := filepath.Join(cargoDirectory, "config.toml")
+	if err := os.WriteFile(config, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m.handle(Event{Name: config, Op: OpCreate})
+	batch := m.Drain()
+	if len(batch.Entries) != 1 || batch.Entries[0].Path != ".cargo/config.toml" || batch.Entries[0].Kind != KindConfiguration {
+		t.Fatalf("created optional input was not tracked: %#v", batch)
+	}
+}
+
+func TestMonitorFollowsExplicitSymlinkScopeButNotNestedSymlinksByDefault(t *testing.T) {
+	root := t.TempDir()
+	project := t.TempDir()
+	ordinary := filepath.Join(project, "ordinary")
+	nestedTarget := t.TempDir()
+	if err := os.Mkdir(ordinary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(nestedTarget, filepath.Join(project, "nested")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	logicalTarget := filepath.Join(root, "project")
+	if err := os.Symlink(project, logicalTarget); err != nil {
+		t.Fatal(err)
+	}
+	backend := newFakeBackend()
+	m := newTestMonitor(t, root, backend, Config{
+		Scopes: []Scope{{Path: logicalTarget, Recursive: true, Kind: KindSource, Directory: true}},
+	})
+	if !m.isWatched(logicalTarget) || !m.isWatched(filepath.Join(logicalTarget, "ordinary")) {
+		t.Fatalf("explicit symlink scope was not registered: %v", backend.added)
+	}
+	if m.isWatched(filepath.Join(logicalTarget, "nested")) {
+		t.Fatal("nested symlink was followed without --follow-symlinks")
+	}
+}
+
+func TestMonitorCanFollowNestedSymlinksWithoutCycling(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project")
+	nestedTarget := t.TempDir()
+	if err := os.Mkdir(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(nestedTarget, filepath.Join(project, "nested")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.Symlink(project, filepath.Join(project, "cycle")); err != nil {
+		t.Fatal(err)
+	}
+	backend := newFakeBackend()
+	m := newTestMonitor(t, root, backend, Config{
+		Scopes:         []Scope{{Path: project, Recursive: true, Kind: KindSource, Directory: true}},
+		FollowSymlinks: true,
+	})
+	if !m.isWatched(filepath.Join(project, "nested")) {
+		t.Fatalf("nested symlink was not registered: %v", backend.added)
 	}
 }
 

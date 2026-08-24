@@ -74,8 +74,9 @@ func TestScanningStatusRendersAnimatedOnTopBar(t *testing.T) {
 	if !strings.Contains(lines[0], "SCANNING") {
 		t.Fatalf("scanning status is not on the top line: %q", lines[0])
 	}
-	if !strings.HasSuffix(strings.TrimRight(lines[0], " "), "⠙") {
-		t.Fatalf("scanning status is not right-aligned: %q", lines[0])
+	wantPosition := len("-=[slopwatch]=-") + 2
+	if strings.Index(lines[0], "⠙SCANNING⠙") != wantPosition {
+		t.Fatalf("scanning status is not two spaces after the logo: %q", lines[0])
 	}
 	for _, line := range lines[1:] {
 		if strings.Contains(line, "SCANNING") {
@@ -104,7 +105,7 @@ func TestStartupScanningIndicatorUsesFreshnessStatus(t *testing.T) {
 func TestInitialScanCentersLogoOverTable(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{
-		width: 20, height: 7, analyzing: true, initialAnalysis: true,
+		width: 40, height: 7, analyzing: true, initialAnalysis: true,
 		options: Options{Workspace: "/workspace"},
 	}
 	view := ansi.Strip(model.startupOverlay(model.tableView(), "XX\nYY"))
@@ -115,7 +116,7 @@ func TestInitialScanCentersLogoOverTable(t *testing.T) {
 	if strings.TrimSpace(lines[2]) != "XX" || strings.TrimSpace(lines[3]) != "YY" {
 		t.Fatalf("logo is not vertically centered: %q", view)
 	}
-	if strings.Index(lines[2], "XX") != 9 || strings.Index(lines[3], "YY") != 9 {
+	if strings.Index(lines[2], "XX") != 19 || strings.Index(lines[3], "YY") != 19 {
 		t.Fatalf("logo is not horizontally centered: %q", view)
 	}
 	if !strings.Contains(lines[0], "SCANNING") || !strings.Contains(lines[len(lines)-1], "sort") {
@@ -225,7 +226,7 @@ func TestStartupLogoRemovesCursorModeControls(t *testing.T) {
 	}
 }
 
-func TestTableTopBarShowsLogoBeforeWorkspace(t *testing.T) {
+func TestTableTopBarRightAlignsWorkspaceOneCharacterFromMargin(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80, height: 10, options: Options{Workspace: "/workspace"}}
 	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
@@ -233,8 +234,8 @@ func TestTableTopBarShowsLogoBeforeWorkspace(t *testing.T) {
 	if !strings.HasPrefix(firstLine, logo) {
 		t.Fatalf("top bar = %q, want logo prefix %q", firstLine, logo)
 	}
-	if strings.Index(firstLine, "/workspace") <= len(logo) {
-		t.Fatalf("workspace path was not moved after logo: %q", firstLine)
+	if !strings.HasSuffix(firstLine, "/workspace ") {
+		t.Fatalf("workspace is not right-aligned one character from the margin: %q", firstLine)
 	}
 }
 
@@ -249,6 +250,9 @@ func TestTableTopBarShowsRepositoryAndBranchBeforeWorkspace(t *testing.T) {
 	workspace := strings.Index(firstLine, "/workspace")
 	if repository < 0 || workspace <= repository {
 		t.Fatalf("top bar does not show repo:branch before path: %q", firstLine)
+	}
+	if !strings.HasSuffix(firstLine, "river:feature/display  /workspace ") {
+		t.Fatalf("repository and workspace pair is not right-aligned one character from the margin: %q", firstLine)
 	}
 }
 
@@ -1351,6 +1355,34 @@ func TestDisplayFilesSortsEveryOverviewColumnInBothDirections(t *testing.T) {
 	}
 }
 
+func TestDisplayFilesSortsPathByTheCompletePath(t *testing.T) {
+	model := Model{
+		document: report.Document{Files: []report.File{
+			testFile("zeta/alpha.go", 1),
+			testFile("alpha/zeta.go", 1),
+			testFile("middle/beta.go", 1),
+		}},
+		sortKey: "filename",
+	}
+
+	got := model.displayFiles()
+	want := []string{"alpha/zeta.go", "middle/beta.go", "zeta/alpha.go"}
+	for index := range want {
+		if got[index].Path != want[index] {
+			t.Fatalf("ascending path order = %#v, want %#v", []string{got[0].Path, got[1].Path, got[2].Path}, want)
+		}
+	}
+
+	model.sortReverse = true
+	got = model.displayFiles()
+	want = []string{"zeta/alpha.go", "middle/beta.go", "alpha/zeta.go"}
+	for index := range want {
+		if got[index].Path != want[index] {
+			t.Fatalf("descending path order = %#v, want %#v", []string{got[0].Path, got[1].Path, got[2].Path}, want)
+		}
+	}
+}
+
 func TestDisplayFilesCacheRefreshesOnlyWhenOrderingChanges(t *testing.T) {
 	model := Model{
 		document: report.Document{Files: []report.File{
@@ -1402,6 +1434,21 @@ func BenchmarkTableViewTwentyFiveThousandFiles(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		_ = model.tableView()
+	}
+}
+
+func TestDisplayFilesDoesNotCapFortyFiveThousandRows(t *testing.T) {
+	files := make([]report.File, 45_000)
+	for index := range files {
+		files[index] = testFile(fmt.Sprintf("src/main/java/example/Class%05d.java", index), 0)
+	}
+	model := Model{
+		document: report.Document{Files: files}, sortKey: "score", sortReverse: true,
+		visible: defaultColumnVisibility(),
+	}
+	model.refreshDisplayFiles()
+	if got := len(model.displayFiles()); got != len(files) {
+		t.Fatalf("display rows = %d, want %d", got, len(files))
 	}
 }
 
@@ -1470,6 +1517,26 @@ func TestHeaderIncludesEveryEnabledTitle(t *testing.T) {
 		if !strings.Contains(heading, title) {
 			t.Errorf("enabled title %s is missing from %q", title, heading)
 		}
+	}
+}
+
+func TestHeaderRightAlignsCommaFormattedFileCountInHeaderStyle(t *testing.T) {
+	ConfigureTerminalColours()
+	model := Model{
+		width: 100, sortKey: "score",
+		document: report.Document{Files: make([]report.File, 12_345)},
+		visible:  map[string]bool{"cog": true, "npath": true},
+	}
+	header := model.header()
+	plain := ansi.Strip(header)
+	if !strings.HasSuffix(plain, "FILES: 12,345 ") {
+		t.Fatalf("file count is not right-aligned one character from the margin: %q", plain)
+	}
+	if !strings.Contains(header, "FILES: 12,345") {
+		t.Fatalf("styled header is missing the file count: %q", header)
+	}
+	if got := formatIntegerWithCommas(1_234_560); got != "1,234,560" {
+		t.Fatalf("formatted file count = %q, want 1,234,560", got)
 	}
 }
 
@@ -1864,7 +1931,7 @@ func sortableFile(path string, rank int, score, cog, npath, cyclo, deep, god flo
 
 func TestWatcherExcludesTestsByConvention(t *testing.T) {
 	root := t.TempDir()
-	watcher, err := newSourceWatcher(root, []string{"."}, false, nil)
+	watcher, err := newSourceWatcher(root, []string{"."}, false, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1879,13 +1946,51 @@ func TestWatcherExcludesTestsByConvention(t *testing.T) {
 	}
 }
 
+func TestWatcherStartsWhenLanguageConfigurationDirectoriesAreAbsent(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "erBuilder")
+	if err := os.Mkdir(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "Main.java"), []byte("class Main {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	watcher, err := newSourceWatcher(root, []string{"erBuilder"}, false, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer watcher.close()
+	if err := watcher.start(); err != nil {
+		t.Fatalf("watching a Java target with absent optional language configuration directories: %v", err)
+	}
+}
+
+func TestWatcherStartsWithExplicitSymlinkDirectoryTarget(t *testing.T) {
+	root := t.TempDir()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "Main.java"), []byte("class Main {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(project, filepath.Join(root, "erBuilder")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	watcher, err := newSourceWatcher(root, []string{"erBuilder"}, false, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer watcher.close()
+	if err := watcher.start(); err != nil {
+		t.Fatalf("watching an explicitly selected symlink directory: %v", err)
+	}
+}
+
 func TestFileTargetDoesNotWatchItsSiblings(t *testing.T) {
 	root := t.TempDir()
 	target := filepath.Join(root, "selected.go")
 	if err := os.WriteFile(target, []byte("package selected\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	watcher, err := newSourceWatcher(root, []string{"selected.go"}, false, nil)
+	watcher, err := newSourceWatcher(root, []string{"selected.go"}, false, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

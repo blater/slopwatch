@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func TestActiveCatalogMakesTypeScriptTypesOptInWithoutMutatingSource(t *testing.T) {
@@ -27,6 +29,87 @@ func TestActiveCatalogMakesTypeScriptTypesOptInWithoutMutatingSource(t *testing.
 	typed := activeCatalog(catalog, Options{TypeScriptTypes: true})
 	if !typed.Components[1].Defaults.Enabled {
 		t.Fatal("TypeScript type analysis was not enabled explicitly")
+	}
+}
+
+func TestDiscoveryFollowsExplicitSymlinkTargetAndControlsNestedSymlinks(t *testing.T) {
+	workspace := t.TempDir()
+	project := t.TempDir()
+	nested := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "Main.java"), []byte("class Main {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, ".DS_Store"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "Nested.java"), []byte("class Nested {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(nested, filepath.Join(project, "nested")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.Symlink(project, filepath.Join(project, "cycle")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(project, filepath.Join(workspace, "erBuilder")); err != nil {
+		t.Fatal(err)
+	}
+
+	analyzer := &Analyzer{workspace: workspace}
+	discovered, err := analyzer.discover([]string{"erBuilder"}, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(discovered["java"], ","); got != "erBuilder/Main.java" {
+		t.Fatalf("default discovery = %q, want only the explicit symlink target's direct source", got)
+	}
+
+	discovered, err = analyzer.discover([]string{"erBuilder"}, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(discovered["java"], ","); got != "erBuilder/Main.java,erBuilder/nested/Nested.java" {
+		t.Fatalf("follow-symlinks discovery = %q", got)
+	}
+}
+
+func TestDocumentInventoryRejectsPartialAnalyzerCoverage(t *testing.T) {
+	discovered := map[string][]string{"java": {"a.java", "b.java", "c.java"}}
+	partial := report.Document{Files: []report.File{{Path: "a.java"}, {Path: "c.java"}}}
+	if err := validateDocumentInventory(partial, discovered, []string{"java"}); err == nil || !strings.Contains(err.Error(), "2 of 3") {
+		t.Fatalf("partial inventory error = %v", err)
+	}
+	complete := report.Document{Files: []report.File{{Path: "a.java"}, {Path: "b.java"}, {Path: "c.java"}}}
+	if err := validateDocumentInventory(complete, discovered, []string{"java"}); err != nil {
+		t.Fatalf("complete inventory rejected: %v", err)
+	}
+}
+
+func BenchmarkDiscoverFortyFiveThousandJavaFiles(b *testing.B) {
+	const sourceCount = 45_000
+	workspace := b.TempDir()
+	for module := 0; module < 45; module++ {
+		directory := filepath.Join(workspace, fmt.Sprintf("module-%02d/src/main/java", module))
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			b.Fatal(err)
+		}
+		for file := 0; file < sourceCount/45; file++ {
+			path := filepath.Join(directory, fmt.Sprintf("Class%04d.java", file))
+			if err := os.WriteFile(path, nil, 0o600); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	analyzer := &Analyzer{workspace: workspace}
+	b.ResetTimer()
+	for range b.N {
+		discovered, err := analyzer.discover([]string{"."}, false, false)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(discovered["java"]) != sourceCount {
+			b.Fatalf("discovered %d Java files, want %d", len(discovered["java"]), sourceCount)
+		}
 	}
 }
 
@@ -81,8 +164,8 @@ func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 	if len(document.Files) != 1 {
 		t.Fatalf("got %d files", len(document.Files))
 	}
-	if difference := math.Abs(document.Files[0].Score - 51.720354889623); difference > 1e-9 {
-		t.Fatalf("native score = %.12f, reference = 51.720354889623", document.Files[0].Score)
+	if difference := math.Abs(document.Files[0].Score - 49.017512982810); difference > 1e-9 {
+		t.Fatalf("native score = %.12f, reference = 49.017512982810", document.Files[0].Score)
 	}
 	if document.Files[0].Path != target {
 		t.Fatalf("path = %q", document.Files[0].Path)

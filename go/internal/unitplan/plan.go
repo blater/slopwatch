@@ -53,6 +53,10 @@ const (
 // Options controls planning choices which affect analyzer correctness.
 type Options struct {
 	TypeScriptMode TypeScriptMode
+	// Targets are the user-selected paths relative to root. Explicit symlink
+	// targets are part of the authorized inventory even though ordinary tree
+	// traversal does not follow nested symlinks.
+	Targets []string
 }
 
 // Unit is one independently cacheable analyzer invocation. All paths are
@@ -104,7 +108,7 @@ func PlanWorkspace(root string, options Options) (Plan, error) {
 		return Plan{}, fmt.Errorf("workspace is not a directory: %s", root)
 	}
 
-	files, err := workspaceFiles(absRoot)
+	files, err := workspaceFiles(absRoot, options.Targets)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -138,7 +142,7 @@ var ignoredDirectories = map[string]bool{
 	"target": true, "vendor": true,
 }
 
-func workspaceFiles(root string) ([]string, error) {
+func workspaceFiles(root string, targets []string) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -160,8 +164,56 @@ func workspaceFiles(root string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan workspace: %w", err)
 	}
-	sort.Strings(files)
-	return files, nil
+	for _, target := range targets {
+		logical := target
+		if !filepath.IsAbs(logical) {
+			logical = filepath.Join(root, filepath.FromSlash(target))
+		}
+		metadata, statErr := os.Lstat(logical)
+		if statErr != nil || metadata.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+		resolved, resolveErr := filepath.EvalSymlinks(logical)
+		if resolveErr != nil {
+			return nil, fmt.Errorf("resolve explicit target %s: %w", target, resolveErr)
+		}
+		info, statErr := os.Stat(resolved)
+		if statErr != nil {
+			return nil, statErr
+		}
+		if !info.IsDir() {
+			relative, relativeErr := filepath.Rel(root, logical)
+			if relativeErr == nil {
+				files = append(files, cleanPath(relative))
+			}
+			continue
+		}
+		walkErr := filepath.WalkDir(resolved, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				if path != resolved && ignoredDirectories[entry.Name()] {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			physicalRelative, relativeErr := filepath.Rel(resolved, path)
+			if relativeErr != nil {
+				return relativeErr
+			}
+			workspaceRelative, relativeErr := filepath.Rel(root, filepath.Join(logical, physicalRelative))
+			if relativeErr != nil {
+				return relativeErr
+			}
+			files = append(files, cleanPath(workspaceRelative))
+			return nil
+		})
+		if walkErr != nil {
+			return nil, fmt.Errorf("scan explicit target %s: %w", target, walkErr)
+		}
+	}
+	return uniqueStrings(files), nil
 }
 
 func finalize(plan *Plan) {
