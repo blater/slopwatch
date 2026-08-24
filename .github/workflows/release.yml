@@ -61,14 +61,14 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "25"
 
       - name: Test all analyzers and the application
         shell: bash
         run: |
           set -euo pipefail
           go -C go mod download
-          make test
+          make test-clean
           GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go test -C go ./...
 
       - name: Build complete distribution

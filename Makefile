@@ -29,7 +29,7 @@ WATCH_SOURCES := $(wildcard $(ROOT)/go/cmd/slopwatch/*.go)
 TS_SOURCES := $(wildcard $(TYPESCRIPT_DIR)/src/*.ts) $(wildcard $(TYPESCRIPT_DIR)/test/*.ts)
 
 .PHONY: all build dev-build build-structural build-rust build-java build-go \
-  build-typescript test test-structural test-typescript clean
+  build-typescript test test-clean test-structural test-typescript clean
 
 all: build
 
@@ -101,5 +101,10 @@ test-typescript: build-typescript
 
 test: test-structural test-typescript
 
+test-clean: clean
+	@$(MAKE) test
+
 clean:
-	@rm -rf $(TYPESCRIPT_WORK_DIR) $(TYPESCRIPT_RUNTIME_DIR)
+	@rm -rf $(BUILD_DIR) \
+	  $(STRUCTURAL_BIN) $(RUST_BIN) $(JAVA_JAR) $(STRUCTURAL_DIR)/java-runtime \
+	  $(STRUCTURAL_DIR)/adapters/rust/target
