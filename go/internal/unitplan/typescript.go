@@ -56,33 +56,43 @@ func planTypeScript(context plannerContext, options Options) ([]Unit, []Diagnost
 		return nil, diagnostics
 	}
 	if options.TypeScriptMode == TypeScriptSyntax {
-		return typeScriptSyntaxUnits(sources), diagnostics
+		return typeScriptSyntaxUnits(context, sources), diagnostics
 	}
 
 	var units []Unit
 	unitIDs := map[string]string{}
+	projectsByDirectory := map[string][]string{}
 	for path, config := range configs {
 		if config.project {
 			unitIDs[path] = "typescript:typed:" + path
+			projectsByDirectory[config.directory] = append(projectsByDirectory[config.directory], path)
+		}
+	}
+	ownedByProject := make(map[string][]string, len(unitIDs))
+	packageInputsByProject := typeScriptPackageInputsByProject(context, configs)
+	for _, source := range sources {
+		for directory := pathDirectory(source); ; directory = pathDirectory(directory) {
+			for _, project := range projectsByDirectory[directory] {
+				ownedByProject[project] = append(ownedByProject[project], source)
+			}
+			if directory == "." {
+				break
+			}
 		}
 	}
 	for path, config := range configs {
 		if !config.project {
 			continue
 		}
-		owned := []string{}
-		for _, source := range sources {
-			// Including nested-project files is intentional: tsconfig include and
-			// path aliases are difficult to prove without the compiler. This makes
-			// parent project invalidation conservative.
-			if pathWithin(source, config.directory) {
-				owned = append(owned, source)
-			}
-		}
+		// Including nested-project files is intentional: tsconfig include and
+		// path aliases are difficult to prove without the compiler. Build that
+		// ownership by walking source ancestors once instead of scanning every
+		// source again for every project.
+		owned := ownedByProject[path]
 		if len(owned) == 0 {
 			continue
 		}
-		configInputs, extendDiagnostic := tsConfigInputs(context, config, configs)
+		configInputs, extendDiagnostic := tsConfigInputs(context, config, configs, packageInputsByProject[path])
 		if extendDiagnostic != nil {
 			diagnostics = append(diagnostics, *extendDiagnostic)
 		}
@@ -100,40 +110,58 @@ func planTypeScript(context plannerContext, options Options) ([]Unit, []Diagnost
 			Conservative: config.uncertain || extendDiagnostic != nil,
 		})
 	}
-	if len(units) > 1 {
-		for index := range units {
-			for _, candidate := range units {
-				if candidate.ID != units[index].ID {
-					units[index].DirectDependencies = append(units[index].DirectDependencies, candidate.ID)
-				}
-			}
+	owners := map[string][]int{}
+	for index, unit := range units {
+		for _, source := range unit.Sources {
+			owners[source] = append(owners[source], index)
+		}
+	}
+	for _, candidates := range owners {
+		if len(candidates) < 2 {
+			continue
+		}
+		for _, index := range candidates {
+			// Overlapping tsconfig ownership is intentionally conservative, but
+			// represented by the coordinator's compact language fingerprint
+			// instead of a quadratic all-project dependency graph.
 			units[index].Conservative = true
 		}
 	}
-
 	// Files with no tsconfig ancestor remain useful syntax units. A tsconfig
 	// elsewhere in the workspace must not silently claim them.
+	looseSources := []string{}
 	for _, source := range sources {
 		if _, ok := nearestAncestor(pathDirectory(source), configDirs); !ok {
-			units = append(units, typeScriptSyntaxUnit(source))
+			looseSources = append(looseSources, source)
 		}
 	}
+	units = append(units, typeScriptSyntaxUnits(context, looseSources)...)
 	return units, diagnostics
 }
 
-func typeScriptSyntaxUnits(sources []string) []Unit {
-	units := make([]Unit, 0, len(sources))
+func typeScriptSyntaxUnits(context plannerContext, sources []string) []Unit {
+	packageDirectories := map[string]bool{}
+	for _, file := range context.files {
+		if lastPart(file) == "package.json" {
+			packageDirectories[pathDirectory(file)] = true
+		}
+	}
+	grouped := map[string][]string{}
 	for _, source := range sources {
-		units = append(units, typeScriptSyntaxUnit(source))
+		directory, ok := nearestAncestor(pathDirectory(source), packageDirectories)
+		if !ok {
+			directory = "."
+		}
+		grouped[directory] = append(grouped[directory], source)
+	}
+	units := make([]Unit, 0, len(grouped))
+	for directory, owned := range grouped {
+		units = append(units, Unit{
+			ID: "typescript:syntax:" + relativeIDPath(directory), Language: LanguageTypeScript, Mode: ModeSyntax,
+			Capabilities: []Capability{CapabilitySyntax}, Sources: owned,
+		})
 	}
 	return units
-}
-
-func typeScriptSyntaxUnit(source string) Unit {
-	return Unit{
-		ID: "typescript:syntax:" + source, Language: LanguageTypeScript, Mode: ModeSyntax,
-		Capabilities: []Capability{CapabilitySyntax}, Sources: []string{source},
-	}
 }
 
 func isTypeScriptSource(path string) bool {
@@ -178,14 +206,14 @@ func readTSConfig(context plannerContext, path string) (*tsConfig, error) {
 	return config, nil
 }
 
-func tsConfigInputs(context plannerContext, config *tsConfig, configs map[string]*tsConfig) ([]string, *Diagnostic) {
+func tsConfigInputs(context plannerContext, config *tsConfig, configs map[string]*tsConfig, packageInputs []string) ([]string, *Diagnostic) {
 	result := []string{config.path}
 	seen := map[string]bool{config.path: true}
 	current := config
 	for current.extends != "" {
 		resolved := resolveTSConfigPath(context, current.directory, current.extends)
 		if resolved == "" || seen[resolved] {
-			return append(result, tsPackageInputs(context, config.directory)...), &Diagnostic{config.path, "extends target was not resolved; package configuration was added conservatively"}
+			return append(result, packageInputs...), &Diagnostic{config.path, "extends target was not resolved; package configuration was added conservatively"}
 		}
 		seen[resolved] = true
 		result = append(result, resolved)
@@ -193,13 +221,13 @@ func tsConfigInputs(context plannerContext, config *tsConfig, configs map[string
 		if next == nil {
 			parsed, err := readTSConfig(context, resolved)
 			if err != nil {
-				return append(result, tsPackageInputs(context, config.directory)...), &Diagnostic{config.path, "extends chain could not be parsed; package configuration was added conservatively"}
+				return append(result, packageInputs...), &Diagnostic{config.path, "extends chain could not be parsed; package configuration was added conservatively"}
 			}
 			next = parsed
 		}
 		current = next
 	}
-	return append(result, tsPackageInputs(context, config.directory)...), nil
+	return append(result, packageInputs...), nil
 }
 
 func resolveTSConfigPath(context plannerContext, directory, value string) string {
@@ -218,14 +246,24 @@ func resolveTSConfigPath(context plannerContext, directory, value string) string
 	return ""
 }
 
-func tsPackageInputs(context plannerContext, directory string) []string {
-	var result []string
+func typeScriptPackageInputsByProject(context plannerContext, configs map[string]*tsConfig) map[string][]string {
+	byDirectory := map[string][]string{}
 	for _, file := range context.files {
 		base := lastPart(file)
 		switch base {
 		case "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock":
-			if pathWithin(directory, pathDirectory(file)) || pathWithin(pathDirectory(file), directory) {
-				result = append(result, file)
+			byDirectory[pathDirectory(file)] = append(byDirectory[pathDirectory(file)], file)
+		}
+	}
+	result := make(map[string][]string, len(configs))
+	for path, config := range configs {
+		if !config.project {
+			continue
+		}
+		for directory := config.directory; ; directory = pathDirectory(directory) {
+			result[path] = append(result[path], byDirectory[directory]...)
+			if directory == "." {
+				break
 			}
 		}
 	}

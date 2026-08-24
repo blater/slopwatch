@@ -510,3 +510,31 @@ func TestProjectionArtifactRoundTrip(t *testing.T) {
 		t.Fatalf("LoadProjection() mismatch:\n got %#v\nwant %#v", got, projection)
 	}
 }
+
+func BenchmarkPutAndLoadFiveThousandUnitArtifacts(b *testing.B) {
+	store, err := NewStore(filepath.Join(b.TempDir(), "cache"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	keys := make([]Key, 5000)
+	for index := range keys {
+		keys[index] = Key(DigestBytes([]byte(fmt.Sprintf("unit-%d", index))))
+	}
+	b.ResetTimer()
+	for range b.N {
+		refs := make([]ArtifactRef, len(keys))
+		for index, key := range keys {
+			refs[index], err = store.PutUnit(key, UnitArtifact{
+				UnitID: fmt.Sprintf("unit-%d", index), UnitKey: key, Language: "go", SnapshotKey: key,
+			})
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+		for index, key := range keys {
+			if _, ok := store.LoadUnit(refs[index], key); !ok {
+				b.Fatalf("unit %d did not round-trip", index)
+			}
+		}
+	}
+}

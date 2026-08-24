@@ -143,6 +143,30 @@ func TestInitialViewUsesEmbeddedLogoWithoutReplacingDashboard(t *testing.T) {
 	}
 }
 
+func TestStartupLogoExpiresAfterTwoSecondsWithoutStoppingInitialAnalysis(t *testing.T) {
+	if startupLogoDuration != 2*time.Second {
+		t.Fatalf("startup logo duration = %s, want 2s", startupLogoDuration)
+	}
+	model := Model{
+		width: 120, height: 20, analyzing: true, initialAnalysis: true,
+		options: Options{Workspace: "/workspace"},
+	}
+	if model.View() == model.tableView() {
+		t.Fatal("startup logo was not initially visible")
+	}
+	updated, command := model.Update(startupLogoExpired{})
+	result := updated.(*Model)
+	if command != nil {
+		t.Fatal("logo timeout unexpectedly scheduled more work")
+	}
+	if !result.initialAnalysis || !result.analyzing {
+		t.Fatalf("logo timeout stopped analysis: initial=%t analyzing=%t", result.initialAnalysis, result.analyzing)
+	}
+	if result.View() != result.tableView() {
+		t.Fatal("startup logo remained visible after its timeout")
+	}
+}
+
 func TestInitialScanCompletionReplacesLogoWithTable(t *testing.T) {
 	model := Model{
 		width: 80, height: 10, analyzing: true, initialAnalysis: true,

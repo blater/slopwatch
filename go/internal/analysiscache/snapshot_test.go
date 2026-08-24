@@ -1,8 +1,10 @@
 package analysiscache
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -107,5 +109,65 @@ func TestMaterializeSnapshotHonorsCancellationAndMissingBlobs(t *testing.T) {
 	missing := DigestBytes([]byte("not stored"))
 	if _, _, err := store.MaterializeSnapshot(context.Background(), []SnapshotFile{{Path: "a.go", Digest: missing}}); err == nil {
 		t.Fatal("missing source blob was materialized")
+	}
+}
+
+func TestMaterializeWorkspaceSnapshotVerifiesLiveContents(t *testing.T) {
+	workspace := t.TempDir()
+	contents := []byte("package sample\n")
+	if err := os.WriteFile(filepath.Join(workspace, "sample.go"), contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStore(filepath.Join(t.TempDir(), "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := SnapshotFile{Path: "sample.go", Digest: DigestBytes(contents)}
+	root, cleanup, err := store.MaterializeWorkspaceSnapshot(context.Background(), workspace, []SnapshotFile{file})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	got, err := os.ReadFile(filepath.Join(root, "sample.go"))
+	if err != nil || !bytes.Equal(got, contents) {
+		t.Fatalf("materialized source = %q, %v", got, err)
+	}
+	file.Digest = DigestBytes([]byte("different"))
+	if _, _, err := store.MaterializeWorkspaceSnapshot(context.Background(), workspace, []SnapshotFile{file}); !errors.Is(err, ErrWorkspaceSnapshotChanged) {
+		t.Fatalf("changed workspace error = %v, want ErrWorkspaceSnapshotChanged", err)
+	}
+}
+
+func BenchmarkMaterializeWorkspaceSnapshotTwentyFiveThousandFiles(b *testing.B) {
+	workspace := b.TempDir()
+	files := make([]SnapshotFile, 25_000)
+	for index := range files {
+		relative := fmt.Sprintf("pkg/%05d/source.go", index/5)
+		if index%5 != 0 {
+			relative = fmt.Sprintf("pkg/%05d/source_%d.go", index/5, index%5)
+		}
+		contents := []byte(fmt.Sprintf("package pkg%05d\n", index/5))
+		path := filepath.Join(workspace, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			b.Fatal(err)
+		}
+		if err := os.WriteFile(path, contents, 0o600); err != nil {
+			b.Fatal(err)
+		}
+		files[index] = SnapshotFile{Path: relative, Digest: DigestBytes(contents)}
+	}
+	store, err := NewStore(filepath.Join(b.TempDir(), "cache"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for range b.N {
+		_, cleanup, materializeErr := store.MaterializeWorkspaceSnapshot(context.Background(), workspace, files)
+		if materializeErr != nil {
+			b.Fatal(materializeErr)
+		}
+		if cleanupErr := cleanup(); cleanupErr != nil {
+			b.Fatal(cleanupErr)
+		}
 	}
 }

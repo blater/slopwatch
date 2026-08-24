@@ -37,6 +37,7 @@ type cachePreparation struct {
 	units          []plannedCacheUnit
 	digests        map[string]analysiscache.Digest
 	backendDigests map[string]analysiscache.Digest
+	plans          map[string]unitplan.Unit
 }
 
 var errWorkspaceChanged = errors.New("workspace changed while analysis snapshot was running")
@@ -72,7 +73,7 @@ func (analyzer *Analyzer) analyzeWithPersistentCacheOnce(parent context.Context,
 	if len(active) == 0 {
 		return report.Document{}, false, nil
 	}
-	prepared, err := analyzer.prepareCacheUnits(parent, store, catalog, plan.Units, active, options)
+	prepared, err := analyzer.prepareCacheUnits(parent, catalog, plan.Units, active, options)
 	if err != nil {
 		if parent.Err() != nil {
 			return report.Document{}, true, parent.Err()
@@ -91,25 +92,14 @@ func (analyzer *Analyzer) analyzeWithPersistentCacheOnce(parent context.Context,
 	unitInputs := make(map[string]scoreInputs, len(prepared.units))
 	unitRefs := make(map[analysiscache.Key]analysiscache.ArtifactRef, len(prepared.units))
 	misses := make([]plannedCacheUnit, 0, len(prepared.units))
-	for _, unit := range prepared.units {
-		artifact := analysiscache.UnitArtifact{}
-		ref := analysiscache.ArtifactRef{}
-		loaded := false
-		if options.ReadCache {
-			var candidate bool
-			ref, candidate = generation.Units[unit.key]
-			if candidate {
-				artifact, loaded = store.LoadUnit(ref, unit.key)
-			}
-			if !loaded {
-				artifact, ref, loaded = store.LoadUnitByKey(unit.key)
-			}
-		}
-		if loaded && artifact.UnitID == unit.plan.ID && artifact.Language == string(unit.plan.Language) {
-			inputs, valid := scoreInputsFromArtifact(artifact, unit.owned, len(componentsForLanguage(catalog, string(unit.plan.Language))) > 0)
+	loads := loadCachedUnits(parent, store, generation, prepared.units, options.ReadCache)
+	for index, unit := range prepared.units {
+		load := loads[index]
+		if load.loaded && load.artifact.UnitID == unit.plan.ID && load.artifact.Language == string(unit.plan.Language) {
+			inputs, valid := scoreInputsFromArtifact(load.artifact, unit.owned, len(componentsForLanguage(catalog, string(unit.plan.Language))) > 0)
 			if valid {
 				unitInputs[unit.plan.ID] = inputs
-				unitRefs[unit.key] = ref
+				unitRefs[unit.key] = load.ref
 				continue
 			}
 		}
@@ -117,9 +107,13 @@ func (analyzer *Analyzer) analyzeWithPersistentCacheOnce(parent context.Context,
 	}
 
 	if len(misses) > 0 {
+		misses = prepareMissPaths(misses, prepared.plans)
 		snapshotFiles := snapshotFilesForMisses(misses, prepared.digests)
-		snapshotRoot, cleanup, materializeErr := store.MaterializeSnapshot(parent, snapshotFiles)
+		snapshotRoot, cleanup, materializeErr := store.MaterializeWorkspaceSnapshot(parent, analyzer.workspace, snapshotFiles)
 		if materializeErr != nil {
+			if errors.Is(materializeErr, analysiscache.ErrWorkspaceSnapshotChanged) {
+				return report.Document{}, true, errWorkspaceChanged
+			}
 			if parent.Err() != nil {
 				return report.Document{}, true, parent.Err()
 			}
@@ -175,23 +169,16 @@ func (analyzer *Analyzer) analyzeWithPersistentCacheOnce(parent context.Context,
 	}
 
 	// Cache failures never prevent a verified report from being returned.
-	for _, unit := range prepared.units {
-		if _, exists := unitRefs[unit.key]; exists {
-			continue
+	newRefs, persistErr := persistMissingUnits(parent, store, catalog, prepared.units, unitInputs, unitRefs)
+	if persistErr != nil {
+		var reportErr unitReportPersistenceError
+		if errors.As(persistErr, &reportErr) {
+			return report.Document{}, true, reportErr.err
 		}
-		inputs := unitInputs[unit.plan.ID]
-		unitReport, reportErr := scoreInputsReport(catalog, []string{string(unit.plan.Language)}, inputs, nil)
-		if reportErr != nil {
-			return report.Document{}, true, reportErr
-		}
-		ref, putErr := store.PutUnit(unit.key, analysiscache.UnitArtifact{
-			UnitID: unit.plan.ID, UnitKey: unit.key, Language: string(unit.plan.Language),
-			SnapshotKey: unit.key, Report: unitReport,
-		})
-		if putErr != nil {
-			return document, true, nil
-		}
-		unitRefs[unit.key] = ref
+		return document, true, nil
+	}
+	for key, ref := range newRefs {
+		unitRefs[key] = ref
 	}
 	projection := analysiscache.ProjectionFromReport(view, document, analysiscache.FreshnessCurrent)
 	projectionRef, putErr := store.PutProjection(view, projection)
@@ -202,6 +189,112 @@ func (analyzer *Analyzer) analyzeWithPersistentCacheOnce(parent context.Context,
 		return document, true, nil
 	}
 	return document, true, nil
+}
+
+type unitReportPersistenceError struct{ err error }
+
+func (failure unitReportPersistenceError) Error() string { return failure.err.Error() }
+func (failure unitReportPersistenceError) Unwrap() error { return failure.err }
+
+func persistMissingUnits(ctx context.Context, store *analysiscache.Store, catalog catalogDocument, units []plannedCacheUnit, inputs map[string]scoreInputs, existing map[analysiscache.Key]analysiscache.ArtifactRef) (map[analysiscache.Key]analysiscache.ArtifactRef, error) {
+	type persistResult struct {
+		ref analysiscache.ArtifactRef
+		err error
+	}
+	results := make([]persistResult, len(units))
+	jobs := make(chan int)
+	workers := min(runtime.GOMAXPROCS(0), 16)
+	if workers < 1 {
+		workers = 1
+	}
+	var group sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			for index := range jobs {
+				unit := units[index]
+				if _, exists := existing[unit.key]; exists {
+					continue
+				}
+				if contextErr := ctx.Err(); contextErr != nil {
+					results[index].err = contextErr
+					continue
+				}
+				unitReport, reportErr := scoreInputsReport(catalog, []string{string(unit.plan.Language)}, inputs[unit.plan.ID], nil)
+				if reportErr != nil {
+					results[index].err = unitReportPersistenceError{err: reportErr}
+					continue
+				}
+				results[index].ref, results[index].err = store.PutUnit(unit.key, analysiscache.UnitArtifact{
+					UnitID: unit.plan.ID, UnitKey: unit.key, Language: string(unit.plan.Language),
+					SnapshotKey: unit.key, Report: unitReport,
+				})
+			}
+		}()
+	}
+	for index := range units {
+		jobs <- index
+	}
+	close(jobs)
+	group.Wait()
+	refs := make(map[analysiscache.Key]analysiscache.ArtifactRef)
+	for index, result := range results {
+		if result.err != nil {
+			return nil, result.err
+		}
+		if result.ref.Digest != "" {
+			refs[units[index].key] = result.ref
+		}
+	}
+	return refs, nil
+}
+
+type cachedUnitLoad struct {
+	artifact analysiscache.UnitArtifact
+	ref      analysiscache.ArtifactRef
+	loaded   bool
+}
+
+func loadCachedUnits(ctx context.Context, store *analysiscache.Store, generation analysiscache.Generation, units []plannedCacheUnit, enabled bool) []cachedUnitLoad {
+	loads := make([]cachedUnitLoad, len(units))
+	if !enabled || len(units) == 0 {
+		return loads
+	}
+	workers := min(runtime.GOMAXPROCS(0), 16)
+	if workers < 1 {
+		workers = 1
+	}
+	jobs := make(chan int)
+	var group sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			for index := range jobs {
+				if ctx.Err() != nil {
+					continue
+				}
+				unit := units[index]
+				ref, candidate := generation.Units[unit.key]
+				artifact := analysiscache.UnitArtifact{}
+				loaded := false
+				if candidate {
+					artifact, loaded = store.LoadUnit(ref, unit.key)
+				}
+				if !loaded {
+					artifact, ref, loaded = store.LoadUnitByKey(unit.key)
+				}
+				loads[index] = cachedUnitLoad{artifact: artifact, ref: ref, loaded: loaded}
+			}
+		}()
+	}
+	for index := range units {
+		jobs <- index
+	}
+	close(jobs)
+	group.Wait()
+	return loads
 }
 
 func filterPlannedUnits(units []unitplan.Unit, discovered map[string][]string, selected []string, includeTests bool) []plannedCacheUnit {
@@ -343,7 +436,7 @@ func intersectPaths(paths []string, wanted map[string]bool) []string {
 	return result
 }
 
-func (analyzer *Analyzer) prepareCacheUnits(ctx context.Context, store *analysiscache.Store, catalog catalogDocument, all []unitplan.Unit, active []plannedCacheUnit, options Options) (cachePreparation, error) {
+func (analyzer *Analyzer) prepareCacheUnits(ctx context.Context, catalog catalogDocument, all []unitplan.Unit, active []plannedCacheUnit, options Options) (cachePreparation, error) {
 	byID := make(map[string]unitplan.Unit, len(all))
 	for _, unit := range all {
 		byID[unit.ID] = unit
@@ -368,6 +461,34 @@ func (analyzer *Analyzer) prepareCacheUnits(ctx context.Context, store *analysis
 	for _, unit := range active {
 		includeDependencies(unit.plan.ID)
 	}
+	conservativeLanguages := map[string]bool{}
+	for _, unit := range active {
+		if unit.plan.Conservative {
+			conservativeLanguages[string(unit.plan.Language)] = true
+		}
+	}
+	if len(conservativeLanguages) > 0 {
+		for id, unit := range byID {
+			language := string(unit.Language)
+			if !conservativeLanguages[language] {
+				continue
+			}
+			if !options.IncludeTests {
+				if hasCapability(unit, unitplan.CapabilityTests) {
+					delete(byID, id)
+					continue
+				}
+				unit.Sources = withoutTestPaths(unit.Sources, language)
+				unit.ContextSources = withoutTestPaths(unit.ContextSources, language)
+				if len(unit.Sources) == 0 {
+					delete(byID, id)
+					continue
+				}
+				byID[id] = unit
+			}
+			includeDependencies(id)
+		}
+	}
 	paths := make(map[string]bool)
 	for id := range relevant {
 		unit := byID[id]
@@ -377,7 +498,10 @@ func (analyzer *Analyzer) prepareCacheUnits(ctx context.Context, store *analysis
 	}
 	digests := make(map[string]analysiscache.Digest, len(paths))
 	sortedPaths := mapKeys(paths)
-	digests, err := analyzer.hashWorkspacePaths(ctx, sortedPaths, store)
+	// Hashing and persistence are deliberately separate. Cache lookup needs
+	// content identities, not 25,000 durable source-blob writes. Miss snapshots
+	// are copied directly from digest-verified workspace inputs below.
+	digests, err := analyzer.hashWorkspacePaths(ctx, sortedPaths)
 	if err != nil {
 		return cachePreparation{}, err
 	}
@@ -405,12 +529,20 @@ func (analyzer *Analyzer) prepareCacheUnits(ctx context.Context, store *analysis
 		}
 		localKeys[id] = key
 	}
-	result := cachePreparation{digests: digests, backendDigests: analyzerDigests, units: make([]plannedCacheUnit, len(active))}
+	dependencyFingerprints := dependencyGraphFingerprints(byID, localKeys)
+	conservativeFingerprints := conservativeLanguageFingerprints(byID, localKeys)
+	result := cachePreparation{digests: digests, backendDigests: analyzerDigests, plans: byID, units: make([]plannedCacheUnit, len(active))}
 	for index, unit := range active {
 		dependencies := make([]analysiscache.DependencyFingerprint, 0, len(unit.plan.DirectDependencies))
 		for _, dependency := range unit.plan.DirectDependencies {
 			dependencies = append(dependencies, analysiscache.DependencyFingerprint{
-				UnitID: dependency, Fingerprint: dependencyClosureFingerprint(dependency, byID, localKeys),
+				UnitID: dependency, Fingerprint: dependencyFingerprints[dependency],
+			})
+		}
+		if unit.plan.Conservative {
+			language := string(unit.plan.Language)
+			dependencies = append(dependencies, analysiscache.DependencyFingerprint{
+				UnitID: language + ":conservative-workspace", Fingerprint: conservativeFingerprints[language],
 			})
 		}
 		key, keyErr := analysiscache.UnitKey(analyzer.unitKeyInput(unit.plan, dependencies, digests, analyzerDigests[string(unit.plan.Language)], catalogDigest, catalog, options))
@@ -418,20 +550,6 @@ func (analyzer *Analyzer) prepareCacheUnits(ctx context.Context, store *analysis
 			return cachePreparation{}, keyErr
 		}
 		unit.key = key
-		closure := dependencyUnitClosure(unit.plan.ID, byID)
-		snapshotPaths := make(map[string]bool)
-		analysisPaths := make(map[string]bool)
-		for _, id := range closure {
-			dependencyUnit := byID[id]
-			for _, path := range unitInputPaths(dependencyUnit) {
-				snapshotPaths[path] = true
-			}
-			for _, path := range append(append([]string{}, dependencyUnit.Sources...), dependencyUnit.ContextSources...) {
-				analysisPaths[path] = true
-			}
-		}
-		unit.snapshotPaths = mapKeys(snapshotPaths)
-		unit.analysisPaths = mapKeys(analysisPaths)
 		result.units[index] = unit
 	}
 	sort.Slice(result.units, func(i, j int) bool { return result.units[i].plan.ID < result.units[j].plan.ID })
@@ -528,33 +646,173 @@ func unitInputPaths(unit unitplan.Unit) []string {
 	return mapKeys(seen)
 }
 
-func dependencyUnitClosure(root string, units map[string]unitplan.Unit) []string {
-	seen := make(map[string]bool)
-	var visit func(string)
-	visit = func(id string) {
-		if seen[id] {
+// dependencyGraphFingerprints computes one compact Merkle identity per unit.
+// A unit is visited once; callers do not repeatedly materialize its complete
+// transitive closure. Cycles are collapsed first so malformed or conservative
+// project graphs remain deterministic and every member invalidates together.
+func dependencyGraphFingerprints(units map[string]unitplan.Unit, localKeys map[string]analysiscache.Key) map[string]analysiscache.Key {
+	ids := mapKeys(localKeys)
+	index := 0
+	indices := make(map[string]int, len(ids))
+	lowlinks := make(map[string]int, len(ids))
+	onStack := make(map[string]bool, len(ids))
+	stack := make([]string, 0, len(ids))
+	components := make([][]string, 0, len(ids))
+	var connect func(string)
+	connect = func(id string) {
+		index++
+		indices[id] = index
+		lowlinks[id] = index
+		stack = append(stack, id)
+		onStack[id] = true
+		for _, dependency := range units[id].DirectDependencies {
+			if localKeys[dependency] == "" {
+				continue
+			}
+			if indices[dependency] == 0 {
+				connect(dependency)
+				lowlinks[id] = min(lowlinks[id], lowlinks[dependency])
+			} else if onStack[dependency] {
+				lowlinks[id] = min(lowlinks[id], indices[dependency])
+			}
+		}
+		if lowlinks[id] != indices[id] {
 			return
 		}
-		unit, exists := units[id]
-		if !exists {
-			return
+		component := []string{}
+		for {
+			last := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			onStack[last] = false
+			component = append(component, last)
+			if last == id {
+				break
+			}
 		}
-		seen[id] = true
-		for _, dependency := range unit.DirectDependencies {
-			visit(dependency)
+		sort.Strings(component)
+		components = append(components, component)
+	}
+	for _, id := range ids {
+		if indices[id] == 0 {
+			connect(id)
 		}
 	}
-	visit(root)
-	return mapKeys(seen)
+	componentOf := make(map[string]int, len(ids))
+	for component, members := range components {
+		for _, id := range members {
+			componentOf[id] = component
+		}
+	}
+	componentKeys := make(map[int]analysiscache.Key, len(components))
+	var fingerprintComponent func(int) analysiscache.Key
+	fingerprintComponent = func(component int) analysiscache.Key {
+		if key := componentKeys[component]; key != "" {
+			return key
+		}
+		parts := []string{"dependency-component-v1"}
+		dependencies := map[int]bool{}
+		for _, id := range components[component] {
+			parts = append(parts, "unit:"+id+"="+string(localKeys[id]))
+			for _, dependency := range units[id].DirectDependencies {
+				dependencyComponent, exists := componentOf[dependency]
+				if exists && dependencyComponent != component {
+					dependencies[dependencyComponent] = true
+				}
+			}
+		}
+		dependencyComponents := make([]int, 0, len(dependencies))
+		for dependency := range dependencies {
+			dependencyComponents = append(dependencyComponents, dependency)
+		}
+		sort.Slice(dependencyComponents, func(i, j int) bool {
+			return components[dependencyComponents[i]][0] < components[dependencyComponents[j]][0]
+		})
+		for _, dependency := range dependencyComponents {
+			parts = append(parts, "dependency:"+components[dependency][0]+"="+string(fingerprintComponent(dependency)))
+		}
+		key := analysiscache.Key(analysiscache.DigestBytes([]byte(strings.Join(parts, "\n"))))
+		componentKeys[component] = key
+		return key
+	}
+	result := make(map[string]analysiscache.Key, len(ids))
+	for _, id := range ids {
+		result[id] = fingerprintComponent(componentOf[id])
+	}
+	return result
 }
 
-func dependencyClosureFingerprint(root string, units map[string]unitplan.Unit, localKeys map[string]analysiscache.Key) analysiscache.Key {
-	closure := dependencyUnitClosure(root, units)
-	parts := make([]string, 0, len(closure))
-	for _, id := range closure {
-		parts = append(parts, id+"="+string(localKeys[id]))
+func conservativeLanguageFingerprints(units map[string]unitplan.Unit, localKeys map[string]analysiscache.Key) map[string]analysiscache.Key {
+	parts := map[string][]string{}
+	for id, key := range localKeys {
+		language := string(units[id].Language)
+		parts[language] = append(parts[language], id+"="+string(key))
 	}
-	return analysiscache.Key(analysiscache.DigestBytes([]byte(strings.Join(parts, "\n"))))
+	result := make(map[string]analysiscache.Key, len(parts))
+	for language, values := range parts {
+		sort.Strings(values)
+		result[language] = analysiscache.Key(analysiscache.DigestBytes([]byte("conservative-language-v1\n" + strings.Join(values, "\n"))))
+	}
+	return result
+}
+
+// prepareMissPaths walks each language's combined missing-unit closure once.
+// runMissingUnits already invokes one analyzer batch per language, so storing
+// the same closure on every package only multiplies memory and CPU work.
+func prepareMissPaths(misses []plannedCacheUnit, units map[string]unitplan.Unit) []plannedCacheUnit {
+	firstByLanguage := map[string]int{}
+	rootsByLanguage := map[string][]string{}
+	for index := range misses {
+		language := string(misses[index].plan.Language)
+		if _, exists := firstByLanguage[language]; !exists {
+			firstByLanguage[language] = index
+		}
+		rootsByLanguage[language] = append(rootsByLanguage[language], misses[index].plan.ID)
+	}
+	for language, roots := range rootsByLanguage {
+		broad := false
+		for _, id := range roots {
+			if units[id].Conservative {
+				broad = true
+				break
+			}
+		}
+		if broad {
+			roots = roots[:0]
+			for id, unit := range units {
+				if string(unit.Language) == language {
+					roots = append(roots, id)
+				}
+			}
+		}
+		seen := map[string]bool{}
+		stack := append([]string(nil), roots...)
+		snapshotPaths := map[string]bool{}
+		analysisPaths := map[string]bool{}
+		for len(stack) > 0 {
+			last := len(stack) - 1
+			id := stack[last]
+			stack = stack[:last]
+			if seen[id] {
+				continue
+			}
+			unit, exists := units[id]
+			if !exists || string(unit.Language) != language {
+				continue
+			}
+			seen[id] = true
+			for _, path := range unitInputPaths(unit) {
+				snapshotPaths[path] = true
+			}
+			for _, path := range append(append([]string{}, unit.Sources...), unit.ContextSources...) {
+				analysisPaths[path] = true
+			}
+			stack = append(stack, unit.DirectDependencies...)
+		}
+		index := firstByLanguage[language]
+		misses[index].snapshotPaths = mapKeys(snapshotPaths)
+		misses[index].analysisPaths = mapKeys(analysisPaths)
+	}
+	return misses
 }
 
 func mapKeys[V any](values map[string]V) []string {
@@ -694,15 +952,13 @@ func (analyzer *Analyzer) runMissingUnits(parent context.Context, workspace stri
 				cancel()
 				return
 			}
-			partitioned := make(map[string]scoreInputs, len(units))
+			partitioned := partitionCombinedUnitInputs(combined, units)
 			for _, unit := range units {
-				filtered := partitionCombinedInputs(combined, unit)
-				if !hasOwnedCoverage(filtered, unit.owned) {
+				if !hasOwnedCoverage(partitioned[unit.plan.ID], unit.owned) {
 					results <- languageResult{err: fmt.Errorf("%s analyzer omitted owned paths for unit %s", language, unit.plan.ID)}
 					cancel()
 					return
 				}
-				partitioned[unit.plan.ID] = filtered
 			}
 			results <- languageResult{inputs: partitioned}
 		}()
@@ -720,22 +976,63 @@ func (analyzer *Analyzer) runMissingUnits(parent context.Context, workspace stri
 	return result, nil
 }
 
-func partitionCombinedInputs(combined scoreInputs, unit plannedCacheUnit) scoreInputs {
-	result := filterScoreInputs(combined, pathSet(unit.owned))
-	result.diagnostics = result.diagnostics[:0]
+func partitionCombinedUnitInputs(combined scoreInputs, units []plannedCacheUnit) map[string]scoreInputs {
+	result := make(map[string]scoreInputs, len(units))
+	owners := make(map[string]string)
+	for _, unit := range units {
+		result[unit.plan.ID] = newScoreInputs()
+		for _, path := range unit.owned {
+			owners[path] = unit.plan.ID
+		}
+	}
+	for path, observations := range combined.observations {
+		if owner := owners[path]; owner != "" {
+			inputs := result[owner]
+			inputs.observations[path] = observations
+			result[owner] = inputs
+		}
+	}
+	for path, coverage := range combined.coverage {
+		if owner := owners[path]; owner != "" {
+			inputs := result[owner]
+			inputs.coverage[path] = coverage
+			result[owner] = inputs
+		}
+	}
+	for path, language := range combined.languages {
+		if owner := owners[path]; owner != "" {
+			inputs := result[owner]
+			inputs.languages[path] = language
+			result[owner] = inputs
+		}
+	}
 	for _, diagnostic := range combined.diagnostics {
 		path, hasPath := metadataPath(diagnostic)
-		if hasPath && !pathSet(unit.owned)[path] {
+		if hasPath {
+			owner := owners[path]
+			if owner == "" {
+				continue
+			}
+			inputs := result[owner]
+			inputs.diagnostics = append(inputs.diagnostics, normalizeMetadata(diagnostic, owner))
+			result[owner] = inputs
 			continue
 		}
-		result.diagnostics = append(result.diagnostics, normalizeMetadata(diagnostic, unit.plan.ID))
+		for _, unit := range units {
+			inputs := result[unit.plan.ID]
+			inputs.diagnostics = append(inputs.diagnostics, normalizeMetadata(diagnostic, unit.plan.ID))
+			result[unit.plan.ID] = inputs
+		}
 	}
-	result.plans = result.plans[:0]
-	for _, plan := range combined.plans {
-		normalized := normalizeMetadata(plan, unit.plan.ID)
-		normalized["discovered_source_count"] = len(unit.owned)
-		normalized["parsed_source_count"] = len(unit.owned)
-		result.plans = append(result.plans, normalized)
+	for _, unit := range units {
+		inputs := result[unit.plan.ID]
+		for _, plan := range combined.plans {
+			normalized := normalizeMetadata(plan, unit.plan.ID)
+			normalized["discovered_source_count"] = len(unit.owned)
+			normalized["parsed_source_count"] = len(unit.owned)
+			inputs.plans = append(inputs.plans, normalized)
+		}
+		result[unit.plan.ID] = inputs
 	}
 	return result
 }
@@ -808,7 +1105,7 @@ func dedupeMetadata(values []map[string]any, ignoreUnit bool) []map[string]any {
 
 func (analyzer *Analyzer) verifyWorkspaceInputs(ctx context.Context, expected map[string]analysiscache.Digest) (bool, error) {
 	paths := mapKeys(expected)
-	actual, err := analyzer.hashWorkspacePaths(ctx, paths, nil)
+	actual, err := analyzer.hashWorkspacePaths(ctx, paths)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -823,7 +1120,7 @@ func (analyzer *Analyzer) verifyWorkspaceInputs(ctx context.Context, expected ma
 	return true, nil
 }
 
-func (analyzer *Analyzer) hashWorkspacePaths(ctx context.Context, paths []string, store *analysiscache.Store) (map[string]analysiscache.Digest, error) {
+func (analyzer *Analyzer) hashWorkspacePaths(ctx context.Context, paths []string) (map[string]analysiscache.Digest, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -854,13 +1151,6 @@ func (analyzer *Analyzer) hashWorkspacePaths(ctx context.Context, paths []string
 					continue
 				}
 				digest := analysiscache.DigestBytes(contents)
-				if store != nil {
-					digest, err = store.PutSource(contents)
-					if err != nil {
-						results[index].err = err
-						continue
-					}
-				}
 				results[index].digest = digest
 			}
 		}()

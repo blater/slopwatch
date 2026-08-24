@@ -64,9 +64,10 @@ type Unit struct {
 	Mode         Mode
 	Capabilities []Capability
 	Sources      []string
-	// ContextSources are source files owned by dependencies but required to
-	// make this unit's project/type analysis snapshot complete. They are not
-	// report subjects for this unit.
+	// ContextSources are source files owned by direct dependencies. The cache
+	// coordinator walks DirectDependencies when it needs a complete transitive
+	// analysis snapshot, avoiding a quadratic copy of every dependency closure
+	// into every unit.
 	ContextSources      []string
 	ConfigInputs        []string
 	DirectDependencies  []string
@@ -286,24 +287,12 @@ func knownDependencies(values []string, owner string, units map[string]*Unit) []
 func populateContextSources(units []Unit, byID map[string]*Unit) {
 	for index := range units {
 		unit := &units[index]
-		seen := map[string]bool{unit.ID: true}
-		var visit func(string)
-		visit = func(id string) {
-			if seen[id] {
-				return
-			}
-			seen[id] = true
+		for _, id := range unit.DirectDependencies {
 			dependency := byID[id]
 			if dependency == nil {
-				return
+				continue
 			}
 			unit.ContextSources = append(unit.ContextSources, dependency.Sources...)
-			for _, nested := range dependency.DirectDependencies {
-				visit(nested)
-			}
-		}
-		for _, dependency := range unit.DirectDependencies {
-			visit(dependency)
 		}
 		owned := make(map[string]bool, len(unit.Sources))
 		for _, source := range unit.Sources {

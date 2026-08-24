@@ -102,6 +102,9 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case animationTick:
 		model.animationFrame++
 		return model, tickAnimation(model.analyzing)
+	case startupLogoExpired:
+		model.startupLogoExpired = true
+		return model, nil
 	case tea.KeyMsg:
 		return model.handleKey(message)
 	}

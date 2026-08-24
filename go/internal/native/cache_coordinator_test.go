@@ -2,6 +2,7 @@ package native
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -257,12 +258,12 @@ func TestTypedNestedOwnershipIsUniqueAndNestedChangeInvalidatesBothFingerprints(
 	if len(owners) != 2 || !strings.Contains(owners["nested/inner.ts"], "nested/tsconfig.json") || owners["outer.ts"] == "" {
 		t.Fatalf("nested ownership = %#v", owners)
 	}
-	first, err := analyzer.prepareCacheUnits(context.Background(), store, analyzer.catalog, plan.Units, active, options)
+	first, err := analyzer.prepareCacheUnits(context.Background(), analyzer.catalog, plan.Units, active, options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	writeTestFile(t, workspace, "nested/inner.ts", "export const inner = 2;\n")
-	second, err := analyzer.prepareCacheUnits(context.Background(), store, analyzer.catalog, plan.Units, active, options)
+	second, err := analyzer.prepareCacheUnits(context.Background(), analyzer.catalog, plan.Units, active, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,6 +434,141 @@ func TestCacheViewDoesNotDependOnReadPolicy(t *testing.T) {
 func TestReadCacheDefaultsFalse(t *testing.T) {
 	if (Options{}).ReadCache {
 		t.Fatal("ReadCache default is not false")
+	}
+}
+
+func TestDependencyFingerprintsInvalidateTransitivelyAcrossLanguages(t *testing.T) {
+	for _, language := range []unitplan.Language{
+		unitplan.LanguageGo, unitplan.LanguageJava, unitplan.LanguageRust, unitplan.LanguageTypeScript,
+	} {
+		t.Run(string(language), func(t *testing.T) {
+			prefix := string(language) + ":"
+			units := map[string]unitplan.Unit{
+				prefix + "leaf":   {ID: prefix + "leaf", Language: language},
+				prefix + "middle": {ID: prefix + "middle", Language: language, DirectDependencies: []string{prefix + "leaf"}},
+				prefix + "root":   {ID: prefix + "root", Language: language, DirectDependencies: []string{prefix + "middle"}},
+				prefix + "side":   {ID: prefix + "side", Language: language},
+			}
+			keys := map[string]analysiscache.Key{}
+			for id := range units {
+				keys[id] = analysiscache.Key(analysiscache.DigestBytes([]byte(id)))
+			}
+			before := dependencyGraphFingerprints(units, keys)
+			keys[prefix+"leaf"] = analysiscache.Key(analysiscache.DigestBytes([]byte("changed")))
+			after := dependencyGraphFingerprints(units, keys)
+			for _, id := range []string{prefix + "leaf", prefix + "middle", prefix + "root"} {
+				if before[id] == after[id] {
+					t.Errorf("transitive change did not invalidate %s", id)
+				}
+			}
+			if before[prefix+"side"] != after[prefix+"side"] {
+				t.Fatal("transitive change invalidated an unrelated unit")
+			}
+		})
+	}
+}
+
+func TestDependencyFingerprintsHandleCyclesDeterministically(t *testing.T) {
+	units := map[string]unitplan.Unit{
+		"a": {ID: "a", Language: unitplan.LanguageGo, DirectDependencies: []string{"b"}},
+		"b": {ID: "b", Language: unitplan.LanguageGo, DirectDependencies: []string{"a"}},
+	}
+	keys := map[string]analysiscache.Key{
+		"a": analysiscache.Key(analysiscache.DigestBytes([]byte("a"))),
+		"b": analysiscache.Key(analysiscache.DigestBytes([]byte("b"))),
+	}
+	first := dependencyGraphFingerprints(units, keys)
+	second := dependencyGraphFingerprints(units, keys)
+	if !reflect.DeepEqual(first, second) || first["a"] == "" || first["a"] != first["b"] {
+		t.Fatalf("cyclic fingerprints are not stable: first=%v second=%v", first, second)
+	}
+}
+
+func TestPrepareMissPathsWalksOneCombinedClosurePerLanguage(t *testing.T) {
+	units := map[string]unitplan.Unit{}
+	var misses []plannedCacheUnit
+	for _, language := range []unitplan.Language{
+		unitplan.LanguageGo, unitplan.LanguageJava, unitplan.LanguageRust, unitplan.LanguageTypeScript,
+	} {
+		prefix := string(language)
+		leafID, rootID := prefix+":leaf", prefix+":root"
+		units[leafID] = unitplan.Unit{ID: leafID, Language: language, Sources: []string{prefix + "/leaf.source"}, ConfigInputs: []string{prefix + "/config"}}
+		root := unitplan.Unit{ID: rootID, Language: language, Sources: []string{prefix + "/root.source"}, DirectDependencies: []string{leafID}}
+		units[rootID] = root
+		misses = append(misses, plannedCacheUnit{plan: root})
+	}
+	prepared := prepareMissPaths(misses, units)
+	for _, miss := range prepared {
+		language := string(miss.plan.Language)
+		for _, path := range []string{language + "/root.source", language + "/leaf.source", language + "/config"} {
+			if !pathSet(miss.snapshotPaths)[path] {
+				t.Errorf("%s snapshot omitted %s: %v", language, path, miss.snapshotPaths)
+			}
+		}
+	}
+}
+
+func BenchmarkDependencyGraphFingerprintsTwentyFiveThousandUnits(b *testing.B) {
+	units := make(map[string]unitplan.Unit, 25_000)
+	keys := make(map[string]analysiscache.Key, 25_000)
+	languages := []unitplan.Language{unitplan.LanguageGo, unitplan.LanguageJava, unitplan.LanguageRust, unitplan.LanguageTypeScript}
+	for _, language := range languages {
+		for index := 0; index < 6250; index++ {
+			id := fmt.Sprintf("%s:%05d", language, index)
+			unit := unitplan.Unit{ID: id, Language: language}
+			if index > 0 {
+				unit.DirectDependencies = []string{fmt.Sprintf("%s:%05d", language, index-1)}
+			}
+			units[id] = unit
+			keys[id] = analysiscache.Key(analysiscache.DigestBytes([]byte(id)))
+		}
+	}
+	b.ResetTimer()
+	for range b.N {
+		_ = dependencyGraphFingerprints(units, keys)
+	}
+}
+
+func TestPartitionCombinedInputsAssignsEachPathExactlyOnce(t *testing.T) {
+	combined := newScoreInputs()
+	combined.observations["a.go"] = map[string][]observation{"metric": {{path: "a.go", value: 1}}}
+	combined.observations["b.go"] = map[string][]observation{"metric": {{path: "b.go", value: 2}}}
+	combined.coverage["a.go"] = map[string]string{"metric": "complete"}
+	combined.coverage["b.go"] = map[string]string{"metric": "complete"}
+	combined.languages["a.go"], combined.languages["b.go"] = "go", "go"
+	combined.diagnostics = []map[string]any{{"path": "a.go", "message": "owned"}, {"message": "global"}}
+	combined.plans = []map[string]any{{"type": "execution_plan"}}
+	units := []plannedCacheUnit{
+		{plan: unitplan.Unit{ID: "a", Language: unitplan.LanguageGo}, owned: []string{"a.go"}},
+		{plan: unitplan.Unit{ID: "b", Language: unitplan.LanguageGo}, owned: []string{"b.go"}},
+	}
+	partitioned := partitionCombinedUnitInputs(combined, units)
+	if len(partitioned["a"].observations) != 1 || len(partitioned["b"].observations) != 1 ||
+		partitioned["a"].observations["b.go"] != nil || partitioned["b"].observations["a.go"] != nil {
+		t.Fatalf("partition leaked paths: %#v", partitioned)
+	}
+	if len(partitioned["a"].diagnostics) != 2 || len(partitioned["b"].diagnostics) != 1 {
+		t.Fatalf("diagnostic partition = a:%v b:%v", partitioned["a"].diagnostics, partitioned["b"].diagnostics)
+	}
+	if partitioned["a"].plans[0]["discovered_source_count"] != 1 || partitioned["b"].plans[0]["unit_id"] != "b" {
+		t.Fatalf("execution plans were not normalized per unit: %#v", partitioned)
+	}
+}
+
+func BenchmarkPartitionCombinedInputsTwentyFiveThousandFiles(b *testing.B) {
+	combined := newScoreInputs()
+	units := make([]plannedCacheUnit, 25_000)
+	for index := range units {
+		path := fmt.Sprintf("pkg/%05d/source.go", index)
+		id := fmt.Sprintf("go:package:%05d", index)
+		combined.observations[path] = map[string][]observation{"metric": {{path: path, value: 1}}}
+		combined.coverage[path] = map[string]string{"metric": "complete"}
+		combined.languages[path] = "go"
+		units[index] = plannedCacheUnit{plan: unitplan.Unit{ID: id, Language: unitplan.LanguageGo}, owned: []string{path}}
+	}
+	b.ResetTimer()
+	for range b.N {
+		_ = partitionCombinedUnitInputs(combined, units)
 	}
 }
 

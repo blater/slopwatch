@@ -47,6 +47,9 @@ type analysisResult struct {
 type watcherReady struct{ err error }
 
 type animationTick time.Time
+type startupLogoExpired struct{}
+
+const startupLogoDuration = 2 * time.Second
 
 type rowState struct {
 	editedAt       time.Time
@@ -86,6 +89,7 @@ type Model struct {
 	queued               map[string]bool
 	status               string
 	initialAnalysis      bool
+	startupLogoExpired   bool
 	animationFrame       int
 	detail               bool
 	detailOffset         int
@@ -167,6 +171,7 @@ func (model *Model) Close() { model.watcher.close() }
 func (model *Model) StartInitialAnalysis() {
 	model.analyzing = true
 	model.initialAnalysis = true
+	model.startupLogoExpired = false
 }
 
 func (model Model) Init() tea.Cmd {
@@ -174,11 +179,15 @@ func (model Model) Init() tea.Cmd {
 	if model.initialAnalysis {
 		// Establish the mutation barrier before the verifier reads any live
 		// input. This still runs after Bubble Tea renders the cached projection.
-		commands = append(commands, model.startWatcher())
+		commands = append(commands, model.startWatcher(), hideStartupLogo())
 	} else {
 		commands = append(commands, model.waitForChange())
 	}
 	return tea.Batch(commands...)
+}
+
+func hideStartupLogo() tea.Cmd {
+	return tea.Tick(startupLogoDuration, func(time.Time) tea.Msg { return startupLogoExpired{} })
 }
 
 func tickAnimation(analyzing bool) tea.Cmd {
@@ -259,7 +268,7 @@ func (model Model) View() string {
 		return ""
 	}
 	base := model.tableView()
-	if model.initialAnalysis && model.analyzing {
+	if model.initialAnalysis && model.analyzing && !model.startupLogoExpired {
 		return model.startupView(base)
 	}
 	if model.detail {

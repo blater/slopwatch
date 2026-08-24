@@ -65,6 +65,7 @@ func planRust(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 		}
 	}
 	localDependencies, narrow, diagnostics := cargoDependencyGraph(context, packages)
+	configInputs := rustConfigInputsByPackage(context, packages)
 	if len(fallback) > 0 {
 		narrow = false
 		diagnostics = append(diagnostics, Diagnostic{Path: fallback[0], Message: "Rust source outside a Cargo package broadened the workspace dependency graph"})
@@ -72,7 +73,7 @@ func planRust(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 
 	var units []Unit
 	for _, pkg := range packages {
-		configs := rustConfigInputs(context, pkg)
+		configs := configInputs[pkg.directory]
 		for _, target := range pkg.targets {
 			dependencies := []string{}
 			if ownMain := mainIDs[pkg.directory]; ownMain != "" && ownMain != rustUnitID(pkg, target) {
@@ -83,15 +84,6 @@ func planRust(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 					if id := mainIDs[directory]; id != "" {
 						dependencies = append(dependencies, id)
 					}
-				}
-			} else {
-				for directory, id := range mainIDs {
-					if directory != pkg.directory {
-						dependencies = append(dependencies, id)
-					}
-				}
-				if len(fallback) > 0 {
-					dependencies = append(dependencies, "rust:workspace-fallback")
 				}
 			}
 			capabilities := []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies}
@@ -108,14 +100,10 @@ func planRust(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 		}
 	}
 	if len(fallback) > 0 {
-		dependencies := make([]string, 0, len(mainIDs))
-		for _, id := range mainIDs {
-			dependencies = append(dependencies, id)
-		}
 		units = append(units, Unit{
 			ID: "rust:workspace-fallback", Language: LanguageRust, Mode: ModeProject,
 			Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies},
-			Sources:      fallback, ConfigInputs: rustWorkspaceConfigs(context), DirectDependencies: dependencies, Conservative: true,
+			Sources:      fallback, ConfigInputs: rustWorkspaceConfigs(context), Conservative: true,
 		})
 	}
 	return units, diagnostics
@@ -262,20 +250,32 @@ func rustUnitID(pkg *rustPackage, target rustTarget) string {
 	return "rust:cargo:" + relativeIDPath(pkg.directory) + ":" + target.kind + ":" + target.name
 }
 
-func rustConfigInputs(context plannerContext, pkg *rustPackage) []string {
-	result := []string{pkg.manifest}
-	buildScript := joinPath(pkg.directory, "build.rs")
-	if context.fileSet[buildScript] {
-		result = append(result, buildScript)
-	}
+func rustConfigInputsByPackage(context plannerContext, packages map[string]*rustPackage) map[string][]string {
+	byOwner := map[string][]string{}
+	buildScripts := map[string]string{}
 	for _, file := range context.files {
 		base := lastPart(file)
-		directory := pathDirectory(file)
-		if (base == "Cargo.toml" || base == "Cargo.lock") && pathWithin(pkg.directory, directory) {
-			result = append(result, file)
+		switch base {
+		case "Cargo.toml", "Cargo.lock":
+			byOwner[pathDirectory(file)] = append(byOwner[pathDirectory(file)], file)
+		case "build.rs":
+			buildScripts[pathDirectory(file)] = file
 		}
-		if (file == ".cargo/config" || file == ".cargo/config.toml" || strings.HasSuffix(file, "/.cargo/config") || strings.HasSuffix(file, "/.cargo/config.toml")) && pathWithin(pkg.directory, pathDirectory(pathDirectory(file))) {
-			result = append(result, file)
+		if file == ".cargo/config" || file == ".cargo/config.toml" || strings.HasSuffix(file, "/.cargo/config") || strings.HasSuffix(file, "/.cargo/config.toml") {
+			byOwner[pathDirectory(pathDirectory(file))] = append(byOwner[pathDirectory(pathDirectory(file))], file)
+		}
+	}
+	result := make(map[string][]string, len(packages))
+	for directory, pkg := range packages {
+		for current := directory; ; current = pathDirectory(current) {
+			result[directory] = append(result[directory], byOwner[current]...)
+			if current == "." {
+				break
+			}
+		}
+		result[directory] = append(result[directory], pkg.manifest)
+		if buildScript := buildScripts[directory]; buildScript != "" {
+			result[directory] = append(result[directory], buildScript)
 		}
 	}
 	return result

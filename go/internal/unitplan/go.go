@@ -77,9 +77,6 @@ func planGo(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 		configs := goConfigInputs(context, pkg)
 		if len(pkg.regular) > 0 {
 			dependencies, uncertain := goDependencies(context, pkg.regular, importOwners)
-			if uncertain || pkg.module == "" {
-				dependencies = append(dependencies, otherUnitIDs(productionIDs, pkg.directory)...)
-			}
 			units = append(units, Unit{
 				ID: productionIDs[pkg.directory], Language: LanguageGo, Mode: ModeProject,
 				Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies},
@@ -91,9 +88,6 @@ func planGo(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 			dependencies, uncertain := goDependencies(context, pkg.tests, importOwners)
 			if productionIDs[pkg.directory] != "" {
 				dependencies = append(dependencies, productionIDs[pkg.directory])
-			}
-			if uncertain || pkg.module == "" {
-				dependencies = append(dependencies, otherUnitIDs(productionIDs, pkg.directory)...)
 			}
 			units = append(units, Unit{
 				ID: "go:test-package:" + relativeIDPath(pkg.directory), Language: LanguageGo, Mode: ModeProject,
@@ -149,16 +143,6 @@ func goDependencies(context plannerContext, sources []string, owners map[string]
 		}
 	}
 	return dependencies, uncertain
-}
-
-func otherUnitIDs(ids map[string]string, directory string) []string {
-	var result []string
-	for candidate, id := range ids {
-		if candidate != directory {
-			result = append(result, id)
-		}
-	}
-	return result
 }
 
 func goModulePath(contents string) string {

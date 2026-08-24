@@ -449,10 +449,6 @@ func writeAtomicMode(path string, data []byte, noReplace bool) error {
 		temporary.Close()
 		return err
 	}
-	if err := temporary.Sync(); err != nil {
-		temporary.Close()
-		return err
-	}
 	if err := temporary.Close(); err != nil {
 		return err
 	}
@@ -474,14 +470,5 @@ func writeAtomicMode(path string, data []byte, noReplace bool) error {
 		}
 		return err
 	}
-	return syncDirectory(directory)
-}
-
-func syncDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer directory.Close()
-	return directory.Sync()
+	return nil
 }

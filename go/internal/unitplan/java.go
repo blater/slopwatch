@@ -31,6 +31,7 @@ func planJava(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 		}
 	}
 	addGradleDeclaredModules(context, modules, moduleDirs)
+	configInputs := javaConfigInputsByModule(context, modules)
 
 	var fallback []string
 	for _, file := range context.files {
@@ -70,15 +71,6 @@ func planJava(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 						dependencies = append(dependencies, id)
 					}
 				}
-			} else {
-				for directory, id := range mainIDs {
-					if directory != module.directory {
-						dependencies = append(dependencies, id)
-					}
-				}
-			}
-			if len(fallback) > 0 {
-				dependencies = append(dependencies, "java:workspace-fallback")
 			}
 			capabilities := []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies}
 			if strings.Contains(strings.ToLower(sourceSet), "test") {
@@ -87,21 +79,17 @@ func planJava(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 			units = append(units, Unit{
 				ID: javaUnitID(module, sourceSet), Language: LanguageJava, Mode: ModeProject,
 				Capabilities: capabilities, Sources: sources,
-				ConfigInputs: javaConfigInputs(context, module), DirectDependencies: dependencies,
+				ConfigInputs: configInputs[module.directory], DirectDependencies: dependencies,
 				Conservative: !narrow,
 			})
 		}
 	}
 	if len(fallback) > 0 {
-		dependencies := make([]string, 0, len(mainIDs))
-		for _, id := range mainIDs {
-			dependencies = append(dependencies, id)
-		}
 		units = append(units, Unit{
 			ID: "java:workspace-fallback", Language: LanguageJava, Mode: ModeProject,
 			Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies},
 			Sources:      fallback, ConfigInputs: javaWorkspaceConfigs(context),
-			DirectDependencies: dependencies, Conservative: true,
+			Conservative: true,
 		})
 	}
 	return units, diagnostics
@@ -135,36 +123,34 @@ func javaSourceSet(moduleDirectory, file string) string {
 	return "main"
 }
 
-func javaConfigInputs(context plannerContext, module *javaModule) []string {
-	var result []string
+func javaConfigInputsByModule(context plannerContext, modules map[string]*javaModule) map[string][]string {
+	byOwner := map[string][]string{}
 	for _, file := range context.files {
-		if !pathWithin(module.directory, pathDirectory(file)) && !pathWithin(pathDirectory(file), module.directory) {
+		if !javaConfigName(lastPart(file)) {
 			continue
 		}
-		base := lastPart(file)
-		if javaConfigName(base) && pathWithin(module.directory, pathDirectory(file)) {
-			result = append(result, file)
+		owner := pathDirectory(file)
+		for _, buildDirectory := range []string{".mvn", "gradle"} {
+			marker := "/" + buildDirectory + "/"
+			if index := strings.Index(file, marker); index >= 0 {
+				owner = file[:index]
+			} else if strings.HasPrefix(file, buildDirectory+"/") {
+				owner = "."
+			}
 		}
-		if ancestorBuildDirectory(file, module.directory, ".mvn") ||
-			ancestorBuildDirectory(file, module.directory, "gradle") {
-			result = append(result, file)
+		byOwner[owner] = append(byOwner[owner], file)
+	}
+	result := make(map[string][]string, len(modules))
+	for directory, module := range modules {
+		for current := directory; ; current = pathDirectory(current) {
+			result[directory] = append(result[directory], byOwner[current]...)
+			if current == "." {
+				break
+			}
 		}
+		result[directory] = append(result[directory], module.manifest)
 	}
-	return append(result, module.manifest)
-}
-
-func ancestorBuildDirectory(file, moduleDirectory, name string) bool {
-	marker := name + "/"
-	index := strings.Index(file, "/"+marker)
-	owner := "."
-	if strings.HasPrefix(file, marker) {
-		index = 0
-	} else if index >= 0 {
-		owner = file[:index]
-	} else {
-		return false
-	}
-	return pathWithin(moduleDirectory, owner)
+	return result
 }
 
 func javaWorkspaceConfigs(context plannerContext) []string {
