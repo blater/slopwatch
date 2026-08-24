@@ -94,15 +94,15 @@ func invocationID() (string, error) {
 	return fmt.Sprintf("%s-%s-%s-%s-%s", text[:8], text[8:12], text[12:16], text[16:20], text[20:]), nil
 }
 
-func runAnalyzer(ctx context.Context, executable string, request analyzerRequest, timeoutSeconds float64) (scoreInputs, error) {
-	return runAnalyzerDecoded(ctx, executable, request, timeoutSeconds, decodeScoreInputs)
+func runAnalyzer(ctx context.Context, executable string, request analyzerRequest) (scoreInputs, error) {
+	return runAnalyzerDecoded(ctx, executable, request, decodeScoreInputs)
 }
 
-func runAnalyzerUnits(ctx context.Context, executable string, request analyzerRequest, timeoutSeconds float64) (map[string]scoreInputs, error) {
-	return runAnalyzerDecoded(ctx, executable, request, timeoutSeconds, decodeUnitScoreInputs)
+func runAnalyzerUnits(ctx context.Context, executable string, request analyzerRequest) (map[string]scoreInputs, error) {
+	return runAnalyzerDecoded(ctx, executable, request, decodeUnitScoreInputs)
 }
 
-func runAnalyzerDecoded[T any](ctx context.Context, executable string, request analyzerRequest, timeoutSeconds float64, decode func(io.Reader, analyzerRequest) (T, error)) (T, error) {
+func runAnalyzerDecoded[T any](ctx context.Context, executable string, request analyzerRequest, decode func(io.Reader, analyzerRequest) (T, error)) (T, error) {
 	var zero T
 	payload, err := json.Marshal(request)
 	if err != nil {
@@ -136,8 +136,8 @@ func runAnalyzerDecoded[T any](ctx context.Context, executable string, request a
 		_ = command.Process.Kill()
 	}
 	waitErr := command.Wait()
-	if ctx.Err() != nil {
-		return zero, fmt.Errorf("analyzer timed out after %.6g seconds", timeoutSeconds)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return zero, fmt.Errorf("analyzer canceled: %w", ctxErr)
 	}
 	if waitErr != nil && strings.TrimSpace(stderr.String()) != "" {
 		return zero, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))

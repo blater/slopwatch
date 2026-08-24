@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/blater/slopwatch/internal/report"
 )
@@ -22,7 +21,6 @@ type Options struct {
 	IncludeTests    bool
 	TypeScriptTypes bool
 	FollowSymlinks  bool
-	Timeout         float64
 	PassScore       *float64
 	// ReadCache permits reuse of verified unit artifacts. Cache writes remain
 	// enabled whenever a store is configured, independently of this option.
@@ -108,14 +106,8 @@ func (analyzer *Analyzer) analyzeLanguage(parent context.Context, catalog catalo
 	}
 	requestOptions := map[string]any{"include_tests": options.IncludeTests, "typescript_types": typeScriptMode}
 	unitOptions := map[string]any{"include_tests": options.IncludeTests, "follow_symlinks": options.FollowSymlinks}
-	request := analyzerRequest{"request", 1, invocation, analyzer.workspace, []protocolUnit{{language + "-unit", language, files, unitOptions}}, components, requestOptions, map[string]int{"max_seconds": int(options.Timeout)}}
-	timeout := time.Duration(options.Timeout * float64(time.Second))
-	if timeout <= 0 {
-		timeout = 120 * time.Second
-	}
-	ctx, cancel := context.WithTimeout(parent, timeout)
-	defer cancel()
-	records, runErr := runAnalyzer(ctx, executable, request, options.Timeout)
+	request := analyzerRequest{"request", 1, invocation, analyzer.workspace, []protocolUnit{{language + "-unit", language, files, unitOptions}}, components, requestOptions, map[string]int{}}
+	records, runErr := runAnalyzer(parent, executable, request)
 	if runErr != nil {
 		return scoreInputs{}, fmt.Errorf("%s analyzer failed: %w", language, runErr)
 	}
@@ -194,7 +186,8 @@ func (analyzer *Analyzer) analyzeUncached(parent context.Context, catalog catalo
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	inputsByLanguage := make([]scoreInputs, len(selected))
-	errorsByLanguage := make([]error, len(selected))
+	var firstError error
+	var errorOnce sync.Once
 	var workers sync.WaitGroup
 	workers.Add(len(selected))
 	for index, language := range selected {
@@ -207,19 +200,21 @@ func (analyzer *Analyzer) analyzeUncached(parent context.Context, catalog catalo
 			}
 			inputs, runErr := analyzer.analyzeLanguage(ctx, catalog, executable, language, discovered[language], options)
 			if runErr != nil {
-				errorsByLanguage[index] = runErr
-				cancel()
+				errorOnce.Do(func() {
+					firstError = runErr
+					cancel()
+				})
 				return
 			}
 			inputsByLanguage[index] = inputs
 		}()
 	}
 	workers.Wait()
+	if firstError != nil {
+		return report.Document{}, firstError
+	}
 	inputs := newScoreInputs()
 	for index := range selected {
-		if errorsByLanguage[index] != nil {
-			return report.Document{}, errorsByLanguage[index]
-		}
 		inputs.merge(inputsByLanguage[index])
 	}
 	return scoreInputsReport(catalog, selected, inputs, options.PassScore)

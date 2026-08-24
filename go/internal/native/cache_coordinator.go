@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/blater/slopwatch/internal/analysiscache"
 	"github.com/blater/slopwatch/internal/report"
@@ -23,7 +22,7 @@ const (
 	nativeProtocolVersion = "1"
 )
 
-type analyzerUnitsRunner func(context.Context, string, analyzerRequest, float64) (map[string]scoreInputs, error)
+type analyzerUnitsRunner func(context.Context, string, analyzerRequest) (map[string]scoreInputs, error)
 
 type plannedCacheUnit struct {
 	plan          unitplan.Unit
@@ -937,19 +936,13 @@ func (analyzer *Analyzer) runMissingUnits(parent context.Context, workspace stri
 				Units:      []protocolUnit{{ID: combinedID, Language: language, Paths: mapKeys(combinedPaths), Metadata: map[string]any{"batched_units": len(units)}}},
 				Components: componentsForLanguage(catalog, language),
 				Options:    map[string]any{"include_tests": options.IncludeTests, "typescript_types": typeMode},
-				Limits:     map[string]int{"max_seconds": int(options.Timeout)},
+				Limits:     map[string]int{},
 			}
-			timeout := time.Duration(options.Timeout * float64(time.Second))
-			if timeout <= 0 {
-				timeout = 120 * time.Second
-			}
-			runContext, stop := context.WithTimeout(ctx, timeout)
-			defer stop()
 			runner := analyzer.runUnits
 			if runner == nil {
 				runner = runAnalyzerUnits
 			}
-			inputs, err := runner(runContext, analyzerExecutable(analyzer.root, language), request, options.Timeout)
+			inputs, err := runner(ctx, analyzerExecutable(analyzer.root, language), request)
 			if err != nil {
 				results <- languageResult{err: fmt.Errorf("%s analyzer failed: %w", language, err)}
 				cancel()

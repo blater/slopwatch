@@ -153,7 +153,7 @@ func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 		t.Skip("structural analyzer is not built")
 	}
 	target := "analyzers/structural/internal/goadapter/adapter.go"
-	analyzer, err := New(root, root, Options{Targets: []string{target}, Timeout: 30})
+	analyzer, err := New(root, root, Options{Targets: []string{target}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestBuiltGoAnalyzerReportsTypeMetricsWithoutGOROOT(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("GOROOT", "")
-	analyzer, err := New(workspace, installationRoot, Options{Targets: []string{"."}, Languages: []string{"go"}, Timeout: 30})
+	analyzer, err := New(workspace, installationRoot, Options{Targets: []string{"."}, Languages: []string{"go"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestNativeJavaAndRustScoresMatchBalancedReference(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(filepath.Ext(test.path), func(t *testing.T) {
-			analyzer, newErr := New(root, root, Options{Targets: []string{test.path}, Timeout: 30})
+			analyzer, newErr := New(root, root, Options{Targets: []string{test.path}})
 			if newErr != nil {
 				t.Fatal(newErr)
 			}

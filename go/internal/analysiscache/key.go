@@ -30,9 +30,8 @@ type ComponentDefinition struct {
 	Version string `json:"version"`
 }
 
-// UnitKeyInput contains every correctness-affecting analysis input. Timeout and
-// presentation settings (weights, sort order, columns, pass threshold) are
-// intentionally absent.
+// UnitKeyInput contains every correctness-affecting analysis input. Presentation
+// settings (weights, sort order, columns, pass threshold) are intentionally absent.
 type UnitKeyInput struct {
 	UnitID           string                  `json:"unit_id"`
 	Language         string                  `json:"language"`
@@ -106,7 +105,7 @@ type ViewOptions struct {
 
 // WorkspaceViewKey isolates manifests and provisional projections for analysis
 // scopes within the same repository. Targets and languages are order
-// independent. Weights, sorting, columns, pass thresholds, and timeouts do not
+// independent. Weights, sorting, columns, and pass thresholds do not
 // participate in this identity.
 func WorkspaceViewKey(path string, options ViewOptions) (ViewKey, error) {
 	workspace, err := canonicalWorkspace(path)

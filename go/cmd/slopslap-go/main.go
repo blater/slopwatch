@@ -42,7 +42,6 @@ type options struct {
 	languages       string
 	backends        stringList
 	config          string
-	timeout         float64
 	passScore       string
 	useCache        bool
 }
@@ -66,7 +65,6 @@ func parser() (*flag.FlagSet, *options) {
 	flags.StringVar(&options.languages, "languages", "", "comma-separated languages")
 	flags.Var(&options.backends, "backend", "language=backend override (repeatable)")
 	flags.StringVar(&options.config, "config", "", "configuration file")
-	flags.Float64Var(&options.timeout, "timeout", 120, "analyzer timeout in seconds")
 	flags.StringVar(&options.passScore, "pass-score", "", "maximum passing score")
 	flags.BoolVar(&options.useCache, "use-cache", false, "reuse verified cached analysis units")
 	flags.Usage = func() {
@@ -128,9 +126,6 @@ func validateOptions(parsed *options) error {
 	if parsed.limit < 0 {
 		return errors.New("--limit must be non-negative")
 	}
-	if parsed.timeout <= 0 {
-		return errors.New("--timeout must be positive")
-	}
 	if parsed.format != "text" && parsed.format != "json" {
 		return errors.New("--format must be text or json")
 	}
@@ -176,7 +171,7 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 	nativeAnalyzer, err := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
 		TypeScriptTypes: parsed.typescriptTypes, FollowSymlinks: parsed.followSymlinks,
-		Timeout: parsed.timeout, PassScore: passScore,
+		PassScore: passScore,
 		ReadCache: true,
 	})
 	if err != nil {
@@ -214,8 +209,8 @@ func runReport(workspace, installationRoot string, targets, languages []string, 
 	nativeAnalyzer, nativeErr := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, TypeScriptTypes: parsed.typescriptTypes,
-		FollowSymlinks: parsed.followSymlinks, Timeout: parsed.timeout,
-		PassScore: passScore, ReadCache: parsed.useCache,
+		FollowSymlinks: parsed.followSymlinks,
+		PassScore:      passScore, ReadCache: parsed.useCache,
 	})
 	if nativeErr != nil {
 		return nativeErr

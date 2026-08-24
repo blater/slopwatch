@@ -24,10 +24,10 @@ func TestPersistentUnitCacheHitAndContentInvalidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"."}, Languages: []string{"go"}, Timeout: 10, ReadCache: true}
+	options := Options{Targets: []string{"."}, Languages: []string{"go"}, ReadCache: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest, _ float64) (map[string]scoreInputs, error) {
+	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
 		calls++
 		return fakeBatchInputs(t, request), nil
 	}
@@ -78,10 +78,10 @@ func TestCorruptUnitArtifactIsAMiss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"."}, Languages: []string{"go"}, Timeout: 10, ReadCache: true}
+	options := Options{Targets: []string{"."}, Languages: []string{"go"}, ReadCache: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest, _ float64) (map[string]scoreInputs, error) {
+	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
 		calls++
 		return fakeBatchInputs(t, request), nil
 	}
@@ -120,10 +120,10 @@ func TestUnitIndexReusesFullPackageAcrossTargetViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"pkg/a.go"}, Languages: []string{"go"}, Timeout: 10, ReadCache: true}
+	options := Options{Targets: []string{"pkg/a.go"}, Languages: []string{"go"}, ReadCache: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest, _ float64) (map[string]scoreInputs, error) {
+	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
 		calls++
 		return fakeBatchInputs(t, request), nil
 	}
@@ -155,10 +155,10 @@ func TestMissingUnitsUseOneImmutableContextCompleteLanguageBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"a/a.go"}, Languages: []string{"go"}, Timeout: 10, ReadCache: true}
+	options := Options{Targets: []string{"a/a.go"}, Languages: []string{"go"}, ReadCache: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	var gotPaths []string
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest, _ float64) (map[string]scoreInputs, error) {
+	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
 		if len(request.Units) != 1 {
 			t.Fatalf("protocol units = %d, want one combined language unit", len(request.Units))
 		}
@@ -202,10 +202,10 @@ func TestMutationDuringSnapshotRetriesBeforeCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"."}, Languages: []string{"go"}, Timeout: 10, ReadCache: true}
+	options := Options{Targets: []string{"."}, Languages: []string{"go"}, ReadCache: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest, _ float64) (map[string]scoreInputs, error) {
+	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
 		calls++
 		inputs := fakeBatchInputs(t, request)
 		if calls == 1 {
@@ -238,7 +238,7 @@ func TestTypedNestedOwnershipIsUniqueAndNestedChangeInvalidatesBothFingerprints(
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"."}, Languages: []string{"typescript"}, TypeScriptTypes: true, Timeout: 10}
+	options := Options{Targets: []string{"."}, Languages: []string{"typescript"}, TypeScriptTypes: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, typescriptTestCatalog())
 	plan, err := unitplan.PlanWorkspace(workspace, unitplan.Options{TypeScriptMode: unitplan.TypeScriptTyped})
 	if err != nil {
@@ -385,11 +385,11 @@ func TestCachedAnalyzeIsSafeForConcurrentCallers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"."}, Languages: []string{"go"}, Timeout: 10, ReadCache: true}
+	options := Options{Targets: []string{"."}, Languages: []string{"go"}, ReadCache: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	var lock sync.Mutex
 	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest, _ float64) (map[string]scoreInputs, error) {
+	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
 		lock.Lock()
 		calls++
 		lock.Unlock()
