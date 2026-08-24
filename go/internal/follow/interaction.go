@@ -105,6 +105,27 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case startupLogoExpired:
 		model.startupLogoExpired = true
 		return model, nil
+	case sourceLoaded:
+		if !model.sourceView || message.generation != model.sourceLoadGeneration || message.path != model.sourcePath {
+			return model, nil
+		}
+		model.sourceViewport = message.viewport
+		model.resizeSourceViewport()
+		model.sourceSearchText = message.contents
+		model.sourceLoading = false
+		if message.highlight {
+			width, height := model.sourceDimensions()
+			return model, highlightSourceCommand(message.generation, message.path, message.contents, width, height)
+		}
+		return model, nil
+	case sourceHighlighted:
+		if !model.sourceView || message.generation != model.sourceLoadGeneration || message.path != model.sourcePath {
+			return model, nil
+		}
+		message.viewport.SetYOffset(model.sourceViewport.YOffset)
+		model.sourceViewport = message.viewport
+		model.resizeSourceViewport()
+		return model, nil
 	case tea.KeyMsg:
 		return model.handleKey(message)
 	}
@@ -367,6 +388,7 @@ func (model *Model) handleSourceKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	name := key.String()
 	if name == "esc" || name == "escape" || name == "q" || name == "v" {
 		model.sourceView = false
+		model.sourceLoading = false
 		model.sourcePath = ""
 		model.sourceLastKey = ""
 		model.sourceLastAt = time.Time{}
@@ -655,7 +677,7 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter", "i":
 		model.openSelectedFileInfo()
 	case "v":
-		model.openSourceView()
+		return model, model.openSourceView()
 	case "c":
 		model.settings = true
 		model.settingsCursor = 1

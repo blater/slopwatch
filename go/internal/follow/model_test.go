@@ -1715,8 +1715,24 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 		rows:     map[string]rowState{"example.go": {}}, visible: map[string]bool{},
 	}
 	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
-	if command != nil || !updated.(*Model).sourceView {
+	if command == nil || !updated.(*Model).sourceView {
 		t.Fatal("v did not open source view")
+	}
+	model = *updated.(*Model)
+	if loadingView := ansi.Strip(model.sourceViewView()); !strings.Contains(loadingView, "Loading source…") || !strings.Contains(loadingView, "loading") {
+		t.Fatalf("source popup did not render before loading completed: %q", loadingView)
+	}
+	updated, command = model.Update(command())
+	if command == nil {
+		t.Fatal("source load did not defer syntax highlighting")
+	}
+	model = *updated.(*Model)
+	if rawView := ansi.Strip(model.sourceViewView()); !strings.Contains(rawView, "func Run()") || model.sourceLoading {
+		t.Fatalf("raw source was not usable before highlighting completed: %q", rawView)
+	}
+	updated, command = model.Update(command())
+	if command != nil {
+		t.Fatal("source highlighting unexpectedly returned a follow-up command")
 	}
 	model = *updated.(*Model)
 	view := ansi.Strip(model.sourceViewView())
@@ -1770,6 +1786,48 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 	model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
 	if model.sourceView || model.sourcePath != "" {
 		t.Fatal("Esc did not close source view")
+	}
+}
+
+func TestSourceViewIgnoresACompletedLoadAfterItCloses(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "example.go"), []byte("package example\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	file := testFile("example.go", 1)
+	model := Model{
+		width: 80, height: 24, selected: file.Path, options: Options{Workspace: root},
+		document: report.Document{Files: []report.File{file}},
+		rows:     map[string]rowState{file.Path: {}}, visible: map[string]bool{},
+	}
+	_, load := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	model.Update(load())
+	if model.sourceView || model.sourcePath != "" || model.sourceSearchText != "" {
+		t.Fatal("completed background load reopened or populated a closed source view")
+	}
+}
+
+func BenchmarkOpenSourceViewTwentyFiveThousandFiles(b *testing.B) {
+	files := make([]report.File, 25_000)
+	for index := range files {
+		files[index] = testFile(fmt.Sprintf("module/package/file_%05d.go", index), float64(index%100))
+	}
+	model := Model{
+		width: 140, height: 50, selected: files[0].Path,
+		document: report.Document{Files: files},
+		options:  Options{Workspace: b.TempDir()},
+		sortKey:  "score", sortReverse: true,
+		visible: defaultColumnVisibility(),
+	}
+	model.refreshDisplayFiles()
+	model.selected = model.displayFiles()[0].Path
+	b.ResetTimer()
+	for range b.N {
+		model.sourceView = false
+		if command := model.openSourceView(); command == nil {
+			b.Fatal("openSourceView returned no load command")
+		}
 	}
 }
 

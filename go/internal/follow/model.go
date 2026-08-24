@@ -49,6 +49,20 @@ type watcherReady struct{ err error }
 type animationTick time.Time
 type startupLogoExpired struct{}
 
+type sourceLoaded struct {
+	generation uint64
+	path       string
+	contents   string
+	viewport   viewport.Model
+	highlight  bool
+}
+
+type sourceHighlighted struct {
+	generation uint64
+	path       string
+	viewport   viewport.Model
+}
+
 const startupLogoDuration = 2 * time.Second
 
 type rowState struct {
@@ -117,6 +131,8 @@ type Model struct {
 	sourceView           bool
 	sourcePath           string
 	sourceViewport       viewport.Model
+	sourceLoadGeneration uint64
+	sourceLoading        bool
 	sourceLastKey        string
 	sourceLastAt         time.Time
 	sourceRapid          int

@@ -8,35 +8,68 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/style"
 )
 
-func (model *Model) openSourceView() {
+func (model *Model) openSourceView() tea.Cmd {
 	file, ok := model.selectedFile()
 	if !ok {
-		return
+		return nil
 	}
+	model.sourceLoadGeneration++
+	generation := model.sourceLoadGeneration
 	model.sourcePath = file.Path
 	model.sourceView = true
+	model.sourceLoading = true
 	model.sourceLastKey = ""
 	model.sourceLastAt = time.Time{}
 	model.sourceRapid = 0
 	model.sourceSearchText = ""
 	width, height := model.sourceDimensions()
-	model.sourceViewport = viewport.New(max(1, width-4), max(1, height-4))
+	model.sourceViewport = newSourceViewport(width, height)
+	model.sourceViewport.SetContent("Loading source…")
 	model.resizeSourceViewport()
 	path := filepath.Join(model.options.Workspace, filepath.FromSlash(file.Path))
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		model.sourceViewport.SetContent(fmt.Sprintf("Unable to read %s: %v", file.Path, err))
-		return
+	return func() tea.Msg {
+		contents, err := os.ReadFile(path)
+		text := string(contents)
+		highlight := false
+		if err != nil {
+			text = fmt.Sprintf("Unable to read %s: %v", file.Path, err)
+			contents = nil
+		} else if sourceGrammarScope(file.Path) != "" {
+			highlight = true
+		}
+		prepared := newSourceViewport(width, height)
+		prepared.SetContent(text)
+		prepared.GotoTop()
+		return sourceLoaded{
+			generation: generation,
+			path:       file.Path,
+			contents:   string(contents),
+			viewport:   prepared,
+			highlight:  highlight,
+		}
 	}
-	model.sourceViewport.SetContent(highlightSource(file.Path, string(contents)))
-	model.sourceSearchText = string(contents)
-	model.sourceViewport.GotoTop()
+}
+
+func highlightSourceCommand(generation uint64, path, contents string, width, height int) tea.Cmd {
+	return func() tea.Msg {
+		prepared := newSourceViewport(width, height)
+		prepared.SetContent(highlightSource(path, contents))
+		prepared.GotoTop()
+		return sourceHighlighted{generation: generation, path: path, viewport: prepared}
+	}
+}
+
+func newSourceViewport(width, height int) viewport.Model {
+	result := viewport.New(max(1, width-4), max(1, height-4))
+	result.SetHorizontalStep(8)
+	return result
 }
 
 func (model *Model) resizeSourceViewport() {
@@ -56,7 +89,10 @@ func (model Model) sourceViewView() string {
 	outerWidth, outerHeight := model.sourceDimensions()
 	innerWidth := max(1, outerWidth-2)
 	headerLeft := "  " + model.sourcePath
-	headerRight := fmt.Sprintf("%d lines ", sourceLineCount(model.sourceSearchText))
+	headerRight := "loading "
+	if !model.sourceLoading {
+		headerRight = fmt.Sprintf("%d lines ", sourceLineCount(model.sourceSearchText))
+	}
 	headerLeftWidth := max(0, innerWidth-lipgloss.Width(headerRight))
 	header := padANSI(truncateANSI(headerLeft, headerLeftWidth), headerLeftWidth) + headerRight
 	header = lipgloss.NewStyle().Bold(true).Foreground(style.AccentPositive).Background(style.SurfaceHeader).Render(padANSI(truncateANSI(header, innerWidth), innerWidth))

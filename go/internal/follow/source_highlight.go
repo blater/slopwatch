@@ -20,6 +20,8 @@ var (
 	sourceHighlighterOnce sync.Once
 	sourceHighlighter     *textmate.Highlighter
 	sourceHighlighterErr  error
+	sourceHighlighterMu   sync.Mutex
+	sourceGrammarsLoaded  = map[string]bool{}
 )
 
 func sourceHighlighterInstance() (*textmate.Highlighter, error) {
@@ -33,51 +35,52 @@ func sourceHighlighterInstance() (*textmate.Highlighter, error) {
 		if sourceHighlighterErr = sourceHighlighter.SetThemeBytes(textmate.DefaultThemeBytes()); sourceHighlighterErr != nil {
 			return
 		}
-		for _, grammar := range []string{
-			"go.tmLanguage.json",
-			"java.tmLanguage.json",
-			"rust.tmLanguage.json",
-			"typescript.tmLanguage.json",
-			"typescriptreact.tmLanguage.json",
-		} {
-			var data []byte
-			data, sourceHighlighterErr = sourceGrammarFiles.ReadFile("grammars/" + grammar)
-			if sourceHighlighterErr != nil {
-				return
-			}
-			if _, sourceHighlighterErr = sourceHighlighter.LoadGrammarBytes(data); sourceHighlighterErr != nil {
-				return
-			}
-		}
 	})
 	return sourceHighlighter, sourceHighlighterErr
 }
 
-func sourceGrammarScope(path string) string {
+func sourceGrammar(path string) (string, string) {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".go":
-		return "source.go"
+		return "source.go", "go.tmLanguage.json"
 	case ".java":
-		return "source.java"
+		return "source.java", "java.tmLanguage.json"
 	case ".rs":
-		return "source.rust"
+		return "source.rust", "rust.tmLanguage.json"
 	case ".ts", ".mts", ".cts":
-		return "source.ts"
+		return "source.ts", "typescript.tmLanguage.json"
 	case ".tsx":
-		return "source.tsx"
+		return "source.tsx", "typescriptreact.tmLanguage.json"
 	default:
-		return ""
+		return "", ""
 	}
 }
 
+func sourceGrammarScope(path string) string {
+	scope, _ := sourceGrammar(path)
+	return scope
+}
+
 func highlightSource(path, contents string) string {
-	scope := sourceGrammarScope(path)
+	scope, grammar := sourceGrammar(path)
 	if scope == "" {
 		return contents
 	}
 	highlighter, err := sourceHighlighterInstance()
 	if err != nil {
 		return contents
+	}
+	sourceHighlighterMu.Lock()
+	defer sourceHighlighterMu.Unlock()
+	if !sourceGrammarsLoaded[grammar] {
+		data, readErr := sourceGrammarFiles.ReadFile("grammars/" + grammar)
+		if readErr != nil {
+			return contents
+		}
+		if _, loadErr := highlighter.LoadGrammarBytes(data); loadErr != nil {
+			return contents
+		}
+		sourceGrammarsLoaded[grammar] = true
 	}
 	result, err := highlighter.Highlight(scope, contents)
 	if err != nil {
