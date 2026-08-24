@@ -81,9 +81,20 @@ func (analyzer *Analyzer) CachedProjection() (report.Document, bool) {
 	if !ok {
 		return report.Document{}, false
 	}
+	discovered, err := analyzer.discover(options.Targets, options.IncludeTests, options.FollowSymlinks)
+	if err != nil {
+		return report.Document{}, false
+	}
+	selected, err := selectedLanguages(options.Languages, discovered)
+	if err != nil {
+		return report.Document{}, false
+	}
+	files := reconcileProjectionInventory(projection.ReportFiles(), discovered, selected)
 	document := report.Document{
-		Calibrated: true, Files: projection.ReportFiles(), ProfileSetHash: "native-balanced-v1",
-		SchemaVersion: 3, Summary: map[string]any{"cache_state": "provisional"},
+		Calibrated: true, Files: files, ProfileSetHash: "native-balanced-v1",
+		SchemaVersion: 3, Summary: map[string]any{
+			"cache_state": "provisional", "discovered_source_count": len(files),
+		},
 	}
 	for index := range document.Files {
 		document.Files[index].Freshness = report.FreshnessProvisional
@@ -91,6 +102,32 @@ func (analyzer *Analyzer) CachedProjection() (report.Document, bool) {
 	}
 	document.SortAndRank()
 	return document, true
+}
+
+func reconcileProjectionInventory(cached []report.File, discovered map[string][]string, selected []string) []report.File {
+	byPath := make(map[string]report.File, len(cached))
+	for _, file := range cached {
+		byPath[file.Path] = file
+	}
+	count := 0
+	for _, language := range selected {
+		count += len(discovered[language])
+	}
+	files := make([]report.File, 0, count)
+	for _, language := range selected {
+		for _, path := range discovered[language] {
+			file, exists := byPath[path]
+			if !exists {
+				file = report.File{
+					Path: path, Language: language, Complete: false,
+					Components: map[string]report.Component{}, Coverage: map[string]string{},
+					Axes: map[string]float64{}, ObservedAxes: map[string]float64{},
+				}
+			}
+			files = append(files, file)
+		}
+	}
+	return files
 }
 
 func (analyzer *Analyzer) persistProjection(document report.Document, options Options) {

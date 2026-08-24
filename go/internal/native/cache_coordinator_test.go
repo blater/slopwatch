@@ -13,8 +13,58 @@ import (
 	"time"
 
 	"github.com/blater/slopwatch/internal/analysiscache"
+	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/unitplan"
 )
+
+func TestStartupProjectionIsReconciledWithCurrentSourceInventory(t *testing.T) {
+	workspace := t.TempDir()
+	writeTestFile(t, workspace, "kept.java", "class Kept {}\n")
+	writeTestFile(t, workspace, "new.java", "class New {}\n")
+	store, err := analysiscache.NewStore(filepath.Join(t.TempDir(), "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	options := Options{Targets: []string{"."}, Languages: []string{"java"}, ReadCache: true}
+	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
+	view, err := analyzer.viewKey(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := report.Document{Files: []report.File{
+		{Path: "kept.java", Language: "java", Complete: true, Score: 12},
+		{Path: "deleted.java", Language: "java", Complete: true, Score: 34},
+	}}
+	projection := analysiscache.ProjectionFromReport(view, stale, analysiscache.FreshnessCurrent)
+	ref, err := store.PutProjection(view, projection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CommitGeneration(view, analysiscache.Generation{Projection: ref}); err != nil {
+		t.Fatal(err)
+	}
+
+	document, ok := analyzer.CachedProjection()
+	if !ok {
+		t.Fatal("current inventory rejected a readable startup projection")
+	}
+	if len(document.Files) != 2 {
+		t.Fatalf("startup files = %d, want current inventory of 2", len(document.Files))
+	}
+	byPath := map[string]report.File{}
+	for _, file := range document.Files {
+		byPath[file.Path] = file
+	}
+	if byPath["kept.java"].Score != 12 || !byPath["kept.java"].Complete {
+		t.Fatalf("cached row was not preserved: %#v", byPath["kept.java"])
+	}
+	if file, exists := byPath["new.java"]; !exists || file.Complete || file.Freshness != report.FreshnessProvisional {
+		t.Fatalf("new source was not added provisionally: %#v", file)
+	}
+	if _, exists := byPath["deleted.java"]; exists {
+		t.Fatal("deleted source remained in startup projection")
+	}
+}
 
 func TestPersistentUnitCacheHitAndContentInvalidation(t *testing.T) {
 	workspace := t.TempDir()
