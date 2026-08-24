@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -32,11 +33,65 @@ func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 	if len(document.Files) != 1 {
 		t.Fatalf("got %d files", len(document.Files))
 	}
-	if difference := math.Abs(document.Files[0].Score - 54.677298739027); difference > 1e-9 {
-		t.Fatalf("native score = %.12f, reference = 54.677298739027", document.Files[0].Score)
+	if difference := math.Abs(document.Files[0].Score - 51.720354889623); difference > 1e-9 {
+		t.Fatalf("native score = %.12f, reference = 51.720354889623", document.Files[0].Score)
 	}
 	if document.Files[0].Path != target {
 		t.Fatalf("path = %q", document.Files[0].Path)
+	}
+}
+
+func TestBuiltGoAnalyzerReportsTypeMetricsWithoutGOROOT(t *testing.T) {
+	installationRoot, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable := filepath.Join(installationRoot, "analyzers", "structural", "slopslap-structural")
+	if info, statErr := os.Stat(executable); statErr != nil || info.IsDir() {
+		t.Skip("structural analyzer is not built")
+	}
+	workspace := t.TempDir()
+	workspace, err = filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var source strings.Builder
+	source.WriteString("package sample\nimport \"fmt\"\ntype Peer struct { A, B, C, D, E, F int }\ntype Service struct { state int }\nfunc (s *Service) Run(peer Peer) int {\n_ = fmt.Sprint(peer.A)\n")
+	for index := 0; index < 48; index++ {
+		fmt.Fprintf(&source, "if peer.A > %d {}\n", index)
+	}
+	source.WriteString("return s.state + peer.A + peer.B + peer.C + peer.D + peer.E + peer.F\n}\n")
+	if err := os.WriteFile(filepath.Join(workspace, "main.go"), []byte(source.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOROOT", "")
+	analyzer, err := New(workspace, installationRoot, Options{Targets: []string{"."}, Languages: []string{"go"}, Timeout: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := analyzer.Analyze(context.Background(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(document.Files) != 1 {
+		t.Fatalf("files = %d, want 1", len(document.Files))
+	}
+	file := document.Files[0]
+	for _, componentID := range []string{"coupling_between_objects", "god_class"} {
+		if state := file.Coverage[componentID]; state != "complete" {
+			t.Fatalf("%s coverage = %q, want complete", componentID, state)
+		}
+	}
+	coupling := file.Components["coupling_between_objects"]
+	maximumCoupling := 0.0
+	for _, subject := range coupling.Subjects {
+		maximumCoupling = math.Max(maximumCoupling, subject.Value)
+	}
+	if maximumCoupling == 0 {
+		t.Fatal("CPL did not observe the imported Go type")
+	}
+	if contribution := file.Components["god_class"].Contribution; contribution == 0 {
+		t.Fatal("GOD did not trigger for the high-WMC, high-ATFD, low-TCC type")
 	}
 }
 

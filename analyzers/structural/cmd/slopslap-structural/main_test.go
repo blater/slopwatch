@@ -62,9 +62,9 @@ func TestDecodeRequestAcceptsLargeInventories(t *testing.T) {
 	}
 }
 
-func TestProtocolIsDeterministicAndDoesNotZeroUnavailableTypeMetrics(t *testing.T) {
+func TestProtocolUsesDeterministicTypeMetricFallback(t *testing.T) {
 	root := t.TempDir()
-	source := "package sample\nimport \"example.invalid/missing\"\ntype Service struct { peer missing.Peer }\n"
+	source := "package sample\nimport \"example.invalid/missing\"\ntype Service struct { peer missing.Peer }\nfunc (s Service) Run(other missing.Peer) { _ = s.peer; _ = other.Value }\n"
 	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(source), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestProtocolIsDeterministicAndDoesNotZeroUnavailableTypeMetrics(t *testing.
 		t.Fatal("identical analysis requests produced different protocol output")
 	}
 	decoder := json.NewDecoder(&first)
-	seenUnavailable := false
+	seenComplete := false
 	seenCBO := false
 	for decoder.More() {
 		var record map[string]any
@@ -92,11 +92,11 @@ func TestProtocolIsDeterministicAndDoesNotZeroUnavailableTypeMetrics(t *testing.
 			seenCBO = true
 		}
 		if record["type"] == "coverage" && record["component_id"] == "coupling_between_objects" {
-			seenUnavailable = record["state"] == "unavailable" && record["reason"] != ""
+			seenComplete = record["state"] == "complete" && record["reason"] == ""
 		}
 	}
-	if seenCBO || !seenUnavailable {
-		t.Fatalf("CBO measurement=%v unavailable coverage=%v", seenCBO, seenUnavailable)
+	if !seenCBO || !seenComplete {
+		t.Fatalf("CBO measurement=%v complete coverage=%v", seenCBO, seenComplete)
 	}
 }
 

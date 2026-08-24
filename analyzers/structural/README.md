@@ -12,17 +12,20 @@ Rust syn adapter ──┘
 ```
 
 The adapter parses every exact requested `.go` file once with `go/ast`, then
-uses an offline `go/types` loader over those exact workspace sources and the Go
-standard library. It translates functions, structured control flow, receiver
-types, field accesses, and foreign type references into shared facts. The
+uses an offline `go/types` loader when package information is locally
+available. It translates functions, structured control flow, receiver types,
+field accesses, and foreign type references into shared facts. The
 strategies calculate cognitive complexity, cyclomatic complexity, NPath, deep
 nesting, type WMC, CBO, and the WMC/ATFD/TCC inputs for responsibility concentration. NPath uses
 arbitrary-size integers.
 
 The loader never runs `go list`, builds repository packages, invokes generators,
-or downloads modules. If an imported package is neither in the exact requested
-source set nor the standard library, CBO and responsibility-concentration coverage is reported as
-`unavailable` instead of emitting a misleading zero.
+or downloads modules. If imports cannot be resolved—including when the
+distributed binary runs without a Go installation or `GOROOT`—the adapter uses
+deterministic syntax facts for CBO and responsibility concentration. Explicit
+type references, receiver-field access, and foreign selector access therefore
+remain measurable without turning a missing toolchain into unavailable
+coverage.
 
 The Rust adapter uses `syn` in a bundled native helper and crosses a versioned
 fact protocol. It parses only the requested `.rs` inventory and never invokes

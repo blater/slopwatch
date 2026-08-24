@@ -44,7 +44,7 @@ func (Adapter) FactSchemaVersion() int { return facts.SchemaVersion }
 
 // ParserModes describes the deterministic parser configuration used per source.
 func (Adapter) ParserModes() []string {
-	return []string{"go-ast-syntax", "go-types-exact-source"}
+	return []string{"go-ast-syntax", "go-types-exact-source", "go-ast-type-fallback"}
 }
 
 // Analyze translates exact Go files into normalized structural facts.
@@ -145,21 +145,10 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 	for _, item := range sources {
 		files = append(files, item.rel)
 	}
-	unavailable := make(map[string]map[string]string)
-	for _, item := range sources {
-		if item.typesAvailable {
-			continue
-		}
-		reason := "Go type information is unavailable"
-		if item.typeReason != "" {
-			reason += ": " + item.typeReason
-		}
-		unavailable[item.rel] = map[string]string{
-			"coupling_between_objects": reason,
-			"god_class":                reason,
-		}
-	}
-	return &facts.Program{Functions: b.functions, Types: types, PublicOperations: b.operations, Representation: representation, Files: files, Unavailable: unavailable}, nil
+	// Type facts have a deterministic AST fallback. This is essential for the
+	// distributed analyzer, which must not require a Go installation (and its
+	// GOROOT/package export data) merely to inspect source that has imports.
+	return &facts.Program{Functions: b.functions, Types: types, PublicOperations: b.operations, Representation: representation, Files: files}, nil
 }
 
 func canonicalSource(workspace, raw string) (string, string, error) {

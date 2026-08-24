@@ -67,7 +67,8 @@ func metric(file report.File, key string) (float64, bool, float64) {
 	}
 	if key == "coupling" {
 		component, exists := file.Components["coupling_between_objects"]
-		return component.Contribution, exists, component.Contribution
+		value, _ := report.Max(file, "coupling_between_objects")
+		return value, exists, component.Contribution
 	}
 	componentID := map[string]string{"cog": "cognitive_complexity", "npath": "npath_complexity", "cyclo": "cyclomatic_method_complexity", "deep": "module_shallowness", "god": "god_class"}[key]
 	contribution, exists := report.Contribution(file, componentID)

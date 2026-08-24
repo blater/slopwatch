@@ -369,6 +369,18 @@ func TestOverviewUsesMaximumRoutineMetric(t *testing.T) {
 	}
 }
 
+func TestOverviewShowsRawCouplingRatherThanThresholdedContribution(t *testing.T) {
+	file := testFile("a.go", 0)
+	file.Components["coupling_between_objects"] = report.Component{
+		Contribution: 0,
+		Subjects:     []report.SubjectContribution{{Value: 2}, {Value: 7}, {Value: 3}},
+	}
+	value, exists, contribution := metric(file, "coupling")
+	if !exists || value != 7 || contribution != 0 {
+		t.Fatalf("coupling metric = %v, %t, %v; want 7, true, 0", value, exists, contribution)
+	}
+}
+
 func TestTableFillsAvailableHeight(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{

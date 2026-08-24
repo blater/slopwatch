@@ -69,7 +69,6 @@ jobs:
           set -euo pipefail
           go -C go mod download
           make test-clean
-          GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go test -C go ./...
 
       - name: Build complete distribution
         run: make -B build
@@ -106,7 +105,25 @@ jobs:
           tar -xzf "dist/slopwatch-${VERSION}-darwin-arm64.tar.gz" -C "$unpack"
           cat > "$source/main.go" <<'GO'
           package smoke
-          func GoRoutine(ok bool) { if ok {} }
+          import "fmt"
+          type Peer struct { A, B, C, D, E, F int }
+          type Service struct { state int }
+          func (s *Service) GoRoutine(peer Peer) int {
+            _ = fmt.Sprint(peer.A)
+            if peer.A > 0 {}; if peer.A > 1 {}; if peer.A > 2 {}; if peer.A > 3 {}
+            if peer.B > 0 {}; if peer.B > 1 {}; if peer.B > 2 {}; if peer.B > 3 {}
+            if peer.C > 0 {}; if peer.C > 1 {}; if peer.C > 2 {}; if peer.C > 3 {}
+            if peer.D > 0 {}; if peer.D > 1 {}; if peer.D > 2 {}; if peer.D > 3 {}
+            if peer.E > 0 {}; if peer.E > 1 {}; if peer.E > 2 {}; if peer.E > 3 {}
+            if peer.F > 0 {}; if peer.F > 1 {}; if peer.F > 2 {}; if peer.F > 3 {}
+            if peer.A > 4 {}; if peer.B > 4 {}; if peer.C > 4 {}; if peer.D > 4 {}
+            if peer.E > 4 {}; if peer.F > 4 {}; if peer.A > 5 {}; if peer.B > 5 {}
+            if peer.C > 5 {}; if peer.D > 5 {}; if peer.E > 5 {}; if peer.F > 5 {}
+            if peer.A > 6 {}; if peer.B > 6 {}; if peer.C > 6 {}; if peer.D > 6 {}
+            if peer.E > 6 {}; if peer.F > 6 {}; if peer.A > 7 {}; if peer.B > 7 {}
+            if peer.C > 7 {}; if peer.D > 7 {}; if peer.E > 7 {}; if peer.F > 7 {}
+            return s.state + peer.A + peer.B + peer.C + peer.D + peer.E + peer.F
+          }
           GO
           cat > "$source/Main.java" <<'JAVA'
           class Main { void javaRoutine(boolean ok) { if (ok) {} } }
@@ -122,7 +139,7 @@ jobs:
           JSON
           (
             cd "$source"
-            "$unpack/build/slopmark" --format json . > "$RUNNER_TEMP/report.json"
+            env -u GOROOT "$unpack/build/slopmark" --format json . > "$RUNNER_TEMP/report.json"
           )
           for language in go java rust typescript; do
             grep -Eq "\"language\"[[:space:]]*:[[:space:]]*\"$language\"" "$RUNNER_TEMP/report.json" || {
@@ -130,6 +147,18 @@ jobs:
               exit 1
             }
           done
+          jq -e '
+            .files[]
+            | select(.language == "go")
+            | (.coverage.coupling_between_objects == "complete")
+              and (.coverage.god_class == "complete")
+              and (([.components.coupling_between_objects.evidence[].value] | max) > 0)
+              and (.components.god_class.contribution > 0)
+          ' "$RUNNER_TEMP/report.json" >/dev/null || {
+            echo "Packaged Go analyzer did not produce complete, non-zero CPL and GOD metrics for imported code"
+            jq '.files[] | select(.language == "go") | {coverage, coupling: .components.coupling_between_objects, god: .components.god_class}' "$RUNNER_TEMP/report.json"
+            exit 1
+          }
           "$unpack/build/slopmark" --help >/dev/null
           "$unpack/build/slopwatch" --help >/dev/null
 

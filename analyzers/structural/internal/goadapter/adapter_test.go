@@ -97,12 +97,12 @@ func (s Service) Run(peer Peer) { s.Run(); peer.Run() }
 	t.Fatal("Service.Run was not collected")
 }
 
-func TestAdapterMarksSemanticMetricsUnavailableOnTypeErrors(t *testing.T) {
+func TestAdapterFallsBackToSyntaxFactsOnTypeErrors(t *testing.T) {
 	root := t.TempDir()
 	source := `package sample
 import "example.invalid/missing"
 type Service struct { peer missing.Peer }
-func (s Service) Run() { _ = s.peer }
+func (s Service) Run(other missing.Peer) { _ = s.peer; _ = other.Value }
 `
 	if err := os.WriteFile(filepath.Join(root, "service.go"), []byte(source), 0o600); err != nil {
 		t.Fatal(err)
@@ -113,12 +113,22 @@ func (s Service) Run() { _ = s.peer }
 	}
 	for _, component := range []string{"coupling_between_objects", "god_class"} {
 		available, reason := program.Availability("service.go", component)
-		if available || reason == "" {
+		if !available || reason != "" {
 			t.Fatalf("%s availability = %v, %q", component, available, reason)
 		}
 	}
-	if available, reason := program.Availability("service.go", "cognitive_complexity"); !available || reason != "" {
-		t.Fatalf("syntax metric availability = %v, %q", available, reason)
+	if len(program.Types) != 1 {
+		t.Fatalf("types = %d, want 1", len(program.Types))
+	}
+	item := program.Types[0]
+	if len(item.ForeignTypes) != 1 || item.ForeignTypes[0] != "missing.Peer" {
+		t.Fatalf("foreign types = %#v", item.ForeignTypes)
+	}
+	if len(item.ForeignFields) != 1 || item.ForeignFields[0] != "other.Value" {
+		t.Fatalf("foreign fields = %#v", item.ForeignFields)
+	}
+	if fields := item.MethodFields["Run"]; len(fields) != 1 || fields[0] != "peer" {
+		t.Fatalf("method fields = %#v", item.MethodFields)
 	}
 }
 

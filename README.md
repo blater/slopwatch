@@ -88,6 +88,7 @@ descriptions are also available in the dashboard with `h`.
 | `NPATH` | Number of possible execution paths. Lower is better |
 | `CYCLO` | Cyclomatic complexity - independent control-flow paths. Lower is better |
 | `SHALLOW` | Functionality delivered per unit of interface complexity. Higher is worse |
+| `CPL` | Maximum number of foreign types referenced by a type. Lower is better |
 | `GOD` | Responsibility concentration in a type. Keep this low |
 | `PATH` | Source file being measured |
 
@@ -211,6 +212,14 @@ SHALLOW = 20  → contribution 5
 SHALLOW = 40  → contribution 10
 SHALLOW = 80  → contribution 15
 ```
+
+### CPL — type coupling
+
+CPL shows the maximum number of distinct foreign types referenced by any type
+in the file. The displayed value is the raw coupling measurement; scoring uses
+the separately configured contribution. With the default threshold of `20`,
+values below `20` remain visible in CPL even though they contribute zero to
+SCORE.
 
 
 ### GOD — responsibility concentration
