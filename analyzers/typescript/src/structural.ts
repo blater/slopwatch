@@ -856,8 +856,8 @@ function moduleShallowness(entry: SourceEntry): Measurement {
     (sum, operation) => sum + operation.node.parameters.length,
     0,
   );
-  const resultCount = surface.operations.filter((operation) =>
-    returnsValue(operation.node),
+  const resultCount = surface.operations.filter(
+    (operation) => operation.returnsValue,
   ).length;
   const entries = surface.operations.reduce(
     (sum, operation) => sum + Math.max(1, operation.node.parameters.length),

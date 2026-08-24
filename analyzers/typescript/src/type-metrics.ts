@@ -1,8 +1,7 @@
 import ts from "typescript";
 import type { Measurement, SourceEntry, Subject } from "./model.js";
 import {
-  fieldsUsedByMethod,
-  foreignFieldsUsedByMethod,
+  fieldUsageByMethod,
   isTypeDeclaration,
   methodLike,
   typeMemberCount,
@@ -66,24 +65,34 @@ export function typeMetricMeasurements(
   for (const statement of entry.sourceFile.statements) {
     if (!isTypeDeclaration(statement)) continue;
     const methods = typeMembers(statement, entry.sourceFile);
-    const fields = methods.map((method) => fieldsUsedByMethod(method));
-    let connected = 0;
-    let pairs = 0;
-    for (let left = 0; left < fields.length; left++)
-      for (let right = left + 1; right < fields.length; right++) {
-        pairs++;
-        const leftFields = fields[left] ?? new Set<string>();
-        const rightFields = fields[right] ?? new Set<string>();
-        if ([...leftFields].some((field) => rightFields.has(field)))
-          connected++;
+    const usage = methods.map((method) => fieldUsageByMethod(method));
+    const fields = usage.map((item) => item.own);
+    const methodsByField = new Map<string, number[]>();
+    for (let method = 0; method < fields.length; method++) {
+      for (const field of fields[method] ?? []) {
+        const owners = methodsByField.get(field);
+        if (owners === undefined) methodsByField.set(field, [method]);
+        else owners.push(method);
       }
+    }
+    let connected = 0;
+    for (let left = 0; left < fields.length; left++) {
+      const connectedRights = new Set<number>();
+      for (const field of fields[left] ?? []) {
+        for (const right of methodsByField.get(field) ?? []) {
+          if (right > left) connectedRights.add(right);
+        }
+      }
+      connected += connectedRights.size;
+    }
+    const pairs = (fields.length * (fields.length - 1)) / 2;
     const tcc = pairs === 0 ? 0 : connected / pairs;
     const wmc =
       typeMemberCount(statement) +
       methods.reduce((sum, method) => sum + cyclomatic(method), 0);
     const foreignTypes = uniqueStrings(typeReferences(statement));
     const foreignFields = uniqueStrings(
-      methods.flatMap((method) => [...foreignFieldsUsedByMethod(method)]),
+      usage.flatMap((item) => [...item.foreign]),
     );
     const item = subject(
       entry.sourceFile,

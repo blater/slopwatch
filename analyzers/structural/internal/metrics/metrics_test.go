@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"math/big"
+	"sort"
 	"testing"
 
 	"slopslap.dev/structural/internal/facts"
@@ -91,6 +92,129 @@ func TestTypeStrategiesUseSharedReceiverFacts(t *testing.T) {
 	}
 }
 
+func TestAnalysisCacheSharesCyclomaticValuesAcrossTypeStrategies(t *testing.T) {
+	method := &facts.Function{Name: "Run", Body: []*facts.Statement{{Kind: facts.StmtIf, Condition: &facts.Expression{}}}}
+	cache := newAnalysisCache()
+	if first, second := cache.cyclomaticValue(method), cache.cyclomaticValue(method); first != 2 || second != first {
+		t.Fatalf("cached cyclomatic values = %d, %d", first, second)
+	}
+	if len(cache.cyclomatic) != 1 {
+		t.Fatalf("cached functions = %d, want 1", len(cache.cyclomatic))
+	}
+	item := &facts.Type{Methods: []*facts.Function{method}}
+	if got := typeWMCWith(item, cache.cyclomaticValue); got != 2 || len(cache.cyclomatic) != 1 {
+		t.Fatalf("cached WMC = %d, cache size = %d", got, len(cache.cyclomatic))
+	}
+}
+
+func TestMergeMeasurementsPreservesLocationMajorOrder(t *testing.T) {
+	chunks := [][]Measurement{
+		{
+			{Component: "npath_complexity", Location: facts.Location{Path: "a.go", Line: 1}},
+			{Component: "npath_complexity", Location: facts.Location{Path: "b.go", Line: 2}},
+		},
+		{
+			{Component: "cognitive_complexity", Location: facts.Location{Path: "a.go", Line: 1}},
+			{Component: "cognitive_complexity", Location: facts.Location{Path: "c.go", Line: 1}},
+		},
+	}
+	got := mergeMeasurements(chunks, 4)
+	want := []string{
+		"a.go:cognitive_complexity", "a.go:npath_complexity",
+		"b.go:npath_complexity", "c.go:cognitive_complexity",
+	}
+	for index, measurement := range got {
+		value := measurement.Location.Path + ":" + measurement.Component
+		if value != want[index] {
+			t.Fatalf("measurement %d = %q, want %q", index, value, want[index])
+		}
+	}
+}
+
+func TestRegistryFallsBackForUnsortedStrategyOutput(t *testing.T) {
+	registry, err := NewRegistry(strategy{
+		component: "custom", definition: "v1",
+		measure: func(*facts.Program) []Measurement {
+			return []Measurement{
+				{Component: "custom", Location: facts.Location{Path: "z.go"}},
+				{Component: "custom", Location: facts.Location{Path: "a.go"}},
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := registry.Analyze(&facts.Program{}, map[string]bool{"custom": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Location.Path != "a.go" || got[1].Location.Path != "z.go" {
+		t.Fatalf("fallback output is not sorted: %#v", got)
+	}
+}
+
+func BenchmarkMeasurementOrdering(b *testing.B) {
+	const chunkCount, measurementsPerChunk = 8, 10_000
+	chunks := make([][]Measurement, chunkCount)
+	all := make([]Measurement, 0, chunkCount*measurementsPerChunk)
+	for component := range chunks {
+		chunks[component] = make([]Measurement, measurementsPerChunk)
+		for index := range chunks[component] {
+			chunks[component][index] = Measurement{
+				Component: string(rune('a' + component)),
+				Location:  facts.Location{Path: "source.go", Line: index*chunkCount + component},
+			}
+		}
+		all = append(all, chunks[component]...)
+	}
+	b.Run("global-sort", func(b *testing.B) {
+		for range b.N {
+			output := append([]Measurement(nil), all...)
+			sort.Slice(output, func(left, right int) bool {
+				return measurementLess(output[left], output[right])
+			})
+		}
+	})
+	b.Run("sorted-k-way-merge", func(b *testing.B) {
+		for range b.N {
+			mergeMeasurements(chunks, len(all))
+		}
+	})
+}
+
+func BenchmarkSharedCyclomaticCache(b *testing.B) {
+	methods := make([]*facts.Function, 1000)
+	for index := range methods {
+		body := make([]*facts.Statement, 100)
+		for statement := range body {
+			body[statement] = &facts.Statement{
+				Kind: facts.StmtIf, Condition: &facts.Expression{Kind: facts.ExprAnd, Children: []*facts.Expression{{}, {}}},
+			}
+		}
+		methods[index] = &facts.Function{Name: "Run", Body: body}
+	}
+	item := &facts.Type{Methods: methods}
+	b.Run("uncached-three-strategies", func(b *testing.B) {
+		for range b.N {
+			for _, method := range methods {
+				Cyclomatic(method)
+			}
+			typeWMC(item)
+			typeWMC(item)
+		}
+	})
+	b.Run("shared-analysis-cache", func(b *testing.B) {
+		for range b.N {
+			cache := newAnalysisCache()
+			for _, method := range methods {
+				cache.cyclomaticValue(method)
+			}
+			typeWMCWith(item, cache.cyclomaticValue)
+			typeWMCWith(item, cache.cyclomaticValue)
+		}
+	})
+}
+
 func TestDefaultRegistryOwnsAllVersionedStrategies(t *testing.T) {
 	want := map[string]string{
 		"cognitive_complexity":         "pmd-sonar-v1",
@@ -111,7 +235,7 @@ func TestDefaultRegistryOwnsAllVersionedStrategies(t *testing.T) {
 			t.Fatalf("%s = %q", component, got[component])
 		}
 	}
-	duplicate := strategy{"cognitive_complexity", "other-v1", func(*facts.Program) []Measurement { return nil }}
+	duplicate := strategy{component: "cognitive_complexity", definition: "other-v1", measure: func(*facts.Program) []Measurement { return nil }}
 	if _, err := NewRegistry(defaultStrategies()[0], duplicate); err == nil {
 		t.Fatal("expected duplicate strategy rejection")
 	}

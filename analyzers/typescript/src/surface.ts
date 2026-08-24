@@ -16,6 +16,7 @@ export interface FunctionFact {
 }
 export interface PublicOperation {
   node: FunctionNode;
+  returnsValue: boolean;
   typeCost: number;
   representationCost: number;
 }
@@ -196,11 +197,12 @@ export function typeRepresentationCost(
   return 0;
 }
 export function operationFacts(node: FunctionNode): PublicOperation {
-  const resultCost = returnsValue(node)
-    ? typeComplexity(functionReturnType(node))
-    : 0;
+  const resultType = functionReturnType(node);
+  const hasResult = returnsValue(node);
+  const resultCost = hasResult ? typeComplexity(resultType) : 0;
   return {
     node,
+    returnsValue: hasResult,
     typeCost:
       node.parameters.reduce(
         (sum, parameter) => sum + typeComplexity(parameter.type),
@@ -211,9 +213,7 @@ export function operationFacts(node: FunctionNode): PublicOperation {
         (sum, parameter) => sum + typeRepresentationCost(parameter.type),
         0,
       ) +
-      (returnsValue(node)
-        ? typeRepresentationCost(functionReturnType(node))
-        : 0),
+      (hasResult ? typeRepresentationCost(resultType) : 0),
   };
 }
 export function isTypeDeclaration(node: ts.Node): node is TypeDeclaration {
@@ -266,24 +266,28 @@ export function typeReferences(node: ts.Node): string[] {
   return [...output].sort();
 }
 export function fieldsUsedByMethod(fact: FunctionFact): Set<string> {
-  return propertyNames(fact, true);
+  return fieldUsageByMethod(fact).own;
 }
 export function foreignFieldsUsedByMethod(fact: FunctionFact): Set<string> {
-  return propertyNames(fact, false);
+  return fieldUsageByMethod(fact).foreign;
 }
-function propertyNames(fact: FunctionFact, own: boolean): Set<string> {
-  const output = new Set<string>();
+export function fieldUsageByMethod(fact: FunctionFact): {
+  own: Set<string>;
+  foreign: Set<string>;
+} {
+  const own = new Set<string>();
+  const foreign = new Set<string>();
   const visit = (node: ts.Node): void => {
     if (node !== fact.node && isFunctionNode(node)) return;
-    if (
-      ts.isPropertyAccessExpression(node) &&
-      (node.expression.kind === ts.SyntaxKind.ThisKeyword) === own
-    )
+    if (ts.isPropertyAccessExpression(node)) {
+      const output =
+        node.expression.kind === ts.SyntaxKind.ThisKeyword ? own : foreign;
       output.add(node.name.text);
+    }
     ts.forEachChild(node, visit);
   };
   if (fact.node.body !== undefined) visit(fact.node.body);
-  return output;
+  return { own, foreign };
 }
 export function uniqueStrings(values: Iterable<string>): string[] {
   return [...new Set(values)].sort();

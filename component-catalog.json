@@ -33,7 +33,7 @@
       "extensions": [".ts", ".tsx", ".mts", ".cts"],
       "dependency": "@slopslap/typescript-analyzer",
       "version": "0.1.0",
-      "installation_method": "scriptc",
+      "installation_method": "node",
       "execution_method": "direct",
       "source": "analyzers/typescript",
       "entrypoint": "slopslap-typescript",

@@ -79,11 +79,11 @@ jobs:
           set -euo pipefail
           stage="$RUNNER_TEMP/slopwatch-stage"
           mkdir -p \
-            "$stage/build/typescript" \
+            "$stage/build" \
             "$stage/analyzers/structural" \
             dist
           cp build/slopmark build/slopwatch "$stage/build/"
-          cp build/typescript/slopslap-typescript "$stage/build/typescript/"
+          cp -R build/typescript "$stage/build/"
           cp \
             analyzers/structural/slopslap-structural \
             analyzers/structural/slopslap-structural-rust \

@@ -50,11 +50,16 @@ fn shape(ty: &syn::Type) -> TypeShape {
     result
 }
 
-pub(crate) fn operations(items: &[syn::Item], path: &str, output: &mut Vec<PublicOperation>) {
+pub(crate) fn collect(
+    items: &[syn::Item],
+    path: &str,
+    operations: &mut Vec<PublicOperation>,
+    exposures: &mut Vec<RepresentationExposure>,
+) {
     for item in items {
         match item {
             syn::Item::Fn(function) if matches!(function.vis, syn::Visibility::Public(_)) => {
-                output.push(function_operation(function, path))
+                operations.push(function_operation(function, path))
             }
             syn::Item::Impl(value) => {
                 let owner = match value.self_ty.as_ref() {
@@ -69,7 +74,7 @@ pub(crate) fn operations(items: &[syn::Item], path: &str, output: &mut Vec<Publi
                 for member in &value.items {
                     if let syn::ImplItem::Method(method) = member {
                         if matches!(method.vis, syn::Visibility::Public(_)) {
-                            output.push(method_operation(method, path, &owner));
+                            operations.push(method_operation(method, path, &owner));
                         }
                     }
                 }
@@ -77,7 +82,7 @@ pub(crate) fn operations(items: &[syn::Item], path: &str, output: &mut Vec<Publi
             syn::Item::Trait(value) if matches!(value.vis, syn::Visibility::Public(_)) => {
                 for member in &value.items {
                     if let syn::TraitItem::Method(method) = member {
-                        output.push(trait_method_operation(
+                        operations.push(trait_method_operation(
                             method,
                             path,
                             &value.ident.to_string(),
@@ -85,9 +90,28 @@ pub(crate) fn operations(items: &[syn::Item], path: &str, output: &mut Vec<Publi
                     }
                 }
             }
+            syn::Item::Struct(value) => {
+                for field in &value.fields {
+                    if matches!(field.vis, syn::Visibility::Public(_)) {
+                        let name = field
+                            .ident
+                            .as_ref()
+                            .map(ToString::to_string)
+                            .unwrap_or_else(|| "tuple".to_owned());
+                        exposures.push(RepresentationExposure {
+                            stable_id: format!("{path}:{}:{name}", value.ident),
+                            kind: "public-mutable-field".to_owned(),
+                            entity: format!("{}.{}", value.ident, name),
+                            location: location(path, field.span()),
+                            evidence: "public Rust struct field exposes representation".to_owned(),
+                            confidence: "exact".to_owned(),
+                        });
+                    }
+                }
+            }
             syn::Item::Mod(module) => {
                 if let Some((_, nested)) = &module.content {
-                    operations(nested, path, output);
+                    collect(nested, path, operations, exposures);
                 }
             }
             _ => {}
@@ -158,51 +182,29 @@ fn trait_method_operation(
     operation
 }
 
-pub(crate) fn exposures(items: &[syn::Item], path: &str, output: &mut Vec<RepresentationExposure>) {
-    for item in items {
-        match item {
-            syn::Item::Struct(value) => {
-                for field in &value.fields {
-                    if matches!(field.vis, syn::Visibility::Public(_)) {
-                        let name = field
-                            .ident
-                            .as_ref()
-                            .map(ToString::to_string)
-                            .unwrap_or_else(|| "tuple".to_owned());
-                        output.push(RepresentationExposure {
-                            stable_id: format!("{path}:{}:{name}", value.ident),
-                            kind: "public-mutable-field".to_owned(),
-                            entity: format!("{}.{}", value.ident, name),
-                            location: location(path, field.span()),
-                            evidence: "public Rust struct field exposes representation".to_owned(),
-                            confidence: "exact".to_owned(),
-                        });
-                    }
-                }
-            }
-            syn::Item::Mod(module) => {
-                if let Some((_, nested)) = &module.content {
-                    exposures(nested, path, output);
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::operations;
-    use crate::model::PublicOperation;
+    use super::collect;
+    use crate::model::{PublicOperation, RepresentationExposure};
+
+    fn operations(source: &str) -> Vec<PublicOperation> {
+        let syntax = syn::parse_file(source).expect("source parses");
+        let mut operations = Vec::new();
+        let mut exposures: Vec<RepresentationExposure> = Vec::new();
+        collect(
+            &syntax.items,
+            "participant.rs",
+            &mut operations,
+            &mut exposures,
+        );
+        operations
+    }
 
     #[test]
     fn public_trait_methods_are_public_operations() {
-        let syntax = syn::parse_file(
+        let operations_out = operations(
             "pub trait Participant { fn commit(&self, transaction_id: u64) -> StatusCode; }",
-        )
-        .expect("trait parses");
-        let mut operations_out: Vec<PublicOperation> = Vec::new();
-        operations(&syntax.items, "participant.rs", &mut operations_out);
+        );
         assert_eq!(operations_out.len(), 1);
         assert_eq!(operations_out[0].name, "commit");
         assert_eq!(operations_out[0].parameters.len(), 1);
@@ -211,10 +213,28 @@ mod tests {
 
     #[test]
     fn private_trait_methods_are_not_public_operations() {
-        let syntax =
-            syn::parse_file("trait Participant { fn commit(&self); }").expect("trait parses");
-        let mut operations_out: Vec<PublicOperation> = Vec::new();
-        operations(&syntax.items, "participant.rs", &mut operations_out);
+        let operations_out = operations("trait Participant { fn commit(&self); }");
         assert!(operations_out.is_empty());
+    }
+
+    #[test]
+    fn one_walk_collects_nested_operations_and_exposures() {
+        let syntax = syn::parse_file(
+            "mod nested { pub struct Participant { pub state: u64 } pub fn commit() {} }",
+        )
+        .expect("module parses");
+        let mut operations = Vec::new();
+        let mut exposures = Vec::new();
+        collect(
+            &syntax.items,
+            "participant.rs",
+            &mut operations,
+            &mut exposures,
+        );
+
+        assert_eq!(operations.len(), 1);
+        assert_eq!(operations[0].name, "commit");
+        assert_eq!(exposures.len(), 1);
+        assert_eq!(exposures[0].entity, "Participant.state");
     }
 }

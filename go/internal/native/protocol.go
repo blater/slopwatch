@@ -1,7 +1,6 @@
 package native
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -105,48 +104,69 @@ func runAnalyzer(ctx context.Context, executable string, request analyzerRequest
 	command := exec.CommandContext(ctx, executable)
 	command.Dir = workdir
 	command.Stdin = bytes.NewReader(payload)
-	var stdout, stderr bytes.Buffer
-	command.Stdout, command.Stderr = &stdout, &stderr
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
 	path := os.Getenv("PATH")
 	command.Env = []string{"PATH=" + path, "LANG=C.UTF-8", "SLOPSLAP_WORK_DIR=" + workdir, "SLOPSLAP_CACHE_DIR=" + filepath.Join(workdir, "cache"), "GOROOT=" + runtime.GOROOT()}
 	if err := os.Mkdir(filepath.Join(workdir, "cache"), 0o700); err != nil {
 		return nil, err
 	}
-	if err := command.Run(); err != nil {
-		if ctx.Err() != nil {
-			return nil, fmt.Errorf("analyzer timed out after %.6g seconds", timeoutSeconds)
-		}
-		return nil, fmt.Errorf("analyzer failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+	if err := command.Start(); err != nil {
+		return nil, err
 	}
-	if stdout.Len() > 32*1024*1024 {
-		return nil, fmt.Errorf("analyzer protocol output exceeds 32 MiB")
+	records, decodeErr := decodeRecords(stdout, request)
+	if decodeErr != nil {
+		_ = command.Process.Kill()
 	}
-	return decodeRecords(&stdout, request)
+	waitErr := command.Wait()
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("analyzer timed out after %.6g seconds", timeoutSeconds)
+	}
+	if waitErr != nil && strings.TrimSpace(stderr.String()) != "" {
+		return nil, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
+	}
+	if decodeErr != nil {
+		return nil, decodeErr
+	}
+	if waitErr != nil {
+		return nil, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
+	}
+	return records, nil
 }
 
 func decodeRecords(reader io.Reader, request analyzerRequest) ([]protocolRecord, error) {
-	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	stream := json.NewDecoder(reader)
+	stream.UseNumber()
 	var records []protocolRecord
 	terminal := false
-	for scanner.Scan() {
+	for {
+		var encoded json.RawMessage
+		if err := stream.Decode(&encoded); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("invalid analyzer protocol: %w", err)
+		}
 		if terminal {
 			return nil, fmt.Errorf("protocol record after terminal status")
 		}
-		var raw map[string]any
-		decoder := json.NewDecoder(bytes.NewReader(scanner.Bytes()))
-		decoder.UseNumber()
-		if err := decoder.Decode(&raw); err != nil {
-			return nil, fmt.Errorf("invalid analyzer protocol: %w", err)
-		}
-		encoded, _ := json.Marshal(raw)
-		decoder = json.NewDecoder(bytes.NewReader(encoded))
+		decoder := json.NewDecoder(bytes.NewReader(encoded))
 		decoder.UseNumber()
 		var record protocolRecord
 		if err := decoder.Decode(&record); err != nil {
 			return nil, err
 		}
-		record.Raw = raw
+		if record.Type == "diagnostic" || record.Type == "execution_plan" {
+			decoder = json.NewDecoder(bytes.NewReader(encoded))
+			decoder.UseNumber()
+			if err := decoder.Decode(&record.Raw); err != nil {
+				return nil, err
+			}
+		}
 		if record.Version != 1 || record.Invocation != request.Invocation {
 			return nil, fmt.Errorf("mismatched analyzer protocol record")
 		}
@@ -157,9 +177,6 @@ func decodeRecords(reader io.Reader, request analyzerRequest) ([]protocolRecord,
 			}
 		}
 		records = append(records, record)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
 	}
 	if !terminal {
 		return nil, fmt.Errorf("analyzer protocol ended without terminal status")

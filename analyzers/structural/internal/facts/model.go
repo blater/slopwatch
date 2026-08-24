@@ -1,8 +1,10 @@
 // Package facts defines the language-neutral input consumed by metric strategies.
 package facts
 
+import "fmt"
+
 // SchemaVersion identifies the normalized adapter-to-strategy fact contract.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // Location identifies a stable source subject using one-based coordinates.
 type Location struct {
@@ -128,12 +130,41 @@ type Type struct {
 	Name                 string              `json:"name"`
 	Kind                 string              `json:"kind"`
 	Location             Location            `json:"location"`
-	Methods              []*Function         `json:"methods"`
+	Methods              []*Function         `json:"methods,omitempty"`
+	MethodLocations      []Location          `json:"method_locations,omitempty"`
 	InterfaceMethodCount int                 `json:"interface_method_count"`
 	ForeignTypes         []string            `json:"foreign_types"`
 	MethodFields         map[string][]string `json:"method_fields"`
 	ForeignFields        []string            `json:"foreign_fields"`
 	Fields               []Field             `json:"fields,omitempty"`
+}
+
+// LinkTypeMethods replaces adapter transport references with pointers to the
+// canonical functions already held by the program. Native adapters may fill
+// Methods directly and leave MethodLocations empty.
+func (program *Program) LinkTypeMethods() error {
+	functions := make(map[Location]*Function, len(program.Functions))
+	for _, function := range program.Functions {
+		if _, exists := functions[function.Location]; exists {
+			return fmt.Errorf("duplicate function location %s:%d:%d", function.Location.Path, function.Location.Line, function.Location.Column)
+		}
+		functions[function.Location] = function
+	}
+	for _, item := range program.Types {
+		if len(item.MethodLocations) == 0 {
+			continue
+		}
+		item.Methods = make([]*Function, 0, len(item.MethodLocations))
+		for _, location := range item.MethodLocations {
+			function := functions[location]
+			if function == nil {
+				return fmt.Errorf("type %s references unknown method at %s:%d:%d", item.Name, location.Path, location.Line, location.Column)
+			}
+			item.Methods = append(item.Methods, function)
+		}
+		item.MethodLocations = nil
+	}
+	return nil
 }
 
 // Program is the complete fact set for one analyzer unit.

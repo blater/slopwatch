@@ -1,8 +1,13 @@
 package goadapter
 
 import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"slopslap.dev/structural/internal/metrics"
@@ -114,6 +119,100 @@ func (s Service) Run() { _ = s.peer }
 	}
 	if available, reason := program.Availability("service.go", "cognitive_complexity"); !available || reason != "" {
 		t.Fatalf("syntax metric availability = %v, %q", available, reason)
+	}
+}
+
+func TestSyntaxFieldFactsUseSingleParentAwareWalk(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "service.go", `package sample
+type Service struct { state int }
+func (s Service) Run(other any) { s.Run(other); _ = s.state; _ = other.Value }
+`, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	method := file.Decls[1].(*ast.FuncDecl)
+	fields, foreign := methodFieldFacts(method, "s", "Service", map[string]struct{}{"state": {}}, source{})
+	if len(fields) != 1 || fields[0] != "state" {
+		t.Fatalf("fields = %#v", fields)
+	}
+	if len(foreign) != 1 || foreign[0] != "other.Value" {
+		t.Fatalf("foreign fields = %#v", foreign)
+	}
+}
+
+func TestModuleResolverHandlesSharedAndNestedModules(t *testing.T) {
+	root := t.TempDir()
+	for path, contents := range map[string]string{
+		"go.mod":        "module example.test/root\n",
+		"nested/go.mod": "module example.test/nested\n",
+	} {
+		absolute := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(absolute), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(absolute, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resolver := newModuleResolver(root)
+	for _, test := range []struct {
+		path string
+		want string
+	}{
+		{"one/file.go", "example.test/root/one"},
+		{"two/file.go", "example.test/root/two"},
+		{"nested/pkg/file.go", "example.test/nested/pkg"},
+		{"nested/pkg/file_test.go", "example.test/nested/pkg_test"},
+	} {
+		item := source{rel: test.path, file: &ast.File{Name: ast.NewIdent("sample")}}
+		if strings.HasSuffix(test.path, "_test.go") {
+			item.file.Name.Name = "sample_test"
+		}
+		if got := resolver.sourceImportPath(item); got != test.want {
+			t.Fatalf("sourceImportPath(%q) = %q, want %q", test.path, got, test.want)
+		}
+	}
+}
+
+func BenchmarkMethodFieldFacts(b *testing.B) {
+	body := strings.Builder{}
+	body.WriteString("package sample\ntype Service struct { state int }\nfunc (s Service) Run(other any) {\n")
+	for index := 0; index < 1000; index++ {
+		body.WriteString("_ = s.state; _ = other.Value\n")
+	}
+	body.WriteString("}\n")
+	file, err := parser.ParseFile(token.NewFileSet(), "service.go", body.String(), 0)
+	if err != nil {
+		b.Fatal(err)
+	}
+	method := file.Decls[1].(*ast.FuncDecl)
+	fields := map[string]struct{}{"state": {}}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		methodFieldFacts(method, "s", "Service", fields, source{})
+	}
+}
+
+func BenchmarkModuleResolverSharedAncestor(b *testing.B) {
+	root := b.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.test/root\n"), 0o600); err != nil {
+		b.Fatal(err)
+	}
+	items := make([]source, 1000)
+	for index := range items {
+		items[index] = source{
+			rel:  fmt.Sprintf("feature/package%d/file.go", index),
+			file: &ast.File{Name: ast.NewIdent("sample")},
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		resolver := newModuleResolver(root)
+		for _, item := range items {
+			resolver.sourceImportPath(item)
+		}
 	}
 }
 

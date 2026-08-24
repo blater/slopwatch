@@ -44,9 +44,13 @@ func unique(values []string) []string {
 }
 
 func typeWMC(item *facts.Type) int {
+	return typeWMCWith(item, Cyclomatic)
+}
+
+func typeWMCWith(item *facts.Type, cyclomatic func(*facts.Function) int) int {
 	value := item.InterfaceMethodCount
 	for _, method := range item.Methods {
-		value += Cyclomatic(method)
+		value += cyclomatic(method)
 	}
 	return value
 }
@@ -59,22 +63,24 @@ func tcc(item *facts.Type) float64 {
 	if len(methods) < 2 {
 		return 0
 	}
-	connected := 0
-	pairs := 0
-	for left := 0; left < len(methods); left++ {
-		leftFields := make(map[string]struct{})
-		for _, field := range item.MethodFields[methods[left]] {
-			leftFields[field] = struct{}{}
+	methodsByField := make(map[string][]int)
+	for index, method := range methods {
+		for _, field := range item.MethodFields[method] {
+			methodsByField[field] = append(methodsByField[field], index)
 		}
-		for right := left + 1; right < len(methods); right++ {
-			pairs++
-			for _, field := range item.MethodFields[methods[right]] {
-				if _, ok := leftFields[field]; ok {
-					connected++
-					break
+	}
+	connected := 0
+	for left := 0; left < len(methods); left++ {
+		connectedRights := make(map[int]struct{})
+		for _, field := range item.MethodFields[methods[left]] {
+			for _, right := range methodsByField[field] {
+				if right > left {
+					connectedRights[right] = struct{}{}
 				}
 			}
 		}
+		connected += len(connectedRights)
 	}
+	pairs := len(methods) * (len(methods) - 1) / 2
 	return float64(connected) / float64(pairs)
 }

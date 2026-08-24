@@ -6,29 +6,31 @@ import (
 	"sort"
 )
 
+type fieldReference struct {
+	owner string
+	field string
+}
+
 func methodFieldFacts(method *ast.FuncDecl, receiverName, receiverType string, ownFields map[string]struct{}, item source) ([]string, []string) {
 	fields := make(map[string]struct{})
-	foreign := make(map[string]struct{})
-	parents := make(map[ast.Node]ast.Node)
-	stack := make([]ast.Node, 0)
+	foreign := make(map[fieldReference]struct{})
+	stack := make([]ast.Node, 0, 16)
 	ast.Inspect(method.Body, func(node ast.Node) bool {
 		if node == nil {
 			stack = stack[:len(stack)-1]
 			return false
 		}
+		var parent ast.Node
 		if len(stack) > 0 {
-			parents[node] = stack[len(stack)-1]
+			parent = stack[len(stack)-1]
 		}
 		stack = append(stack, node)
-		return true
-	})
-	ast.Inspect(method.Body, func(node ast.Node) bool {
 		selector, ok := node.(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
 		base, ok := selector.X.(*ast.Ident)
-		if call, ok := parents[selector].(*ast.CallExpr); ok && call.Fun == selector {
+		if call, ok := parent.(*ast.CallExpr); ok && call.Fun == selector {
 			return true
 		}
 		if item.typesAvailable {
@@ -44,7 +46,7 @@ func methodFieldFacts(method *ast.FuncDecl, receiverName, receiverType string, o
 					return true
 				}
 			}
-			foreign[owner+"."+field.Name()] = struct{}{}
+			foreign[fieldReference{owner: owner, field: field.Name()}] = struct{}{}
 			return true
 		}
 		if !ok {
@@ -59,7 +61,7 @@ func methodFieldFacts(method *ast.FuncDecl, receiverName, receiverType string, o
 		if _, imported := item.imports[base.Name]; imported {
 			return true
 		}
-		foreign[base.Name+"."+selector.Sel.Name] = struct{}{}
+		foreign[fieldReference{owner: base.Name, field: selector.Sel.Name}] = struct{}{}
 		return true
 	})
 	fieldList := make([]string, 0, len(fields))
@@ -68,7 +70,7 @@ func methodFieldFacts(method *ast.FuncDecl, receiverName, receiverType string, o
 		fieldList = append(fieldList, value)
 	}
 	for value := range foreign {
-		foreignList = append(foreignList, value)
+		foreignList = append(foreignList, value.owner+"."+value.field)
 	}
 	sort.Strings(fieldList)
 	sort.Strings(foreignList)

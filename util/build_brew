@@ -45,6 +45,7 @@ class Slopwatch < Formula
 
   depends_on arch: :arm64
   depends_on macos: :sequoia
+  depends_on "node"
 
   def install
     libexec.install "build", "analyzers", "component-catalog.json"

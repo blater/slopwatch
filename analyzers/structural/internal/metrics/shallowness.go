@@ -127,43 +127,28 @@ func moduleFiles(program *facts.Program) []string {
 }
 
 func moduleShallownessMeasurements(program *facts.Program) []Measurement {
-	output := make([]Measurement, 0, len(moduleFiles(program)))
-	for _, path := range moduleFiles(program) {
-		types := filterTypes(program.Types, path)
-		operations := filterOperations(program.PublicOperations, path)
+	files := moduleFiles(program)
+	typesByPath := make(map[string][]*facts.Type, len(files))
+	operationsByPath := make(map[string][]*facts.PublicOperation, len(files))
+	exposuresByPath := make(map[string][]*facts.RepresentationExposure, len(files))
+	for _, item := range program.Types {
+		typesByPath[item.Location.Path] = append(typesByPath[item.Location.Path], item)
+	}
+	for _, item := range program.PublicOperations {
+		operationsByPath[item.Location.Path] = append(operationsByPath[item.Location.Path], item)
+	}
+	for _, item := range program.Representation {
+		exposuresByPath[item.Location.Path] = append(exposuresByPath[item.Location.Path], item)
+	}
+	output := make([]Measurement, 0, len(files))
+	for _, path := range files {
+		types := typesByPath[path]
+		operations := operationsByPath[path]
 		value, attributes := 0, map[string]any{"available": false, "unavailable_reason": "no statically identifiable public operations"}
 		if len(operations) > 0 {
-			value, attributes = moduleShallownessWithEvidence(operations, types, filterExposures(program.Representation, path))
+			value, attributes = moduleShallownessWithEvidence(operations, types, exposuresByPath[path])
 		}
 		output = append(output, Measurement{"module_shallowness", shallowDefinition, "file", value, path, facts.Location{Path: path, Line: 1, Column: 1, EndLine: 1, EndColumn: 1}, attributes})
-	}
-	return output
-}
-
-func filterTypes(items []*facts.Type, path string) []*facts.Type {
-	output := make([]*facts.Type, 0)
-	for _, item := range items {
-		if item.Location.Path == path {
-			output = append(output, item)
-		}
-	}
-	return output
-}
-func filterOperations(items []*facts.PublicOperation, path string) []*facts.PublicOperation {
-	output := make([]*facts.PublicOperation, 0)
-	for _, item := range items {
-		if item.Location.Path == path {
-			output = append(output, item)
-		}
-	}
-	return output
-}
-func filterExposures(items []*facts.RepresentationExposure, path string) []*facts.RepresentationExposure {
-	output := make([]*facts.RepresentationExposure, 0)
-	for _, item := range items {
-		if item.Location.Path == path {
-			output = append(output, item)
-		}
 	}
 	return output
 }

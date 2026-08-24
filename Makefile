@@ -4,15 +4,16 @@ ROOT := $(abspath .)
 BUILD_DIR := $(ROOT)/build
 STRUCTURAL_DIR := $(ROOT)/analyzers/structural
 TYPESCRIPT_DIR := $(ROOT)/analyzers/typescript
-TYPESCRIPT_BUILD_DIR := $(BUILD_DIR)/typescript
+TYPESCRIPT_WORK_DIR := $(BUILD_DIR)/typescript-work
+TYPESCRIPT_RUNTIME_DIR := $(BUILD_DIR)/typescript
 STRUCTURAL_BIN := $(STRUCTURAL_DIR)/slopslap-structural
 RUST_BIN := $(STRUCTURAL_DIR)/slopslap-structural-rust
 JAVA_JAR := $(STRUCTURAL_DIR)/slopslap-structural-java.jar
 JAVA_RUNTIME_BIN := $(STRUCTURAL_DIR)/java-runtime/bin/java
 GO_BIN := $(BUILD_DIR)/slopmark
 WATCH_BIN := $(BUILD_DIR)/slopwatch
-TS_MARKER := $(TYPESCRIPT_BUILD_DIR)/dist/src/cli.js
-TS_NATIVE_BIN := $(TYPESCRIPT_BUILD_DIR)/slopslap-typescript
+TS_MARKER := $(TYPESCRIPT_WORK_DIR)/dist/src/cli.js
+TS_LAUNCHER := $(TYPESCRIPT_RUNTIME_DIR)/slopslap-typescript
 
 GO_ENV := CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off
 GO_FLAGS := -trimpath -buildvcs=false
@@ -72,29 +73,33 @@ $(WATCH_BIN): $(WATCH_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 build-go: $(GO_BIN) $(WATCH_BIN)
 
 $(TS_MARKER): $(TS_SOURCES) $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json $(TYPESCRIPT_DIR)/tsconfig.json
-	@rm -rf $(TYPESCRIPT_BUILD_DIR)/src $(TYPESCRIPT_BUILD_DIR)/test $(TYPESCRIPT_BUILD_DIR)/dist $(TYPESCRIPT_BUILD_DIR)/node_modules
-	@mkdir -p $(TYPESCRIPT_BUILD_DIR)
-	@cp -R $(TYPESCRIPT_DIR)/src $(TYPESCRIPT_BUILD_DIR)/src
-	@cp -R $(TYPESCRIPT_DIR)/test $(TYPESCRIPT_BUILD_DIR)/test
-	@cp $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json $(TYPESCRIPT_DIR)/tsconfig.json $(TYPESCRIPT_BUILD_DIR)/
-	@npm --prefix $(TYPESCRIPT_BUILD_DIR) ci --ignore-scripts
-	@npm --prefix $(TYPESCRIPT_BUILD_DIR) run build
+	@rm -rf $(TYPESCRIPT_WORK_DIR)
+	@mkdir -p $(TYPESCRIPT_WORK_DIR)
+	@cp -R $(TYPESCRIPT_DIR)/src $(TYPESCRIPT_WORK_DIR)/src
+	@cp -R $(TYPESCRIPT_DIR)/test $(TYPESCRIPT_WORK_DIR)/test
+	@cp $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json $(TYPESCRIPT_DIR)/tsconfig.json $(TYPESCRIPT_WORK_DIR)/
+	@npm --prefix $(TYPESCRIPT_WORK_DIR) ci --ignore-scripts
+	@npm --prefix $(TYPESCRIPT_WORK_DIR) run build
 
-$(TS_NATIVE_BIN): $(TS_MARKER) $(TYPESCRIPT_DIR)/src/scriptc-entry.ts
-	@mkdir -p $(TYPESCRIPT_BUILD_DIR)/node_modules/@slopslap
-	@ln -sfn $(TYPESCRIPT_BUILD_DIR) $(TYPESCRIPT_BUILD_DIR)/node_modules/@slopslap/typescript-analyzer
-	@cd $(TYPESCRIPT_BUILD_DIR) && npm exec --offline -- scriptc build src/scriptc-entry.ts --dynamic --out $(TS_NATIVE_BIN)
+$(TS_LAUNCHER): $(TS_MARKER) $(TYPESCRIPT_DIR)/slopslap-typescript.sh $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json
+	@rm -rf $(TYPESCRIPT_RUNTIME_DIR)
+	@mkdir -p $(TYPESCRIPT_RUNTIME_DIR)/dist
+	@cp -R $(TYPESCRIPT_WORK_DIR)/dist/src $(TYPESCRIPT_RUNTIME_DIR)/dist/src
+	@cp $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json $(TYPESCRIPT_RUNTIME_DIR)/
+	@npm --prefix $(TYPESCRIPT_RUNTIME_DIR) ci --omit=dev --ignore-scripts
+	@cp $(TYPESCRIPT_DIR)/slopslap-typescript.sh $(TS_LAUNCHER)
+	@chmod 755 $(TS_LAUNCHER)
 
-build-typescript: $(TS_NATIVE_BIN)
+build-typescript: $(TS_LAUNCHER)
 
 test-structural: build-structural build-rust build-java
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(STRUCTURAL_DIR) $(GO_FLAGS) ./...
 	@cargo test --locked --manifest-path $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml
 
 test-typescript: build-typescript
-	@npm --prefix $(TYPESCRIPT_BUILD_DIR) test
+	@npm --prefix $(TYPESCRIPT_WORK_DIR) test
 
 test: test-structural test-typescript
 
 clean:
-	@rm -rf $(TYPESCRIPT_BUILD_DIR)/dist $(TYPESCRIPT_BUILD_DIR)/node_modules
+	@rm -rf $(TYPESCRIPT_WORK_DIR) $(TYPESCRIPT_RUNTIME_DIR)

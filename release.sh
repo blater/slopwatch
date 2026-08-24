@@ -89,7 +89,7 @@ gh auth status --hostname github.com >/dev/null 2>&1 || \
 actions_secrets="$(gh secret list --repo "$source_repository" --app actions)" || \
   die "Could not read GitHub Actions secrets for $source_repository."
 grep -q '^HOMEBREW_TAP_TOKEN[[:space:]]' <<< "$actions_secrets" || \
-  die "HOMEBREW_TAP_TOKEN is not configured for $source_repository."
+  die "HOMEBREW_TAP_TOKEN is not configured for $source_repository. Run ./actions-setup.sh."
 
 branch="$(git branch --show-current)"
 [[ -n "$branch" ]] || die "A release cannot be created from a detached HEAD."

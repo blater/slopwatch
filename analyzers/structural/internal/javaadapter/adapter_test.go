@@ -1,9 +1,14 @@
 package javaadapter
 
 import (
+	"bytes"
+	"encoding/binary"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +60,78 @@ final class ServiceTest { void testIt() { if (true) { return; } } }`)
 	}
 	if len(withTests.Types) != 2 {
 		t.Fatalf("include_tests returned %d types, want 2", len(withTests.Types))
+	}
+}
+
+func TestAdapterCollectsMethodBodyFactsInOnePass(t *testing.T) {
+	java, javaErr := exec.LookPath("java")
+	javac, javacErr := exec.LookPath("javac")
+	jar, jarErr := exec.LookPath("jar")
+	if javaErr != nil || javacErr != nil || jarErr != nil {
+		t.Skip("JDK tools are unavailable")
+	}
+	root := t.TempDir()
+	helper := buildHelper(t, root, javac, jar)
+	writeSource(t, root, "src/main/java/example/BodyFacts.java", `
+package example;
+final class BodyFacts {
+  private int total;
+  private Object payload;
+  public int calculate(Repository repository) {
+    java.util.List<String> names = new java.util.ArrayList<>();
+    Object local = (External) payload;
+    if (local instanceof Marker marker) {
+      repository.state.value++;
+      total++;
+    }
+    Runnable callback = new Runnable() {
+      public void run() { NestedType nested = null; total++; }
+    };
+    return total;
+  }
+}`)
+	program, err := (Adapter{JavaExecutable: java, HelperJar: helper}).Analyze(
+		root, []string{"src/main/java/example/BodyFacts.java"}, map[string]any{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(program.Types) != 1 {
+		t.Fatalf("types = %d, want 1", len(program.Types))
+	}
+	typeFact := program.Types[0]
+	if got := typeFact.MethodFields["calculate#0"]; !slices.Equal(got, []string{"payload", "total"}) {
+		t.Fatalf("method fields = %#v, want payload and total", got)
+	}
+	for _, want := range []string{"External", "Marker", "Repository", "java.util.ArrayList", "java.util.List"} {
+		if !slices.Contains(typeFact.ForeignTypes, want) {
+			t.Errorf("foreign types %q do not contain %q", typeFact.ForeignTypes, want)
+		}
+	}
+	if slices.Contains(typeFact.ForeignTypes, "NestedType") {
+		t.Errorf("anonymous-class implementation type leaked into owner facts: %q", typeFact.ForeignTypes)
+	}
+	for _, want := range []string{"repository.state", "repository.state.value"} {
+		if !slices.Contains(typeFact.ForeignFields, want) {
+			t.Errorf("foreign fields %q do not contain %q", typeFact.ForeignFields, want)
+		}
+	}
+}
+
+func TestProtocolAcceptsValuesBeyondLegacyLimits(t *testing.T) {
+	if err := writeCount(io.Discard, 1_000_001); err != nil {
+		t.Fatalf("write count beyond former limit: %v", err)
+	}
+	var encodedCount bytes.Buffer
+	if err := binary.Write(&encodedCount, binary.BigEndian, uint32(1_000_001)); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := readCount(&encodedCount); err != nil || got != 1_000_001 {
+		t.Fatalf("read count = %d, %v", got, err)
+	}
+	large := strings.Repeat("x", 16*1024*1024+1)
+	if err := writeString(io.Discard, large); err != nil {
+		t.Fatalf("write string beyond former limit: %v", err)
 	}
 }
 

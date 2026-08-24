@@ -32,6 +32,16 @@ type exactSourceImporter struct {
 	fallback types.Importer
 }
 
+type moduleLocation struct {
+	root string
+	path string
+}
+
+type moduleResolver struct {
+	workspace string
+	byDir     map[string]moduleLocation
+}
+
 func (loader *exactSourceImporter) Import(path string) (*types.Package, error) {
 	group := loader.groups[path]
 	if group == nil {
@@ -91,25 +101,52 @@ func modulePath(path string) string {
 	return ""
 }
 
-func sourceImportPath(root string, item source) string {
+func newModuleResolver(workspace string) *moduleResolver {
+	return &moduleResolver{workspace: workspace, byDir: make(map[string]moduleLocation)}
+}
+
+func (resolver *moduleResolver) moduleFor(directory string) moduleLocation {
+	visited := make([]string, 0, 4)
+	for current := directory; ; current = filepath.Dir(current) {
+		if cached, exists := resolver.byDir[current]; exists {
+			for _, path := range visited {
+				resolver.byDir[path] = cached
+			}
+			return cached
+		}
+		visited = append(visited, current)
+		if module := modulePath(filepath.Join(current, "go.mod")); module != "" {
+			result := moduleLocation{root: current, path: module}
+			for _, path := range visited {
+				resolver.byDir[path] = result
+			}
+			return result
+		}
+		if current == resolver.workspace || filepath.Dir(current) == current {
+			break
+		}
+	}
+	for _, path := range visited {
+		resolver.byDir[path] = moduleLocation{}
+	}
+	return moduleLocation{}
+}
+
+func (resolver *moduleResolver) sourceImportPath(item source) string {
 	qualify := func(path string) string {
 		if strings.HasSuffix(item.file.Name.Name, "_test") {
 			return path + "_test"
 		}
 		return path
 	}
-	directory := filepath.Dir(filepath.Join(root, filepath.FromSlash(item.rel)))
-	for current := directory; ; current = filepath.Dir(current) {
-		if module := modulePath(filepath.Join(current, "go.mod")); module != "" {
-			relative, err := filepath.Rel(current, directory)
-			if err == nil && relative != "." {
-				return qualify(strings.TrimSuffix(module, "/") + "/" + filepath.ToSlash(relative))
-			}
-			return qualify(module)
+	directory := filepath.Dir(filepath.Join(resolver.workspace, filepath.FromSlash(item.rel)))
+	module := resolver.moduleFor(directory)
+	if module.path != "" {
+		relative, err := filepath.Rel(module.root, directory)
+		if err == nil && relative != "." {
+			return qualify(strings.TrimSuffix(module.path, "/") + "/" + filepath.ToSlash(relative))
 		}
-		if current == root || filepath.Dir(current) == current {
-			break
-		}
+		return qualify(module.path)
 	}
 	directoryID := filepath.ToSlash(filepath.Dir(item.rel))
 	if directoryID == "." {
@@ -120,12 +157,13 @@ func sourceImportPath(root string, item source) string {
 
 func typeCheck(root string, sources []source, fset *token.FileSet) {
 	byKey := make(map[string]*typeGroup)
+	modules := newModuleResolver(root)
 	for index, item := range sources {
 		key := packageID(item)
 		group := byKey[key]
 		if group == nil {
 			group = &typeGroup{
-				importPath: sourceImportPath(root, item), name: item.file.Name.Name,
+				importPath: modules.sourceImportPath(item), name: item.file.Name.Name,
 				info: &types.Info{
 					Types:      make(map[ast.Expr]types.TypeAndValue),
 					Defs:       make(map[*ast.Ident]types.Object),

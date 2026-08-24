@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -112,7 +112,7 @@ pub struct TypeFact {
     pub name: String,
     pub kind: String,
     pub location: Location,
-    pub methods: Vec<Function>,
+    pub method_locations: Vec<Location>,
     pub interface_method_count: usize,
     pub foreign_types: Vec<String>,
     pub method_fields: BTreeMap<String, Vec<String>>,

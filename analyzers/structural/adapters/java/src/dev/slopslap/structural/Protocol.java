@@ -10,12 +10,9 @@ import java.util.List;
 import java.util.Map;
 
 final class Protocol {
-    static final int SCHEMA_VERSION = 1;
+    static final int SCHEMA_VERSION = 2;
     private static final int REQUEST_MAGIC = 0x53534a46;
     private static final int RESPONSE_MAGIC = 0x53534a4f;
-    private static final int MAX_STRING = 16 * 1024 * 1024;
-    private static final int MAX_ITEMS = 1_000_000;
-
     record Request(String workspace, List<String> paths, boolean includeTests) { }
 
     static Request readRequest(InputStream input) throws IOException {
@@ -53,7 +50,7 @@ final class Protocol {
 
     private static int count(DataInputStream data) throws IOException {
         int value = data.readInt();
-        if (value < 0 || value > MAX_ITEMS) {
+        if (value < 0) {
             throw new IOException("invalid Java fact collection size");
         }
         return value;
@@ -61,7 +58,7 @@ final class Protocol {
 
     private static String readString(DataInputStream data) throws IOException {
         int length = data.readInt();
-        if (length < 0 || length > MAX_STRING) {
+        if (length < 0) {
             throw new IOException("invalid Java fact string size");
         }
         byte[] encoded = data.readNBytes(length);
@@ -126,7 +123,7 @@ final class Protocol {
         writeString(data, value.name);
         writeString(data, value.kind);
         writeLocation(data, value.location);
-        writeList(data, value.methods, Protocol::writeFunction);
+        writeList(data, value.methods, (output, method) -> writeLocation(output, method.location));
         data.writeInt(value.interfaceMethodCount);
         writeStrings(data, value.foreignTypes);
         data.writeInt(value.methodFields.size());

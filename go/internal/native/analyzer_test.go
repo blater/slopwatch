@@ -1,10 +1,13 @@
 package native
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -37,6 +40,38 @@ func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 	}
 }
 
+func TestDecodeRecordsAcceptsLargeRecords(t *testing.T) {
+	request := analyzerRequest{Invocation: "00000000-0000-0000-0000-000000000001"}
+	records := []map[string]any{
+		{
+			"type":             "measurement",
+			"protocol_version": 1,
+			"invocation_id":    request.Invocation,
+			"attributes":       map[string]any{"payload": strings.Repeat("x", 2*1024*1024)},
+		},
+		{
+			"type":             "terminal",
+			"protocol_version": 1,
+			"invocation_id":    request.Invocation,
+			"status":           "success",
+		},
+	}
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
+	for _, record := range records {
+		if err := encoder.Encode(record); err != nil {
+			t.Fatal(err)
+		}
+	}
+	decoded, err := decodeRecords(&encoded, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded) != len(records) {
+		t.Fatalf("decoded %d records, want %d", len(decoded), len(records))
+	}
+}
+
 func TestNativeJavaAndRustScoresMatchBalancedReference(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
@@ -51,7 +86,7 @@ func TestNativeJavaAndRustScoresMatchBalancedReference(t *testing.T) {
 		path  string
 		score float64
 	}{
-		{"analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaAnalyzer.java", 48.221182747294},
+		{"analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaAnalyzer.java", 47.790495528375},
 		{"analyzers/structural/adapters/rust/src/parser.rs", 11.315172029169},
 	}
 	for _, test := range tests {

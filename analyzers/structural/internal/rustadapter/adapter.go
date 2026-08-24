@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,16 +75,39 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 	}
 	command := exec.Command(executable)
 	command.Stdin = bytes.NewReader(payload)
-	var stdout, stderr bytes.Buffer
-	command.Stdout, command.Stderr = &stdout, &stderr
-	if err := command.Run(); err != nil {
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open Rust fact output: %w", err)
+	}
+	if err := command.Start(); err != nil {
 		return nil, fmt.Errorf("Rust fact adapter failed: %w: %s", err, stderr.String())
 	}
-	decoder := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
+	decoder := json.NewDecoder(stdout)
 	decoder.DisallowUnknownFields()
 	var response factResponse
-	if err := decoder.Decode(&response); err != nil {
-		return nil, fmt.Errorf("decode Rust facts: %w", err)
+	decodeErr := decoder.Decode(&response)
+	if decodeErr == nil {
+		var trailing any
+		if err := decoder.Decode(&trailing); err != io.EOF {
+			if err == nil {
+				decodeErr = fmt.Errorf("unexpected trailing JSON value")
+			} else {
+				decodeErr = fmt.Errorf("invalid trailing output: %w", err)
+			}
+		}
+	}
+	if decodeErr != nil {
+		// Keep consuming output so a helper with a large malformed response cannot
+		// block while Wait waits for its stdout pipe to close.
+		_, _ = io.Copy(io.Discard, stdout)
+	}
+	if err := command.Wait(); err != nil {
+		return nil, fmt.Errorf("Rust fact adapter failed: %w: %s", err, stderr.String())
+	}
+	if decodeErr != nil {
+		return nil, fmt.Errorf("decode Rust facts: %w", decodeErr)
 	}
 	if response.SchemaVersion != facts.SchemaVersion {
 		return nil, fmt.Errorf("Rust fact schema %d is unsupported", response.SchemaVersion)
@@ -93,6 +117,9 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 	}
 	if response.Program == nil {
 		return nil, fmt.Errorf("Rust fact adapter returned no program")
+	}
+	if err := response.Program.LinkTypeMethods(); err != nil {
+		return nil, fmt.Errorf("link Rust method facts: %w", err)
 	}
 	return response.Program, nil
 }

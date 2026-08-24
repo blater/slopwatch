@@ -39,11 +39,32 @@ export function createTypedContext(
       tsconfigPath = owner.canonicalConfigPath(configured);
     } else {
       const discovered = new Set<string>();
+      const configByDirectory = new Map<string, string | undefined>();
+      const nearestConfig = (start: string): string | undefined => {
+        const visited: string[] = [];
+        let directory = path.resolve(start);
+        let result: string | undefined;
+        for (;;) {
+          if (configByDirectory.has(directory)) {
+            result = configByDirectory.get(directory);
+            break;
+          }
+          visited.push(directory);
+          const candidate = path.join(directory, "tsconfig.json");
+          if (ts.sys.fileExists(candidate)) {
+            result = candidate;
+            break;
+          }
+          if (directory === owner.workspace) break;
+          const parent = path.dirname(directory);
+          if (parent === directory) break;
+          directory = parent;
+        }
+        for (const item of visited) configByDirectory.set(item, result);
+        return result;
+      };
       for (const source of owner.sources) {
-        const config = ts.findConfigFile(
-          path.dirname(source.absolutePath),
-          ts.sys.fileExists,
-        );
+        const config = nearestConfig(path.dirname(source.absolutePath));
         if (config !== undefined) {
           const canonical = fs.realpathSync(config);
           const relative = path.relative(owner.workspace, canonical);

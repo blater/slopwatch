@@ -1,10 +1,8 @@
-use crate::design::{collect_functions, declare_types, normalize_types};
-use crate::location::location;
+use crate::design::{collect_functions, declare_types, normalize_types, TypeOwnerIndex};
 use crate::model::Program;
 use crate::surface;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use syn::spanned::Spanned;
 
 /* fn shape(ty: &syn::Type) -> TypeShape {
     let name = match ty {
@@ -216,38 +214,44 @@ pub fn parse_program(
     for (path, syntax) in &parsed {
         declare_types(&syntax.items, path, &mut program.types, include_tests);
     }
+    let type_owners = TypeOwnerIndex::new(&program.types);
     for (path, syntax) in &parsed {
         collect_functions(
             &syntax.items,
             path,
             &mut program.types,
+            &type_owners,
             &mut program.functions,
             include_tests,
         );
-        surface::operations(&syntax.items, path, &mut program.public_operations);
-        surface::exposures(&syntax.items, path, &mut program.representation);
+        surface::collect(
+            &syntax.items,
+            path,
+            &mut program.public_operations,
+            &mut program.representation,
+        );
     }
     normalize_types(&mut program.types);
-    program.functions.sort_by_key(|item| {
-        (
-            item.location.path.clone(),
-            item.location.line,
-            item.location.column,
-        )
+    program.functions.sort_by(|left, right| {
+        left.location
+            .path
+            .cmp(&right.location.path)
+            .then(left.location.line.cmp(&right.location.line))
+            .then(left.location.column.cmp(&right.location.column))
     });
-    program.types.sort_by_key(|item| {
-        (
-            item.location.path.clone(),
-            item.location.line,
-            item.location.column,
-        )
+    program.types.sort_by(|left, right| {
+        left.location
+            .path
+            .cmp(&right.location.path)
+            .then(left.location.line.cmp(&right.location.line))
+            .then(left.location.column.cmp(&right.location.column))
     });
-    program.public_operations.sort_by_key(|item| {
-        (
-            item.location.path.clone(),
-            item.location.line,
-            item.location.column,
-        )
+    program.public_operations.sort_by(|left, right| {
+        left.location
+            .path
+            .cmp(&right.location.path)
+            .then(left.location.line.cmp(&right.location.line))
+            .then(left.location.column.cmp(&right.location.column))
     });
     Ok(program)
 }
@@ -280,10 +284,12 @@ mod tests {
             ..Program::default()
         };
         declare_types(&syntax.items, "sample.rs", &mut program.types, false);
+        let type_owners = TypeOwnerIndex::new(&program.types);
         collect_functions(
             &syntax.items,
             "sample.rs",
             &mut program.types,
+            &type_owners,
             &mut program.functions,
             false,
         );
@@ -306,7 +312,7 @@ mod tests {
             .iter()
             .find(|item| item.name == "Service")
             .unwrap();
-        assert_eq!(service.methods.len(), 1);
+        assert_eq!(service.method_locations.len(), 1);
         assert_eq!(service.method_fields["run"], vec!["state"]);
         assert_eq!(service.foreign_fields, vec!["other.value"]);
         assert!(service.foreign_types.contains(&"Peer".to_owned()));
@@ -316,11 +322,40 @@ mod tests {
             &syntax.items,
             "sample.rs",
             &mut program.types,
+            &type_owners,
             &mut test_functions,
             true,
         );
         assert!(test_functions
             .iter()
             .any(|item| item.name == "inline_unit_test"));
+    }
+
+    #[test]
+    fn owner_index_preserves_first_matching_declaration_semantics() {
+        let syntax = syn::parse_file(
+            r#"
+            mod first { struct Shared { first: i32 } }
+            mod second { struct Shared { second: i32 } }
+            impl Shared { fn inspect(&self) -> i32 { self.first } }
+            "#,
+        )
+        .expect("fixture parses");
+        let mut types = Vec::new();
+        declare_types(&syntax.items, "duplicate.rs", &mut types, false);
+        let type_owners = TypeOwnerIndex::new(&types);
+        let mut functions = Vec::new();
+        collect_functions(
+            &syntax.items,
+            "duplicate.rs",
+            &mut types,
+            &type_owners,
+            &mut functions,
+            false,
+        );
+
+        assert_eq!(types[0].method_locations.len(), 1);
+        assert!(types[1].method_locations.is_empty());
+        assert_eq!(types[0].method_fields["inspect"], vec!["first"]);
     }
 }

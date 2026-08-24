@@ -2,8 +2,8 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"math/big"
 	"os"
@@ -211,19 +211,26 @@ func run(input request, writer io.Writer) int {
 	return 0
 }
 
-func main() {
-	payload, err := io.ReadAll(io.LimitReader(os.Stdin, 1_048_577))
-	if err != nil || len(payload) > 1_048_576 {
-		os.Exit(2)
-	}
-	decoder := json.NewDecoder(bytes.NewReader(payload))
+func decodeRequest(reader io.Reader) (request, error) {
+	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
 	var input request
 	if err := decoder.Decode(&input); err != nil {
-		os.Exit(2)
+		return request{}, err
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err != nil {
+			return request{}, err
+		}
+		return request{}, errors.New("unexpected trailing analyzer request data")
+	}
+	return input, nil
+}
+
+func main() {
+	input, err := decodeRequest(os.Stdin)
+	if err != nil {
 		os.Exit(2)
 	}
 	os.Exit(run(input, os.Stdout))

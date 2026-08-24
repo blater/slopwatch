@@ -21,7 +21,6 @@
     "typescript": "5.9.2"
   },
   "devDependencies": {
-    "@types/node": "24.3.0",
-    "scriptc": "^0.0.34"
+    "@types/node": "24.3.0"
   }
 }

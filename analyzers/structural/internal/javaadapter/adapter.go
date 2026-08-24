@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,8 +19,6 @@ const (
 	helperName    = "slopslap-structural-java.jar"
 	requestMagic  = uint32(0x53534a46)
 	responseMagic = uint32(0x53534a4f)
-	maxItems      = 1_000_000
-	maxString     = 16 * 1024 * 1024
 )
 
 // Adapter invokes the bundled Java parser without annotation processing or project execution.
@@ -77,14 +76,27 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 	}
 	command := exec.Command(java, "-jar", jar)
 	command.Stdin = &input
-	var stdout, stderr bytes.Buffer
-	command.Stdout, command.Stderr = &stdout, &stderr
-	if err := command.Run(); err != nil {
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open Java fact adapter output: %w", err)
+	}
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+	if err := command.Start(); err != nil {
 		return nil, fmt.Errorf("Java fact adapter failed: %w: %s", err, stderr.String())
 	}
-	program, err := readResponse(bytes.NewReader(stdout.Bytes()))
-	if err != nil {
-		return nil, fmt.Errorf("decode Java facts: %w", err)
+	program, decodeErr := readResponse(stdout)
+	if decodeErr != nil {
+		_, _ = io.Copy(io.Discard, stdout)
+	}
+	if err := command.Wait(); err != nil {
+		return nil, fmt.Errorf("Java fact adapter failed: %w: %s", err, stderr.String())
+	}
+	if decodeErr != nil {
+		return nil, fmt.Errorf("decode Java facts: %w", decodeErr)
+	}
+	if err := program.LinkTypeMethods(); err != nil {
+		return nil, fmt.Errorf("link Java method facts: %w", err)
 	}
 	return program, nil
 }
@@ -207,7 +219,7 @@ func readFunction(data *bufio.Reader) (*facts.Function, error) {
 }
 
 func writeCount(data io.Writer, count int) error {
-	if count < 0 || count > maxItems {
+	if count < 0 || uint64(count) > math.MaxInt32 {
 		return fmt.Errorf("invalid Java fact collection size")
 	}
 	return binary.Write(data, binary.BigEndian, uint32(count))
@@ -218,7 +230,7 @@ func readCount(data io.Reader) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if value > maxItems {
+	if value > math.MaxInt32 {
 		return 0, fmt.Errorf("invalid Java fact collection size")
 	}
 	return int(value), nil
@@ -226,7 +238,7 @@ func readCount(data io.Reader) (int, error) {
 
 func writeString(data io.Writer, value string) error {
 	encoded := []byte(value)
-	if len(encoded) > maxString {
+	if uint64(len(encoded)) > math.MaxInt32 {
 		return fmt.Errorf("invalid Java fact string size")
 	}
 	if err := binary.Write(data, binary.BigEndian, uint32(len(encoded))); err != nil {
@@ -241,7 +253,7 @@ func readString(data io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if length > maxString {
+	if length > math.MaxInt32 {
 		return "", fmt.Errorf("invalid Java fact string size")
 	}
 	encoded := make([]byte, int(length))

@@ -98,6 +98,7 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                     addRepresentationExposure(name, field, fieldFact);
                 }
             }
+            Set<String> ownFields = Set.copyOf(type.fields);
             int ordinal = 0;
             for (Tree member : node.getMembers()) {
                 if (!(member instanceof MethodTree method)
@@ -114,14 +115,15 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                     type.interfaceMethodCount++;
                 }
                 String methodKey = method.getName() + "#" + ordinal++;
-                FieldUses fields = new FieldUses(type.fields, method.getParameters());
+                MethodBodyFacts fields = new MethodBodyFacts(
+                        ownFields, method.getParameters(), foreignTypes
+                );
                 if (method.getBody() != null) {
                     fields.scan(method.getBody(), null);
                 }
                 type.methodFields.put(methodKey, new ArrayList<>(fields.own));
                 type.foreignFields.addAll(fields.foreign);
                 collectMethodTypes(method, foreignTypes);
-                new BodyTypeNames(foreignTypes).scan(method.getBody(), null);
             }
             foreignTypes.remove(name);
             foreignTypes.removeAll(genericNames);
@@ -216,92 +218,31 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
         }
     }
 
-    private static final class BodyTypeNames extends TreeScanner<Void, Void> {
-        private final Set<String> output;
-
-        private BodyTypeNames(Set<String> output) {
-            this.output = output;
-        }
-
-        private void type(Tree value) {
-            if (value != null) {
-                new TypeNames(output).scan(value, null);
-            }
-        }
-
-        @Override
-        public Void visitVariable(VariableTree node, Void unused) {
-            type(node.getType());
-            return scan(node.getInitializer(), unused);
-        }
-
-        @Override
-        public Void visitNewClass(NewClassTree node, Void unused) {
-            type(node.getIdentifier());
-            node.getTypeArguments().forEach(this::type);
-            scan(node.getEnclosingExpression(), unused);
-            node.getArguments().forEach(value -> scan(value, unused));
-            return null;
-        }
-
-        @Override
-        public Void visitNewArray(NewArrayTree node, Void unused) {
-            type(node.getType());
-            node.getDimensions().forEach(value -> scan(value, unused));
-            if (node.getInitializers() != null) {
-                node.getInitializers().forEach(value -> scan(value, unused));
-            }
-            return null;
-        }
-
-        @Override
-        public Void visitTypeCast(TypeCastTree node, Void unused) {
-            type(node.getType());
-            return scan(node.getExpression(), unused);
-        }
-
-        @Override
-        public Void visitInstanceOf(InstanceOfTree node, Void unused) {
-            type(node.getType());
-            scan(node.getExpression(), unused);
-            return scan(node.getPattern(), unused);
-        }
-
-        @Override
-        public Void visitAnnotation(AnnotationTree node, Void unused) {
-            type(node.getAnnotationType());
-            node.getArguments().forEach(value -> scan(value, unused));
-            return null;
-        }
-
-        @Override
-        public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {
-            node.getTypeArguments().forEach(this::type);
-            return super.visitMethodInvocation(node, unused);
-        }
-
-        @Override
-        public Void visitMemberReference(MemberReferenceTree node, Void unused) {
-            if (node.getTypeArguments() != null) {
-                node.getTypeArguments().forEach(this::type);
-            }
-            return super.visitMemberReference(node, unused);
-        }
-    }
-
-    private static final class FieldUses extends TreeScanner<Void, Void> {
+    private static final class MethodBodyFacts extends TreeScanner<Void, Void> {
         private final Set<String> ownFields;
+        private final Set<String> typeNames;
         private final Set<String> locals = new HashSet<>();
         private final SortedSet<String> own = new TreeSet<>();
         private final SortedSet<String> foreign = new TreeSet<>();
+        private boolean collectBodyTypes = true;
 
-        private FieldUses(List<String> fields, List<? extends VariableTree> parameters) {
-            ownFields = Set.copyOf(fields);
+        private MethodBodyFacts(
+                Set<String> fields, List<? extends VariableTree> parameters, Set<String> typeNames
+        ) {
+            ownFields = fields;
+            this.typeNames = typeNames;
             parameters.forEach(value -> locals.add(value.getName().toString()));
+        }
+
+        private void type(Tree value) {
+            if (collectBodyTypes && value != null) {
+                new TypeNames(typeNames).scan(value, null);
+            }
         }
 
         @Override
         public Void visitVariable(VariableTree node, Void unused) {
+            type(node.getType());
             if (node.getInitializer() != null) {
                 scan(node.getInitializer(), unused);
             }
@@ -332,7 +273,62 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
         }
 
         @Override
+        public Void visitNewClass(NewClassTree node, Void unused) {
+            type(node.getIdentifier());
+            node.getTypeArguments().forEach(this::type);
+            scan(node.getEnclosingExpression(), unused);
+            node.getTypeArguments().forEach(value -> scan(value, unused));
+            scan(node.getIdentifier(), unused);
+            node.getArguments().forEach(value -> scan(value, unused));
+            if (node.getClassBody() != null) {
+                boolean previous = collectBodyTypes;
+                collectBodyTypes = false;
+                try {
+                    scan(node.getClassBody(), unused);
+                } finally {
+                    collectBodyTypes = previous;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitNewArray(NewArrayTree node, Void unused) {
+            type(node.getType());
+            scan(node.getType(), unused);
+            node.getDimensions().forEach(value -> scan(value, unused));
+            if (node.getInitializers() != null) {
+                node.getInitializers().forEach(value -> scan(value, unused));
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitTypeCast(TypeCastTree node, Void unused) {
+            type(node.getType());
+            scan(node.getType(), unused);
+            return scan(node.getExpression(), unused);
+        }
+
+        @Override
+        public Void visitInstanceOf(InstanceOfTree node, Void unused) {
+            type(node.getType());
+            scan(node.getType(), unused);
+            scan(node.getExpression(), unused);
+            return scan(node.getPattern(), unused);
+        }
+
+        @Override
+        public Void visitAnnotation(AnnotationTree node, Void unused) {
+            type(node.getAnnotationType());
+            scan(node.getAnnotationType(), unused);
+            node.getArguments().forEach(value -> scan(value, unused));
+            return null;
+        }
+
+        @Override
         public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {
+            node.getTypeArguments().forEach(this::type);
             if (node.getMethodSelect() instanceof MemberSelectTree selected) {
                 scan(selected.getExpression(), unused);
             }
@@ -342,6 +338,9 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
 
         @Override
         public Void visitMemberReference(MemberReferenceTree node, Void unused) {
+            if (node.getTypeArguments() != null) {
+                node.getTypeArguments().forEach(this::type);
+            }
             scan(node.getQualifierExpression(), unused);
             return null;
         }

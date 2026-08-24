@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +41,24 @@ func TestProtocolEmitsMeasurementsCoveragePlanAndTerminal(t *testing.T) {
 		if types[index] != want[index] {
 			t.Fatalf("record types = %#v", types)
 		}
+	}
+}
+
+func TestDecodeRequestAcceptsLargeInventories(t *testing.T) {
+	input := request{
+		Type: "request", Version: 1, Invocation: "00000000-0000-0000-0000-000000000004", Workspace: t.TempDir(),
+		Units: []unit{{ID: "go-unit", Language: "go", Paths: []string{strings.Repeat("x", 2*1024*1024)}}},
+	}
+	var encoded bytes.Buffer
+	if err := json.NewEncoder(&encoded).Encode(input); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := decodeRequest(&encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := decoded.Units[0].Paths[0]; got != input.Units[0].Paths[0] {
+		t.Fatal("large source inventory was not preserved")
 	}
 }
 

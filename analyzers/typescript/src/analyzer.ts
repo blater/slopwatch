@@ -318,20 +318,10 @@ function finishAnalysis(
   typedUnavailableReason: string | undefined,
   buffers: AnalysisBuffers,
 ): ResponseRecord[] {
-  buffers.measurements.sort(
-    (a, b) =>
-      a.path.localeCompare(b.path) ||
-      a.component_id.localeCompare(b.component_id) ||
-      a.subject.start.offset - b.subject.start.offset ||
-      a.subject.name.localeCompare(b.subject.name),
-  );
+  // Sources and each analyzer's findings are already produced deterministically.
+  // Preserve that order instead of globally sorting repository-sized output.
   for (const item of buffers.measurements)
     buffers.records.push(responseMeasurement(invocationId, item));
-  buffers.coverage.sort(
-    (a, b) =>
-      a.path.localeCompare(b.path) ||
-      a.component_id.localeCompare(b.component_id),
-  );
   for (const item of buffers.coverage)
     buffers.records.push(responseCoverage(invocationId, item));
   const modes = ["typescript-syntax"];

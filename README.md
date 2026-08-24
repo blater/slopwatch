@@ -23,6 +23,9 @@ brew tap blater/tap
 brew install slopwatch
 ```
 
+The TypeScript analyzer requires Node.js 22 or newer. Homebrew installs that
+runtime dependency automatically.
+
 For a source checkout:
 
 ```sh
@@ -235,8 +238,15 @@ PATH is the source path only; it is not a quality measurement.
 
 ## Release
 
-Configure the `HOMEBREW_TAP_TOKEN` GitHub Actions secret, authenticate `gh`,
-and run:
+Configure GitHub Actions once. The setup script checks the source repository,
+enables Actions, verifies that the Homebrew token can update the tap, and stores
+the token as an Actions secret without writing it locally:
+
+```sh
+./actions-setup.sh
+```
+
+Then release with:
 
 ```sh
 ./release.sh X.Y.Z

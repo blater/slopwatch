@@ -35,7 +35,7 @@ func readType(data *bufio.Reader) (*facts.Type, error) {
 	if item.Location, err = readLocation(data); err != nil {
 		return nil, err
 	}
-	if item.Methods, err = readFunctions(data); err != nil {
+	if item.MethodLocations, err = readLocations(data); err != nil {
 		return nil, err
 	}
 	methods, err := readUint32(data)
@@ -53,6 +53,20 @@ func readType(data *bufio.Reader) (*facts.Type, error) {
 		return nil, err
 	}
 	return item, nil
+}
+
+func readLocations(data *bufio.Reader) ([]facts.Location, error) {
+	count, err := readCount(data)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]facts.Location, count)
+	for index := range result {
+		if result[index], err = readLocation(data); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }
 
 func readShape(data *bufio.Reader) (*facts.TypeShape, error) {

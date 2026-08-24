@@ -17,15 +17,17 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 final class JavaParser {
     static Facts.Program analyze(Protocol.Request request) throws Exception {
         Path workspace = Path.of(request.workspace()).toRealPath();
         List<Path> sources = new ArrayList<>();
-        List<String> requestedPaths = new ArrayList<>();
+        Set<String> requestedPaths = new HashSet<>(request.paths().size());
         for (String requested : request.paths()) {
             sources.add(canonicalSource(workspace, requested));
             requestedPaths.add(requested.replace('\\', '/'));

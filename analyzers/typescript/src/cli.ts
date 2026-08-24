@@ -3,8 +3,15 @@ import { readFileSync } from "node:fs";
 
 import { analyze } from "./analyzer.js";
 
-function emit(record: Record<string, unknown>): void {
-  console.log(JSON.stringify(record));
+function emit(records: ReadonlyArray<Record<string, unknown>>): void {
+  const batchSize = 256;
+  for (let start = 0; start < records.length; start += batchSize) {
+    const end = Math.min(records.length, start + batchSize);
+    let output = "";
+    for (let index = start; index < end; index++)
+      output += `${JSON.stringify(records[index])}\n`;
+    process.stdout.write(output);
+  }
 }
 
 function main(): void {
@@ -35,7 +42,7 @@ function main(): void {
     }
   }
   const records = analyze(parsed);
-  for (const record of records) emit(record);
+  emit(records);
   const terminal = records.at(-1);
   if (terminal?.status === "failure") process.exitCode = 1;
 }

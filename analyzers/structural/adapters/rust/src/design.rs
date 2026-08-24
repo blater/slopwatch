@@ -2,7 +2,7 @@ use crate::control::statements;
 use crate::expression::simple_path;
 use crate::location::location;
 use crate::model::{Function, TypeFact};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{
@@ -85,7 +85,7 @@ fn fields_types(fields: &Fields, own: &str) -> Vec<String> {
 }
 
 struct FieldUses<'a> {
-    own_fields: &'a [String],
+    own_fields: &'a HashSet<String>,
     own: BTreeSet<String>,
     foreign: BTreeSet<String>,
 }
@@ -106,7 +106,7 @@ impl<'ast> Visit<'ast> for FieldUses<'_> {
     }
 }
 
-fn method_fields(block: &syn::Block, fields: &[String]) -> (Vec<String>, Vec<String>) {
+fn method_fields(block: &syn::Block, fields: &HashSet<String>) -> (Vec<String>, Vec<String>) {
     let mut visitor = FieldUses {
         own_fields: fields,
         own: BTreeSet::new(),
@@ -117,6 +117,32 @@ fn method_fields(block: &syn::Block, fields: &[String]) -> (Vec<String>, Vec<Str
         visitor.own.into_iter().collect(),
         visitor.foreign.into_iter().collect(),
     )
+}
+
+pub struct TypeOwnerIndex {
+    owners: HashMap<String, TypeOwner>,
+}
+
+struct TypeOwner {
+    index: usize,
+    fields: HashSet<String>,
+}
+
+impl TypeOwnerIndex {
+    pub fn new(types: &[TypeFact]) -> Self {
+        let mut owners = HashMap::with_capacity(types.len());
+        for (index, item) in types.iter().enumerate() {
+            // `find` previously selected the first declaration with a matching name.
+            // Preserve that behavior when duplicate names occur in separate modules.
+            owners
+                .entry(item.name.clone())
+                .or_insert_with(|| TypeOwner {
+                    index,
+                    fields: item.fields.iter().cloned().collect(),
+                });
+        }
+        Self { owners }
+    }
 }
 
 fn receiver_name(value: &Type) -> Option<String> {
@@ -217,6 +243,7 @@ pub fn collect_functions(
     items: &[Item],
     path: &str,
     types: &mut Vec<TypeFact>,
+    type_owners: &TypeOwnerIndex,
     functions: &mut Vec<Function>,
     include_tests: bool,
 ) {
@@ -248,8 +275,9 @@ pub fn collect_functions(
                         &method.block,
                         path,
                     );
-                    if let Some(owner) = types.iter_mut().find(|item| item.name == receiver) {
-                        let (fields, foreign) = method_fields(&method.block, &owner.fields);
+                    if let Some(indexed_owner) = type_owners.owners.get(&receiver) {
+                        let owner = &mut types[indexed_owner.index];
+                        let (fields, foreign) = method_fields(&method.block, &indexed_owner.fields);
                         owner
                             .method_fields
                             .insert(method.sig.ident.to_string(), fields);
@@ -257,7 +285,7 @@ pub fn collect_functions(
                         owner
                             .foreign_types
                             .extend(signature_types(&method.sig, &receiver));
-                        owner.methods.push(function.clone());
+                        owner.method_locations.push(function.location.clone());
                     }
                     functions.push(function);
                 }
@@ -277,15 +305,16 @@ pub fn collect_functions(
                         block,
                         path,
                     );
-                    if let Some(owner) = types.iter_mut().find(|item| value.ident == item.name) {
-                        owner.methods.push(function.clone());
+                    if let Some(indexed_owner) = type_owners.owners.get(&value.ident.to_string()) {
+                        let owner = &mut types[indexed_owner.index];
+                        owner.method_locations.push(function.location.clone());
                     }
                     functions.push(function);
                 }
             }
             Item::Mod(module) if !excluded_test(&module.attrs, include_tests) => {
                 if let Some((_, nested)) = &module.content {
-                    collect_functions(nested, path, types, functions, include_tests);
+                    collect_functions(nested, path, types, type_owners, functions, include_tests);
                 }
             }
             _ => {}
