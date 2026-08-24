@@ -23,6 +23,9 @@ type Options struct {
 	TypeScriptTypes bool
 	Timeout         float64
 	PassScore       *float64
+	// ReadCache permits reuse of verified unit artifacts. Cache writes remain
+	// enabled whenever a store is configured, independently of this option.
+	ReadCache bool
 }
 
 type Analyzer struct {
@@ -31,6 +34,8 @@ type Analyzer struct {
 	catalog   catalogDocument
 	options   Options
 	optionsMu sync.RWMutex
+	cache     analyzerCache
+	runUnits  analyzerUnitsRunner
 }
 
 // SetTypeScriptTypes changes whether subsequent analyses build the optional
@@ -134,6 +139,25 @@ func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, lang
 		return report.Document{}, err
 	}
 	catalog := activeCatalog(analyzer.catalog, options)
+	// Cache writes and cache reads are deliberately independent. The default
+	// slopmark path must remain the ordinary fresh analyzer plus a cheap
+	// post-analysis projection write; only explicit reuse enters the package
+	// coordinator and pays for planning, hashing, and snapshot validation.
+	if options.ReadCache && analyzer.cacheStore() != nil {
+		document, handled, cacheErr := analyzer.analyzeWithPersistentCache(parent, catalog, discovered, selected, options)
+		if handled {
+			return document, cacheErr
+		}
+	}
+	document, err := analyzer.analyzeUncached(parent, catalog, discovered, selected, options)
+	if err != nil {
+		return report.Document{}, err
+	}
+	analyzer.persistProjection(document, options)
+	return document, nil
+}
+
+func (analyzer *Analyzer) analyzeUncached(parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options) (report.Document, error) {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	inputsByLanguage := make([]scoreInputs, len(selected))

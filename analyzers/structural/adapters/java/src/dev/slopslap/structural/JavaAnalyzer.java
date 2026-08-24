@@ -68,6 +68,7 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
     @Override
     public Void visitClass(ClassTree node, Void unused) {
         String name = node.getSimpleName().toString();
+        List<ClassTree> nestedClasses = new ArrayList<>();
         if (!name.isEmpty()) {
             Facts.TypeFact type = new Facts.TypeFact();
             type.name = name;
@@ -85,6 +86,7 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                 collectTypes(node.getExtendsClause(), foreignTypes);
             }
             node.getImplementsClause().forEach(value -> collectTypes(value, foreignTypes));
+            NestedClasses nested = new NestedClasses(nestedClasses);
             for (Tree member : node.getMembers()) {
                 if (member instanceof VariableTree field) {
                     type.fields.add(field.getName().toString());
@@ -96,6 +98,11 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                     fieldFact.type = shape(field.getType());
                     type.fieldFacts.add(fieldFact);
                     addRepresentationExposure(name, field, fieldFact);
+                    nested.scan(field.getInitializer(), null);
+                } else if (member instanceof ClassTree child) {
+                    nestedClasses.add(child);
+                } else if (member instanceof BlockTree block) {
+                    nested.scan(block, null);
                 }
             }
             Set<String> ownFields = Set.copyOf(type.fields);
@@ -116,7 +123,7 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                 }
                 String methodKey = method.getName() + "#" + ordinal++;
                 MethodBodyFacts fields = new MethodBodyFacts(
-                        ownFields, method.getParameters(), foreignTypes
+                        ownFields, method.getParameters(), foreignTypes, nestedClasses
                 );
                 if (method.getBody() != null) {
                     fields.scan(method.getBody(), null);
@@ -134,8 +141,13 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
             type.foreignFields.clear();
             type.foreignFields.addAll(uniqueForeignFields);
             program.types.add(type);
+        } else {
+            NestedClasses nested = new NestedClasses(nestedClasses);
+            node.getMembers().forEach(member -> nested.scan(member, null));
         }
-        return super.visitClass(node, unused);
+        nestedClasses.sort(Comparator.comparingLong(item -> positions.getStartPosition(unit, item)));
+        nestedClasses.forEach(item -> scan(item, null));
+        return null;
     }
 
     private void collectMethodTypes(MethodTree method, Set<String> output) {
@@ -218,19 +230,37 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
         }
     }
 
+    private static final class NestedClasses extends TreeScanner<Void, Void> {
+        private final List<ClassTree> output;
+
+        private NestedClasses(List<ClassTree> output) {
+            this.output = output;
+        }
+
+        @Override
+        public Void visitClass(ClassTree node, Void unused) {
+            output.add(node);
+            return null;
+        }
+    }
+
     private static final class MethodBodyFacts extends TreeScanner<Void, Void> {
         private final Set<String> ownFields;
         private final Set<String> typeNames;
+        private final List<ClassTree> nestedClasses;
         private final Set<String> locals = new HashSet<>();
         private final SortedSet<String> own = new TreeSet<>();
         private final SortedSet<String> foreign = new TreeSet<>();
         private boolean collectBodyTypes = true;
+        private int classDepth;
 
         private MethodBodyFacts(
-                Set<String> fields, List<? extends VariableTree> parameters, Set<String> typeNames
+                Set<String> fields, List<? extends VariableTree> parameters, Set<String> typeNames,
+                List<ClassTree> nestedClasses
         ) {
             ownFields = fields;
             this.typeNames = typeNames;
+            this.nestedClasses = nestedClasses;
             parameters.forEach(value -> locals.add(value.getName().toString()));
         }
 
@@ -257,6 +287,19 @@ final class JavaAnalyzer extends TreePathScanner<Void, Void> {
                 own.add(name);
             }
             return null;
+        }
+
+        @Override
+        public Void visitClass(ClassTree node, Void unused) {
+            if (classDepth == 0) {
+                nestedClasses.add(node);
+            }
+            classDepth++;
+            try {
+                return super.visitClass(node, unused);
+            } finally {
+                classDepth--;
+            }
         }
 
         @Override

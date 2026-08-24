@@ -72,6 +72,7 @@ Common analysis options:
 | `--limit NUMBER` | Return at most this many ranked files | `slopmark --limit 20 .` |
 | `--pass-score SCORE` | Pass files scoring at or below this value | `slopmark --pass-score 100 .` |
 | `--format json` | Emit the standard JSON report | `slopmark . --format json` |
+| `--use-cache` | Reuse verified cached analysis units; without this, `slopmark` only updates the cache | `slopmark --use-cache .` |
 
 `--pass-score` considers every analyzed file. Analysis returns 0 when all
 files pass, 3 when any file does not pass, and 2 for analysis errors.

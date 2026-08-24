@@ -1,14 +1,15 @@
 package follow
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
+	"sync"
 
-	"github.com/fsnotify/fsnotify"
+	workspacefs "github.com/blater/slopwatch/internal/workspace"
 )
 
 var ignoredDirectories = map[string]bool{
@@ -27,6 +28,7 @@ var testDirectories = map[string]bool{
 
 type sourceChange struct {
 	Paths []string
+	Full  bool
 	Err   error
 }
 
@@ -35,8 +37,9 @@ type sourceWatcher struct {
 	includeTests bool
 	languages    map[string]bool
 	scopes       []watchScope
-	watcher      *fsnotify.Watcher
-	changes      chan sourceChange
+	monitor      *workspacefs.Monitor
+	startOnce    sync.Once
+	startErr     error
 	done         chan struct{}
 }
 
@@ -46,64 +49,159 @@ type watchScope struct {
 }
 
 func newSourceWatcher(root string, targets []string, includeTests bool, languages []string) (*sourceWatcher, error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
 	selected := make(map[string]bool, len(languages))
 	for _, language := range languages {
 		selected[language] = true
 	}
 	result := &sourceWatcher{
-		root: root, includeTests: includeTests, languages: selected,
-		watcher: watcher, changes: make(chan sourceChange, 8), done: make(chan struct{}),
+		root: root, includeTests: includeTests, languages: selected, done: make(chan struct{}),
 	}
 	if len(targets) == 0 {
 		targets = []string{"."}
 	}
+	monitorScopes := make([]workspacefs.Scope, 0, len(targets))
 	for _, target := range targets {
 		absolute := target
 		if !filepath.IsAbs(absolute) {
 			absolute = filepath.Join(root, target)
 		}
-		info, statErr := os.Stat(absolute)
-		if statErr != nil {
-			watcher.Close()
-			return nil, statErr
-		}
-		if !info.IsDir() {
-			result.scopes = append(result.scopes, watchScope{path: filepath.Clean(absolute)})
-			absolute = filepath.Dir(absolute)
-		} else {
-			result.scopes = append(result.scopes, watchScope{path: filepath.Clean(absolute), directory: true})
-		}
-		if err := result.addTree(absolute); err != nil {
-			watcher.Close()
+		info, err := os.Stat(absolute)
+		if err != nil {
 			return nil, err
 		}
+		absolute = filepath.Clean(absolute)
+		result.scopes = append(result.scopes, watchScope{path: absolute, directory: info.IsDir()})
+		monitorScopes = append(monitorScopes, workspacefs.Scope{
+			Path: absolute, Recursive: info.IsDir(), Directory: info.IsDir(), Kind: workspacefs.KindSource,
+		})
 	}
-	go result.run()
+	monitor, err := workspacefs.New(workspacefs.Config{
+		Root: root, Scopes: monitorScopes, Inputs: result.configurationInputs(),
+		Classifier: workspacefs.ClassifierFunc(func(relative string, directory bool) (workspacefs.Classification, bool) {
+			if directory {
+				return workspacefs.Classification{}, false
+			}
+			if language, ok := configurationLanguage(relative); ok {
+				if len(result.languages) == 0 || language == "" || result.languages[language] {
+					return workspacefs.Classification{Kind: workspacefs.KindConfiguration, Language: language}, true
+				}
+			}
+			if result.excluded(relative) {
+				return workspacefs.Classification{}, false
+			}
+			language, ok := result.languageFor(relative)
+			if !ok || len(result.languages) > 0 && !result.languages[language] {
+				return workspacefs.Classification{}, false
+			}
+			return workspacefs.Classification{Kind: workspacefs.KindSource, Language: language}, true
+		}),
+		IgnoreDirectory: func(_ string, name string) bool {
+			return ignoredDirectories[strings.ToLower(name)]
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	result.monitor = monitor
 	return result, nil
 }
 
-func (watcher *sourceWatcher) addTree(root string) error {
-	return filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
+func (watcher *sourceWatcher) configurationInputs() []workspacefs.Input {
+	seen := map[string]bool{}
+	var inputs []workspacefs.Input
+	add := func(path string) {
+		path = filepath.Clean(path)
+		if seen[path] || watcher.inScope(path) {
+			return
 		}
-		if !entry.IsDir() {
-			return nil
+		seen[path] = true
+		inputs = append(inputs, workspacefs.Input{Path: path, Kind: workspacefs.KindConfiguration})
+	}
+	for _, scope := range watcher.scopes {
+		directory := scope.path
+		if !scope.directory {
+			directory = filepath.Dir(directory)
 		}
-		if path != root && ignoredDirectories[strings.ToLower(entry.Name())] {
-			return filepath.SkipDir
+		for {
+			// Include known names even when absent so creation is observed.
+			for _, relative := range []string{
+				"go.mod", "go.sum", "go.work", "go.work.sum", "Cargo.toml", "Cargo.lock", "build.rs",
+				"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
+				"gradle.properties", "gradle.lockfile", "package.json", "package-lock.json",
+				"pnpm-lock.yaml", "yarn.lock", "tsconfig.json", ".cargo/config", ".cargo/config.toml",
+				".mvn/maven.config", ".mvn/jvm.config", "gradle/wrapper/gradle-wrapper.properties",
+			} {
+				add(filepath.Join(directory, filepath.FromSlash(relative)))
+			}
+			// Existing named tsconfig/build inputs can have project-specific names.
+			if entries, err := os.ReadDir(directory); err == nil {
+				for _, entry := range entries {
+					if entry.IsDir() {
+						continue
+					}
+					relative, err := filepath.Rel(watcher.root, filepath.Join(directory, entry.Name()))
+					if err == nil {
+						if _, ok := configurationLanguage(relative); ok {
+							add(filepath.Join(directory, entry.Name()))
+						}
+					}
+				}
+			}
+			if directory == watcher.root {
+				break
+			}
+			parent := filepath.Dir(directory)
+			if parent == directory {
+				break
+			}
+			relative, err := filepath.Rel(watcher.root, parent)
+			if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+				break
+			}
+			directory = parent
 		}
-		return watcher.watcher.Add(path)
-	})
+	}
+	sort.Slice(inputs, func(i, j int) bool { return inputs[i].Path < inputs[j].Path })
+	return inputs
 }
 
 func (watcher *sourceWatcher) close() {
-	close(watcher.done)
-	_ = watcher.watcher.Close()
+	select {
+	case <-watcher.done:
+	default:
+		close(watcher.done)
+	}
+	_ = watcher.monitor.Close()
+}
+
+func (watcher *sourceWatcher) start() error {
+	watcher.startOnce.Do(func() { watcher.startErr = watcher.monitor.Start(context.Background()) })
+	if watcher.startErr != nil {
+		return fmt.Errorf("source watcher: %w", watcher.startErr)
+	}
+	return nil
+}
+
+func (watcher *sourceWatcher) wait() sourceChange {
+	if err := watcher.start(); err != nil {
+		return sourceChange{Err: err}
+	}
+	batch, err := watcher.monitor.WaitAndDrain(context.Background())
+	if err != nil {
+		return sourceChange{Err: err}
+	}
+	paths := make([]string, 0, len(batch.Entries))
+	full := batch.All
+	for _, entry := range batch.Entries {
+		if entry.Kind == workspacefs.KindSource {
+			paths = append(paths, entry.Path)
+		} else {
+			// Configuration and dependency inputs can alter ownership and type
+			// context for many units. A path-only refresh is not cache-safe.
+			full = true
+		}
+	}
+	return sourceChange{Paths: paths, Full: full}
 }
 
 func (watcher *sourceWatcher) inScope(absolute string) bool {
@@ -112,8 +210,8 @@ func (watcher *sourceWatcher) inScope(absolute string) bool {
 			return true
 		}
 		if scope.directory {
-			scoped, err := filepath.Rel(scope.path, absolute)
-			if err == nil && scoped != ".." && !strings.HasPrefix(scoped, ".."+string(filepath.Separator)) {
+			relative, err := filepath.Rel(scope.path, absolute)
+			if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 				return true
 			}
 		}
@@ -125,7 +223,7 @@ func (watcher *sourceWatcher) excluded(relative string) bool {
 	parts := strings.Split(filepath.ToSlash(relative), "/")
 	for _, part := range parts[:max(0, len(parts)-1)] {
 		lower := strings.ToLower(part)
-		if ignoredDirectories[lower] || (!watcher.includeTests && testDirectories[lower]) {
+		if ignoredDirectories[lower] || !watcher.includeTests && testDirectories[lower] {
 			return true
 		}
 	}
@@ -154,6 +252,34 @@ func (watcher *sourceWatcher) languageFor(relative string) (string, bool) {
 	}
 }
 
+// configurationLanguage recognizes the analysis-affecting inputs owned by
+// the language planners. An empty language means the input can affect more
+// than one selected language.
+func configurationLanguage(relative string) (string, bool) {
+	name := strings.ToLower(filepath.Base(relative))
+	switch name {
+	case "go.mod", "go.sum", "go.work", "go.work.sum":
+		return "go", true
+	case "cargo.toml", "cargo.lock", "build.rs":
+		return "rust", true
+	case "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
+		"gradle.properties", "gradle.lockfile", "maven.config", "jvm.config":
+		return "java", true
+	case "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock":
+		return "typescript", true
+	}
+	if strings.HasPrefix(name, "tsconfig") && strings.HasSuffix(name, ".json") {
+		return "typescript", true
+	}
+	path := strings.ToLower(filepath.ToSlash(relative))
+	if strings.HasSuffix(path, "/.cargo/config") || strings.HasSuffix(path, "/.cargo/config.toml") ||
+		strings.HasSuffix(path, "/.mvn/maven.config") || strings.HasSuffix(path, "/.mvn/jvm.config") ||
+		strings.Contains("/"+path, "/gradle/wrapper/") {
+		return "", true
+	}
+	return "", false
+}
+
 func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {
 	absolute, err := filepath.Abs(path)
 	if err != nil {
@@ -167,10 +293,7 @@ func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {
 		return "", "", false
 	}
 	language, ok := watcher.languageFor(relative)
-	if !ok {
-		return "", "", false
-	}
-	if len(watcher.languages) > 0 && !watcher.languages[language] {
+	if !ok || len(watcher.languages) > 0 && !watcher.languages[language] {
 		return "", "", false
 	}
 	return filepath.ToSlash(relative), language, true
@@ -186,74 +309,4 @@ func isTypeScriptTest(name string) bool {
 		}
 	}
 	return false
-}
-
-func (watcher *sourceWatcher) run() {
-	pending := map[string]string{}
-	var timer *time.Timer
-	var timerChannel <-chan time.Time
-	flush := func() {
-		if len(pending) == 0 {
-			return
-		}
-		paths := make([]string, 0, len(pending))
-		for path := range pending {
-			paths = append(paths, path)
-		}
-		sort.Strings(paths)
-		pending = map[string]string{}
-		select {
-		case watcher.changes <- sourceChange{Paths: paths}:
-		default:
-		}
-	}
-	for {
-		select {
-		case <-watcher.done:
-			if timer != nil {
-				timer.Stop()
-			}
-			return
-		case err, ok := <-watcher.watcher.Errors:
-			if ok {
-				select {
-				case watcher.changes <- sourceChange{Err: fmt.Errorf("source watcher: %w", err)}:
-				default:
-				}
-			}
-		case event, ok := <-watcher.watcher.Events:
-			if !ok {
-				return
-			}
-			if event.Op&fsnotify.Create != 0 {
-				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-					_ = watcher.addTree(event.Name)
-					continue
-				}
-			}
-			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
-				continue
-			}
-			path, language, ok := watcher.eligible(event.Name)
-			if !ok {
-				continue
-			}
-			pending[path] = language
-			if timer == nil {
-				timer = time.NewTimer(80 * time.Millisecond)
-			} else {
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-				timer.Reset(80 * time.Millisecond)
-			}
-			timerChannel = timer.C
-		case <-timerChannel:
-			flush()
-			timerChannel = nil
-		}
-	}
 }

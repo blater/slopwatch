@@ -118,6 +118,8 @@ func (model *Model) rebuildWeightedDocument() {
 	}
 	document.SortAndRank()
 	model.document = document
+	model.refreshFreshnessStatus()
+	model.refreshDisplayFiles()
 }
 
 func defaultWeight(id string) float64 {

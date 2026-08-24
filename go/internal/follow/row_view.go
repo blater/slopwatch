@@ -50,10 +50,18 @@ func (model Model) pathViewportWidth() int {
 }
 
 func (model Model) rowMarker(file report.File, state rowState, now time.Time) (string, lipgloss.Color) {
+	switch file.Freshness {
+	case report.FreshnessProvisional, report.FreshnessVerifying:
+		return "◌", style.AccentWarning
+	case report.FreshnessRefreshing:
+		return "↻", style.AccentInfo
+	case report.FreshnessStaleError:
+		return "!", style.AccentCritical
+	}
 	if marker, colour, ok := newFileMarker(file.Rank, len(model.document.Files), state, now); ok {
 		return marker, colour
 	}
-	if state.scoreChangedAt.IsZero() {
+	if state.scoreChangedAt.IsZero() || now.Sub(state.scoreChangedAt) > model.options.TrendWindow {
 		return "", style.TextMuted
 	}
 	arrow := movementArrow(state.movementDelta)

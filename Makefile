@@ -67,7 +67,7 @@ $(GO_BIN): $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopslap-go
 
-$(WATCH_BIN): $(WATCH_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
+$(WATCH_BIN): $(WATCH_SOURCES) $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopwatch
 

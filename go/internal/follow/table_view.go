@@ -1,6 +1,7 @@
 package follow
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -28,6 +29,13 @@ func (model Model) tableView() string {
 	if !model.analyzing && model.status != "" {
 		status = model.status
 	}
+	freshness := model.freshnessStatus()
+	if !model.analyzing && freshness != "" {
+		if status != "" {
+			status += "  "
+		}
+		status += freshness
+	}
 	if status != "" {
 		top += "  " + status
 	}
@@ -35,7 +43,7 @@ func (model Model) tableView() string {
 	path := lipgloss.NewStyle().Foreground(style.TextPrimary).Render("  " + top)
 	topText := logo + path
 	if model.analyzing {
-		indicator := model.scanningIndicator()
+		indicator := model.scanningIndicator(freshness)
 		leftWidth := max(0, model.width-lipgloss.Width(indicator))
 		left := truncateANSI(topText, leftWidth)
 		topText = padANSI(left, leftWidth) + indicator
@@ -62,6 +70,45 @@ func (model Model) tableView() string {
 	return strings.Join(lines, "\n")
 }
 
+func (model Model) freshnessStatus() string {
+	if model.freshnessStatusReady {
+		return model.freshnessStatusText
+	}
+	return freshnessStatusForFiles(model.document.Files)
+}
+
+func (model *Model) refreshFreshnessStatus() {
+	model.freshnessStatusText = freshnessStatusForFiles(model.document.Files)
+	model.freshnessStatusReady = true
+}
+
+func freshnessStatusForFiles(files []report.File) string {
+	counts := map[report.Freshness]int{}
+	for _, file := range files {
+		if file.Freshness != "" && file.Freshness != report.FreshnessCurrent {
+			counts[file.Freshness]++
+		}
+	}
+	parts := make([]string, 0, 4)
+	for _, item := range []struct {
+		freshness report.Freshness
+		label     string
+	}{
+		{report.FreshnessRefreshing, "REFRESHING"},
+		{report.FreshnessVerifying, "VERIFYING"},
+		{report.FreshnessProvisional, "PROVISIONAL"},
+		{report.FreshnessStaleError, "STALE"},
+	} {
+		if counts[item.freshness] > 0 {
+			parts = append(parts, fmt.Sprintf("%s %d", item.label, counts[item.freshness]))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "CACHE " + strings.Join(parts, " · ")
+}
+
 func (model Model) findFooter(width int) string {
 	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
 	input := model.findInput.View()
@@ -72,11 +119,13 @@ func (model Model) findFooter(width int) string {
 	return background.Render(padANSI(truncateANSI(text, width), width))
 }
 
-func (model Model) scanningIndicator() string {
+func (model Model) scanningIndicator(message string) string {
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	frame := frames[model.animationFrame%len(frames)]
-	message := frame + "SCANNING" + frame
-	return lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceScreen).Render(message)
+	if message == "" {
+		message = "SCANNING"
+	}
+	return lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceScreen).Render(frame + message + frame)
 }
 
 func (model Model) selectedFile() (report.File, bool) {
@@ -129,13 +178,13 @@ type column struct {
 }
 
 var columnDefinitions = []column{
-	{"score", "SCORE", "overall score", 8, true, true, false, 0},
+	{"score", "SCORE", "overall score", 8, true, true, false, 1},
 	{"cog", "COG", "cognitive", 6, false, true, true, -1},
-	{"npath", "NPATH", "execution path complexity", 8, false, true, true, -3},
+	{"npath", "NPATH", "execution path complexity", 8, false, true, true, -2},
 	{"cyclo", "CYCLO", "cyclomatic complexity", 7, false, true, true, -3},
-	{"deep", "SHALLOW", "module depth", 4, false, true, true, -5},
-	{"god", "GOD", "responsibility concentration", 6, true, true, true, 0},
-	{"coupling", "CPL", "dependency entanglement", 5, true, true, true, 0},
+	{"deep", "SHALLOW", "module depth", 4, false, true, true, -4},
+	{"god", "GOD", "responsibility concentration", 6, true, true, true, 2},
+	{"coupling", "CPL", "dependency entanglement", 5, true, true, true, 1},
 	{"nesting", "NEST", "deep nesting", 7, true, false, true, 0},
 	{"typesafety", "TYPE", "type safety", 5, true, false, true, 0},
 }

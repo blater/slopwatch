@@ -19,6 +19,16 @@ const pathScrollStep = 4
 
 func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := message.(type) {
+	case watcherReady:
+		if message.err != nil {
+			model.analyzing = false
+			model.initialAnalysis = false
+			model.status = message.err.Error()
+			model.markFreshness(nil, report.FreshnessStaleError, "workspace verification could not start")
+			return model, nil
+		}
+		model.markFreshness(nil, report.FreshnessVerifying, "validating current workspace")
+		return model, tea.Batch(model.waitForChange(), model.analyze(nil, true))
 	case tea.WindowSizeMsg:
 		model.width, model.height = message.Width, message.Height
 		model.ensureVisible()
@@ -34,6 +44,16 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.status = message.Err.Error()
 			return model, command
 		}
+		if message.Full {
+			model.markFreshness(nil, report.FreshnessRefreshing, "workspace inputs changed")
+			if model.analyzing {
+				model.pendingFullAnalysis = true
+				return model, command
+			}
+			model.analyzing = true
+			return model, tea.Batch(command, model.analyze(nil, true))
+		}
+		model.markFreshness(message.Paths, report.FreshnessRefreshing, "source changed")
 		for _, path := range message.Paths {
 			model.queued[path] = true
 			if state, exists := model.rows[path]; exists {
@@ -49,16 +69,23 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.analyzing = true
 		return model, tea.Batch(command, model.analyzeExisting(paths))
 	case analysisResult:
+		wasInitial := model.initialAnalysis
 		model.analyzing = false
 		if message.full {
 			model.initialAnalysis = false
 		}
 		if message.err != nil {
 			model.status = message.err.Error()
+			model.markFreshness(message.replace, report.FreshnessStaleError, "verification failed: "+message.err.Error())
 		} else {
 			model.status = ""
 			model.merge(message)
 			model.clampPathOffset()
+			if wasInitial {
+				if controller, ok := model.analyzer.(cacheReadController); ok {
+					controller.SetCacheReads(true)
+				}
+			}
 		}
 		if model.pendingFullAnalysis {
 			model.pendingFullAnalysis = false
@@ -74,28 +101,35 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return model, nil
 	case animationTick:
 		model.animationFrame++
-		model.expireTrends(time.Time(message))
-		return model, tickAnimation()
+		return model, tickAnimation(model.analyzing)
 	case tea.KeyMsg:
 		return model.handleKey(message)
 	}
 	return model, nil
 }
 
-func (model *Model) expireTrends(now time.Time) {
-	cutoff := now.Add(-model.options.TrendWindow)
-	for path, state := range model.rows {
-		first := 0
-		for first+1 < len(state.ranks) && state.ranks[first].at.Before(cutoff) {
-			first++
+func (model *Model) markFreshness(paths []string, freshness report.Freshness, note string) {
+	wanted := pathSet(paths)
+	changed := false
+	for index := range model.baseDocument.Files {
+		file := &model.baseDocument.Files[index]
+		if len(wanted) == 0 || wanted[file.Path] {
+			file.Freshness = freshness
+			file.FreshnessNote = note
+			changed = true
 		}
-		state.ranks = state.ranks[first:]
-		if !state.scoreChangedAt.IsZero() && now.Sub(state.scoreChangedAt) > model.options.TrendWindow {
-			state.scoreChangedAt = time.Time{}
-			state.movementDelta = 0
-		}
-		model.rows[path] = state
 	}
+	if changed {
+		model.rebuildWeightedDocument()
+	}
+}
+
+func pathSet(paths []string) map[string]bool {
+	result := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		result[filepath.ToSlash(path)] = true
+	}
+	return result
 }
 
 func (model Model) analyzeExisting(paths []string) tea.Cmd {
@@ -202,13 +236,35 @@ func (model *Model) restoreSelection() {
 	model.ensureVisible()
 }
 
-func (model Model) displayFiles() []report.File {
+func (model *Model) refreshDisplayFiles() {
 	files := append([]report.File(nil), model.document.Files...)
 	sort.SliceStable(files, func(left, right int) bool {
 		return model.less(files[left], files[right])
 	})
 	if model.options.Limit > 0 && len(files) > model.options.Limit {
-		return files[:model.options.Limit]
+		files = files[:model.options.Limit]
+	}
+	longest := 0
+	for _, file := range files {
+		longest = max(longest, lipgloss.Width(file.Path))
+	}
+	model.displayFilesCache = files
+	model.displayFilesReady = true
+	model.longestDisplayPath = longest
+}
+
+func (model Model) displayFiles() []report.File {
+	if model.displayFilesReady {
+		return model.displayFilesCache
+	}
+	// Keep value-constructed Models useful for tests and external callers. The
+	// application eagerly refreshes this cache whenever ordering can change.
+	files := append([]report.File(nil), model.document.Files...)
+	sort.SliceStable(files, func(left, right int) bool {
+		return model.less(files[left], files[right])
+	})
+	if model.options.Limit > 0 && len(files) > model.options.Limit {
+		files = files[:model.options.Limit]
 	}
 	return files
 }
@@ -461,6 +517,7 @@ func (model *Model) handleColumnKey(name string) (tea.Model, tea.Cmd) {
 		if !model.visible[key] && model.sortKey == key {
 			model.sortKey = "score"
 			model.sortReverse = true
+			model.refreshDisplayFiles()
 		}
 		if key == "typesafety" || key == "nesting" || key == "coupling" {
 			model.setColumnWeightEnabled(key, model.visible[key])
@@ -524,6 +581,7 @@ func (model *Model) activateHighlightedSort(direction bool, changeDirection bool
 	}
 	model.sortKey = key
 	model.sortReverse = model.sortDirections[key]
+	model.refreshDisplayFiles()
 	model.restoreSelection()
 }
 
@@ -658,6 +716,9 @@ func (model Model) maxPathOffset() int {
 	viewportWidth := model.pathViewportWidth()
 	if viewportWidth <= 0 {
 		return 0
+	}
+	if model.displayFilesReady {
+		return max(0, model.longestDisplayPath-viewportWidth)
 	}
 	longest := 0
 	for _, file := range model.displayFiles() {

@@ -33,12 +33,18 @@ type typeScriptTypesController interface {
 	SetTypeScriptTypes(bool)
 }
 
+type cacheReadController interface {
+	SetCacheReads(bool)
+}
+
 type analysisResult struct {
 	document report.Document
 	replace  []string
 	full     bool
 	err      error
 }
+
+type watcherReady struct{ err error }
 
 type animationTick time.Time
 
@@ -59,58 +65,63 @@ type rankPoint struct {
 }
 
 type Model struct {
-	analyzer            Analyzer
-	watcher             *sourceWatcher
-	options             Options
-	repositoryIdentity  string
-	document            report.Document
-	rows                map[string]rowState
-	width               int
-	height              int
-	cursor              int
-	offset              int
-	pathOffset          int
-	selected            string
-	analyzing           bool
-	queued              map[string]bool
-	status              string
-	initialAnalysis     bool
-	animationFrame      int
-	detail              bool
-	detailOffset        int
-	help                bool
-	helpCursor          int
-	infoOpen            bool
-	infoKey             string
-	columns             bool
-	columnCursor        int
-	sortOpen            bool
-	sortCursor          int
-	sortKey             string
-	sortReverse         bool
-	sortDirections      map[string]bool
-	settings            bool
-	settingsCursor      int
-	weightsOpen         bool
-	weightCursor        int
-	weightsResetConfirm bool
-	weights             map[string]float64
-	weightEnabled       map[string]bool
-	baseDocument        report.Document
-	columnsFromSettings bool
-	pendingFullAnalysis bool
-	sourceView          bool
-	sourcePath          string
-	sourceViewport      viewport.Model
-	sourceLastKey       string
-	sourceLastAt        time.Time
-	sourceRapid         int
-	sourceSearchText    string
-	findInput           textinput.Model
-	findOpen            bool
-	findQuery           string
-	findSource          bool
-	visible             map[string]bool
+	analyzer             Analyzer
+	watcher              *sourceWatcher
+	options              Options
+	repositoryIdentity   string
+	document             report.Document
+	displayFilesCache    []report.File
+	displayFilesReady    bool
+	longestDisplayPath   int
+	freshnessStatusText  string
+	freshnessStatusReady bool
+	rows                 map[string]rowState
+	width                int
+	height               int
+	cursor               int
+	offset               int
+	pathOffset           int
+	selected             string
+	analyzing            bool
+	queued               map[string]bool
+	status               string
+	initialAnalysis      bool
+	animationFrame       int
+	detail               bool
+	detailOffset         int
+	help                 bool
+	helpCursor           int
+	infoOpen             bool
+	infoKey              string
+	columns              bool
+	columnCursor         int
+	sortOpen             bool
+	sortCursor           int
+	sortKey              string
+	sortReverse          bool
+	sortDirections       map[string]bool
+	settings             bool
+	settingsCursor       int
+	weightsOpen          bool
+	weightCursor         int
+	weightsResetConfirm  bool
+	weights              map[string]float64
+	weightEnabled        map[string]bool
+	baseDocument         report.Document
+	columnsFromSettings  bool
+	pendingFullAnalysis  bool
+	sourceView           bool
+	sourcePath           string
+	sourceViewport       viewport.Model
+	sourceLastKey        string
+	sourceLastAt         time.Time
+	sourceRapid          int
+	sourceSearchText     string
+	findInput            textinput.Model
+	findOpen             bool
+	findQuery            string
+	findSource           bool
+	visible              map[string]bool
 }
 
 func New(document report.Document, analyzer Analyzer, options Options) (*Model, error) {
@@ -159,19 +170,31 @@ func (model *Model) StartInitialAnalysis() {
 }
 
 func (model Model) Init() tea.Cmd {
-	commands := []tea.Cmd{model.waitForChange(), tickAnimation()}
+	commands := []tea.Cmd{tickAnimation(model.analyzing)}
 	if model.initialAnalysis {
-		commands = append(commands, model.analyze(nil, true))
+		// Establish the mutation barrier before the verifier reads any live
+		// input. This still runs after Bubble Tea renders the cached projection.
+		commands = append(commands, model.startWatcher())
+	} else {
+		commands = append(commands, model.waitForChange())
 	}
 	return tea.Batch(commands...)
 }
 
-func tickAnimation() tea.Cmd {
-	return tea.Tick(125*time.Millisecond, func(at time.Time) tea.Msg { return animationTick(at) })
+func tickAnimation(analyzing bool) tea.Cmd {
+	interval := time.Second
+	if analyzing {
+		interval = 125 * time.Millisecond
+	}
+	return tea.Tick(interval, func(at time.Time) tea.Msg { return animationTick(at) })
 }
 
 func (model Model) waitForChange() tea.Cmd {
-	return func() tea.Msg { return <-model.watcher.changes }
+	return func() tea.Msg { return model.watcher.wait() }
+}
+
+func (model Model) startWatcher() tea.Cmd {
+	return func() tea.Msg { return watcherReady{err: model.watcher.start()} }
 }
 
 func (model Model) analyze(paths []string, full bool) tea.Cmd {

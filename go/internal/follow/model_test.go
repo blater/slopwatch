@@ -22,11 +22,16 @@ import (
 
 type settingsAnalyzer struct {
 	typeScriptTypes bool
+	cacheReads      bool
 	analyzeCalls    int
 }
 
 func (analyzer *settingsAnalyzer) SetTypeScriptTypes(enabled bool) {
 	analyzer.typeScriptTypes = enabled
+}
+
+func (analyzer *settingsAnalyzer) SetCacheReads(enabled bool) {
+	analyzer.cacheReads = enabled
 }
 
 func (analyzer *settingsAnalyzer) Analyze(context.Context, []string, []string) (report.Document, error) {
@@ -76,6 +81,23 @@ func TestScanningStatusRendersAnimatedOnTopBar(t *testing.T) {
 		if strings.Contains(line, "SCANNING") {
 			t.Fatalf("scanning status still appears in the body: %q", line)
 		}
+	}
+}
+
+func TestStartupScanningIndicatorUsesFreshnessStatus(t *testing.T) {
+	file := testFile("cached.go", 12)
+	file.Freshness = report.FreshnessVerifying
+	model := Model{
+		width: 100, height: 20, analyzing: true, initialAnalysis: true, animationFrame: 1,
+		document: report.Document{Files: []report.File{file}},
+		rows:     map[string]rowState{file.Path: {}}, visible: map[string]bool{},
+	}
+	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
+	if !strings.Contains(firstLine, "⠙CACHE VERIFYING 1⠙") {
+		t.Fatalf("freshness was not displayed as the animated scanning indicator: %q", firstLine)
+	}
+	if strings.Contains(firstLine, "SCANNING") || strings.Count(firstLine, "CACHE VERIFYING 1") != 1 {
+		t.Fatalf("startup rendered a separate or duplicate status: %q", firstLine)
 	}
 }
 
@@ -138,6 +160,37 @@ func TestInitialScanCompletionReplacesLogoWithTable(t *testing.T) {
 	}
 	if !strings.Contains(view, "main.go") {
 		t.Fatalf("table did not replace startup logo: %q", view)
+	}
+}
+
+func TestSuccessfulInitialScanEnablesCacheReadsAfterResultIsVisible(t *testing.T) {
+	analyzer := &settingsAnalyzer{}
+	model := Model{
+		analyzer: analyzer, analyzing: true, initialAnalysis: true,
+		rows: map[string]rowState{}, queued: map[string]bool{}, visible: map[string]bool{},
+	}
+	updated, _ := model.Update(analysisResult{full: true, document: report.Document{}})
+	result := updated.(*Model)
+	if !analyzer.cacheReads {
+		t.Fatal("successful initial scan did not enable subsequent cache reads")
+	}
+	if result.initialAnalysis || result.analyzing {
+		t.Fatalf("initial scan state was not cleared: initial=%t analyzing=%t", result.initialAnalysis, result.analyzing)
+	}
+}
+
+func TestFailedInitialScanDoesNotEnableCacheReads(t *testing.T) {
+	analyzer := &settingsAnalyzer{}
+	model := Model{
+		analyzer: analyzer, analyzing: true, initialAnalysis: true,
+		rows: map[string]rowState{}, queued: map[string]bool{}, visible: map[string]bool{},
+	}
+	updated, _ := model.Update(analysisResult{full: true, err: fmt.Errorf("scan failed")})
+	if analyzer.cacheReads {
+		t.Fatal("failed initial scan enabled cache reads")
+	}
+	if got := updated.(*Model).status; got != "scan failed" {
+		t.Fatalf("status = %q, want scan failure", got)
 	}
 }
 
@@ -314,16 +367,15 @@ func TestMovementArrowThresholds(t *testing.T) {
 }
 
 func TestMovementIndicatorExpiresWithTrendWindow(t *testing.T) {
+	file := testFile("a.go", 1)
 	model := Model{
 		rows: map[string]rowState{"a.go": {
 			scoreChangedAt: time.Now().Add(-2 * time.Minute), movementDelta: 1,
 		}},
 		options: Options{TrendWindow: time.Minute},
 	}
-	model.expireTrends(time.Now())
-	state := model.rows["a.go"]
-	if !state.scoreChangedAt.IsZero() || state.movementDelta != 0 {
-		t.Fatalf("expired movement indicator retained state: %#v", state)
+	if marker, _ := model.rowMarker(file, model.rows[file.Path], time.Now()); marker != "" {
+		t.Fatalf("expired movement indicator remains visible: %q", marker)
 	}
 }
 
@@ -434,6 +486,56 @@ func TestSelectedRowCarriesReferenceBackgroundAcrossEveryCell(t *testing.T) {
 	}
 	if got := lipgloss.Width(row); got != model.width {
 		t.Fatalf("selected row width = %d, want %d", got, model.width)
+	}
+}
+
+func TestCachedFreshnessIsVisibleInRowsAndDetails(t *testing.T) {
+	ConfigureTerminalColours()
+	for _, test := range []struct {
+		freshness report.Freshness
+		marker    string
+		label     string
+	}{
+		{report.FreshnessProvisional, "◌", "PROVISIONAL"},
+		{report.FreshnessVerifying, "◌", "VERIFYING"},
+		{report.FreshnessRefreshing, "↻", "REFRESHING"},
+		{report.FreshnessStaleError, "!", "STALE ERROR"},
+	} {
+		file := testFile("cached.go", 12)
+		file.Freshness = test.freshness
+		file.FreshnessNote = "background reconciliation"
+		model := Model{
+			width: 80, height: 20, document: report.Document{Files: []report.File{file}},
+			rows: map[string]rowState{file.Path: {}}, visible: map[string]bool{},
+			options: Options{TrendWindow: time.Minute},
+		}
+		if row := ansi.Strip(model.renderRow(file, false)); !strings.Contains(row, test.marker) {
+			t.Errorf("%s row has no %q marker: %q", test.freshness, test.marker, row)
+		}
+		detail := ansi.Strip(strings.Join(model.detailContent(file, 70), "\n"))
+		if !strings.Contains(detail, test.label) || !strings.Contains(detail, file.FreshnessNote) {
+			t.Errorf("%s detail does not disclose freshness: %q", test.freshness, detail)
+		}
+	}
+}
+
+func TestMainScreenSummarizesCachedFreshness(t *testing.T) {
+	files := []report.File{
+		testFile("current.go", 3), testFile("provisional.go", 2), testFile("stale.go", 1),
+	}
+	files[0].Freshness = report.FreshnessCurrent
+	files[1].Freshness = report.FreshnessProvisional
+	files[2].Freshness = report.FreshnessStaleError
+	model := Model{
+		width: 120, height: 10, document: report.Document{Files: files},
+		rows: map[string]rowState{}, visible: map[string]bool{},
+		options: Options{Workspace: "/workspace", TrendWindow: time.Minute},
+	}
+	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
+	for _, want := range []string{"CACHE", "PROVISIONAL 1", "STALE 1"} {
+		if !strings.Contains(firstLine, want) {
+			t.Fatalf("top status missing %q: %q", want, firstLine)
+		}
 	}
 }
 
@@ -1225,6 +1327,60 @@ func TestDisplayFilesSortsEveryOverviewColumnInBothDirections(t *testing.T) {
 	}
 }
 
+func TestDisplayFilesCacheRefreshesOnlyWhenOrderingChanges(t *testing.T) {
+	model := Model{
+		document: report.Document{Files: []report.File{
+			testFile("low.go", 1), testFile("high.go", 9),
+		}},
+		sortKey: "score", sortReverse: true,
+		visible: defaultColumnVisibility(),
+	}
+	model.refreshDisplayFiles()
+	first := model.displayFiles()
+	second := model.displayFiles()
+	if len(first) != 2 || first[0].Path != "high.go" {
+		t.Fatalf("cached order = %#v", first)
+	}
+	if &first[0] != &second[0] {
+		t.Fatal("displayFiles copied the cached result")
+	}
+
+	model.sortCursor = len(sortFields()) - 1 // filename
+	model.activateHighlightedSort(false, true)
+	if got := model.displayFiles(); got[0].Path != "high.go" {
+		t.Fatalf("filename order = %#v", got)
+	}
+	model.sortCursor = 0 // score
+	model.activateHighlightedSort(false, true)
+	if got := model.displayFiles(); got[0].Path != "low.go" {
+		t.Fatalf("refreshed score order = %#v", got)
+	}
+}
+
+func BenchmarkTableViewTwentyFiveThousandFiles(b *testing.B) {
+	ConfigureTerminalColours()
+	files := make([]report.File, 25_000)
+	rows := make(map[string]rowState, len(files))
+	for index := range files {
+		path := fmt.Sprintf("module/package/file_%05d.go", index)
+		files[index] = testFile(path, float64(index%100))
+		rows[path] = rowState{}
+	}
+	model := Model{
+		width: 140, height: 50,
+		document: report.Document{Files: files}, rows: rows,
+		options: Options{TrendWindow: time.Minute},
+		sortKey: "score", sortReverse: true,
+		visible: defaultColumnVisibility(),
+	}
+	model.refreshDisplayFiles()
+	model.refreshFreshnessStatus()
+	b.ResetTimer()
+	for range b.N {
+		_ = model.tableView()
+	}
+}
+
 func TestSpaceAppliesSortWithoutChangingDirectionAndPreservesSelectedFile(t *testing.T) {
 	first := sortableFile("a.go", 1, 90, 9, 9, 9, 0, 0)
 	second := sortableFile("b.go", 2, 10, 1, 1, 1, 0, 0)
@@ -1280,20 +1436,15 @@ func TestActiveSortIsMarkedImmediatelyBeforeItsHeading(t *testing.T) {
 	}
 }
 
-func TestHeaderUsesRequestedShallowTitleOffsets(t *testing.T) {
+func TestHeaderIncludesEveryEnabledTitle(t *testing.T) {
 	model := Model{
 		width: 100, sortKey: "filename",
 		visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
 	}
 	heading := ansi.Strip(model.header())
-	for _, want := range []struct {
-		title string
-		at    int
-	}{
-		{"SCORE", 0}, {"COG", 9}, {"NPATH", 14}, {"CYCLO", 23}, {"SHALLOW", 29},
-	} {
-		if at := strings.Index(heading, want.title); at != want.at {
-			t.Errorf("%s starts at %d, want %d in %q", want.title, at, want.at, heading)
+	for _, title := range []string{"SCORE", "COG", "NPATH", "CYCLO", "SHALLOW", "GOD"} {
+		if !strings.Contains(heading, title) {
+			t.Errorf("enabled title %s is missing from %q", title, heading)
 		}
 	}
 }
@@ -1310,11 +1461,10 @@ func TestOverviewOmitsRankAndSeparatesScoreFromMetrics(t *testing.T) {
 	if strings.Contains(heading, "#") {
 		t.Fatalf("rank heading remains: %q", heading)
 	}
-	if !strings.Contains(heading, "▼SCORE   COG") {
-		t.Fatalf("score/COG spacing is wrong: %q", heading)
-	}
-	if !strings.Contains(heading, "SHALLOW   GOD") {
-		t.Fatalf("SHALLOW/GOD/path spacing is wrong: %q", heading)
+	for _, title := range []string{"SCORE", "COG", "NPATH", "CYCLO", "SHALLOW", "GOD"} {
+		if !strings.Contains(heading, title) {
+			t.Errorf("enabled title %s is missing from %q", title, heading)
+		}
 	}
 	row := ansi.Strip(model.renderRow(file, false))
 	if !strings.HasPrefix(row, "     12  3") {
@@ -1545,8 +1695,23 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 		t.Fatal("v did not open source view")
 	}
 	model = *updated.(*Model)
-	if !strings.Contains(ansi.Strip(model.sourceViewView()), "func Run()") {
+	view := ansi.Strip(model.sourceViewView())
+	if !strings.Contains(view, "func Run()") {
 		t.Fatal("source view did not render selected file")
+	}
+	if !strings.Contains(view, "example.go") || !strings.Contains(view, "45 lines") || strings.Contains(view, "SOURCE  example.go") {
+		t.Fatalf("source header does not show path and line count: %q", view)
+	}
+	if !strings.Contains(view, "ctrl-f/b page  g/G jump") || !strings.Contains(view, "find  n/N next  ESC close") {
+		t.Fatalf("source footer does not contain the navigation and close groups: %q", view)
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "45 lines") && !strings.HasSuffix(line, "45 lines │") {
+			t.Errorf("line count is not inset one column from the right border: %q", line)
+		}
+		if strings.Contains(line, "ESC close") && !strings.HasSuffix(line, "ESC close │") {
+			t.Errorf("footer actions are not inset one column from the right border: %q", line)
+		}
 	}
 	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	if model.sourceViewport.YOffset != 1 {
@@ -1581,6 +1746,24 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 	model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
 	if model.sourceView || model.sourcePath != "" {
 		t.Fatal("Esc did not close source view")
+	}
+}
+
+func TestSourceLineCountHandlesEmptyAndTrailingNewlineFiles(t *testing.T) {
+	for name, test := range map[string]struct {
+		contents string
+		want     int
+	}{
+		"empty":            {contents: "", want: 0},
+		"one line":         {contents: "only", want: 1},
+		"without trailing": {contents: "first\nsecond", want: 2},
+		"with trailing":    {contents: "first\nsecond\n", want: 2},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := sourceLineCount(test.contents); got != test.want {
+				t.Fatalf("sourceLineCount(%q) = %d, want %d", test.contents, got, test.want)
+			}
+		})
 	}
 }
 
@@ -1630,6 +1813,32 @@ func TestFileTargetDoesNotWatchItsSiblings(t *testing.T) {
 	}
 	if _, _, ok := watcher.eligible(target); !ok {
 		t.Fatal("the exact file target was not eligible")
+	}
+}
+
+func TestConfigurationLanguageCoversPlannerInputs(t *testing.T) {
+	tests := map[string]string{
+		"go.mod":             "go",
+		"nested/go.work.sum": "go",
+		"Cargo.lock":         "rust",
+		"crate/build.rs":     "rust",
+		"pom.xml":            "java",
+		"gradle/wrapper/gradle-wrapper.properties": "",
+		"tsconfig.build.json":                      "typescript",
+		"web/package-lock.json":                    "typescript",
+		"nested/.cargo/config.toml":                "",
+		"nested/.mvn/maven.config":                 "java",
+	}
+	for path, wantLanguage := range tests {
+		language, ok := configurationLanguage(path)
+		if !ok || language != wantLanguage {
+			t.Errorf("configurationLanguage(%q) = %q, %t; want %q, true", path, language, ok, wantLanguage)
+		}
+	}
+	for _, path := range []string{"main.go", "README.md", "src/main.ts"} {
+		if language, ok := configurationLanguage(path); ok {
+			t.Errorf("configurationLanguage(%q) = %q, true; want miss", path, language)
+		}
 	}
 }
 

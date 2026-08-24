@@ -35,7 +35,21 @@ type File struct {
 	Rank          int                  `json:"rank"`
 	Score         float64              `json:"score"`
 	ValidZero     bool                 `json:"valid_zero_score"`
+	Freshness     Freshness            `json:"freshness,omitempty"`
+	FreshnessNote string               `json:"freshness_note,omitempty"`
 }
+
+// Freshness describes how closely a displayed result is known to match the
+// current workspace. Empty is equivalent to Current for uncached analyses.
+type Freshness string
+
+const (
+	FreshnessProvisional Freshness = "provisional"
+	FreshnessVerifying   Freshness = "verifying"
+	FreshnessRefreshing  Freshness = "refreshing"
+	FreshnessCurrent     Freshness = "current"
+	FreshnessStaleError  Freshness = "stale_error"
+)
 
 type Component struct {
 	Axis                     string                `json:"axis,omitempty"`

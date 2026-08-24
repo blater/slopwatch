@@ -74,9 +74,22 @@ func (model Model) detailContent(file report.File, width int) []string {
 	logical := []detailLine{
 		{file.Path, style.TextPrimary, true},
 		{fmt.Sprintf("%s  ·  rank %d  ·  score %.1f", file.Language, file.Rank, file.Score), style.TextMuted, false},
-		{"", style.TextPrimary, false},
-		{"METRIC SUMMARY", style.AccentPositive, true},
 	}
+	if file.Freshness != "" && file.Freshness != report.FreshnessCurrent {
+		state := strings.ToUpper(strings.ReplaceAll(string(file.Freshness), "_", " "))
+		if file.FreshnessNote != "" {
+			state += "  ·  " + file.FreshnessNote
+		}
+		colour := style.AccentWarning
+		if file.Freshness == report.FreshnessStaleError {
+			colour = style.AccentCritical
+		}
+		logical = append(logical, detailLine{state, colour, true})
+	}
+	logical = append(logical,
+		detailLine{"", style.TextPrimary, false},
+		detailLine{"METRIC SUMMARY", style.AccentPositive, true},
+	)
 	labels := []struct{ id, label string }{
 		{"cognitive_complexity", "Cognitive complexity"},
 		{"npath_complexity", "NPath complexity"},

@@ -95,14 +95,23 @@ func invocationID() (string, error) {
 }
 
 func runAnalyzer(ctx context.Context, executable string, request analyzerRequest, timeoutSeconds float64) (scoreInputs, error) {
+	return runAnalyzerDecoded(ctx, executable, request, timeoutSeconds, decodeScoreInputs)
+}
+
+func runAnalyzerUnits(ctx context.Context, executable string, request analyzerRequest, timeoutSeconds float64) (map[string]scoreInputs, error) {
+	return runAnalyzerDecoded(ctx, executable, request, timeoutSeconds, decodeUnitScoreInputs)
+}
+
+func runAnalyzerDecoded[T any](ctx context.Context, executable string, request analyzerRequest, timeoutSeconds float64, decode func(io.Reader, analyzerRequest) (T, error)) (T, error) {
+	var zero T
 	payload, err := json.Marshal(request)
 	if err != nil {
-		return scoreInputs{}, err
+		return zero, err
 	}
 	payload = append(payload, '\n')
 	workdir, err := os.MkdirTemp("", "slopslap-analyzer-")
 	if err != nil {
-		return scoreInputs{}, err
+		return zero, err
 	}
 	defer os.RemoveAll(workdir)
 	command := exec.CommandContext(ctx, executable)
@@ -110,36 +119,36 @@ func runAnalyzer(ctx context.Context, executable string, request analyzerRequest
 	command.Stdin = bytes.NewReader(payload)
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		return scoreInputs{}, err
+		return zero, err
 	}
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	path := os.Getenv("PATH")
 	command.Env = []string{"PATH=" + path, "LANG=C.UTF-8", "SLOPSLAP_WORK_DIR=" + workdir, "SLOPSLAP_CACHE_DIR=" + filepath.Join(workdir, "cache"), "GOROOT=" + runtime.GOROOT()}
 	if err := os.Mkdir(filepath.Join(workdir, "cache"), 0o700); err != nil {
-		return scoreInputs{}, err
+		return zero, err
 	}
 	if err := command.Start(); err != nil {
-		return scoreInputs{}, err
+		return zero, err
 	}
-	inputs, decodeErr := decodeScoreInputs(stdout, request)
+	result, decodeErr := decode(stdout, request)
 	if decodeErr != nil {
 		_ = command.Process.Kill()
 	}
 	waitErr := command.Wait()
 	if ctx.Err() != nil {
-		return scoreInputs{}, fmt.Errorf("analyzer timed out after %.6g seconds", timeoutSeconds)
+		return zero, fmt.Errorf("analyzer timed out after %.6g seconds", timeoutSeconds)
 	}
 	if waitErr != nil && strings.TrimSpace(stderr.String()) != "" {
-		return scoreInputs{}, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
+		return zero, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
 	}
 	if decodeErr != nil {
-		return scoreInputs{}, decodeErr
+		return zero, decodeErr
 	}
 	if waitErr != nil {
-		return scoreInputs{}, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
+		return zero, fmt.Errorf("analyzer failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
 	}
-	return inputs, nil
+	return result, nil
 }
 
 func decodeProtocol(reader io.Reader, request analyzerRequest, consume func(protocolRecord) error) error {
@@ -206,4 +215,26 @@ func decodeScoreInputs(reader io.Reader, request analyzerRequest) (scoreInputs, 
 	inputs := newScoreInputs()
 	err := decodeProtocol(reader, request, inputs.add)
 	return inputs, err
+}
+
+func decodeUnitScoreInputs(reader io.Reader, request analyzerRequest) (map[string]scoreInputs, error) {
+	units := make(map[string]scoreInputs, len(request.Units))
+	for _, unit := range request.Units {
+		units[unit.ID] = newScoreInputs()
+	}
+	err := decodeProtocol(reader, request, func(record protocolRecord) error {
+		if record.UnitID == "" {
+			return nil
+		}
+		inputs, exists := units[record.UnitID]
+		if !exists {
+			return fmt.Errorf("protocol record references unknown unit %q", record.UnitID)
+		}
+		if err := inputs.add(record); err != nil {
+			return err
+		}
+		units[record.UnitID] = inputs
+		return nil
+	})
+	return units, err
 }

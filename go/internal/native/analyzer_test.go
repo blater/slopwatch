@@ -30,6 +30,36 @@ func TestActiveCatalogMakesTypeScriptTypesOptInWithoutMutatingSource(t *testing.
 	}
 }
 
+func TestDecodeUnitScoreInputsKeepsOverlappingPathsIsolated(t *testing.T) {
+	request := analyzerRequest{
+		Type: "request", Version: 1, Invocation: "invocation",
+		Units: []protocolUnit{{ID: "first"}, {ID: "second"}},
+	}
+	var encoded strings.Builder
+	for _, record := range []map[string]any{
+		{"type": "measurement", "protocol_version": 1, "invocation_id": "invocation", "unit_id": "first", "component_id": "cog", "path": "same.go", "language": "go", "value": 1},
+		{"type": "measurement", "protocol_version": 1, "invocation_id": "invocation", "unit_id": "second", "component_id": "cog", "path": "same.go", "language": "go", "value": 2},
+		{"type": "terminal", "protocol_version": 1, "invocation_id": "invocation", "status": "success"},
+	} {
+		payload, err := json.Marshal(record)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded.Write(payload)
+		encoded.WriteByte('\n')
+	}
+	units, err := decodeUnitScoreInputs(strings.NewReader(encoded.String()), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := units["first"].observations["same.go"]["cog"][0].value; got != 1 {
+		t.Fatalf("first unit value = %v", got)
+	}
+	if got := units["second"].observations["same.go"]["cog"][0].value; got != 2 {
+		t.Fatalf("second unit value = %v", got)
+	}
+}
+
 func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
@@ -159,7 +189,7 @@ func TestNativeJavaAndRustScoresMatchBalancedReference(t *testing.T) {
 		path  string
 		score float64
 	}{
-		{"analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaAnalyzer.java", 47.790495528375},
+		{"analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaAnalyzer.java", 51.370888906001},
 		{"analyzers/structural/adapters/rust/src/parser.rs", 11.315172029169},
 	}
 	for _, test := range tests {

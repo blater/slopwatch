@@ -55,11 +55,10 @@ func (model Model) sourceDimensions() (int, int) {
 func (model Model) sourceViewView() string {
 	outerWidth, outerHeight := model.sourceDimensions()
 	innerWidth := max(1, outerWidth-2)
-	header := fmt.Sprintf("  SOURCE  %s", model.sourcePath)
-	closeLabel := "ESC / Q CLOSE  "
-	if lipgloss.Width(header)+lipgloss.Width(closeLabel) <= innerWidth {
-		header += strings.Repeat(" ", innerWidth-lipgloss.Width(header)-lipgloss.Width(closeLabel)) + closeLabel
-	}
+	headerLeft := "  " + model.sourcePath
+	headerRight := fmt.Sprintf("%d lines ", sourceLineCount(model.sourceSearchText))
+	headerLeftWidth := max(0, innerWidth-lipgloss.Width(headerRight))
+	header := padANSI(truncateANSI(headerLeft, headerLeftWidth), headerLeftWidth) + headerRight
 	header = lipgloss.NewStyle().Bold(true).Foreground(style.AccentPositive).Background(style.SurfaceHeader).Render(padANSI(truncateANSI(header, innerWidth), innerWidth))
 	body := model.sourceViewport.View()
 	bodyLines := strings.Split(body, "\n")
@@ -69,12 +68,17 @@ func (model Model) sourceViewView() string {
 	}
 	lines := []string{header}
 	lines = append(lines, bodyLines...)
-	footer := "  " + hintRow(style.SurfaceFooter,
+	leftHints := "  " + hintRow(style.SurfaceFooter,
 		hintItem{"ctrl-f/b", "page"},
 		hintItem{"g/G", "jump"},
+	)
+	rightHints := hintRow(style.SurfaceFooter,
 		hintItem{"f", "find"},
 		hintItem{"n/N", "next"},
-	)
+		hintItem{"ESC", "close"},
+	) + lipgloss.NewStyle().Background(style.SurfaceFooter).Render(" ")
+	leftWidth := max(0, innerWidth-lipgloss.Width(rightHints))
+	footer := padANSI(truncateANSI(leftHints, leftWidth), leftWidth) + rightHints
 	if model.findOpen {
 		footer = model.findFooter(innerWidth)
 	}
@@ -86,4 +90,15 @@ func (model Model) sourceViewView() string {
 		lines = lines[:outerHeight-2]
 	}
 	return lipgloss.NewStyle().Width(innerWidth).Height(outerHeight - 2).Border(lipgloss.RoundedBorder()).BorderForeground(style.AccentInfo).Render(strings.Join(lines, "\n"))
+}
+
+func sourceLineCount(contents string) int {
+	if contents == "" {
+		return 0
+	}
+	lines := strings.Count(contents, "\n")
+	if !strings.HasSuffix(contents, "\n") {
+		lines++
+	}
+	return lines
 }

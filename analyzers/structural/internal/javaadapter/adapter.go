@@ -11,14 +11,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"sync"
+	"unicode/utf16"
 
 	"slopslap.dev/structural/internal/facts"
 )
 
 const (
-	helperName    = "slopslap-structural-java.jar"
-	requestMagic  = uint32(0x53534a46)
-	responseMagic = uint32(0x53534a4f)
+	helperName            = "slopslap-structural-java.jar"
+	requestMagic          = uint32(0x53534a46)
+	responseMagic         = uint32(0x53534a4f)
+	parallelMinPaths      = 512
+	parallelBatchPathGoal = 512
+	parallelBatchLimit    = 2
 )
 
 // Adapter invokes the bundled Java parser without annotation processing or project execution.
@@ -70,11 +76,24 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 		jar = defaultHelperJar()
 	}
 	includeTests, _ := options["include_tests"].(bool)
+	program, err := analyzePaths(paths, func(batch []string) (*facts.Program, error) {
+		return analyzeBatch(java, jar, workspace, batch, includeTests)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := program.LinkTypeMethods(); err != nil {
+		return nil, fmt.Errorf("link Java method facts: %w", err)
+	}
+	return program, nil
+}
+
+func analyzeBatch(java, jar, workspace string, paths []string, includeTests bool) (*facts.Program, error) {
 	var input bytes.Buffer
 	if err := writeRequest(&input, workspace, paths, includeTests); err != nil {
 		return nil, fmt.Errorf("encode Java fact request: %w", err)
 	}
-	command := exec.Command(java, "-jar", jar)
+	command := javaCommand(java, jar)
 	command.Stdin = &input
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -95,10 +114,118 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 	if decodeErr != nil {
 		return nil, fmt.Errorf("decode Java facts: %w", decodeErr)
 	}
-	if err := program.LinkTypeMethods(); err != nil {
-		return nil, fmt.Errorf("link Java method facts: %w", err)
-	}
 	return program, nil
+}
+
+func javaCommand(java, jar string) *exec.Cmd {
+	return exec.Command(java, "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-jar", jar)
+}
+
+type batchResult struct {
+	program *facts.Program
+	err     error
+}
+
+func analyzePaths(paths []string, analyze func([]string) (*facts.Program, error)) (*facts.Program, error) {
+	batchCount := javaBatchCount(len(paths))
+	if batchCount == 1 {
+		return analyze(paths)
+	}
+
+	results := make([]batchResult, batchCount)
+	var workers sync.WaitGroup
+	workers.Add(batchCount)
+	start := 0
+	for index := 0; index < batchCount; index++ {
+		remaining := len(paths) - start
+		batchSize := (remaining + batchCount - index - 1) / (batchCount - index)
+		batch := paths[start : start+batchSize]
+		start += batchSize
+		go func(index int, batch []string) {
+			defer workers.Done()
+			results[index].program, results[index].err = analyze(batch)
+		}(index, batch)
+	}
+	workers.Wait()
+
+	programs := make([]*facts.Program, batchCount)
+	for index, result := range results {
+		if result.err != nil {
+			return nil, result.err
+		}
+		programs[index] = result.program
+	}
+	return mergePrograms(programs), nil
+}
+
+func javaBatchCount(pathCount int) int {
+	if pathCount < parallelMinPaths {
+		return 1
+	}
+	count := (pathCount + parallelBatchPathGoal - 1) / parallelBatchPathGoal
+	if count > parallelBatchLimit {
+		return parallelBatchLimit
+	}
+	return count
+}
+
+func mergePrograms(programs []*facts.Program) *facts.Program {
+	merged := &facts.Program{Unavailable: make(map[string]map[string]string)}
+	for _, program := range programs {
+		merged.Functions = append(merged.Functions, program.Functions...)
+		merged.Types = append(merged.Types, program.Types...)
+		merged.PublicOperations = append(merged.PublicOperations, program.PublicOperations...)
+		merged.Representation = append(merged.Representation, program.Representation...)
+		merged.Files = append(merged.Files, program.Files...)
+		for path, components := range program.Unavailable {
+			if merged.Unavailable[path] == nil {
+				merged.Unavailable[path] = make(map[string]string, len(components))
+			}
+			for component, reason := range components {
+				merged.Unavailable[path][component] = reason
+			}
+		}
+	}
+	javaOrder := make(map[string][]uint16, len(merged.Files))
+	ordered := func(value string) []uint16 {
+		if encoded, ok := javaOrder[value]; ok {
+			return encoded
+		}
+		encoded := utf16.Encode([]rune(value))
+		javaOrder[value] = encoded
+		return encoded
+	}
+	lessString := func(left, right string) bool {
+		leftUnits, rightUnits := ordered(left), ordered(right)
+		for index := 0; index < len(leftUnits) && index < len(rightUnits); index++ {
+			if leftUnits[index] != rightUnits[index] {
+				return leftUnits[index] < rightUnits[index]
+			}
+		}
+		return len(leftUnits) < len(rightUnits)
+	}
+	lessLocation := func(left, right facts.Location) bool {
+		if left.Path != right.Path {
+			return lessString(left.Path, right.Path)
+		}
+		if left.Line != right.Line {
+			return left.Line < right.Line
+		}
+		return left.Column < right.Column
+	}
+	sort.SliceStable(merged.Functions, func(left, right int) bool {
+		return lessLocation(merged.Functions[left].Location, merged.Functions[right].Location)
+	})
+	sort.SliceStable(merged.Types, func(left, right int) bool {
+		return lessLocation(merged.Types[left].Location, merged.Types[right].Location)
+	})
+	sort.SliceStable(merged.PublicOperations, func(left, right int) bool {
+		return lessLocation(merged.PublicOperations[left].Location, merged.PublicOperations[right].Location)
+	})
+	sort.SliceStable(merged.Files, func(left, right int) bool {
+		return lessString(merged.Files[left], merged.Files[right])
+	})
+	return merged
 }
 
 func writeRequest(writer io.Writer, workspace string, paths []string, includeTests bool) error {

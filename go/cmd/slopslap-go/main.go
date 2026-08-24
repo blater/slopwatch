@@ -43,6 +43,7 @@ type options struct {
 	config          string
 	timeout         float64
 	passScore       string
+	useCache        bool
 }
 
 var errThreshold = errors.New("pass score exceeded")
@@ -65,6 +66,7 @@ func parser() (*flag.FlagSet, *options) {
 	flags.StringVar(&options.config, "config", "", "configuration file")
 	flags.Float64Var(&options.timeout, "timeout", 120, "analyzer timeout in seconds")
 	flags.StringVar(&options.passScore, "pass-score", "", "maximum passing score")
+	flags.BoolVar(&options.useCache, "use-cache", false, "reuse verified cached analysis units")
 	flags.Usage = func() {
 		fmt.Fprintln(flags.Output(), "usage: slopmark [OPTIONS] [TARGET ...]")
 		fmt.Fprintln(flags.Output(), "\nNative Go frontend (analysis core transition build).")
@@ -172,11 +174,21 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 	nativeAnalyzer, err := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
 		TypeScriptTypes: parsed.typescriptTypes, Timeout: parsed.timeout, PassScore: passScore,
+		ReadCache: true,
 	})
 	if err != nil {
 		return err
 	}
-	model, modelErr := follow.New(report.Document{}, nativeAnalyzer, follow.Options{
+	nativeAnalyzer.EnableDefaultCache()
+	initial := report.Document{}
+	if cached, ok := nativeAnalyzer.CachedProjection(); ok {
+		initial = cached
+	} else {
+		// A first-ever dashboard launch should be no slower than slopmark's
+		// ordinary fresh scan. Reuse is enabled after that result is visible.
+		nativeAnalyzer.SetCacheReads(false)
+	}
+	model, modelErr := follow.New(initial, nativeAnalyzer, follow.Options{
 		Workspace: workspace, Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, Limit: parsed.limit,
 		TrendWindow: parsed.trendWindow, Compact: parsed.compact,
@@ -198,11 +210,12 @@ func runReport(workspace, installationRoot string, targets, languages []string, 
 	nativeAnalyzer, nativeErr := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, TypeScriptTypes: parsed.typescriptTypes,
-		Timeout: parsed.timeout, PassScore: passScore,
+		Timeout: parsed.timeout, PassScore: passScore, ReadCache: parsed.useCache,
 	})
 	if nativeErr != nil {
 		return nativeErr
 	}
+	nativeAnalyzer.EnableDefaultCache()
 	document, err = nativeAnalyzer.Analyze(context.Background(), targets, languages)
 	if err != nil {
 		return err
