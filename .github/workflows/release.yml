@@ -120,7 +120,10 @@ jobs:
           cat > "$source/tsconfig.json" <<'JSON'
           {"compilerOptions":{"strict":true},"include":["main.ts"]}
           JSON
-          "$unpack/build/slopmark" --format json "$source" > "$RUNNER_TEMP/report.json"
+          (
+            cd "$source"
+            "$unpack/build/slopmark" --format json . > "$RUNNER_TEMP/report.json"
+          )
           for language in go java rust typescript; do
             grep -Eq "\"language\"[[:space:]]*:[[:space:]]*\"$language\"" "$RUNNER_TEMP/report.json" || {
               echo "Packaged smoke test omitted $language"
