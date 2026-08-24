@@ -4,6 +4,7 @@ dist/
 build/
 coverage/
 target/
+internal/
 # Authored documentation is tracked. Put generated documentation artifacts
 # under this directory if they should not be committed.
 docs/generated/
