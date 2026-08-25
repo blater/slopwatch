@@ -9,13 +9,17 @@ import (
 )
 
 type Request struct {
-	Job         fix.JobID
-	Candidate   fix.CandidateIdentity
-	DiffHash    string
-	Branch      string
-	Remote      string
-	CommitTitle string
-	CommitBody  string
+	Job                    fix.JobID
+	Candidate              fix.CandidateIdentity
+	DiffHash               string
+	Branch                 string
+	Remote                 string
+	CommitTitle            string
+	CommitBody             string
+	ExpectedRemoteHost     string
+	HostRepository         string
+	ExpectedRemoteIdentity string
+	CommandOutputBytes     int64
 }
 
 type Result struct {
@@ -47,7 +51,21 @@ type PreflightRequest struct {
 	Workspace                  fix.WorkspaceIdentity
 	Mode                       fix.DeliveryMode
 	Remote, BaseBranch, Branch string
+	Publication                bool
+	CommandOutputBytes         int64
 }
+
+// PreflightResult is the provider identity derived from the configured remote
+// by the Git boundary. Callers must not reconstruct it from preferences or a
+// mutable candidate after preflight.
+type PreflightResult struct {
+	RemoteHost     string
+	HostRepository string
+	// RemoteIdentity is an opaque credential-free fingerprint of the exact
+	// normalized push URL admitted before any repository mutation.
+	RemoteIdentity string
+}
+
 type PreflightService interface {
-	Preflight(context.Context, PreflightRequest) error
+	Preflight(context.Context, PreflightRequest) (PreflightResult, error)
 }

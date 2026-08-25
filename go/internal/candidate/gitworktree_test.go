@@ -3,42 +3,76 @@ package candidate
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/isolation"
 )
 
+const testCandidateCommandOutputBytes = int64(4 << 20)
+
+func testGitWorktreeConfig() GitWorktreeConfig {
+	return GitWorktreeConfig{DiscoveryCommandOutputBytes: testCandidateCommandOutputBytes}
+}
+
 func TestCandidateReadFileRejectsOversizedAgentOutput(t *testing.T) {
 	repository := initializeRepository(t)
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{})
+	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	identity, err := service.Prepare(context.Background(), PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	identity, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(identity.RepositoryRoot, "main.go"), bytes.Repeat([]byte("x"), MaxReadFileBytes+1), 0o600); err != nil {
+	const previewBytes = 4 << 20
+	if err := os.WriteFile(filepath.Join(identity.RepositoryRoot, "main.go"), bytes.Repeat([]byte("x"), previewBytes+1), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.ReadFile(context.Background(), identity, target); !errors.Is(err, ErrFileTooLarge) {
-		t.Fatalf("ReadFile oversized error = %v", err)
+	preview, err := service.ReadFile(context.Background(), identity, target, previewBytes)
+	if err != nil || !preview.Truncated || len(preview.Contents) != previewBytes {
+		t.Fatalf("ReadFile oversized preview=%+v error=%v", preview, err)
+	}
+}
+
+func TestCandidateReadFileDoesNotFollowExternalSymlink(t *testing.T) {
+	repository := initializeRepository(t)
+	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
+	workspace, _ := service.DiscoverWorkspace(t.Context(), repository)
+	target, _ := fix.ParseRepoPath("main.go")
+	job, _ := fix.NewJobID()
+	identity, err := service.Prepare(t.Context(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "secret")
+	if err := os.WriteFile(outside, []byte("outside-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(identity.RepositoryRoot, target.String())); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(identity.RepositoryRoot, target.String())); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ReadFile(t.Context(), identity, target, 1024); err == nil || !strings.Contains(err.Error(), "not regular") {
+		t.Fatalf("external symlink preview error = %v", err)
 	}
 }
 
 func TestCandidateReconcilesDiscardAfterWorktreeRemovalCrash(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	service, _ := NewGitWorktreeService(state, directExecutor{})
+	service, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	identity, err := service.Prepare(context.Background(), PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	identity, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +80,7 @@ func TestCandidateReconcilesDiscardAfterWorktreeRemovalCrash(t *testing.T) {
 	if err := service.Close(); err != nil {
 		t.Fatal(err)
 	}
-	restarted, _ := NewGitWorktreeService(state, directExecutor{})
+	restarted, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	if err := restarted.ReconcileDiscard(context.Background(), identity); err != nil {
 		t.Fatal(err)
 	}
@@ -58,11 +92,11 @@ func TestCandidateReconcilesDiscardAfterWorktreeRemovalCrash(t *testing.T) {
 func TestPrepareReusesExactOwnedCandidateAfterCrashBeforeJournalHandshake(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	first, _ := NewGitWorktreeService(state, directExecutor{})
+	first, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := first.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	request := PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
+	request := PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
 	identity, err := first.Prepare(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +107,7 @@ func TestPrepareReusesExactOwnedCandidateAfterCrashBeforeJournalHandshake(t *tes
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
-	restarted, _ := NewGitWorktreeService(state, directExecutor{})
+	restarted, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	recovered, err := restarted.Prepare(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -87,14 +121,50 @@ func TestPrepareReusesExactOwnedCandidateAfterCrashBeforeJournalHandshake(t *tes
 	}
 }
 
+func TestPrepareCancellationCleansRegisteredWorktreeAndRemainsRetryable(t *testing.T) {
+	repository := initializeRepository(t)
+	state := filepath.Join(t.TempDir(), "state")
+	ctx, cancel := context.WithCancel(context.Background())
+	executor := &cancelAfterWorktreeAddExecutor{cancel: cancel}
+	service, err := NewGitWorktreeService(state, executor, testGitWorktreeConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace, err := service.DiscoverWorkspace(context.Background(), repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, _ := fix.ParseRepoPath("main.go")
+	job, _ := fix.NewJobID()
+	request := PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace,
+		Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
+	if _, err := service.Prepare(ctx, request); err == nil {
+		t.Fatal("Prepare unexpectedly succeeded after cancellation between worktree add and checkout")
+	}
+	worktree := filepath.Join(service.stateRoot, string(job), "worktree")
+	if output := gitOutput(t, repository, "worktree", "list", "--porcelain"); strings.Contains(output, worktree) {
+		t.Fatalf("canceled Prepare left registered worktree metadata:\n%s", output)
+	}
+	if _, err := os.Stat(filepath.Join(state, string(job))); !os.IsNotExist(err) {
+		t.Fatalf("canceled Prepare retained state after exact cleanup: %v", err)
+	}
+	identity, err := service.Prepare(context.Background(), request)
+	if err != nil {
+		t.Fatalf("retry after canceled Prepare: %v", err)
+	}
+	if identity.RepositoryRoot != worktree {
+		t.Fatalf("retry worktree = %q, want %q", identity.RepositoryRoot, worktree)
+	}
+}
+
 func TestPreparePromotesExactReservationAfterCrashBeforeOwnershipMarker(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	first, _ := NewGitWorktreeService(state, directExecutor{})
+	first, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := first.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	request := PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
+	request := PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
 	identity, err := first.Prepare(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -105,7 +175,7 @@ func TestPreparePromotesExactReservationAfterCrashBeforeOwnershipMarker(t *testi
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
-	restarted, _ := NewGitWorktreeService(state, directExecutor{})
+	restarted, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	recovered, err := restarted.Prepare(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -121,11 +191,11 @@ func TestPreparePromotesExactReservationAfterCrashBeforeOwnershipMarker(t *testi
 func TestPrepareRefusesAmbiguousUnmarkedWorktreeWithoutDeletingIt(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	first, _ := NewGitWorktreeService(state, directExecutor{})
+	first, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := first.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	request := PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
+	request := PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
 	identity, err := first.Prepare(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +210,7 @@ func TestPrepareRefusesAmbiguousUnmarkedWorktreeWithoutDeletingIt(t *testing.T) 
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
-	restarted, _ := NewGitWorktreeService(state, directExecutor{})
+	restarted, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	if _, err := restarted.Prepare(context.Background(), request); err == nil {
 		t.Fatal("ambiguous unmarked worktree was adopted")
 	}
@@ -152,7 +222,7 @@ func TestPrepareRefusesAmbiguousUnmarkedWorktreeWithoutDeletingIt(t *testing.T) 
 func TestGitWorktreeServiceCreatesDetachedCandidatesAndEnforcesScope(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	service, err := NewGitWorktreeService(state, directExecutor{})
+	service, err := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,12 +231,12 @@ func TestGitWorktreeServiceCreatesDetachedCandidatesAndEnforcesScope(t *testing.
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Targets: []fix.RepoPath{target}})
+	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
 	if err != nil || !preflight.Clean || !preflight.Supported || preflight.TargetBlobs[target] == "" {
 		t.Fatalf("preflight = %+v, %v", preflight, err)
 	}
 	job, _ := fix.NewJobID()
-	candidate, err := service.Prepare(context.Background(), PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	candidate, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,12 +277,12 @@ func TestCandidatePreservesAnalysisRootRelativeToRepository(t *testing.T) {
 	}
 	gitRun(t, repository, "add", "nested/target.go")
 	gitRun(t, repository, "commit", "-q", "-m", "nested")
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{})
+	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	workspace.AnalysisRoot = analysis
 	target, _ := fix.ParseRepoPath("nested/target.go")
 	job, _ := fix.NewJobID()
-	identity, err := service.Prepare(context.Background(), PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets-only", AllowedPaths: []fix.RepoPath{target}})
+	identity, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets-only", AllowedPaths: []fix.RepoPath{target}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +293,7 @@ func TestCandidatePreservesAnalysisRootRelativeToRepository(t *testing.T) {
 
 func TestGitWorktreeServiceRejectsDirtyRepository(t *testing.T) {
 	repository := initializeRepository(t)
-	service, err := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{})
+	service, err := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +302,7 @@ func TestGitWorktreeServiceRejectsDirtyRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Targets: []fix.RepoPath{target}})
+	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,13 +313,13 @@ func TestGitWorktreeServiceRejectsDirtyRepository(t *testing.T) {
 
 func TestGitWorktreeServiceRejectsInProgressRepositoryOperation(t *testing.T) {
 	repository := initializeRepository(t)
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{})
+	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	if err := os.Mkdir(filepath.Join(repository, ".git", "rebase-merge"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Targets: []fix.RepoPath{target}})
+	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,11 +331,11 @@ func TestGitWorktreeServiceRejectsInProgressRepositoryOperation(t *testing.T) {
 func TestCandidateManifestCoversBytesModeAndRenameEndpoints(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	service, _ := NewGitWorktreeService(state, directExecutor{})
+	service, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	identity, err := service.Prepare(context.Background(), PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	identity, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,18 +367,18 @@ func TestCandidateManifestCoversBytesModeAndRenameEndpoints(t *testing.T) {
 func TestCandidateRecoveryUsesDurableOwnershipAndRejectsForgery(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	service, _ := NewGitWorktreeService(state, directExecutor{})
+	service, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	identity, err := service.Prepare(context.Background(), PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	identity, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := service.Close(); err != nil {
 		t.Fatal(err)
 	}
-	restarted, _ := NewGitWorktreeService(state, directExecutor{})
+	restarted, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	if err := restarted.Recover(context.Background(), identity, []fix.RepoPath{target}, "targets", []fix.RepoPath{target}); err != nil {
 		t.Fatalf("recover: %v", err)
 	}
@@ -331,23 +401,23 @@ func TestCandidateRecoveryUsesDurableOwnershipAndRejectsForgery(t *testing.T) {
 func TestRepositoryOwnershipLeaseSpansCandidateLifetime(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	first, _ := NewGitWorktreeService(state, directExecutor{})
-	second, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "other-state"), directExecutor{})
+	first, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
+	second, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "other-state"), directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := first.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	jobOne, _ := fix.NewJobID()
-	identity, err := first.Prepare(context.Background(), PrepareRequest{Job: jobOne, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	identity, err := first.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: jobOne, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	jobTwo, _ := fix.NewJobID()
-	if _, err := second.Prepare(context.Background(), PrepareRequest{Job: jobTwo, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"}); err == nil {
+	if _, err := second.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: jobTwo, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"}); err == nil {
 		t.Fatal("second process/service acquired a repository with a retained candidate")
 	}
 	if err := first.Discard(context.Background(), identity); err != nil {
 		t.Fatal(err)
 	}
-	if candidate, err := second.Prepare(context.Background(), PrepareRequest{Job: jobTwo, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"}); err != nil {
+	if candidate, err := second.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: jobTwo, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"}); err != nil {
 		t.Fatalf("lease was not released after discard: %v", err)
 	} else {
 		_ = second.Discard(context.Background(), candidate)
@@ -357,11 +427,11 @@ func TestRepositoryOwnershipLeaseSpansCandidateLifetime(t *testing.T) {
 func TestCandidateRejectsSymlinkOwnershipMarker(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
-	service, _ := NewGitWorktreeService(state, directExecutor{})
+	service, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	identity, err := service.Prepare(context.Background(), PrepareRequest{Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	identity, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,10 +471,10 @@ func TestPreflightRejectsAttributesOutsideRepositoryRootFileAndDisablesFsmonitor
 		t.Fatal(err)
 	}
 	gitRun(t, repository, "config", "core.fsmonitor", hook)
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{})
+	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Targets: []fix.RepoPath{target}})
+	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,10 +494,10 @@ func TestPreflightRejectsGitInfoAttributesForFuturePaths(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repository, ".git", "info", "attributes"), []byte("future-* filter=unsafe\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{})
+	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Targets: []fix.RepoPath{target}})
+	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -453,6 +523,22 @@ func (directExecutor) Run(ctx context.Context, request isolation.Request) (isola
 		result.ExitCode = exit.ExitCode()
 		result.Stderr = exit.Stderr
 		return result, nil
+	}
+	return result, err
+}
+
+type cancelAfterWorktreeAddExecutor struct {
+	once   sync.Once
+	cancel context.CancelFunc
+}
+
+func (executor *cancelAfterWorktreeAddExecutor) Run(ctx context.Context, request isolation.Request) (isolation.Result, error) {
+	result, err := (directExecutor{}).Run(ctx, request)
+	for index := 0; err == nil && result.Successful() && index+1 < len(request.Arguments); index++ {
+		if request.Arguments[index] == "worktree" && request.Arguments[index+1] == "add" {
+			executor.once.Do(executor.cancel)
+			break
+		}
 	}
 	return result, err
 }

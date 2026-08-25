@@ -52,7 +52,7 @@ func serveSupervisor() int {
 		fmt.Fprintln(os.Stderr, ErrSupervisorProtocol)
 		return 125
 	}
-	if request.Executable == "" || request.Directory == "" || request.WallTimeNanos <= 0 || request.TerminateGraceNanos <= 0 {
+	if request.Executable == "" || request.Directory == "" || request.WallTimeNanos < 0 || request.TerminateGraceNanos <= 0 {
 		fmt.Fprintln(os.Stderr, ErrSupervisorProtocol)
 		return 125
 	}
@@ -78,8 +78,13 @@ func serveSupervisor() int {
 		_, _ = io.Copy(io.Discard, control)
 		parentGone <- struct{}{}
 	}()
-	timer := time.NewTimer(time.Duration(request.WallTimeNanos))
-	defer timer.Stop()
+	var timeout <-chan time.Time
+	var timer *time.Timer
+	if request.WallTimeNanos > 0 {
+		timer = time.NewTimer(time.Duration(request.WallTimeNanos))
+		timeout = timer.C
+		defer timer.Stop()
+	}
 	select {
 	case err := <-waited:
 		cleanupRemainingProcessGroup(command.Process.Pid, time.Duration(request.TerminateGraceNanos))
@@ -87,7 +92,7 @@ func serveSupervisor() int {
 	case <-parentGone:
 		terminateAndWait(command, waited, time.Duration(request.TerminateGraceNanos))
 		return supervisorCanceledExit
-	case <-timer.C:
+	case <-timeout:
 		terminateAndWait(command, waited, time.Duration(request.TerminateGraceNanos))
 		return supervisorTimeoutExit
 	}

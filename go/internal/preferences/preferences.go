@@ -17,16 +17,17 @@ import (
 const CurrentVersion = 1
 
 type Document struct {
-	Version     int         `toml:"version"`
-	Appearance  Appearance  `toml:"appearance"`
-	Table       Table       `toml:"table"`
-	Interaction Interaction `toml:"interaction"`
-	Scoring     Scoring     `toml:"scoring"`
-	Agents      Agents      `toml:"agents"`
-	Fix         Fix         `toml:"fix"`
-	Concurrency Concurrency `toml:"concurrency"`
-	Validation  Validation  `toml:"validation"`
-	Delivery    Delivery    `toml:"delivery"`
+	Version             int                 `toml:"version"`
+	Appearance          Appearance          `toml:"appearance"`
+	Table               Table               `toml:"table"`
+	Interaction         Interaction         `toml:"interaction"`
+	Scoring             Scoring             `toml:"scoring"`
+	Agents              Agents              `toml:"agents"`
+	Fix                 Fix                 `toml:"fix"`
+	Concurrency         Concurrency         `toml:"concurrency"`
+	ValidationWorkspace ValidationWorkspace `toml:"validation_workspace"`
+	Validation          Validation          `toml:"validation"`
+	Delivery            Delivery            `toml:"delivery"`
 }
 
 type Appearance struct {
@@ -76,22 +77,42 @@ type Fix struct {
 	Model          string   `toml:"model"`
 	Effort         string   `toml:"effort"`
 	Delegation     string   `toml:"delegation"`
-	MaxAttempts    int      `toml:"max_attempts"`
-	AttemptTimeout string   `toml:"attempt_timeout"`
 	PromptTemplate string   `toml:"prompt_template"`
 	BranchTemplate string   `toml:"branch_template"`
 	ValidationPlan string   `toml:"validation_plan"`
 }
 
 type Concurrency struct {
-	MaxAgents          int   `toml:"max_agents"`
-	MaxVerifiers       int   `toml:"max_verifiers"`
-	MaxRetainedJobs    int   `toml:"max_retained_jobs"`
-	MaxTranscriptBytes int64 `toml:"max_transcript_bytes"`
+	MaxAgents                int   `toml:"max_agents"`
+	MaxVerifiers             int   `toml:"max_verifiers"`
+	MaxRetainedJobs          int   `toml:"max_retained_jobs"`
+	MaxTranscriptBytes       int64 `toml:"max_transcript_bytes"`
+	MaxActorsPerJob          int   `toml:"max_actors_per_job"`
+	MaxCandidatePreviewBytes int64 `toml:"max_candidate_preview_bytes"`
+	MaxCandidatePreviewLines int   `toml:"max_candidate_preview_lines"`
 }
 
 type Validation struct {
 	Plans []ValidationPlan `toml:"plans"`
+}
+
+type ValidationWorkspace struct {
+	MaxFiles                    int64  `toml:"max_files"`
+	MaxDirectories              int64  `toml:"max_directories"`
+	MaxPathBytes                int64  `toml:"max_path_bytes"`
+	MaxFileBytes                int64  `toml:"max_file_bytes"`
+	MaxTotalBytes               int64  `toml:"max_total_bytes"`
+	ContainerPIDs               int    `toml:"container_pids"`
+	ContainerMemoryBytes        int64  `toml:"container_memory_bytes"`
+	ContainerCPUMillis          int64  `toml:"container_cpu_millis"`
+	ContainerTemporaryBytes     int64  `toml:"container_temporary_bytes"`
+	ContainerWorkspaceBytes     int64  `toml:"container_workspace_bytes"`
+	ContainerNofileLimit        int64  `toml:"container_nofile_limit"`
+	ContainerGeneratedFileBytes int64  `toml:"container_generated_file_bytes"`
+	ContainerStopTimeout        string `toml:"container_stop_timeout"`
+	ContainerControlTimeout     string `toml:"container_control_timeout"`
+	ContainerSentinelTimeout    string `toml:"container_sentinel_timeout"`
+	ContainerCrashProbeTimeout  string `toml:"container_crash_probe_timeout"`
 }
 
 type ValidationPlan struct {
@@ -111,28 +132,37 @@ type ValidationCheck struct {
 }
 
 type Delivery struct {
-	DefaultMode       string `toml:"default_mode"`
-	Remote            string `toml:"remote"`
-	BaseBranch        string `toml:"base_branch"`
-	BranchTemplate    string `toml:"branch_template"`
-	Publisher         string `toml:"publisher"`
-	DraftPullRequests bool   `toml:"draft_pull_requests"`
+	DefaultMode              string `toml:"default_mode"`
+	Remote                   string `toml:"remote"`
+	BaseBranch               string `toml:"base_branch"`
+	BranchTemplate           string `toml:"branch_template"`
+	Publisher                string `toml:"publisher"`
+	DraftPullRequests        bool   `toml:"draft_pull_requests"`
+	RequireValidation        bool   `toml:"require_validation"`
+	CommandOutputBytes       int64  `toml:"command_output_bytes"`
+	CommitPolicy             string `toml:"commit_policy"`
+	CommitTitleTemplate      string `toml:"commit_title_template"`
+	CommitBodyTemplate       string `toml:"commit_body_template"`
+	PullRequestTitleTemplate string `toml:"pull_request_title_template"`
+	PullRequestBodyTemplate  string `toml:"pull_request_body_template"`
+	CleanupPolicy            string `toml:"cleanup_policy"`
 }
 
 // PartialDocument retains which top-level preference groups were explicitly
 // present. It is used for repository-scoped overrides and origin metadata;
 // ordinary consumers continue using Document.
 type PartialDocument struct {
-	Version     *int         `toml:"version,omitempty"`
-	Appearance  *Appearance  `toml:"appearance,omitempty"`
-	Table       *Table       `toml:"table,omitempty"`
-	Interaction *Interaction `toml:"interaction,omitempty"`
-	Scoring     *Scoring     `toml:"scoring,omitempty"`
-	Agents      *Agents      `toml:"agents,omitempty"`
-	Fix         *Fix         `toml:"fix,omitempty"`
-	Concurrency *Concurrency `toml:"concurrency,omitempty"`
-	Validation  *Validation  `toml:"validation,omitempty"`
-	Delivery    *Delivery    `toml:"delivery,omitempty"`
+	Version             *int                 `toml:"version,omitempty"`
+	Appearance          *Appearance          `toml:"appearance,omitempty"`
+	Table               *Table               `toml:"table,omitempty"`
+	Interaction         *Interaction         `toml:"interaction,omitempty"`
+	Scoring             *Scoring             `toml:"scoring,omitempty"`
+	Agents              *Agents              `toml:"agents,omitempty"`
+	Fix                 *Fix                 `toml:"fix,omitempty"`
+	Concurrency         *Concurrency         `toml:"concurrency,omitempty"`
+	ValidationWorkspace *ValidationWorkspace `toml:"validation_workspace,omitempty"`
+	Validation          *Validation          `toml:"validation,omitempty"`
+	Delivery            *Delivery            `toml:"delivery,omitempty"`
 }
 
 // DefaultDocument returns a complete independent preferences document.
@@ -152,18 +182,33 @@ func DefaultDocument() Document {
 		Scoring:     Scoring{WeightStep: 0.5, MaximumWeight: 20, Components: components},
 		Fix: Fix{
 			TargetScore: 100, ChangeScope: "targets-and-tests", Delegation: "single",
-			MaxAttempts: 1, AttemptTimeout: (30 * time.Minute).String(),
 			PromptTemplate: "default",
 			BranchTemplate: "slopwatch/fix/{target-stem}-{job-short-id}",
 		},
 		Concurrency: Concurrency{
 			MaxAgents: 2, MaxVerifiers: 1, MaxRetainedJobs: 100,
-			MaxTranscriptBytes: 1024 * 1024,
+			MaxTranscriptBytes:       1024 * 1024,
+			MaxActorsPerJob:          32,
+			MaxCandidatePreviewBytes: 4 * 1024 * 1024,
+			MaxCandidatePreviewLines: 5000,
+		},
+		ValidationWorkspace: ValidationWorkspace{
+			MaxFiles: 100000, MaxDirectories: 20000, MaxPathBytes: 16 * 1024 * 1024,
+			MaxFileBytes: 64 * 1024 * 1024, MaxTotalBytes: 512 * 1024 * 1024,
+			ContainerPIDs: 256, ContainerMemoryBytes: 4 * 1024 * 1024 * 1024, ContainerCPUMillis: 2000,
+			ContainerTemporaryBytes: 1024 * 1024 * 1024, ContainerWorkspaceBytes: 1024 * 1024 * 1024,
+			ContainerNofileLimit: 1024, ContainerGeneratedFileBytes: 64 * 1024 * 1024,
+			ContainerStopTimeout: "3s", ContainerControlTimeout: "30s", ContainerSentinelTimeout: "10s", ContainerCrashProbeTimeout: "15s",
 		},
 		Delivery: Delivery{
 			DefaultMode: "candidate", Remote: "origin", BaseBranch: "main",
 			BranchTemplate: "slopwatch/fix/{target-stem}-{job-short-id}", Publisher: "github-cli",
-			DraftPullRequests: true,
+			DraftPullRequests:  true,
+			RequireValidation:  false,
+			CommandOutputBytes: 4 * 1024 * 1024,
+			CommitPolicy:       "on-publish", CommitTitleTemplate: "Refactor {targets} with Slopwatch",
+			CommitBodyTemplate: "Automated remediation for {goal}.", PullRequestTitleTemplate: "Refactor {targets} with Slopwatch",
+			PullRequestBodyTemplate: "Automated remediation for {goal}.", CleanupPolicy: "retain",
 		},
 	}
 }
@@ -318,6 +363,10 @@ func ClonePartial(value PartialDocument) PartialDocument {
 	if value.Concurrency != nil {
 		item := *value.Concurrency
 		result.Concurrency = &item
+	}
+	if value.ValidationWorkspace != nil {
+		item := *value.ValidationWorkspace
+		result.ValidationWorkspace = &item
 	}
 	if value.Validation != nil {
 		item := Validation{Plans: cloneValidationPlans(value.Validation.Plans)}

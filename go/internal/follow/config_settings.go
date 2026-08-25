@@ -7,6 +7,7 @@ import (
 	"math"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
 	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixapp"
 	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/blater/slopwatch/internal/style"
 	"github.com/blater/slopwatch/internal/validation"
@@ -48,8 +50,10 @@ type configSettingsState struct {
 	editField      int
 	dirtyCursor    int
 	closeAfterSave bool
+	returnToFix    bool
 	profileEditing bool
 	profileCursor  int
+	deletePending  agent.ProfileID
 }
 
 type configResolvedMsg struct {
@@ -60,9 +64,10 @@ type configResolvedMsg struct {
 }
 
 type configSavedMsg struct {
-	generation uint64
-	saved      appconfig.Saved
-	err        error
+	generation      uint64
+	saved           appconfig.Saved
+	restartRequired bool
+	err             error
 }
 
 type configProbeMsg struct {
@@ -74,7 +79,6 @@ type configProbeMsg struct {
 func (model *Model) openConfigSettings(kind configSettingsKind) tea.Cmd {
 	input := textinput.New()
 	input.Prompt = ""
-	input.CharLimit = 256
 	model.configSettings = configSettingsState{
 		open: true, kind: kind, generation: model.configSettings.generation + 1,
 		loading: true, probes: map[agent.ProfileID]agent.ProbeResult{}, input: input,
@@ -150,13 +154,15 @@ func (model *Model) handleConfigSaved(message configSavedMsg) tea.Cmd {
 	state.working = cloneConfigResolved(message.saved.Resolved)
 	state.dirty = false
 	state.status = "Saved"
+	if message.restartRequired {
+		state.status = "Saved for next start · restart Slopwatch before preparing another Fix"
+	}
 	if state.closeAfterSave {
 		state.closeAfterSave = false
 		if model.hasOverlay(OverlaySettingsDirty) {
 			model.overlays.Pop()
 		}
-		model.closeConfigSettingsNow()
-		return nil
+		return model.closeConfigSettingsNow()
 	}
 	return model.probeProfilesCommand()
 }
@@ -185,7 +191,7 @@ func (model *Model) handleConfigSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 	}
 	if state.loading || state.saving {
 		if state.loading && (key.String() == "esc" || key.String() == "escape") {
-			model.closeConfigSettings()
+			return model, model.closeConfigSettings()
 		}
 		return model, nil
 	}
@@ -212,7 +218,7 @@ func (model *Model) handleConfigSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 	}
 	switch key.String() {
 	case "esc", "escape", "q":
-		model.closeConfigSettings()
+		return model, model.closeConfigSettings()
 	case "up", "k":
 		state.cursor = max(0, state.cursor-1)
 	case "down", "j":
@@ -232,7 +238,7 @@ func (model *Model) handleConfigSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 		}
 	case "a":
 		if state.kind == configAgents {
-			model.addDefaultCodexProfile()
+			model.addDefaultAgentProfile()
 		}
 	case "d":
 		if state.kind == configAgents {
@@ -250,19 +256,42 @@ func (model *Model) handleConfigSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 	return model, nil
 }
 
-func (model *Model) closeConfigSettings() {
+func (model *Model) closeConfigSettings() tea.Cmd {
 	if model.configSettings.dirty {
 		model.configSettings.dirtyCursor = 0
 		model.overlays.Push(OverlaySettingsDirty, OverlayCaller{MainView: model.mainView, Overlay: OverlayConfigSettings, Selected: model.mainSelection()})
-		return
+		return nil
 	}
-	model.closeConfigSettingsNow()
+	return model.closeConfigSettingsNow()
 }
 
-func (model *Model) closeConfigSettingsNow() {
+func (model *Model) closeConfigSettingsNow() tea.Cmd {
+	returnToFix := model.configSettings.returnToFix
 	model.configSettings.open = false
 	model.configSettings.editing = false
+	model.configSettings.returnToFix = false
+	if returnToFix {
+		if top, ok := model.overlays.Top(); ok && top.Kind == OverlayConfigSettings {
+			model.overlays.Pop()
+		}
+		if !model.hasOverlay(OverlayFixForm) || !model.fixDialog.hasDraft && model.fixDialog.target == "" {
+			return nil
+		}
+		model.fixGeneration++
+		model.fixDialog.generation = model.fixGeneration
+		model.fixDialog.loading = true
+		model.fixDialog.submitBlocked = false
+		model.fixDialog.errorText = ""
+		model.fixDialog.statusText = "Rechecking settings, runtime, validation, and workspace readiness…"
+		var profile *agent.ProfileID
+		if model.fixDialog.hasDraft && model.fixDialog.draft.Profile.ID != "" {
+			selected := model.fixDialog.draft.Profile.ID
+			profile = &selected
+		}
+		return model.prepareFixCommand(model.fixDialog.target, profile, model.fixDialog.generation)
+	}
 	model.settings = true
+	return nil
 }
 
 func (model *Model) handleSettingsDirtyKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -286,7 +315,7 @@ func (model *Model) handleSettingsDirtyKey(key tea.KeyMsg) (tea.Model, tea.Cmd) 
 		case 1:
 			state.dirty = false
 			model.overlays.Pop()
-			model.closeConfigSettingsNow()
+			return model, model.closeConfigSettingsNow()
 		case 2:
 			state.closeAfterSave = false
 			model.overlays.Pop()
@@ -323,7 +352,7 @@ func (model *Model) saveConfigSettings() tea.Cmd {
 		state.status = "No changes to save"
 		return nil
 	}
-	if err := validateConfigSettings(state.kind, state.working); err != nil {
+	if err := validateConfigSettingsWithCatalog(state.kind, state.working, model.profileCatalog); err != nil {
 		state.status = "Cannot save: " + err.Error()
 		return nil
 	}
@@ -334,11 +363,15 @@ func (model *Model) saveConfigSettings() tea.Cmd {
 	patch := configSettingsPatch(state.kind, state.working)
 	state.saving = true
 	state.status = "Saving…"
-	generation, revision := state.generation, state.resolved.Revision
-	store, workspace := model.configStore, model.configWorkspace
+	generation, revision, kind := state.generation, state.resolved.Revision, state.kind
+	restartRequired := kind == configValidation && state.working.ValidationWorkspace != state.resolved.ValidationWorkspace
+	store, workspace, fixService := model.configStore, model.configWorkspace, model.fixService
 	return func() tea.Msg {
 		saved, err := store.Save(context.Background(), workspace, appconfig.ScopeUser, patch, revision)
-		return configSavedMsg{generation: generation, saved: saved, err: err}
+		if err == nil && kind == configConcurrency && fixService != nil {
+			err = fixService.Reconfigure(context.Background(), fixapp.RuntimeLimitsFromConcurrency(saved.Resolved.Concurrency))
+		}
+		return configSavedMsg{generation: generation, saved: saved, restartRequired: restartRequired, err: err}
 	}
 }
 
@@ -347,9 +380,14 @@ func configSettingsPatch(kind configSettingsKind, value appconfig.Resolved) appc
 	case configAgents:
 		profiles := cloneConfigProfiles(value.Profiles)
 		return appconfig.Patch{Profiles: &profiles}
-	case configFix, configValidation:
+	case configFix:
 		fixDefaults := cloneConfigFix(value.Fix)
 		return appconfig.Patch{Fix: &fixDefaults}
+	case configValidation:
+		fixDefaults := cloneConfigFix(value.Fix)
+		plans := cloneConfigValidation(value.Validation)
+		workspace := value.ValidationWorkspace
+		return appconfig.Patch{Fix: &fixDefaults, Validation: &plans, ValidationWorkspace: &workspace}
 	case configConcurrency:
 		concurrency := value.Concurrency
 		return appconfig.Patch{Concurrency: &concurrency}
@@ -362,37 +400,102 @@ func configSettingsPatch(kind configSettingsKind, value appconfig.Resolved) appc
 }
 
 func validateConfigSettings(kind configSettingsKind, value appconfig.Resolved) error {
+	return validateConfigSettingsWithCatalog(kind, value, nil)
+}
+
+func validateConfigSettingsWithCatalog(kind configSettingsKind, value appconfig.Resolved, catalog agent.ProfileCatalog) error {
 	switch kind {
 	case configAgents:
 		seen := map[agent.ProfileID]bool{}
 		for _, profile := range value.Profiles {
-			if profile.ID == "" || profile.Runtime == "" || profile.Executable == "" {
-				return errors.New("every agent profile needs an ID, runtime, and executable")
+			if profile.ID == "" || profile.Runtime == "" {
+				return errors.New("every agent profile needs an ID and runtime")
 			}
 			if seen[profile.ID] {
 				return fmt.Errorf("duplicate agent profile %q", profile.ID)
 			}
 			seen[profile.ID] = true
+			if catalog == nil {
+				if profile.Runtime == "codex-cli" && profile.Executable == "" {
+					return fmt.Errorf("agent profile %q needs an executable", profile.ID)
+				}
+				continue
+			}
+			descriptor, err := catalog.Descriptor(profile.Runtime)
+			if err != nil {
+				return fmt.Errorf("agent profile %q: %w", profile.ID, err)
+			}
+			for _, field := range descriptor.Fields {
+				if err := validateProfileFieldValue(field, profileFieldValue(profile, field)); err != nil {
+					return fmt.Errorf("agent profile %q: %w", profile.ID, err)
+				}
+			}
+			if err := catalog.ValidateProfile(profile); err != nil {
+				return fmt.Errorf("agent profile %q: %w", profile.ID, err)
+			}
 		}
 	case configFix:
 		if math.IsNaN(value.Fix.TargetScore) || math.IsInf(value.Fix.TargetScore, 0) || value.Fix.TargetScore < 0 {
 			return errors.New("target score must be finite and non-negative")
 		}
-		if value.Fix.MaxAttempts <= 0 || value.Fix.AttemptTimeout <= 0 {
-			return errors.New("attempt count and timeout must be positive")
-		}
 	case configConcurrency:
 		if value.Concurrency.MaxAgents <= 0 || value.Concurrency.MaxVerifiers <= 0 ||
-			value.Concurrency.MaxRetainedJobs <= 0 || value.Concurrency.MaxTranscriptBytes <= 0 {
+			value.Concurrency.MaxRetainedJobs <= 0 || value.Concurrency.MaxTranscriptBytes <= 0 || value.Concurrency.MaxActorsPerJob <= 0 || value.Concurrency.MaxCandidatePreviewBytes <= 0 || value.Concurrency.MaxCandidatePreviewLines <= 0 {
 			return errors.New("all concurrency and retention limits must be positive")
 		}
 	case configValidation:
-		if value.Fix.ValidationPlan != "" && validationPlanIndex(value.Validation, value.Fix.ValidationPlan) < 0 {
-			return fmt.Errorf("validation plan %q is unavailable", value.Fix.ValidationPlan)
+		workspace := value.ValidationWorkspace
+		if workspace.MaxFiles <= 0 || workspace.MaxDirectories <= 0 || workspace.MaxPathBytes <= 0 || workspace.MaxFileBytes <= 0 || workspace.MaxTotalBytes <= 0 {
+			return errors.New("all validation workspace limits must be positive")
+		}
+		if workspace.MaxFileBytes > workspace.MaxTotalBytes {
+			return errors.New("validation file bytes cannot exceed total workspace bytes")
+		}
+		if workspace.ContainerPIDs <= 0 || workspace.ContainerMemoryBytes <= 0 || workspace.ContainerCPUMillis <= 0 || workspace.ContainerTemporaryBytes <= 0 || workspace.ContainerWorkspaceBytes <= 0 || workspace.ContainerNofileLimit <= 0 || workspace.ContainerGeneratedFileBytes <= 0 || workspace.ContainerStopTimeout <= 0 || workspace.ContainerControlTimeout <= 0 || workspace.ContainerSentinelTimeout <= 0 || workspace.ContainerCrashProbeTimeout <= 0 {
+			return errors.New("all validation container limits must be positive")
+		}
+		if workspace.ContainerWorkspaceBytes <= workspace.MaxTotalBytes {
+			return errors.New("container workspace bytes must exceed admitted total bytes")
+		}
+		if workspace.ContainerGeneratedFileBytes < workspace.MaxFileBytes {
+			return errors.New("generated file bytes must cover admitted max file bytes")
+		}
+		if workspace.ContainerControlTimeout <= workspace.ContainerStopTimeout {
+			return errors.New("Docker control timeout must exceed container stop timeout")
+		}
+		if value.Fix.ValidationPlan != "" {
+			index := validationPlanIndex(value.Validation, value.Fix.ValidationPlan)
+			if index < 0 {
+				return fmt.Errorf("validation plan %q is unavailable", value.Fix.ValidationPlan)
+			}
+			if len(value.Validation[index].Checks) == 0 {
+				return fmt.Errorf("validation plan %q has no configured checks", value.Fix.ValidationPlan)
+			}
 		}
 	case configDelivery:
 		if value.Delivery.DefaultMode == "" || value.Delivery.Remote == "" || value.Delivery.BranchTemplate == "" || value.Delivery.Publisher == "" {
 			return errors.New("delivery mode, remote, branch template, and publisher are required")
+		}
+		if value.Delivery.CommitPolicy != "" && value.Delivery.CommitPolicy != "on-publish" {
+			return errors.New("unsupported commit policy")
+		}
+		if value.Delivery.CleanupPolicy != "" && value.Delivery.CleanupPolicy != "retain" {
+			return errors.New("unsupported cleanup policy")
+		}
+		if value.Delivery.DefaultMode == fix.DeliveryModePullRequest && strings.TrimSpace(value.Delivery.BaseBranch) == "" {
+			return errors.New("pull-request delivery requires an explicit base branch")
+		}
+		if value.Delivery.DefaultMode == fix.DeliveryModePullRequest && value.Delivery.RequireValidation && strings.TrimSpace(value.Fix.ValidationPlan) == "" {
+			return errors.New("PR validation is required, but no validation plan is selected")
+		}
+		if value.Delivery.CommandOutputBytes <= 0 {
+			return errors.New("Git and publisher output bytes must be positive")
+		}
+		if value.Delivery.Publisher != "github-cli" {
+			return errors.New("configured pull-request publisher is unavailable")
+		}
+		if err := appconfig.ValidateBranchTemplate(value.Delivery.BranchTemplate); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -448,12 +551,13 @@ func adjustFixSetting(value *appconfig.Resolved, cursor, direction int, probes m
 		options := delegationIDs(probes[value.Fix.Profile])
 		value.Fix.Delegation = cycleTyped(value.Fix.Delegation, options, direction)
 	case 6:
-		value.Fix.MaxAttempts = max(1, value.Fix.MaxAttempts+direction)
-	case 7:
-		value.Fix.AttemptTimeout = maxDuration(5*time.Minute, value.Fix.AttemptTimeout+time.Duration(direction)*5*time.Minute)
+		// The generated prompt compiler and locked envelope are the only v1
+		// prompt strategy. Keep the constraint visible without pretending this
+		// row can be changed.
+		return false
 	default:
 		metrics := scoring.Metrics()
-		index := cursor - 8
+		index := cursor - 7
 		if index < 0 || index >= len(metrics) {
 			return false
 		}
@@ -472,7 +576,13 @@ func adjustConcurrencySetting(value *appconfig.Concurrency, cursor, direction in
 	case 2:
 		value.MaxRetainedJobs = max(1, value.MaxRetainedJobs+direction*10)
 	case 3:
-		value.MaxTranscriptBytes = maxInt64(1024, value.MaxTranscriptBytes+int64(direction)*256*1024)
+		value.MaxTranscriptBytes = maxInt64(1, value.MaxTranscriptBytes+int64(direction)*256*1024)
+	case 4:
+		value.MaxActorsPerJob = max(1, value.MaxActorsPerJob+direction)
+	case 5:
+		value.MaxCandidatePreviewBytes = maxInt64(1, value.MaxCandidatePreviewBytes+int64(direction)*256*1024)
+	case 6:
+		value.MaxCandidatePreviewLines = max(1, value.MaxCandidatePreviewLines+direction*100)
 	default:
 		return false
 	}
@@ -480,54 +590,319 @@ func adjustConcurrencySetting(value *appconfig.Concurrency, cursor, direction in
 }
 
 func adjustValidationSetting(value *appconfig.Resolved, cursor, direction int) bool {
-	if len(value.Validation) == 0 || cursor < 0 || cursor >= len(value.Validation) {
+	rows := validationSettingsRows(value.Validation)
+	if cursor < 0 || cursor >= len(rows) {
 		return false
 	}
-	selected := value.Validation[cursor].ID
-	if value.Fix.ValidationPlan == selected && direction > 0 {
-		value.Fix.ValidationPlan = ""
-	} else {
-		value.Fix.ValidationPlan = selected
-	}
-	return true
-}
-
-func adjustDeliverySetting(value *appconfig.Delivery, cursor, direction int) bool {
-	switch cursor {
-	case 0:
-		value.DefaultMode = cycleTyped(value.DefaultMode, []fix.DeliveryMode{fix.DeliveryModeCandidate, fix.DeliveryModePullRequest}, direction)
-	case 4:
-		value.Publisher = cycleString(value.Publisher, []string{"github-cli"}, direction)
-	case 5:
-		value.DraftPullRequests = !value.DraftPullRequests
+	row := rows[cursor]
+	switch row.kind {
+	case validationRowPlan:
+		selected := value.Validation[row.plan].ID
+		if value.Fix.ValidationPlan == selected && direction > 0 {
+			value.Fix.ValidationPlan = ""
+		} else {
+			value.Fix.ValidationPlan = selected
+		}
+	case validationRowRequired:
+		value.Validation[row.plan].Checks[row.check].Required = !value.Validation[row.plan].Checks[row.check].Required
 	default:
 		return false
 	}
 	return true
 }
 
-func (model *Model) addDefaultCodexProfile() {
+type validationRowKind uint8
+
+const (
+	validationRowWorkspaceFiles validationRowKind = iota
+	validationRowWorkspaceDirectories
+	validationRowWorkspacePathBytes
+	validationRowWorkspaceFileBytes
+	validationRowWorkspaceTotalBytes
+	validationRowContainerPIDs
+	validationRowContainerMemoryBytes
+	validationRowContainerCPUMillis
+	validationRowContainerTemporaryBytes
+	validationRowContainerWorkspaceBytes
+	validationRowContainerNofileLimit
+	validationRowContainerGeneratedFileBytes
+	validationRowContainerStopTimeout
+	validationRowContainerControlTimeout
+	validationRowContainerSentinelTimeout
+	validationRowContainerCrashProbeTimeout
+	validationRowPlan
+	validationRowRequired
+	validationRowCommand
+	validationRowWorkingDirectory
+	validationRowTimeout
+	validationRowOutput
+)
+
+type validationSettingsRow struct {
+	plan  int
+	check int
+	kind  validationRowKind
+}
+
+func validationWorkspaceRow(kind validationRowKind) bool {
+	return kind >= validationRowWorkspaceFiles && kind <= validationRowContainerCrashProbeTimeout
+}
+
+func validationWorkspaceValue(value appconfig.ValidationWorkspace, kind validationRowKind) int64 {
+	switch kind {
+	case validationRowWorkspaceFiles:
+		return value.MaxFiles
+	case validationRowWorkspaceDirectories:
+		return value.MaxDirectories
+	case validationRowWorkspacePathBytes:
+		return value.MaxPathBytes
+	case validationRowWorkspaceFileBytes:
+		return value.MaxFileBytes
+	case validationRowWorkspaceTotalBytes:
+		return value.MaxTotalBytes
+	case validationRowContainerPIDs:
+		return int64(value.ContainerPIDs)
+	case validationRowContainerMemoryBytes:
+		return value.ContainerMemoryBytes
+	case validationRowContainerCPUMillis:
+		return value.ContainerCPUMillis
+	case validationRowContainerTemporaryBytes:
+		return value.ContainerTemporaryBytes
+	case validationRowContainerWorkspaceBytes:
+		return value.ContainerWorkspaceBytes
+	case validationRowContainerNofileLimit:
+		return value.ContainerNofileLimit
+	case validationRowContainerGeneratedFileBytes:
+		return value.ContainerGeneratedFileBytes
+	default:
+		return 0
+	}
+}
+
+func validationWorkspaceDurationRow(kind validationRowKind) bool {
+	return kind >= validationRowContainerStopTimeout && kind <= validationRowContainerCrashProbeTimeout
+}
+
+func validationWorkspaceText(value appconfig.ValidationWorkspace, kind validationRowKind) string {
+	switch kind {
+	case validationRowContainerStopTimeout:
+		return value.ContainerStopTimeout.String()
+	case validationRowContainerControlTimeout:
+		return value.ContainerControlTimeout.String()
+	case validationRowContainerSentinelTimeout:
+		return value.ContainerSentinelTimeout.String()
+	case validationRowContainerCrashProbeTimeout:
+		return value.ContainerCrashProbeTimeout.String()
+	default:
+		return strconv.FormatInt(validationWorkspaceValue(value, kind), 10)
+	}
+}
+
+func validationWorkspaceConsequence(kind validationRowKind) string {
+	var consequence string
+	switch kind {
+	case validationRowWorkspaceFiles, validationRowWorkspaceDirectories, validationRowWorkspacePathBytes, validationRowWorkspaceFileBytes, validationRowWorkspaceTotalBytes:
+		consequence = "Shared by candidate copy and before/after fingerprinting; exceeding it fails validation with this effective value."
+	case validationRowContainerPIDs:
+		consequence = "Maximum processes in each validation container; finite confinement is mandatory and exceeding it fails the check."
+	case validationRowContainerMemoryBytes:
+		consequence = "Container memory ceiling; workspace and /tmp tmpfs usage is charged to this budget."
+	case validationRowContainerCPUMillis:
+		consequence = "Validation CPU allocation in thousandths: 1000 is one CPU, 2500 is 2.5 CPUs."
+	case validationRowContainerTemporaryBytes:
+		consequence = "Maximum /tmp tmpfs size inside validation containers; it also consumes container memory."
+	case validationRowContainerWorkspaceBytes:
+		consequence = "Writable candidate-copy tmpfs size; it must exceed admitted total bytes and also consumes container memory."
+	case validationRowContainerNofileLimit:
+		consequence = "Maximum open files per validation process; this finite confinement control cannot be disabled."
+	case validationRowContainerGeneratedFileBytes:
+		consequence = "Maximum file a validation process may generate; it must cover the admitted per-file limit."
+	case validationRowContainerStopTimeout:
+		consequence = "Grace allowed for a canceled container to stop before stronger cleanup; it never times active work."
+	case validationRowContainerControlTimeout:
+		consequence = "Deadline for Docker lifecycle commands such as create, inspect, stop and remove; must exceed stop timeout."
+	case validationRowContainerSentinelTimeout:
+		consequence = "Deadline for the pre-run filesystem/network safety sentinel; it never times the validation check itself."
+	case validationRowContainerCrashProbeTimeout:
+		consequence = "Deadline for the startup crash-containment proof; it affects readiness, not an active fix job."
+	default:
+		consequence = "Validation constraint."
+	}
+	return "Next start only; restart Slopwatch. " + consequence
+}
+
+func setValidationWorkspaceDuration(value *appconfig.ValidationWorkspace, kind validationRowKind, duration time.Duration) {
+	switch kind {
+	case validationRowContainerStopTimeout:
+		value.ContainerStopTimeout = duration
+	case validationRowContainerControlTimeout:
+		value.ContainerControlTimeout = duration
+	case validationRowContainerSentinelTimeout:
+		value.ContainerSentinelTimeout = duration
+	case validationRowContainerCrashProbeTimeout:
+		value.ContainerCrashProbeTimeout = duration
+	}
+}
+
+func setValidationWorkspaceValue(value *appconfig.ValidationWorkspace, kind validationRowKind, maximum int64) {
+	switch kind {
+	case validationRowWorkspaceFiles:
+		value.MaxFiles = maximum
+	case validationRowWorkspaceDirectories:
+		value.MaxDirectories = maximum
+	case validationRowWorkspacePathBytes:
+		value.MaxPathBytes = maximum
+	case validationRowWorkspaceFileBytes:
+		value.MaxFileBytes = maximum
+	case validationRowWorkspaceTotalBytes:
+		value.MaxTotalBytes = maximum
+	case validationRowContainerPIDs:
+		value.ContainerPIDs = int(maximum)
+	case validationRowContainerMemoryBytes:
+		value.ContainerMemoryBytes = maximum
+	case validationRowContainerCPUMillis:
+		value.ContainerCPUMillis = maximum
+	case validationRowContainerTemporaryBytes:
+		value.ContainerTemporaryBytes = maximum
+	case validationRowContainerWorkspaceBytes:
+		value.ContainerWorkspaceBytes = maximum
+	case validationRowContainerNofileLimit:
+		value.ContainerNofileLimit = maximum
+	case validationRowContainerGeneratedFileBytes:
+		value.ContainerGeneratedFileBytes = maximum
+	}
+}
+
+func validationSettingsRows(plans []validation.Plan) []validationSettingsRow {
+	rows := []validationSettingsRow{
+		{plan: -1, check: -1, kind: validationRowWorkspaceFiles},
+		{plan: -1, check: -1, kind: validationRowWorkspaceDirectories},
+		{plan: -1, check: -1, kind: validationRowWorkspacePathBytes},
+		{plan: -1, check: -1, kind: validationRowWorkspaceFileBytes},
+		{plan: -1, check: -1, kind: validationRowWorkspaceTotalBytes},
+		{plan: -1, check: -1, kind: validationRowContainerPIDs},
+		{plan: -1, check: -1, kind: validationRowContainerMemoryBytes},
+		{plan: -1, check: -1, kind: validationRowContainerCPUMillis},
+		{plan: -1, check: -1, kind: validationRowContainerTemporaryBytes},
+		{plan: -1, check: -1, kind: validationRowContainerWorkspaceBytes},
+		{plan: -1, check: -1, kind: validationRowContainerNofileLimit},
+		{plan: -1, check: -1, kind: validationRowContainerGeneratedFileBytes},
+		{plan: -1, check: -1, kind: validationRowContainerStopTimeout},
+		{plan: -1, check: -1, kind: validationRowContainerControlTimeout},
+		{plan: -1, check: -1, kind: validationRowContainerSentinelTimeout},
+		{plan: -1, check: -1, kind: validationRowContainerCrashProbeTimeout},
+	}
+	for planIndex, plan := range plans {
+		rows = append(rows, validationSettingsRow{plan: planIndex, check: -1, kind: validationRowPlan})
+		for checkIndex := range plan.Checks {
+			rows = append(rows,
+				validationSettingsRow{plan: planIndex, check: checkIndex, kind: validationRowRequired},
+				validationSettingsRow{plan: planIndex, check: checkIndex, kind: validationRowCommand},
+				validationSettingsRow{plan: planIndex, check: checkIndex, kind: validationRowWorkingDirectory},
+				validationSettingsRow{plan: planIndex, check: checkIndex, kind: validationRowTimeout},
+				validationSettingsRow{plan: planIndex, check: checkIndex, kind: validationRowOutput},
+			)
+		}
+	}
+	return rows
+}
+
+func validationInvocation(check validation.Check) string {
+	parts := []string{cleanAgentText(check.Executable)}
+	for _, argument := range check.Arguments {
+		parts = append(parts, strconv.Quote(cleanAgentText(argument)))
+	}
+	return nonemptySetting(strings.Join(parts, " "), "not configured")
+}
+
+func adjustDeliverySetting(value *appconfig.Delivery, cursor, direction int) bool {
+	switch cursor {
+	case 0:
+		value.DefaultMode = cycleTyped(value.DefaultMode, []fix.DeliveryMode{fix.DeliveryModeCandidate, fix.DeliveryModeBranch, fix.DeliveryModePullRequest}, direction)
+	case 4:
+		return false
+	case 5:
+		value.DraftPullRequests = !value.DraftPullRequests
+	case 6:
+		value.RequireValidation = !value.RequireValidation
+	default:
+		return false
+	}
+	return true
+}
+
+func (model *Model) addDefaultAgentProfile() {
 	state := &model.configSettings
+	kinds := []agent.RuntimeKind{"codex-cli"}
+	if model.profileCatalog != nil && len(model.profileCatalog.Kinds()) > 0 {
+		kinds = append([]agent.RuntimeKind(nil), model.profileCatalog.Kinds()...)
+		sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
+	}
+	counts := make(map[agent.RuntimeKind]int, len(kinds))
 	for _, profile := range state.working.Profiles {
-		if profile.ID == "codex" {
-			state.status = "Codex profile already exists"
-			return
+		counts[profile.Runtime]++
+	}
+	selected := kinds[0]
+	for _, kind := range kinds[1:] {
+		if counts[kind] < counts[selected] {
+			selected = kind
 		}
 	}
-	profile := agent.Profile{
-		ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned",
+	descriptor := agent.ProfileDescriptor{}
+	var descriptorErr error
+	if model.profileCatalog != nil {
+		descriptor, descriptorErr = model.profileCatalog.Descriptor(selected)
 	}
-	if descriptor, err := model.profileDescriptor(profile); err == nil {
-		for _, field := range descriptor.Fields {
-			if profileFieldValue(profile, field) == "" && field.Default != "" {
-				setProfileFieldValue(&profile, field, field.Default)
+	if model.profileCatalog == nil || descriptorErr != nil {
+		descriptor = agent.ProfileDescriptor{Runtime: "codex-cli", Label: "Codex CLI", Fields: []agent.ProfileField{
+			{Key: "executable", Default: "codex"}, {Key: "authentication_ref", Default: "provider-owned"},
+		}}
+		selected = "codex-cli"
+	}
+	baseID := "agent"
+	switch selected {
+	case "codex-cli":
+		baseID = "codex"
+	case "openai-responses":
+		baseID = "gpt"
+	default:
+		baseID = strings.Trim(strings.Map(func(character rune) rune {
+			if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '-' {
+				return character
 			}
+			return '-'
+		}, strings.ToLower(string(selected))), "-")
+		if baseID == "" {
+			baseID = "agent"
 		}
 	}
+	id := baseID
+	for suffix := 2; profileIDExists(state.working.Profiles, agent.ProfileID(id)); suffix++ {
+		id = fmt.Sprintf("%s-%d", baseID, suffix)
+	}
+	profile := agent.Profile{ID: agent.ProfileID(id), Label: descriptor.Label, Runtime: selected, Options: map[string]string{}}
+	applyProfileDefaults(&profile, descriptor)
 	state.working.Profiles = append(state.working.Profiles, profile)
 	state.cursor = len(state.working.Profiles) - 1
 	state.dirty = true
-	state.status = "Added safe Codex CLI profile · s save"
+	state.status = fmt.Sprintf("Added %s profile · s save", descriptor.Label)
+}
+
+func profileIDExists(profiles []agent.Profile, id agent.ProfileID) bool {
+	for _, profile := range profiles {
+		if profile.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func applyProfileDefaults(profile *agent.Profile, descriptor agent.ProfileDescriptor) {
+	for _, field := range descriptor.Fields {
+		if profileFieldValue(*profile, field) == "" && field.Default != "" {
+			setProfileFieldValue(profile, field, field.Default)
+		}
+	}
 }
 
 func (model Model) profileDescriptor(profile agent.Profile) (agent.ProfileDescriptor, error) {
@@ -634,10 +1009,38 @@ func profileChoiceContains(values []string, target string) bool {
 
 func (model *Model) adjustProfileChoice(direction int) bool {
 	state := &model.configSettings
-	if !state.profileEditing || state.cursor < 0 || state.cursor >= len(state.working.Profiles) || state.profileCursor < 3 {
+	if !state.profileEditing || state.cursor < 0 || state.cursor >= len(state.working.Profiles) {
 		return false
 	}
 	profile := &state.working.Profiles[state.cursor]
+	if state.profileCursor == 2 && model.profileCatalog != nil {
+		kinds := model.profileCatalog.Kinds()
+		if len(kinds) == 0 {
+			return false
+		}
+		sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
+		next := cycleTyped(profile.Runtime, kinds, direction)
+		if next == profile.Runtime {
+			return true
+		}
+		descriptor, err := model.profileCatalog.Descriptor(next)
+		if err != nil {
+			state.status = err.Error()
+			return true
+		}
+		profile.Runtime = next
+		profile.Executable = ""
+		profile.RuntimeProfile = ""
+		profile.AuthenticationRef = ""
+		profile.Options = map[string]string{}
+		applyProfileDefaults(profile, descriptor)
+		state.dirty = true
+		state.status = "Runtime changed; adapter fields reset · s save"
+		return true
+	}
+	if state.profileCursor < 3 {
+		return false
+	}
 	fields := model.profileEditorFields(*profile)
 	index := state.profileCursor - 3
 	if index < 0 || index >= len(fields) || fields[index].Kind != agent.ProfileFieldChoice {
@@ -670,14 +1073,38 @@ func (model *Model) deleteSelectedProfile() {
 		return
 	}
 	removed := state.working.Profiles[state.cursor].ID
+	if state.working.Fix.Profile == removed {
+		state.status = "Cannot delete the default Fix profile; choose another default first"
+		return
+	}
+	for _, job := range model.agents.Jobs {
+		if job.ProfileID == string(removed) && job.Phase != fix.PhaseDiscarded {
+			state.status = "Cannot delete a profile referenced by a retained or running job"
+			return
+		}
+	}
+	if state.deletePending != removed {
+		state.deletePending = removed
+		state.status = fmt.Sprintf("Press delete again to remove %s; save persists the deletion", removed)
+		return
+	}
 	state.working.Profiles = append(state.working.Profiles[:state.cursor], state.working.Profiles[state.cursor+1:]...)
+	state.deletePending = ""
 	state.cursor = min(state.cursor, max(0, len(state.working.Profiles)-1))
 	state.dirty = true
 	state.status = fmt.Sprintf("Removed %s from draft · s save", removed)
 }
 
 func (model *Model) configTextEditable() bool {
-	return model.configSettings.profileEditing || model.configSettings.kind == configDelivery && model.configSettings.cursor >= 1 && model.configSettings.cursor <= 3
+	cursor := model.configSettings.cursor
+	if model.configSettings.profileEditing || model.configSettings.kind == configDelivery && (cursor >= 1 && cursor <= 3 || cursor >= 7 && cursor <= 11) {
+		return true
+	}
+	if model.configSettings.kind == configValidation {
+		rows := validationSettingsRows(model.configSettings.working.Validation)
+		return cursor >= 0 && cursor < len(rows) && (validationWorkspaceRow(rows[cursor].kind) || rows[cursor].kind == validationRowTimeout || rows[cursor].kind == validationRowOutput)
+	}
+	return false
 }
 
 func (model *Model) beginConfigText() {
@@ -701,6 +1128,22 @@ func (model *Model) beginConfigText() {
 			value = profileFieldValue(profile, fields[state.profileCursor-3])
 		}
 		state.editField = state.profileCursor
+	} else if state.kind == configValidation {
+		rows := validationSettingsRows(state.working.Validation)
+		if state.cursor < 0 || state.cursor >= len(rows) {
+			return
+		}
+		row := rows[state.cursor]
+		if validationWorkspaceRow(row.kind) {
+			value = validationWorkspaceText(state.working.ValidationWorkspace, row.kind)
+		} else if row.kind == validationRowTimeout {
+			check := state.working.Validation[row.plan].Checks[row.check]
+			value = check.Timeout.String()
+		} else if row.kind == validationRowOutput {
+			check := state.working.Validation[row.plan].Checks[row.check]
+			value = strconv.FormatInt(check.MaxOutputBytes, 10)
+		}
+		state.editField = state.cursor
 	} else {
 		switch state.cursor {
 		case 1:
@@ -708,7 +1151,17 @@ func (model *Model) beginConfigText() {
 		case 2:
 			value = state.working.Delivery.BaseBranch
 		case 3:
-			value = state.working.Delivery.BranchTemplate
+			value, _ = configEffectiveBranchTemplate(state.working)
+		case 7:
+			value = strconv.FormatInt(state.working.Delivery.CommandOutputBytes, 10)
+		case 8:
+			value = state.working.Delivery.CommitTitleTemplate
+		case 9:
+			value = state.working.Delivery.CommitBodyTemplate
+		case 10:
+			value = state.working.Delivery.PullRequestTitleTemplate
+		case 11:
+			value = state.working.Delivery.PullRequestBodyTemplate
 		}
 		state.editField = state.cursor
 	}
@@ -756,6 +1209,45 @@ func (model *Model) commitConfigText() error {
 				return err
 			}
 		}
+	} else if state.kind == configValidation {
+		rows := validationSettingsRows(state.working.Validation)
+		if state.editField < 0 || state.editField >= len(rows) {
+			return errors.New("validation setting is unavailable")
+		}
+		row := rows[state.editField]
+		if validationWorkspaceRow(row.kind) {
+			if validationWorkspaceDurationRow(row.kind) {
+				duration, err := time.ParseDuration(value)
+				if err != nil || duration <= 0 {
+					return errors.New("validation container timeout must be a positive duration such as 30s")
+				}
+				setValidationWorkspaceDuration(&state.working.ValidationWorkspace, row.kind, duration)
+			} else {
+				maximum, err := strconv.ParseInt(value, 10, 64)
+				if err != nil || maximum <= 0 || row.kind == validationRowContainerPIDs && int64(int(maximum)) != maximum {
+					return errors.New("validation workspace/container limit must be a positive integer")
+				}
+				setValidationWorkspaceValue(&state.working.ValidationWorkspace, row.kind, maximum)
+			}
+		} else {
+			check := &state.working.Validation[row.plan].Checks[row.check]
+			switch row.kind {
+			case validationRowTimeout:
+				duration, err := time.ParseDuration(value)
+				if err != nil || duration <= 0 {
+					return errors.New("check timeout must be a positive duration such as 10m")
+				}
+				check.Timeout = duration
+			case validationRowOutput:
+				maximum, err := strconv.ParseInt(value, 10, 64)
+				if err != nil || maximum <= 0 {
+					return errors.New("check output bytes must be a positive integer")
+				}
+				check.MaxOutputBytes = maximum
+			default:
+				return errors.New("this validation setting is changed with left or right")
+			}
+		}
 	} else {
 		if value == "" && state.editField != 2 {
 			return errors.New("this value cannot be empty")
@@ -767,6 +1259,20 @@ func (model *Model) commitConfigText() error {
 			state.working.Delivery.BaseBranch = value
 		case 3:
 			state.working.Delivery.BranchTemplate = value
+		case 7:
+			maximum, err := strconv.ParseInt(value, 10, 64)
+			if err != nil || maximum <= 0 {
+				return errors.New("Git and publisher output bytes must be a positive integer")
+			}
+			state.working.Delivery.CommandOutputBytes = maximum
+		case 8:
+			state.working.Delivery.CommitTitleTemplate = value
+		case 9:
+			state.working.Delivery.CommitBodyTemplate = value
+		case 10:
+			state.working.Delivery.PullRequestTitleTemplate = value
+		case 11:
+			state.working.Delivery.PullRequestBodyTemplate = value
 		}
 	}
 	state.dirty = true
@@ -780,13 +1286,13 @@ func (model Model) configSettingsRows() int {
 	case configAgents:
 		return len(state.working.Profiles)
 	case configFix:
-		return 8 + len(scoring.Metrics())
+		return 7 + len(scoring.Metrics())
 	case configConcurrency:
-		return 4
+		return 7
 	case configValidation:
-		return len(state.working.Validation)
+		return len(validationSettingsRows(state.working.Validation))
 	case configDelivery:
-		return 6
+		return 14
 	default:
 		return 0
 	}
@@ -806,27 +1312,15 @@ func (model Model) configSettingsView() string {
 	if len(lines) == 0 {
 		lines = []string{"No configured items."}
 	}
-	lines = scrollModalLines(lines, state.cursor, max(1, model.modalBodyHeight()-2))
-	if state.status != "" {
-		lines = append(lines, style.DisabledOption(state.status, width))
-	} else if !state.loading {
-		lines = append(lines, style.DisabledOption("Source: "+string(configSettingsOrigin(state.kind, state.resolved)), width))
+	scrollCursor := state.cursor
+	if state.profileEditing {
+		scrollCursor = state.profileCursor
 	}
-	footer := "↑/↓ fields · ←/→ change · Enter edit · s save · r reload · Esc back"
-	if state.kind == configAgents {
-		footer = "↑/↓ profiles · Enter edit · t test · a add Codex · d remove · s save · Esc"
-		if state.profileEditing {
-			footer = "↑/↓ fields · Enter edit · t test · Esc profiles"
-		}
-	}
+	lines = scrollModalLines(lines, scrollCursor, max(1, model.modalBodyHeight()-2))
+	lines = append(lines, style.DisabledOption(truncate(model.configSettingsStatusLine(), width), width))
+	footer := model.configSettingsFooter()
 	if state.editing {
 		lines = append(lines, "Edit: "+state.input.View())
-		footer = "Enter apply · Esc cancel"
-	} else if responsiveTier(model.width, model.height) == ResponsiveCompact {
-		footer = "↑/↓ · ←/→ · s save · Esc back"
-		if state.kind == configAgents {
-			footer = "↑/↓ · a add · d remove · s save · Esc"
-		}
 	}
 	return style.Popup(style.Heading(title), lines, footer, width)
 }
@@ -837,31 +1331,28 @@ func (model Model) configSettingsFullScreen() string {
 		configAgents: "AGENTS", configFix: "FIX DEFAULTS", configConcurrency: "CONCURRENCY & RETENTION",
 		configValidation: "VALIDATION", configDelivery: "GIT & PULL REQUESTS",
 	}[state.kind]
-	footer := "↑/↓ fields · ←/→ change · Enter edit · s save · r reload · Esc back"
+	footer := model.configSettingsFooter()
 	lines := []string{fixSurfaceLine(title, model.width, style.SurfaceHeader, style.TextPrimary)}
 	if state.loading {
 		lines = append(lines, fixSurfaceLine("Loading configuration…", model.width, style.SurfaceModal, style.TextMuted))
 	} else {
 		body := model.configSettingsLines(model.width)
-		body = scrollModalLines(body, state.cursor, max(1, model.height-3))
+		scrollCursor := state.cursor
+		if state.profileEditing {
+			scrollCursor = state.profileCursor
+		}
+		reserved := 3 // header, status, footer
+		if state.editing {
+			reserved++ // active editor row
+		}
+		body = scrollModalLines(body, scrollCursor, max(1, model.height-reserved))
 		for _, line := range body {
 			lines = append(lines, fixSurfaceLineANSI(line, model.width, style.SurfaceModal))
 		}
-		if state.status != "" {
-			lines = append(lines, fixSurfaceLine(state.status, model.width, style.SurfaceModal, style.TextMuted))
-		}
-	}
-	if state.kind == configAgents {
-		footer = "↑/↓ profiles · a add · Enter edit · t test · d remove · s save · Esc"
+		lines = append(lines, fixSurfaceLine(model.configSettingsStatusLine(), model.width, style.SurfaceModal, style.TextMuted))
 	}
 	if state.editing {
 		lines = append(lines, fixSurfaceLineANSI("Edit: "+state.input.View(), model.width, style.SurfaceModal))
-		footer = "Enter apply · Esc cancel"
-	} else if responsiveTier(model.width, model.height) == ResponsiveCompact {
-		footer = "↑/↓ · ←/→ · s save · Esc back"
-		if state.kind == configAgents {
-			footer = "↑/↓ · a add · d remove · s save · Esc"
-		}
 	}
 	for len(lines) < model.height-1 {
 		lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
@@ -881,15 +1372,153 @@ func configSettingsOrigin(kind configSettingsKind, value appconfig.Resolved) app
 	return appconfig.OriginBuiltIn
 }
 
-func (model Model) configSettingsLines(width int) []string {
+func configOriginLabel(origin appconfig.Origin) string {
+	switch origin {
+	case appconfig.OriginUser:
+		return "user preferences"
+	case appconfig.OriginRepository:
+		return "repository preferences"
+	case appconfig.OriginCLI:
+		return "command-line override"
+	case appconfig.OriginSession:
+		return "current session override"
+	default:
+		return "built-in default"
+	}
+}
+
+func (model Model) configSettingsFooter() string {
 	state := model.configSettings
-	option := func(index int, label, value string) string {
-		if key := model.configFieldOriginKey(index); key != "" {
-			if origin := state.working.Origins[key]; origin != "" {
-				value += " · " + string(origin)
+	compact := responsiveTier(model.width, model.height) == ResponsiveCompact
+	if state.editing {
+		return "Enter apply · Esc cancel"
+	}
+	if state.kind == configAgents {
+		if compact {
+			return "↑/↓ · a add · d remove · s save · Esc"
+		}
+		if state.profileEditing {
+			return "↑/↓ fields · Enter edit · t test · Esc profiles"
+		}
+		return "↑/↓ profiles · Enter edit · t test · a add agent · d remove · s save · Esc"
+	}
+	readonly := false
+	edit := false
+	switch state.kind {
+	case configFix:
+		readonly = state.cursor == 6
+	case configValidation:
+		rows := validationSettingsRows(state.working.Validation)
+		if state.cursor >= 0 && state.cursor < len(rows) {
+			kind := rows[state.cursor].kind
+			if validationWorkspaceRow(kind) {
+				edit = true
+			} else {
+				switch kind {
+				case validationRowCommand, validationRowWorkingDirectory:
+					readonly = true
+				case validationRowTimeout, validationRowOutput:
+					edit = true
+				}
 			}
 		}
-		return style.ModalOption(fmt.Sprintf("%-22s %s", label, value), index == state.cursor, width)
+	case configDelivery:
+		readonly = state.cursor == 4 || state.cursor == 12 || state.cursor == 13
+		edit = state.cursor >= 1 && state.cursor <= 3 || state.cursor >= 7 && state.cursor <= 11
+	}
+	if compact {
+		switch {
+		case readonly:
+			return "read-only · ↑/↓ · s save · Esc"
+		case edit:
+			return "Enter edit · ↑/↓ · s save · Esc"
+		default:
+			return "↑/↓ · ←/→ change · s save · Esc"
+		}
+	}
+	switch {
+	case readonly:
+		return "Read-only in this release · ↑/↓ fields · s save · r reload · Esc back"
+	case edit:
+		return "Enter edit · ↑/↓ fields · s save · r reload · Esc back"
+	default:
+		return "↑/↓ fields · ←/→ change · s save · r reload · Esc back"
+	}
+}
+
+func (model Model) configSettingsStatusLine() string {
+	source := model.configFocusedSourceNote()
+	if model.configSettings.status == "" {
+		return source
+	}
+	return model.configSettings.status + " · " + source
+}
+
+func (model Model) configFocusedSourceNote() string {
+	state := model.configSettings
+	origin := configSettingsOrigin(state.kind, state.resolved)
+	key := model.configFieldOriginKey(state.cursor)
+	if state.kind == configAgents && state.profileEditing && state.cursor >= 0 && state.cursor < len(state.working.Profiles) {
+		profile := state.working.Profiles[state.cursor]
+		key = profileEditorOriginKey(profile, model.profileEditorFields(profile), state.profileCursor)
+	}
+	if key != "" {
+		if exact, ok := configOriginForKey(state.working.Origins, key); ok {
+			origin = exact
+		}
+	}
+	switch origin {
+	case appconfig.OriginRepository:
+		return "Repo override · saves user default only"
+	case appconfig.OriginCLI:
+		return "CLI override · saves user default only"
+	case appconfig.OriginSession:
+		return "Session override · saves user default only"
+	case appconfig.OriginUser:
+		return "Source: user preferences"
+	default:
+		return "Built-in default · save creates user default"
+	}
+}
+
+func configOriginForKey(origins map[string]appconfig.Origin, key string) (appconfig.Origin, bool) {
+	for candidate := key; candidate != ""; {
+		if origin, ok := origins[candidate]; ok {
+			return origin, true
+		}
+		index := strings.LastIndex(candidate, ".")
+		if index < 0 {
+			break
+		}
+		candidate = candidate[:index]
+	}
+	return "", false
+}
+
+func agentProbeReadiness(result agent.ProbeResult) string {
+	if result.State == agent.ProbeReady && result.Capabilities.Isolation.EligibleForMutation() {
+		return "RUNNABLE · ready"
+	}
+	state := string(result.State)
+	if result.State == agent.ProbeReady {
+		state = "confinement failed"
+	}
+	if state == "" {
+		state = "unknown"
+	}
+	return "NOT RUNNABLE · " + state
+}
+
+func (model Model) configSettingsLines(width int) []string {
+	state := model.configSettings
+	disabled := func(value string) string { return style.DisabledOption(truncate(value, width), width) }
+	option := func(index int, label, value string) string {
+		if key := model.configFieldOriginKey(index); key != "" {
+			if origin := state.working.Origins[key]; origin != "" && origin != appconfig.OriginBuiltIn {
+				value += " · " + configOriginLabel(origin)
+			}
+		}
+		return style.ModalOption(truncate(fmt.Sprintf("%-22s %s", label, value), width), index == state.cursor, width)
 	}
 	switch state.kind {
 	case configAgents:
@@ -898,42 +1527,50 @@ func (model Model) configSettingsLines(width int) []string {
 			rows := []struct{ label, value string }{{"Profile ID", string(profile.ID)}, {"Label", profile.Label}, {"Runtime", string(profile.Runtime)}}
 			fields := model.profileEditorFields(profile)
 			for _, field := range fields {
-				rows = append(rows, struct{ label, value string }{field.Label, profileFieldValue(profile, field)})
+				value := profileFieldValue(profile, field)
+				if value == "" && field.Default != "" {
+					value = field.Default + " · adapter default"
+				}
+				rows = append(rows, struct{ label, value string }{field.Label, value})
 			}
 			lines := make([]string, 0, len(rows)+2)
 			for i, row := range rows {
-				if origin := state.working.Origins[profileEditorOriginKey(profile, fields, i)]; origin != "" {
-					row.value += " · " + string(origin)
+				if origin := state.working.Origins[profileEditorOriginKey(profile, fields, i)]; origin != "" && origin != appconfig.OriginBuiltIn {
+					row.value += " · " + configOriginLabel(origin)
 				}
-				lines = append(lines, style.ModalOption(fmt.Sprintf("%-22s %s", row.label, row.value), i == state.profileCursor, width))
+				lines = append(lines, style.ModalOption(truncate(fmt.Sprintf("%-22s %s", row.label, row.value), width), i == state.profileCursor, width))
 			}
 			if state.profileCursor >= 3 && state.profileCursor-3 < len(fields) && fields[state.profileCursor-3].Description != "" {
-				lines = append(lines, style.DisabledOption(fields[state.profileCursor-3].Description, width))
+				lines = append(lines, disabled(fields[state.profileCursor-3].Description))
 			}
 			if probe, ok := state.probes[profile.ID]; ok {
-				diagnostic := probe.Diagnostic
+				diagnostic := cleanAgentText(probe.Diagnostic)
 				if diagnostic == "" {
-					diagnostic = "ready"
+					diagnostic = "probe completed"
 				}
-				lines = append(lines, style.DisabledOption("Test: "+string(probe.State)+" · "+diagnostic, width))
+				lines = append(lines, disabled("Test: "+agentProbeReadiness(probe)+" · "+diagnostic))
 			}
 			return lines
 		}
 		lines := make([]string, 0, len(state.working.Profiles))
 		for index, profile := range state.working.Profiles {
-			readiness := "not probed"
+			readiness := "NOT TESTED"
+			diagnostic := ""
 			if result, ok := state.probes[profile.ID]; ok {
-				readiness = string(result.State)
+				readiness = agentProbeReadiness(result)
 				if result.Version != "" {
 					readiness += " " + result.Version
 				}
 				if result.Diagnostic != "" {
-					readiness += " · " + result.Diagnostic
+					diagnostic = cleanAgentText(result.Diagnostic)
 				}
 			}
 			label := fmt.Sprintf("%s · %s", profile.Label, profile.Runtime)
 			value := fmt.Sprintf("%s · auth %s", readiness, nonemptySetting(profile.AuthenticationRef, "provider-owned"))
 			lines = append(lines, option(index, label, value))
+			if index == state.cursor && diagnostic != "" {
+				lines = append(lines, disabled("Remediation: "+diagnostic))
+			}
 		}
 		return lines
 	case configFix:
@@ -945,41 +1582,169 @@ func (model Model) configSettingsLines(width int) []string {
 			option(1, "Change scope", state.working.Fix.ChangeScope), option(2, "Agent profile", profile),
 			option(3, "Model", modelName), option(4, "Effort", effort),
 			option(5, "Delegation", string(state.working.Fix.Delegation)),
-			option(6, "Max attempts", fmt.Sprint(state.working.Fix.MaxAttempts)),
-			option(7, "Attempt timeout", state.working.Fix.AttemptTimeout.String()),
+			option(6, "Prompt strategy", nonemptySetting(state.working.Fix.PromptTemplate, "default")+" · fixed v1 · locked envelope"),
 		}
 		for index, metric := range scoring.Metrics() {
 			mark := " "
 			if hasMetric(state.working.Fix.Focus, fix.MetricID(metric.ID)) {
 				mark = "x"
 			}
-			lines = append(lines, option(index+8, "Focus metric", fmt.Sprintf("[%s] %s", mark, strings.ToUpper(string(metric.ID)))))
+			lines = append(lines, option(index+7, "Focus metric", fmt.Sprintf("[%s] %s", mark, strings.ToUpper(string(metric.ID)))))
+		}
+		descriptions := []string{
+			"Seeds each new Fix form; the form may override it for one job.",
+			"Bounds candidate writes; scope violations remain visible and block publication.",
+			"Default adapter profile for newly prepared jobs.",
+			"Default model for newly prepared jobs; available values come from the selected adapter.",
+			"Default effort for newly prepared jobs; available values come from the selected adapter.",
+			"Controls whether the adapter may delegate when it reports that capability.",
+			"The v1 compiler is fixed: generated objectives remain inside a non-editable safety envelope.",
+		}
+		if state.cursor >= 0 {
+			if state.cursor < len(descriptions) {
+				lines = append(lines, disabled(descriptions[state.cursor]))
+			} else {
+				lines = append(lines, disabled("Selected metrics become explicit scoring goals for newly prepared jobs."))
+			}
 		}
 		return lines
 	case configConcurrency:
-		return []string{
+		lines := []string{
 			option(0, "Running agents", fmt.Sprint(state.working.Concurrency.MaxAgents)),
 			option(1, "Running verifiers", fmt.Sprint(state.working.Concurrency.MaxVerifiers)),
 			option(2, "Retained jobs", fmt.Sprint(state.working.Concurrency.MaxRetainedJobs)),
-			option(3, "Transcript bytes", fmt.Sprint(state.working.Concurrency.MaxTranscriptBytes)),
+			option(3, "Transcript bytes/job", fmt.Sprint(state.working.Concurrency.MaxTranscriptBytes)),
+			option(4, "Actors per job", fmt.Sprint(state.working.Concurrency.MaxActorsPerJob)),
+			option(5, "Candidate preview bytes", fmt.Sprint(state.working.Concurrency.MaxCandidatePreviewBytes)),
+			option(6, "Candidate preview lines", fmt.Sprint(state.working.Concurrency.MaxCandidatePreviewLines)),
 		}
+		descriptions := []string{
+			"Maximum fix jobs actively using an agent; lowering it never cancels running jobs and queues later work.",
+			"Maximum independent verification runs; lowering it never cancels a running verifier.",
+			"Admission cap for retained jobs; lowering it never deletes jobs and blocks admission until below the cap.",
+			"Pinned at Prepare for agent output; saved value exactly bounds JSON transcript-entry bytes per job.",
+			"Pinned at Prepare; limits distinct primary or delegated actors represented in a job transcript.",
+			"Pinned at Prepare; maximum candidate-file bytes loaded for the source preview. Truncation is labelled.",
+			"Pinned at Prepare; maximum candidate-file lines rendered in the source preview. Truncation is labelled.",
+		}
+		if state.cursor >= 0 && state.cursor < len(descriptions) {
+			lines = append(lines, disabled(descriptions[state.cursor]))
+		}
+		return lines
 	case configValidation:
-		lines := make([]string, 0, len(state.working.Validation))
-		for index, plan := range state.working.Validation {
-			mark := " "
-			if plan.ID == state.working.Fix.ValidationPlan {
-				mark = "x"
+		rows := validationSettingsRows(state.working.Validation)
+		lines := make([]string, 0, len(rows)+1)
+		for index, row := range rows {
+			if validationWorkspaceRow(row.kind) {
+				labels := map[validationRowKind]string{
+					validationRowWorkspaceFiles: "Workspace files", validationRowWorkspaceDirectories: "Workspace directories",
+					validationRowWorkspacePathBytes: "Workspace path bytes", validationRowWorkspaceFileBytes: "Largest file bytes",
+					validationRowWorkspaceTotalBytes: "Workspace total bytes",
+					validationRowContainerPIDs:       "Container processes", validationRowContainerMemoryBytes: "Container memory bytes",
+					validationRowContainerCPUMillis: "Container CPU millis", validationRowContainerTemporaryBytes: "Container /tmp bytes",
+					validationRowContainerWorkspaceBytes: "Container workspace bytes", validationRowContainerNofileLimit: "Container open files",
+					validationRowContainerGeneratedFileBytes: "Generated file bytes", validationRowContainerStopTimeout: "Container stop timeout",
+					validationRowContainerControlTimeout: "Docker control timeout", validationRowContainerSentinelTimeout: "Safety sentinel timeout",
+					validationRowContainerCrashProbeTimeout: "Crash probe timeout",
+				}
+				lines = append(lines, option(index, labels[row.kind], validationWorkspaceText(state.working.ValidationWorkspace, row.kind)))
+				continue
 			}
-			lines = append(lines, option(index, "["+mark+"] "+plan.ID, fmt.Sprintf("%d trusted checks", len(plan.Checks))))
+			plan := state.working.Validation[row.plan]
+			if row.kind == validationRowPlan {
+				mark := " "
+				if plan.ID == state.working.Fix.ValidationPlan {
+					mark = "x"
+				}
+				status := fmt.Sprintf("%d trusted checks", len(plan.Checks))
+				if len(plan.Checks) == 0 {
+					status = "UNUSABLE · no configured checks"
+				}
+				lines = append(lines, option(index, "["+mark+"] Plan "+plan.ID, status))
+				continue
+			}
+			check := plan.Checks[row.check]
+			prefix := "  " + nonemptySetting(check.Label, string(check.ID))
+			switch row.kind {
+			case validationRowRequired:
+				lines = append(lines, option(index, prefix+" required", yesNo(check.Required)))
+			case validationRowCommand:
+				lines = append(lines, option(index, prefix+" command", validationInvocation(check)+" · installation-owned"))
+			case validationRowWorkingDirectory:
+				lines = append(lines, option(index, prefix+" working dir", nonemptySetting(check.WorkingDirectory.String(), "candidate root")+" · installation-owned"))
+			case validationRowTimeout:
+				lines = append(lines, option(index, prefix+" timeout", check.Timeout.String()))
+			case validationRowOutput:
+				lines = append(lines, option(index, prefix+" output bytes", strconv.FormatInt(check.MaxOutputBytes, 10)))
+			}
+		}
+		if state.cursor >= 0 && state.cursor < len(rows) {
+			row := rows[state.cursor]
+			if validationWorkspaceRow(row.kind) {
+				lines = append(lines, disabled(validationWorkspaceConsequence(row.kind)))
+			} else if row.kind == validationRowPlan {
+				lines = append(lines, disabled("Selects the default plan; PR publication only requires it when Git & PR › PR validation says so."))
+			} else if row.kind == validationRowCommand || row.kind == validationRowWorkingDirectory {
+				lines = append(lines, disabled("Trusted command identity is read-only here; edit installation preferences, then press r to reload."))
+			} else {
+				lines = append(lines, disabled("This check policy is user-configurable and applies to newly started validation runs."))
+			}
+		}
+		if len(state.working.Validation) == 0 {
+			lines = append([]string{disabled("No trusted validation plans are configured."), disabled("Add one in preferences, then press r to reload.")}, lines...)
 		}
 		return lines
 	case configDelivery:
-		return []string{
+		branchTemplate, legacyBranchTemplate := configEffectiveBranchTemplate(state.working)
+		branchValue := branchTemplate + " → " + appconfig.PreviewBranchTemplate(branchTemplate)
+		if legacyBranchTemplate {
+			branchValue += " · legacy Fix override"
+		}
+		lines := []string{
 			option(0, "Default mode", string(state.working.Delivery.DefaultMode)), option(1, "Remote", state.working.Delivery.Remote),
 			option(2, "Base branch", nonemptySetting(state.working.Delivery.BaseBranch, "not set")),
-			option(3, "Branch template", state.working.Delivery.BranchTemplate), option(4, "Publisher", state.working.Delivery.Publisher),
-			option(5, "Draft pull requests", yesNo(state.working.Delivery.DraftPullRequests)),
+			option(3, "Branch template", branchValue), option(4, "Publisher", state.working.Delivery.Publisher+" · only supported v1 adapter"),
+			option(5, "Initial PR state", map[bool]string{true: "Draft", false: "Ready for review"}[state.working.Delivery.DraftPullRequests]),
+			option(6, "PR validation", map[bool]string{true: "Require passing plan", false: "Optional"}[state.working.Delivery.RequireValidation]),
+			option(7, "Command output bytes", strconv.FormatInt(state.working.Delivery.CommandOutputBytes, 10)),
+			option(8, "Commit title", nonemptySetting(state.working.Delivery.CommitTitleTemplate, "built-in default")),
+			option(9, "Commit body", nonemptySetting(state.working.Delivery.CommitBodyTemplate, "built-in default")),
+			option(10, "PR title", nonemptySetting(state.working.Delivery.PullRequestTitleTemplate, "commit title")),
+			option(11, "PR body", nonemptySetting(state.working.Delivery.PullRequestBodyTemplate, "commit body")),
+			option(12, "Cleanup policy", nonemptySetting(state.working.Delivery.CleanupPolicy, "retain")+" · fixed v1"),
+			option(13, "Commit policy", nonemptySetting(state.working.Delivery.CommitPolicy, "on-publish")+" · fixed v1"),
 		}
+		switch state.cursor {
+		case 0:
+			lines = append(lines, disabled("Seeds each Fix form; changing mode in a form triggers an authoritative delivery recheck."))
+		case 1:
+			lines = append(lines, disabled("Resolved and identity-checked for branch or pull-request delivery; candidate-only jobs do not publish."))
+		case 2:
+			lines = append(lines, disabled("Checked on the selected remote when publishing; it does not block the refactor."))
+		case 3:
+			if legacyBranchTemplate {
+				lines = append(lines, disabled("Effective value comes from legacy Fix preferences; edit and save this row to migrate it. Branch collisions are reported."))
+			} else {
+				lines = append(lines, disabled("{job-short-id} is optional; an existing branch is reported as a collision."))
+			}
+		case 4:
+			lines = append(lines, disabled("GitHub CLI is the only publisher adapter in v1; authorization is checked before admission and publish."))
+		case 5:
+			lines = append(lines, disabled("Controls whether a new pull request starts as a draft or ready for review."))
+		case 6:
+			lines = append(lines, disabled("When required, Publish stays unavailable until the selected plan passes."))
+		case 7:
+			lines = append(lines, disabled("Bounds captured candidate, delivery and publisher command output; commands have no wall-clock timeout and remain cancelable."))
+		case 8, 10:
+			lines = append(lines, disabled("Single-line title template rendered only during explicit publication; agent runtimes never receive publication authority."))
+		case 9, 11:
+			lines = append(lines, disabled("Single-line body template in v1; line breaks and control characters are rejected. Rendered only during explicit publication."))
+		case 12:
+			lines = append(lines, disabled("Fixed v1: worktrees, branches, and transcripts remain until explicit Discard or Cleanup."))
+		case 13:
+			lines = append(lines, disabled("Fixed v1: commit, push, and PR creation occur only after explicit Publish from Review."))
+		}
+		return lines
 	}
 	return nil
 }
@@ -1010,7 +1775,7 @@ func (model Model) configFieldOriginKey(index int) string {
 			return "agents." + string(state.working.Profiles[index].ID) + ".runtime"
 		}
 	case configFix:
-		keys := []string{"fix.target_score", "fix.change_scope", "fix.profile", "fix.model", "fix.effort", "fix.delegation", "fix.max_attempts", "fix.attempt_timeout"}
+		keys := []string{"fix.target_score", "fix.change_scope", "fix.profile", "fix.model", "fix.effort", "fix.delegation", "fix.prompt_template"}
 		if index < len(keys) {
 			return keys[index]
 		}
@@ -1020,21 +1785,70 @@ func (model Model) configFieldOriginKey(index int) string {
 			return "fix.focus." + string(metrics[metricIndex].ID)
 		}
 	case configConcurrency:
-		keys := []string{"concurrency.max_agents", "concurrency.max_verifiers", "concurrency.max_retained_jobs", "concurrency.max_transcript_bytes"}
+		keys := []string{"concurrency.max_agents", "concurrency.max_verifiers", "concurrency.max_retained_jobs", "concurrency.max_transcript_bytes", "concurrency.max_actors_per_job", "concurrency.max_candidate_preview_bytes", "concurrency.max_candidate_preview_lines"}
 		if index < len(keys) {
 			return keys[index]
 		}
 	case configDelivery:
-		keys := []string{"delivery.default_mode", "delivery.remote", "delivery.base_branch", "delivery.branch_template", "delivery.publisher", "delivery.draft_pull_requests"}
+		if index == 3 {
+			if _, legacy := configEffectiveBranchTemplate(state.working); legacy {
+				return "fix.branch_template"
+			}
+		}
+		keys := []string{"delivery.default_mode", "delivery.remote", "delivery.base_branch", "delivery.branch_template", "delivery.publisher", "delivery.draft_pull_requests", "delivery.require_validation", "delivery.command_output_bytes", "delivery.commit_title_template", "delivery.commit_body_template", "delivery.pull_request_title_template", "delivery.pull_request_body_template", "delivery.cleanup_policy", "delivery.commit_policy"}
 		if index < len(keys) {
 			return keys[index]
 		}
 	case configValidation:
-		if index >= 0 && index < len(state.working.Validation) {
-			return "validation." + state.working.Validation[index].ID
+		rows := validationSettingsRows(state.working.Validation)
+		if index >= 0 && index < len(rows) {
+			row := rows[index]
+			if validationWorkspaceRow(row.kind) {
+				keys := map[validationRowKind]string{
+					validationRowWorkspaceFiles:              "validation_workspace.max_files",
+					validationRowWorkspaceDirectories:        "validation_workspace.max_directories",
+					validationRowWorkspacePathBytes:          "validation_workspace.max_path_bytes",
+					validationRowWorkspaceFileBytes:          "validation_workspace.max_file_bytes",
+					validationRowWorkspaceTotalBytes:         "validation_workspace.max_total_bytes",
+					validationRowContainerPIDs:               "validation_workspace.container_pids",
+					validationRowContainerMemoryBytes:        "validation_workspace.container_memory_bytes",
+					validationRowContainerCPUMillis:          "validation_workspace.container_cpu_millis",
+					validationRowContainerTemporaryBytes:     "validation_workspace.container_temporary_bytes",
+					validationRowContainerWorkspaceBytes:     "validation_workspace.container_workspace_bytes",
+					validationRowContainerNofileLimit:        "validation_workspace.container_nofile_limit",
+					validationRowContainerGeneratedFileBytes: "validation_workspace.container_generated_file_bytes",
+					validationRowContainerStopTimeout:        "validation_workspace.container_stop_timeout",
+					validationRowContainerControlTimeout:     "validation_workspace.container_control_timeout",
+					validationRowContainerSentinelTimeout:    "validation_workspace.container_sentinel_timeout",
+					validationRowContainerCrashProbeTimeout:  "validation_workspace.container_crash_probe_timeout",
+				}
+				return keys[row.kind]
+			}
+			if row.kind == validationRowPlan {
+				return "fix.validation_plan"
+			}
+			key := "validation." + state.working.Validation[row.plan].ID
+			if row.check >= 0 {
+				key += ".checks." + string(state.working.Validation[row.plan].Checks[row.check].ID)
+			}
+			return key
 		}
 	}
 	return ""
+}
+
+func configEffectiveBranchTemplate(value appconfig.Resolved) (string, bool) {
+	deliveryTemplate := strings.TrimSpace(value.Delivery.BranchTemplate)
+	legacyTemplate := strings.TrimSpace(value.Fix.BranchTemplate)
+	if deliveryTemplate == "" {
+		return legacyTemplate, legacyTemplate != ""
+	}
+	legacyOrigin := value.Origins["fix.branch_template"]
+	if value.Origins["delivery.branch_template"] == appconfig.OriginBuiltIn &&
+		legacyOrigin != "" && legacyOrigin != appconfig.OriginBuiltIn && legacyTemplate != "" {
+		return legacyTemplate, true
+	}
+	return deliveryTemplate, false
 }
 
 func cloneConfigResolved(value appconfig.Resolved) appconfig.Resolved {
@@ -1045,11 +1859,16 @@ func cloneConfigResolved(value appconfig.Resolved) appconfig.Resolved {
 	}
 	result.Fix = cloneConfigFix(value.Fix)
 	result.Profiles = cloneConfigProfiles(value.Profiles)
-	result.Validation = append(result.Validation[:0:0], value.Validation...)
-	for index := range result.Validation {
-		result.Validation[index].Checks = append(result.Validation[index].Checks[:0:0], value.Validation[index].Checks...)
-		for checkIndex := range result.Validation[index].Checks {
-			result.Validation[index].Checks[checkIndex].Arguments = append([]string(nil), value.Validation[index].Checks[checkIndex].Arguments...)
+	result.Validation = cloneConfigValidation(value.Validation)
+	return result
+}
+
+func cloneConfigValidation(value []validation.Plan) []validation.Plan {
+	result := append(value[:0:0], value...)
+	for index := range result {
+		result[index].Checks = append(result[index].Checks[:0:0], value[index].Checks...)
+		for checkIndex := range result[index].Checks {
+			result[index].Checks[checkIndex].Arguments = append([]string(nil), value[index].Checks[checkIndex].Arguments...)
 		}
 	}
 	return result

@@ -22,6 +22,9 @@ func applyUserPatch(value *preferences.Document, patch appconfig.Patch) error {
 	if patch.Validation != nil {
 		value.Validation.Plans = appPlansToPreference(*patch.Validation)
 	}
+	if patch.ValidationWorkspace != nil {
+		value.ValidationWorkspace = appValidationWorkspaceToPreference(*patch.ValidationWorkspace)
+	}
 	if patch.Delivery != nil {
 		value.Delivery = appDeliveryToPreference(*patch.Delivery)
 	}
@@ -52,6 +55,9 @@ func applyRepositoryPatch(value *preferences.PartialDocument, patch appconfig.Pa
 		item := preferences.Validation{Plans: appPlansToPreference(*patch.Validation)}
 		value.Validation = &item
 	}
+	if patch.ValidationWorkspace != nil {
+		return errors.New("repository preferences cannot override user-owned validation workspace limits")
+	}
 	if patch.Delivery != nil {
 		item := appDeliveryToPreference(*patch.Delivery)
 		value.Delivery = &item
@@ -67,6 +73,12 @@ func (adapter *Adapter) applyRepository(resolved *appconfig.Resolved, value pref
 	if err := validateRepositoryPartial(value); err != nil {
 		return err
 	}
+	// Repository preferences are untrusted input from the checked-out tree.
+	// Compare them with the already resolved user configuration before applying
+	// them so precedence can only narrow authority and bounded resource use.
+	if err := validateRepositoryOverride(*resolved, value); err != nil {
+		return err
+	}
 	if value.Fix != nil {
 		converted, err := preferenceFixToApp(*value.Fix)
 		if err != nil {
@@ -80,7 +92,7 @@ func (adapter *Adapter) applyRepository(resolved *appconfig.Resolved, value pref
 	if value.Concurrency != nil {
 		resolved.Concurrency = preferenceConcurrencyToApp(*value.Concurrency)
 		resolved.Origins["concurrency"] = appconfig.OriginRepository
-		setOrigins(resolved.Origins, appconfig.OriginRepository, "concurrency.max_agents", "concurrency.max_verifiers", "concurrency.max_retained_jobs", "concurrency.max_transcript_bytes")
+		setOrigins(resolved.Origins, appconfig.OriginRepository, "concurrency.max_agents", "concurrency.max_verifiers", "concurrency.max_retained_jobs", "concurrency.max_transcript_bytes", "concurrency.max_actors_per_job", "concurrency.max_candidate_preview_bytes", "concurrency.max_candidate_preview_lines")
 	}
 	if value.Validation != nil {
 		selected, err := selectValidationPlans(resolved.Validation, value.Validation.Plans)
@@ -96,7 +108,7 @@ func (adapter *Adapter) applyRepository(resolved *appconfig.Resolved, value pref
 	if value.Delivery != nil {
 		resolved.Delivery = preferenceDeliveryToApp(*value.Delivery)
 		resolved.Origins["delivery"] = appconfig.OriginRepository
-		setOrigins(resolved.Origins, appconfig.OriginRepository, "delivery.default_mode", "delivery.remote", "delivery.base_branch", "delivery.branch_template", "delivery.publisher", "delivery.draft_pull_requests")
+		setOrigins(resolved.Origins, appconfig.OriginRepository, "delivery.default_mode", "delivery.remote", "delivery.base_branch", "delivery.branch_template", "delivery.publisher", "delivery.draft_pull_requests", "delivery.require_validation", "delivery.command_output_bytes")
 	}
 	if value.Interaction != nil {
 		trend, err := parseDuration("interaction.trend_window", value.Interaction.TrendWindow)

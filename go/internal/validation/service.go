@@ -47,10 +47,17 @@ type Result struct {
 	Diagnostic        string
 }
 
+type Readiness struct {
+	Required   bool
+	Ready      bool
+	Diagnostic string
+}
+
 func (result Result) Stable() bool {
 	return result.FingerprintBefore != "" && result.FingerprintBefore == result.FingerprintAfter
 }
 
 type Service interface {
+	Preflight(context.Context, fix.WorkspaceIdentity, Plan) Readiness
 	Validate(context.Context, fix.CandidateIdentity, Plan) (Result, error)
 }

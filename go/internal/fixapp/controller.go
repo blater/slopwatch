@@ -10,7 +10,6 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/candidate"
@@ -22,7 +21,7 @@ import (
 	"github.com/blater/slopwatch/internal/validation"
 )
 
-func validateInitialJournal(records []jobstore.Record, maxTranscriptItems int) error {
+func validateInitialJournal(records []jobstore.Record) error {
 	seen := make(map[fix.JobID]uint64)
 	for index, stored := range records {
 		if stored.Version != jobstore.RecordVersion || stored.Sequence != uint64(index+1) {
@@ -49,9 +48,16 @@ func validateInitialJournal(records []jobstore.Record, maxTranscriptItems int) e
 		if envelope.Candidate != nil && envelope.Candidate.Job != stored.JobID {
 			return fmt.Errorf("fix journal job %s candidate identity mismatch", stored.JobID)
 		}
+		ordinal := envelope.Presentation.AttemptOrdinal
+		if ordinal < 0 {
+			return fmt.Errorf("fix journal job %s contains invalid attempt counters", stored.JobID)
+		}
+		if len(envelope.RetryEvidence) > 504 || strings.ContainsRune(envelope.RetryEvidence, '\x00') {
+			return fmt.Errorf("fix journal job %s contains invalid retry evidence", stored.JobID)
+		}
 		if envelope.Transcript != nil {
-			if len(envelope.Transcript.Entries) > maxTranscriptItems {
-				return fmt.Errorf("fix journal job %s transcript exceeds configured bound", stored.JobID)
+			if transcriptBytes(envelope.Transcript.Entries) == math.MaxInt64 && len(envelope.Transcript.Entries) > 0 {
+				return fmt.Errorf("fix journal job %s contains an unencodable or oversized transcript", stored.JobID)
 			}
 			for _, entry := range envelope.Transcript.Entries {
 				if len(entry.Summary) > 504 || strings.ContainsRune(entry.Summary, '\x00') {
@@ -101,6 +107,9 @@ func (manager *Manager) run() {
 		jobs: map[fix.JobID]*jobRecord{}, reservations: map[string]fix.JobID{},
 	}
 	manager.restore(state)
+	if err := manager.pruneDiscarded(state); err != nil {
+		manager.journalFailed = true
+	}
 	manager.publish(state)
 	close(manager.ready)
 	defer func() {
@@ -132,12 +141,16 @@ func (manager *Manager) run() {
 			case candidateCall:
 				record, found := state.jobs[value.id]
 				if found && record.candidate != nil {
-					value.response <- candidateResponse{identity: *record.candidate, ok: true}
+					value.response <- candidateResponse{identity: *record.candidate,
+						previewBytes: record.draft.Preferences.Concurrency.MaxCandidatePreviewBytes,
+						previewLines: record.draft.Preferences.Concurrency.MaxCandidatePreviewLines, ok: true}
 				} else {
 					value.response <- candidateResponse{}
 				}
 			case shutdownCall:
 				manager.handleShutdown(state, value)
+			case reconfigureCall:
+				manager.handleReconfigure(state, value)
 			}
 		case update := <-manager.events:
 			if update.barrier != nil {
@@ -152,6 +165,31 @@ func (manager *Manager) run() {
 	}
 }
 
+func (manager *Manager) handleReconfigure(state *controllerState, call reconfigureCall) {
+	if state.shuttingDown || manager.journalFailed {
+		call.response <- ErrClosed
+		return
+	}
+	if err := call.ctx.Err(); err != nil {
+		call.response <- err
+		return
+	}
+	manager.options.MaxAgents = call.limits.MaxAgents
+	manager.options.MaxVerifiers = call.limits.MaxVerifiers
+	manager.options.MaxRetainedJobs = call.limits.MaxRetainedJobs
+	manager.options.MaxTranscriptBytes = call.limits.MaxTranscriptBytes
+	for _, record := range state.jobs {
+		var trimmed bool
+		record.logs, record.logBytes, trimmed = trimTranscript(record.logs, call.limits.MaxTranscriptBytes)
+		if trimmed {
+			record.truncated = true
+			manager.changedRecord(state, record)
+		}
+	}
+	manager.publish(state)
+	call.response <- nil
+}
+
 func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
 	if state.shuttingDown || manager.journalFailed {
 		call.response <- submitResponse{err: ErrClosed}
@@ -159,6 +197,20 @@ func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
 	}
 	if err := call.ctx.Err(); err != nil {
 		call.response <- submitResponse{err: err}
+		return
+	}
+	if err := manager.pruneDiscarded(state); err != nil {
+		call.response <- submitResponse{err: fmt.Errorf("prune discarded fix jobs: %w", err)}
+		return
+	}
+	retained := 0
+	for _, record := range state.jobs {
+		if record.presentation.Phase != fix.PhaseDiscarded {
+			retained++
+		}
+	}
+	if retained >= manager.options.MaxRetainedJobs {
+		call.response <- submitResponse{err: fmt.Errorf("fix retained-job limit %d reached; discard or clean up a retained job", manager.options.MaxRetainedJobs)}
 		return
 	}
 	draft := call.request.Draft
@@ -181,9 +233,10 @@ func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
 	now := manager.options.Clock()
 	presentation := fix.JobPresentation{
 		ID: id, Revision: 1, Phase: fix.PhaseQueued, Attention: fix.AttentionNone,
-		ProfileLabel: draft.Profile.Label, ModelLabel: string(draft.Model), EffortLabel: string(draft.Effort),
+		ProfileLabel: draft.Profile.Label, ProfileID: string(draft.Profile.ID), ModelLabel: string(draft.Model), EffortLabel: string(draft.Effort),
 		Goal: goalLabel(draft), Targets: baselineTargets(draft.Baseline.Contract), CurrentAction: "Waiting for an agent slot",
-		CreatedAt: now, UpdatedAt: now, Compliance: fix.ComplianceUnknown,
+		AttemptOrdinal: 1,
+		CreatedAt:      now, UpdatedAt: now, Compliance: fix.ComplianceUnknown,
 		Validation: fix.ValidationNotRun, Scope: fix.ScopeUnknown, Delivery: fix.DeliveryNone,
 		DeliveryMode: draft.DeliveryMode, BranchName: draft.BranchName,
 	}
@@ -202,12 +255,52 @@ func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
 	call.response <- submitResponse{id: id}
 }
 
+func (manager *Manager) pruneDiscarded(state *controllerState) error {
+	kept := make([]fix.JobID, 0, len(state.order))
+	removed := make(map[fix.JobID]*jobRecord)
+	for _, id := range state.order {
+		record := state.jobs[id]
+		if record != nil && record.presentation.Phase == fix.PhaseDiscarded {
+			removed[id] = record
+			delete(state.jobs, id)
+			continue
+		}
+		kept = append(kept, id)
+	}
+	if len(removed) == 0 {
+		return nil
+	}
+	oldOrder := state.order
+	state.order = kept
+	if err := manager.compact(state); err != nil {
+		state.order = oldOrder
+		for id, record := range removed {
+			state.jobs[id] = record
+		}
+		return err
+	}
+	return nil
+}
+
 func validateDraft(draft FixDraft) error {
 	if draft.ID == "" || draft.Workspace.RepositoryRoot == "" || len(draft.Targets) == 0 {
 		return errors.New("submit fix: draft is incomplete")
 	}
 	if !draft.Preflight.Clean || !draft.Preflight.Supported {
 		return fmt.Errorf("submit fix: workspace preflight failed: %s", draft.Preflight.Diagnostic)
+	}
+	if draft.DeliveryMode == fix.DeliveryModePullRequest && strings.TrimSpace(draft.Preferences.Delivery.BaseBranch) == "" {
+		return errors.New("submit fix: pull-request delivery requires an explicit base branch")
+	}
+	if draft.DeliveryMode == fix.DeliveryModePullRequest && draft.Preferences.Delivery.RequireValidation && strings.TrimSpace(draft.ValidationPlanID) == "" {
+		return errors.New("submit fix: pull-request delivery requires a ready validation plan")
+	}
+	if draft.ValidationReadiness.Required && !draft.ValidationReadiness.Ready {
+		diagnostic := draft.ValidationReadiness.Diagnostic
+		if diagnostic == "" {
+			diagnostic = "validation executor is unavailable"
+		}
+		return fmt.Errorf("submit fix: required validation is unavailable: %s", diagnostic)
 	}
 	if math.IsNaN(draft.TargetScore) || math.IsInf(draft.TargetScore, 0) || draft.TargetScore < 0 || draft.Baseline.Contract.Goal.MaximumScore != draft.TargetScore {
 		return errors.New("submit fix: score goal is invalid or inconsistent")
@@ -283,7 +376,7 @@ func (manager *Manager) schedule(state *controllerState) {
 			cancel()
 			continue
 		}
-		go manager.runAgent(ctx, record.draft, record.presentation.ID, attempt, *record.candidate)
+		go manager.runAgent(ctx, record.draft, record.retryEvidence, record.presentation.ID, attempt, *record.candidate)
 	}
 	for state.verifiersRunning < manager.options.MaxVerifiers {
 		record := firstInPhase(state, fix.PhaseWaitingVerifier)
@@ -307,7 +400,7 @@ func (manager *Manager) schedule(state *controllerState) {
 
 func (manager *Manager) runCandidatePrepare(ctx context.Context, draft FixDraft, job fix.JobID, attempt fix.AttemptID) {
 	identity, err := manager.deps.Candidates.Prepare(ctx, candidate.PrepareRequest{Job: job, Workspace: draft.Workspace,
-		Targets: draft.Targets, AllowedScope: draft.ChangeScope, AllowedPaths: draft.AllowedPaths})
+		Targets: draft.Targets, AllowedScope: draft.ChangeScope, AllowedPaths: draft.AllowedPaths, CommandOutputBytes: draft.Preferences.Delivery.CommandOutputBytes})
 	if err != nil {
 		err = fmt.Errorf("prepare candidate: %w", err)
 	}
@@ -330,7 +423,7 @@ func firstInPhase(state *controllerState, phase fix.Phase) *jobRecord {
 	return nil
 }
 
-func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, job fix.JobID, attempt fix.AttemptID, identity fix.CandidateIdentity) {
+func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, retryEvidence string, job fix.JobID, attempt fix.AttemptID, identity fix.CandidateIdentity) {
 	select {
 	case manager.events <- agentUpdate{event: agent.Event{JobID: job, AttemptID: attempt, At: manager.options.Clock(), Kind: agent.EventActivity, Summary: "Candidate ready; starting agent"}}:
 	case <-manager.done:
@@ -341,13 +434,15 @@ func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, job fix.Jo
 		manager.finishAgentWorker(job, attempt, workerResult{kind: workerAgent, job: job, attempt: attempt, candidate: &identity, err: err})
 		return
 	}
+	instructions := draft.Instructions
+	instructions.RetryEvidence = retryEvidence
 	request := agent.Request{
 		JobID: job, AttemptID: attempt, Workspace: identity, Model: draft.Model, Effort: draft.Effort, Delegation: draft.Delegation,
 		Task: agent.RemediationTask{Targets: cloneContract(draft.Baseline.Contract).Targets, Goal: draft.Baseline.Contract.Goal,
-			Instructions: draft.Instructions, Validation: agent.ValidationContract{PlanID: draft.ValidationPlanID, Required: draft.ValidationPlanID != ""}},
+			Instructions: instructions, Validation: agent.ValidationContract{PlanID: draft.ValidationPlanID, Required: draft.ValidationPlanID != ""}},
 		Write: agent.WritePolicy{Allowed: append([]fix.RepoPath(nil), draft.AllowedPaths...), Scope: draft.ChangeScope},
-		Limits: agent.Limits{WallTime: draft.Preferences.Fix.AttemptTimeout, MaxOutputBytes: draft.Preferences.Concurrency.MaxTranscriptBytes,
-			MaxEvents: manager.options.MaxTranscriptItems, MaxActors: 32},
+		Limits: agent.Limits{MaxOutputBytes: draft.Preferences.Concurrency.MaxTranscriptBytes,
+			MaxActors: draft.Preferences.Concurrency.MaxActorsPerJob},
 	}
 	result := strategy.Execute(ctx, draft.Profile, request, agent.EventSinkFunc(func(event agent.Event) error {
 		if event.JobID != job || event.AttemptID != attempt {
@@ -362,9 +457,7 @@ func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, job fix.Jo
 			return ErrClosed
 		}
 	}))
-	inventoryCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	diff, inventoryErr := manager.deps.Candidates.Diff(inventoryCtx, identity)
-	cancel()
+	diff, inventoryErr := manager.deps.Candidates.Diff(ctx, identity)
 	manager.finishAgentWorker(job, attempt, workerResult{kind: workerAgent, job: job, attempt: attempt, candidate: &identity, agent: result,
 		diff: diff, inventoryErr: inventoryErr})
 }
@@ -424,13 +517,26 @@ func (manager *Manager) runVerifier(ctx context.Context, draft FixDraft, job fix
 }
 
 func publicationRequests(draft FixDraft, job fix.JobID, identity fix.CandidateIdentity, diffHash string, delivered delivery.Result) (delivery.Request, publisher.Request) {
+	commitTitle := renderPublicationTemplate(draft.Preferences.Delivery.CommitTitleTemplate, "Refactor {targets} with Slopwatch", draft, job)
+	commitBody := renderPublicationTemplate(draft.Preferences.Delivery.CommitBodyTemplate, "Automated remediation for {goal}.", draft, job)
+	prTitle := renderPublicationTemplate(draft.Preferences.Delivery.PullRequestTitleTemplate, commitTitle, draft, job)
+	prBody := renderPublicationTemplate(draft.Preferences.Delivery.PullRequestBodyTemplate, commitBody, draft, job)
 	request := delivery.Request{Job: job, Candidate: identity, DiffHash: diffHash, Branch: draft.BranchName,
-		Remote: draft.Preferences.Delivery.Remote, CommitTitle: "Refactor " + targetLabel(draft.Targets) + " with Slopwatch",
-		CommitBody: "Automated remediation for " + goalLabel(draft) + "."}
+		Remote: draft.Preferences.Delivery.Remote, CommitTitle: commitTitle, CommitBody: commitBody,
+		ExpectedRemoteHost: draft.DeliveryTarget.RemoteHost, HostRepository: draft.DeliveryTarget.HostRepository,
+		ExpectedRemoteIdentity: draft.DeliveryTarget.RemoteIdentity, CommandOutputBytes: draft.Preferences.Delivery.CommandOutputBytes}
 	pullRequest := publisher.Request{Job: job, Repository: identity.Repository, Candidate: identity, HostRepository: delivered.Repository,
 		Remote: draft.Preferences.Delivery.Remote, BaseBranch: draft.Preferences.Delivery.BaseBranch, HeadBranch: draft.BranchName,
-		Commit: delivered.Commit, Title: request.CommitTitle, Body: request.CommitBody, Draft: draft.Preferences.Delivery.DraftPullRequests}
+		Commit: delivered.Commit, Title: prTitle, Body: prBody, Draft: draft.Preferences.Delivery.DraftPullRequests,
+		CommandOutputBytes: draft.Preferences.Delivery.CommandOutputBytes}
 	return request, pullRequest
+}
+
+func renderPublicationTemplate(template, fallback string, draft FixDraft, job fix.JobID) string {
+	if strings.TrimSpace(template) == "" {
+		template = fallback
+	}
+	return strings.NewReplacer("{targets}", targetLabel(draft.Targets), "{goal}", goalLabel(draft), "{branch}", draft.BranchName, "{job}", string(job)).Replace(template)
 }
 
 func (manager *Manager) runPublicationStep(ctx context.Context, step publicationStep, draft FixDraft, job fix.JobID, attempt fix.AttemptID,
@@ -439,13 +545,27 @@ func (manager *Manager) runPublicationStep(ctx context.Context, step publication
 	var err error
 	switch step {
 	case publicationCommit:
-		delivered, err = manager.deps.Delivery.CreateCommit(ctx, request)
+		var current delivery.PreflightResult
+		current, err = manager.preflightDelivery(ctx, draft.Workspace, draft.DeliveryMode, draft.Preferences.Delivery, draft.BranchName, true)
+		if err == nil && current != draft.DeliveryTarget {
+			err = errors.New("delivery target changed since admission")
+		}
+		if err == nil {
+			delivered, err = manager.deps.Delivery.CreateCommit(ctx, request)
+		}
 	case publicationLocalRef:
 		delivered, err = manager.deps.Delivery.CreateLocalRef(ctx, request, delivered)
 	case publicationRemoteRef:
 		delivered, err = manager.deps.Delivery.CreateRemoteRef(ctx, request, delivered)
 	case publicationReconcile:
 		delivered, err = manager.deps.Delivery.Reconcile(ctx, request, delivered)
+	case publicationPRReconcile:
+		if manager.deps.Publisher == nil {
+			err = errors.New("pull request publisher is unavailable")
+		} else {
+			pullRequest.Commit = delivered.Commit
+			published, err = manager.deps.Publisher.Reconcile(ctx, pullRequest, published)
+		}
 	case publicationPullRequest:
 		if manager.deps.Publisher == nil {
 			err = errors.New("pull request publisher is unavailable")
@@ -616,7 +736,7 @@ func (manager *Manager) handleCandidatePrepared(state *controllerState, record *
 		cancel()
 		return
 	}
-	go manager.runAgent(ctx, record.draft, record.presentation.ID, record.attempt, identity)
+	go manager.runAgent(ctx, record.draft, record.retryEvidence, record.presentation.ID, record.attempt, identity)
 }
 
 func workerPhaseMatches(kind workerKind, phase fix.Phase) bool {
@@ -639,10 +759,28 @@ func workerPhaseMatches(kind workerKind, phase fix.Phase) bool {
 }
 
 func (manager *Manager) applyDiffInventory(record *jobRecord, diff candidate.DiffSnapshot) {
+	existing := make(map[fix.RepoPath]fix.FilePresentation, len(record.presentation.Targets))
+	for _, file := range record.presentation.Targets {
+		existing[file.Path] = file
+	}
 	record.baseScope = diff.Scope
 	record.presentation.Scope = diff.Scope
 	record.diffHash = diff.Fingerprint
+	record.presentation.DiffFingerprint = diff.Fingerprint
 	record.diffPaths = make(map[fix.RepoPath]bool, len(diff.Files)*2)
+	files := make(map[fix.RepoPath]fix.FilePresentation, len(record.presentation.Targets)+len(diff.Files))
+	for _, file := range baselineTargets(record.draft.Baseline.Contract) {
+		if prior, ok := existing[file.Path]; ok {
+			file.VerifiedScore = prior.VerifiedScore
+			file.VerifiedMetrics = append([]fix.MetricValue(nil), prior.VerifiedMetrics...)
+			file.Verification = prior.Verification
+		}
+		files[file.Path] = file
+	}
+	allowed := make(map[fix.RepoPath]bool, len(record.draft.AllowedPaths))
+	for _, path := range record.draft.AllowedPaths {
+		allowed[path] = true
+	}
 	for _, file := range diff.Files {
 		if file.Path != "" {
 			record.diffPaths[file.Path] = true
@@ -650,6 +788,30 @@ func (manager *Manager) applyDiffInventory(record *jobRecord, diff candidate.Dif
 		if file.Previous != "" {
 			record.diffPaths[file.Previous] = true
 		}
+		projected, exists := files[file.Path]
+		if !exists {
+			projected = fix.FilePresentation{Path: file.Path, Classification: "supporting"}
+			if prior, ok := existing[file.Path]; ok {
+				projected = prior
+			}
+		}
+		projected.Changed = true
+		projected.ChangeStatus = file.Status
+		projected.PreviousPath = file.Previous
+		if record.draft.ChangeScope != "repository" && (!allowed[file.Path] || file.Previous != "" && !allowed[file.Previous]) {
+			projected.Classification = "violation"
+			projected.ScopeViolation = true
+		}
+		files[file.Path] = projected
+	}
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path.String())
+	}
+	sort.Strings(paths)
+	record.presentation.Targets = make([]fix.FilePresentation, 0, len(paths))
+	for _, path := range paths {
+		record.presentation.Targets = append(record.presentation.Targets, files[fix.RepoPath(path)])
 	}
 }
 
@@ -711,7 +873,7 @@ func (manager *Manager) applyVerification(record *jobRecord, result workerResult
 			score := verified.Score
 			record.presentation.Targets[index].VerifiedScore = &score
 			record.presentation.Targets[index].Verification = verified.Diagnostic
-			record.presentation.Targets[index].Metrics = metricValues(verified.Metrics)
+			record.presentation.Targets[index].VerifiedMetrics = metricValues(verified.Metrics)
 		}
 	}
 	if result.verify.Complete && result.verify.Compliant && result.verify.Stable() {
@@ -730,6 +892,108 @@ func (manager *Manager) applyVerification(record *jobRecord, result workerResult
 	}
 	record.presentation.Phase = fix.PhaseAwaitingReview
 	record.presentation.CurrentAction = "Candidate ready for review"
+	if record.presentation.Compliance == fix.ComplianceNoncompliant || record.presentation.Validation == fix.ValidationFailed {
+		record.retryEvidence = verificationRetryEvidence(record, result)
+	} else {
+		record.retryEvidence = ""
+	}
+}
+
+func verificationRetryEvidence(record *jobRecord, result workerResult) string {
+	parts := []string{fmt.Sprintf("attempt %d", record.presentation.AttemptOrdinal)}
+	diagnostics := make([]string, 0, 2)
+	if record.presentation.Compliance == fix.ComplianceNoncompliant {
+		parts = append(parts, "scoring noncompliant")
+		if diagnostic := boundedRetryDiagnostic(result.verify.Diagnostic); diagnostic != "" {
+			diagnostics = append(diagnostics, diagnostic)
+		}
+	}
+	if record.presentation.Validation == fix.ValidationFailed {
+		parts = append(parts, "validation failed")
+		if diagnostic := boundedRetryDiagnostic(result.validation.Diagnostic); diagnostic != "" {
+			diagnostics = append(diagnostics, diagnostic)
+		}
+	}
+	for _, target := range record.presentation.Targets {
+		if target.VerifiedScore != nil && *target.VerifiedScore > record.draft.TargetScore {
+			parts = append(parts, fmt.Sprintf("%s score %.1f exceeds target %.1f", target.Path, *target.VerifiedScore, record.draft.TargetScore))
+		}
+	}
+	parts = append(parts, diagnostics...)
+	return sanitizeSummary(strings.Join(parts, "; "))
+}
+
+func boundedRetryDiagnostic(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 160 {
+		value = value[:160] + "…"
+	}
+	return sanitizeSummary(value)
+}
+
+// transcriptBytes is the exact sum of the JSON-encoded LogEntry values kept
+// for one job. Array punctuation and journal envelope metadata are not charged:
+// the preference governs retained transcript entries, not storage framing.
+func transcriptBytes(entries []LogEntry) int64 {
+	var total int64
+	for _, entry := range entries {
+		encoded, err := json.Marshal(entry)
+		if err != nil {
+			// LogEntry contains only JSON-safe fields. If that invariant is ever
+			// broken, treat the entry as unretainable instead of undercounting it.
+			return math.MaxInt64
+		}
+		size := int64(len(encoded))
+		if total > math.MaxInt64-size {
+			return math.MaxInt64
+		}
+		total += size
+	}
+	return total
+}
+
+func trimTranscript(entries []LogEntry, maximum int64) ([]LogEntry, int64, bool) {
+	total := transcriptBytes(entries)
+	start := 0
+	for start < len(entries) && total > maximum {
+		encoded, err := json.Marshal(entries[start])
+		if err != nil {
+			return nil, 0, true
+		}
+		total -= int64(len(encoded))
+		start++
+	}
+	if start == 0 {
+		return entries, total, false
+	}
+	return append([]LogEntry(nil), entries[start:]...), total, true
+}
+
+func appendTranscript(entries []LogEntry, retainedBytes int64, entry LogEntry, maximum int64) ([]LogEntry, int64, bool) {
+	encoded, err := json.Marshal(entry)
+	if err != nil {
+		return entries, retainedBytes, true
+	}
+	size := int64(len(encoded))
+	if retainedBytes > math.MaxInt64-size {
+		retainedBytes = math.MaxInt64
+	} else {
+		retainedBytes += size
+	}
+	entries = append(entries, entry)
+	start := 0
+	for start < len(entries) && retainedBytes > maximum {
+		removed, marshalErr := json.Marshal(entries[start])
+		if marshalErr != nil {
+			return nil, 0, true
+		}
+		retainedBytes -= int64(len(removed))
+		start++
+	}
+	if start == 0 {
+		return entries, retainedBytes, false
+	}
+	return append([]LogEntry(nil), entries[start:]...), retainedBytes, true
 }
 
 func (manager *Manager) handleEvent(state *controllerState, event agent.Event) {
@@ -746,19 +1010,62 @@ func (manager *Manager) handleEvent(state *controllerState, event agent.Event) {
 	if event.Kind == agent.EventWarning {
 		record.presentation.WarningCount++
 	}
+	if event.Kind == agent.EventFileChanged && event.Path != "" {
+		found := false
+		for index := range record.presentation.Targets {
+			if record.presentation.Targets[index].Path == event.Path {
+				record.presentation.Targets[index].Changed = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			record.presentation.Targets = append(record.presentation.Targets, fix.FilePresentation{Path: event.Path, Classification: "provisional", Changed: true})
+		}
+	}
 	if event.ActorID != "" {
+		actorLimit := record.draft.Preferences.Concurrency.MaxActorsPerJob
 		if record.actors == nil {
 			record.actors = map[string]bool{}
 		}
-		if len(record.actors) < 32 {
+		if len(record.actors) < actorLimit {
 			record.actors[event.ActorID] = true
 		}
 		record.presentation.ActorCount = len(record.actors)
+		updated := false
+		for index := range record.presentation.Actors {
+			if record.presentation.Actors[index].ID == event.ActorID {
+				record.presentation.Actors[index].ParentID = sanitizeSummary(event.ParentActorID)
+				if event.Summary != "" {
+					record.presentation.Actors[index].CurrentAction = sanitizeSummary(event.Summary)
+				}
+				updated = true
+				break
+			}
+		}
+		if !updated && len(record.presentation.Actors) < actorLimit {
+			record.presentation.Actors = append(record.presentation.Actors, fix.ActorPresentation{ID: sanitizeSummary(event.ActorID), ParentID: sanitizeSummary(event.ParentActorID), CurrentAction: sanitizeSummary(event.Summary)})
+		}
 	}
-	entry := LogEntry{At: event.At, Kind: event.Kind, Summary: sanitizeSummary(event.Summary)}
-	record.logs = append(record.logs, entry)
-	if overflow := len(record.logs) - manager.options.MaxTranscriptItems; overflow > 0 {
-		record.logs = append([]LogEntry(nil), record.logs[overflow:]...)
+	if event.Usage != nil {
+		record.presentation.UsageReported = true
+		if event.Usage.Cumulative {
+			record.presentation.Usage = fix.UsagePresentation{InputTokens: event.Usage.InputTokens, CachedTokens: event.Usage.CachedTokens, OutputTokens: event.Usage.OutputTokens, ReasoningTokens: event.Usage.ReasoningTokens}
+		} else {
+			record.presentation.Usage.InputTokens += event.Usage.InputTokens
+			record.presentation.Usage.CachedTokens += event.Usage.CachedTokens
+			record.presentation.Usage.OutputTokens += event.Usage.OutputTokens
+			record.presentation.Usage.ReasoningTokens += event.Usage.ReasoningTokens
+		}
+	}
+	entry := LogEntry{At: event.At, Kind: event.Kind, Summary: sanitizeSummary(event.Summary), ActorID: sanitizeSummary(event.ActorID), ParentActorID: sanitizeSummary(event.ParentActorID)}
+	if event.Usage != nil {
+		usage := *event.Usage
+		entry.Usage = &usage
+	}
+	var trimmed bool
+	record.logs, record.logBytes, trimmed = appendTranscript(record.logs, record.logBytes, entry, manager.options.MaxTranscriptBytes)
+	if trimmed {
 		record.truncated = true
 	}
 	record.eventsSinceCheckpoint++
@@ -801,6 +1108,28 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 		call.response <- commandResponse{err: ErrStaleRevision}
 		return
 	}
+	if candidateSensitiveAction(call.command.Action) && record.candidate != nil {
+		diff, err := manager.deps.Candidates.Diff(call.ctx, *record.candidate)
+		if err != nil {
+			call.response <- commandResponse{err: fmt.Errorf("refresh candidate inventory: %w", err)}
+			return
+		}
+		if call.command.DiffHash == "" || call.command.DiffHash != diff.Fingerprint || record.diffHash != diff.Fingerprint {
+			manager.applyDiffInventory(record, diff)
+			clearVerifiedPresentation(record)
+			record.presentation.Compliance = fix.ComplianceUnknown
+			record.presentation.Validation = fix.ValidationNotRun
+			record.presentation.Phase = fix.PhaseWaitingVerifier
+			record.presentation.Attention = fix.AttentionRequired
+			record.presentation.CurrentAction = "Candidate changed after review; waiting for fresh verification"
+			record.presentation.Issue = &fix.JobIssue{Code: "candidate_changed", Summary: "Candidate changed after verification", Detail: "Review and validation results were invalidated"}
+			manager.reconcileConflicts(state)
+			manager.bump(state, record, "candidate_changed_before_command", mustJSON(map[string]any{"action": call.command.Action, "fingerprint": diff.Fingerprint}))
+			call.response <- commandResponse{err: ErrStaleCandidate}
+			return
+		}
+		manager.applyDiffInventory(record, diff)
+	}
 	if !hasAction(record.presentation.AllowedActions, call.command.Action) {
 		call.response <- commandResponse{err: ErrActionNotAllowed}
 		return
@@ -838,16 +1167,21 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 			record.presentation.CurrentAction = "Resuming publication from journaled state"
 			startPublication = true
 		} else {
+			if call.command.Action == fix.ActionRetry {
+				record.presentation.AttemptOrdinal++
+			}
 			record.presentation.Phase = fix.PhaseQueued
 			record.presentation.CurrentAction = "Waiting for an agent slot"
 			record.presentation.Compliance = fix.ComplianceUnknown
 			record.presentation.Validation = fix.ValidationNotRun
 			record.presentation.Scope = fix.ScopeUnknown
 			record.diffHash = ""
+			record.presentation.DiffFingerprint = ""
 			record.diffPaths = nil
 			record.baseScope = fix.ScopeUnknown
 			for index := range record.presentation.Targets {
 				record.presentation.Targets[index].VerifiedScore = nil
+				record.presentation.Targets[index].VerifiedMetrics = nil
 				record.presentation.Targets[index].Verification = ""
 			}
 		}
@@ -925,6 +1259,14 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 	call.response <- commandResponse{receipt: receipt}
 }
 
+func clearVerifiedPresentation(record *jobRecord) {
+	for index := range record.presentation.Targets {
+		record.presentation.Targets[index].VerifiedScore = nil
+		record.presentation.Targets[index].VerifiedMetrics = nil
+		record.presentation.Targets[index].Verification = ""
+	}
+}
+
 func (manager *Manager) handleShutdown(state *controllerState, call shutdownCall) {
 	state.shutdownWaiters = append(state.shutdownWaiters, call.response)
 	if state.shuttingDown {
@@ -950,6 +1292,14 @@ func (manager *Manager) startNextPublication(state *controllerState, record *job
 		manager.failRecord(state, record, "publication_unavailable", errors.New("publication service or candidate is unavailable"))
 		return
 	}
+	if policy := record.draft.Preferences.Delivery.CommitPolicy; policy != "" && policy != "on-publish" {
+		manager.failRecord(state, record, "publication_policy", fmt.Errorf("unsupported commit policy %q", policy))
+		return
+	}
+	if policy := record.draft.Preferences.Delivery.CleanupPolicy; policy != "" && policy != "retain" {
+		manager.failRecord(state, record, "publication_policy", fmt.Errorf("unsupported cleanup policy %q", policy))
+		return
+	}
 	var step publicationStep
 	switch {
 	case record.delivery.Ambiguous:
@@ -968,6 +1318,10 @@ func (manager *Manager) startNextPublication(state *controllerState, record *job
 		step = publicationRemoteRef
 		record.presentation.Phase = fix.PhasePublishing
 		record.presentation.CurrentAction = "Creating and verifying absent remote branch"
+	case record.draft.DeliveryMode == fix.DeliveryModePullRequest && record.published.Ambiguous:
+		step = publicationPRReconcile
+		record.presentation.Phase = fix.PhaseReconciling
+		record.presentation.CurrentAction = "Reconciling exact pull request identity"
 	case record.draft.DeliveryMode == fix.DeliveryModePullRequest && record.published.URL == "":
 		step = publicationPullRequest
 		record.presentation.Phase = fix.PhasePublishing
@@ -1095,7 +1449,7 @@ func (manager *Manager) journalEnvelope(record *jobRecord, kind string, data jso
 	envelope := journalEnvelope{Payload: data, Presentation: clonePresentation(record.presentation), Draft: cloneSubmit(SubmitRequest{Draft: record.draft}).Draft,
 		Candidate: record.candidate, DiffHash: record.diffHash, DiffPaths: diffPaths, BaseScope: record.baseScope,
 		Acknowledged: cloneAcknowledgements(record.acknowledged), Delivery: record.delivery, Published: record.published,
-		Attempt: record.attempt, Commands: cloneReceipts(record.commands)}
+		Attempt: record.attempt, RetryEvidence: record.retryEvidence, Commands: cloneReceipts(record.commands)}
 	if kind != "agent_event" {
 		envelope.Transcript = &transcriptCheckpoint{Entries: append([]LogEntry(nil), record.logs...), Truncated: record.truncated}
 	}
@@ -1125,19 +1479,20 @@ func (manager *Manager) compact(state *controllerState) error {
 }
 
 type journalEnvelope struct {
-	Payload      json.RawMessage                  `json:"payload,omitempty"`
-	Presentation fix.JobPresentation              `json:"presentation"`
-	Draft        FixDraft                         `json:"draft"`
-	Candidate    *fix.CandidateIdentity           `json:"candidate,omitempty"`
-	DiffHash     string                           `json:"diff_hash,omitempty"`
-	DiffPaths    []fix.RepoPath                   `json:"diff_paths,omitempty"`
-	BaseScope    fix.ScopeState                   `json:"base_scope,omitempty"`
-	Acknowledged map[fix.JobID]string             `json:"acknowledged,omitempty"`
-	Delivery     delivery.Result                  `json:"delivery,omitempty"`
-	Published    publisher.Result                 `json:"published,omitempty"`
-	Attempt      fix.AttemptID                    `json:"attempt,omitempty"`
-	Commands     map[fix.CommandID]CommandReceipt `json:"commands,omitempty"`
-	Transcript   *transcriptCheckpoint            `json:"transcript,omitempty"`
+	Payload       json.RawMessage                  `json:"payload,omitempty"`
+	Presentation  fix.JobPresentation              `json:"presentation"`
+	Draft         FixDraft                         `json:"draft"`
+	Candidate     *fix.CandidateIdentity           `json:"candidate,omitempty"`
+	DiffHash      string                           `json:"diff_hash,omitempty"`
+	DiffPaths     []fix.RepoPath                   `json:"diff_paths,omitempty"`
+	BaseScope     fix.ScopeState                   `json:"base_scope,omitempty"`
+	Acknowledged  map[fix.JobID]string             `json:"acknowledged,omitempty"`
+	Delivery      delivery.Result                  `json:"delivery,omitempty"`
+	Published     publisher.Result                 `json:"published,omitempty"`
+	Attempt       fix.AttemptID                    `json:"attempt,omitempty"`
+	RetryEvidence string                           `json:"retry_evidence,omitempty"`
+	Commands      map[fix.CommandID]CommandReceipt `json:"commands,omitempty"`
+	Transcript    *transcriptCheckpoint            `json:"transcript,omitempty"`
 }
 
 type transcriptCheckpoint struct {
@@ -1171,6 +1526,10 @@ func (manager *Manager) restore(state *controllerState) {
 		record.presentation = clonePresentation(envelope.Presentation)
 		record.draft = cloneSubmit(SubmitRequest{Draft: envelope.Draft}).Draft
 		record.attempt = envelope.Attempt
+		record.retryEvidence = envelope.RetryEvidence
+		if record.presentation.AttemptOrdinal <= 0 {
+			record.presentation.AttemptOrdinal = 1
+		}
 		if envelope.Candidate != nil {
 			identity := *envelope.Candidate
 			record.candidate = &identity
@@ -1192,14 +1551,16 @@ func (manager *Manager) restore(state *controllerState) {
 		}
 		if envelope.Transcript != nil {
 			record.logs = append([]LogEntry(nil), envelope.Transcript.Entries...)
-			record.truncated = envelope.Transcript.Truncated
+			var trimmed bool
+			record.logs, record.logBytes, trimmed = trimTranscript(record.logs, manager.options.MaxTranscriptBytes)
+			record.truncated = envelope.Transcript.Truncated || trimmed
 		}
 		if stored.Kind == "agent_event" {
 			var entry LogEntry
 			if json.Unmarshal(envelope.Payload, &entry) == nil {
-				record.logs = append(record.logs, entry)
-				if overflow := len(record.logs) - manager.options.MaxTranscriptItems; overflow > 0 {
-					record.logs = append([]LogEntry(nil), record.logs[overflow:]...)
+				var trimmed bool
+				record.logs, record.logBytes, trimmed = appendTranscript(record.logs, record.logBytes, entry, manager.options.MaxTranscriptBytes)
+				if trimmed {
 					record.truncated = true
 				}
 			}
@@ -1214,7 +1575,7 @@ func (manager *Manager) restore(state *controllerState) {
 	for _, record := range state.jobs {
 		if record.candidate == nil && record.presentation.Phase != fix.PhaseDiscarded {
 			request := candidate.PrepareRequest{Job: record.presentation.ID, Workspace: record.draft.Workspace, Targets: record.draft.Targets,
-				AllowedScope: record.draft.ChangeScope, AllowedPaths: record.draft.AllowedPaths}
+				AllowedScope: record.draft.ChangeScope, AllowedPaths: record.draft.AllowedPaths, CommandOutputBytes: record.draft.Preferences.Delivery.CommandOutputBytes}
 			identity, found, err := manager.deps.Candidates.DiscoverPrepared(context.Background(), request)
 			if err != nil {
 				record.presentation.Phase = fix.PhaseAwaitingAction
@@ -1365,9 +1726,19 @@ func reservationKey(workspace fix.WorkspaceIdentity, target fix.RepoPath) string
 func baselineTargets(contract fix.ScoringContract) []fix.FilePresentation {
 	result := make([]fix.FilePresentation, 0, len(contract.Targets))
 	for _, target := range contract.Targets {
-		result = append(result, fix.FilePresentation{Path: target.Path, BaselineScore: target.Score, Metrics: metricValues(target.Metrics)})
+		metrics := metricValues(target.Metrics)
+		result = append(result, fix.FilePresentation{Path: target.Path, Classification: "target", BaselineScore: target.Score, BaselineMetrics: metrics, Metrics: metrics})
 	}
 	return result
+}
+
+func candidateSensitiveAction(action fix.JobAction) bool {
+	switch action {
+	case fix.ActionPublish, fix.ActionDiscard, fix.ActionCleanup, fix.ActionAcknowledgeConflict:
+		return true
+	default:
+		return false
+	}
 }
 
 func metricValues(values map[fix.MetricID]fix.MetricValue) []fix.MetricValue {
@@ -1404,7 +1775,9 @@ func (manager *Manager) refreshActions(record *jobRecord) {
 		actions = append([]fix.JobAction{fix.ActionAcknowledgeConflict}, actions...)
 	}
 	publisherReady := record.draft.DeliveryMode != fix.DeliveryModePullRequest || manager.deps.Publisher != nil
-	validationReady := record.draft.DeliveryMode != fix.DeliveryModePullRequest || record.presentation.Validation == fix.ValidationPassed
+	validationReady := record.draft.DeliveryMode != fix.DeliveryModePullRequest ||
+		!record.draft.Preferences.Delivery.RequireValidation && record.presentation.Validation == fix.ValidationNotConfigured ||
+		record.presentation.Validation == fix.ValidationPassed
 	if record.presentation.Phase == fix.PhaseAwaitingReview && manager.deps.Delivery != nil && publisherReady && validationReady && record.candidate != nil &&
 		record.draft.DeliveryMode != "" && record.draft.DeliveryMode != fix.DeliveryModeCandidate &&
 		record.presentation.Compliance == fix.ComplianceCompliant && (record.presentation.Scope == fix.ScopeClean || record.presentation.Scope == fix.ScopeConflicted && allConflictsAcknowledged(record)) &&
@@ -1452,12 +1825,15 @@ func clonePresentation(value fix.JobPresentation) fix.JobPresentation {
 	for index, target := range value.Targets {
 		result.Targets[index] = target
 		result.Targets[index].Metrics = append([]fix.MetricValue(nil), target.Metrics...)
+		result.Targets[index].BaselineMetrics = append([]fix.MetricValue(nil), target.BaselineMetrics...)
+		result.Targets[index].VerifiedMetrics = append([]fix.MetricValue(nil), target.VerifiedMetrics...)
 		if target.VerifiedScore != nil {
 			score := *target.VerifiedScore
 			result.Targets[index].VerifiedScore = &score
 		}
 	}
 	result.AllowedActions = append([]fix.JobAction(nil), value.AllowedActions...)
+	result.Actors = append([]fix.ActorPresentation(nil), value.Actors...)
 	if value.Issue != nil {
 		issue := *value.Issue
 		result.Issue = &issue

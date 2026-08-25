@@ -57,6 +57,7 @@ exec "$@"
 	runner := isolation.Runner{SupervisorExecutable: os.Args[0], PrefixArguments: []string{"-test.run=TestCodexSupervisorHelper", "--"}}
 	checker := ExecutableChecker{
 		Runner: runner, HelperExecutable: helper, Network: "unix",
+		Confinement: staticConfinement{capability: isolation.ConfinementCapability{Available: true, CrashContainment: true, Backend: "test"}},
 		Listen: func(network, _ string) (net.Listener, error) {
 			return &inertListener{closed: make(chan struct{})}, nil
 		},
@@ -66,13 +67,25 @@ exec "$@"
 		ProfileArguments: []string{"-c", `default_permissions="slopwatch"`, "-c", `permissions.slopwatch={}`},
 		CandidateRoot:    candidate, GitCommonDir: common, OutsideRoot: outside,
 		SensitiveRoots: []string{sensitive}, TransportAuthVerified: true,
+		Limits: isolation.Limits{WallTime: 5 * time.Second, TerminateGrace: time.Second, MaxStdoutBytes: 1 << 20, MaxStderrBytes: 1 << 20},
 	})
 	if !result.CandidateWrite {
 		t.Fatalf("unconfined fake did not demonstrate the candidate-write control: %#v", result)
 	}
-	if result.OutsideWriteDenied || result.GitMetadataDenied || result.SensitiveReadsDenied || result.CrashContainment || result.MutationEligible() {
+	if result.OutsideWriteDenied || result.GitMetadataDenied || result.SensitiveReadsDenied || !result.CrashContainment || result.MutationEligible() {
 		t.Fatalf("unconfined fake was incorrectly eligible: %#v", result)
 	}
+}
+
+type staticConfinement struct {
+	capability isolation.ConfinementCapability
+}
+
+func (value staticConfinement) Capability(context.Context) isolation.ConfinementCapability {
+	return value.capability
+}
+func (staticConfinement) RunCandidate(context.Context, isolation.CandidatePolicy, isolation.Request) (isolation.Result, isolation.Conformance, error) {
+	return isolation.Result{}, isolation.Conformance{}, nil
 }
 
 type inertListener struct {
@@ -148,7 +161,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
 		JobID: "job", AttemptID: "attempt", Model: "gpt-5.6-sol", Effort: "high", Delegation: agent.DelegationSingle,
 		Workspace: fix.CandidateIdentity{RepositoryRoot: candidate, GitCommonDir: common},
 		Task:      agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "trusted envelope", Objective: "fix it"}},
-		Limits:    agent.Limits{WallTime: 5 * time.Second, MaxOutputBytes: 1 << 20, MaxEvents: 20},
+		Limits:    agent.Limits{MaxOutputBytes: 1 << 20, MaxEvents: 20},
 	}
 	result := strategy.Execute(t.Context(), agent.Profile{Executable: executable}, request, nil)
 	if result.Status != agent.ResultCompleted || result.Summary != "fake complete" || result.SessionReference != "fake-thread" {

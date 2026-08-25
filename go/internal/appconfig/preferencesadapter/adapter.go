@@ -72,7 +72,7 @@ func (adapter *Adapter) LoadEditable(ctx context.Context, workspace fix.Workspac
 	markFixListOrigins(value.Origins, preferences.Fix{}, adapter.defaults.Fix, appconfig.OriginBuiltIn)
 	markProfileEntryOrigins(value.Origins, nil, adapter.defaults.Agents.Profiles, appconfig.OriginBuiltIn)
 	markValidationEntryOrigins(value.Origins, nil, adapter.defaults.Validation.Plans, appconfig.OriginBuiltIn)
-	markUserOrigins(&value, preferences.PartialDocument{Fix: &user.Fix, Concurrency: &user.Concurrency, Agents: &user.Agents, Validation: &user.Validation, Delivery: &user.Delivery, Interaction: &user.Interaction}, adapter.defaults, user)
+	markUserOrigins(&value, preferences.PartialDocument{Fix: &user.Fix, Concurrency: &user.Concurrency, Agents: &user.Agents, ValidationWorkspace: &user.ValidationWorkspace, Validation: &user.Validation, Delivery: &user.Delivery, Interaction: &user.Interaction}, adapter.defaults, user)
 	value.Revision = revision(raw, repositoryRaw)
 	return appconfig.Editable{Resolved: value, Diagnostics: []string{err.Error()}}, nil
 }
@@ -231,10 +231,11 @@ func builtInOrigins() map[string]appconfig.Origin {
 		"concurrency":              appconfig.OriginBuiltIn,
 		"agents":                   appconfig.OriginBuiltIn,
 		"validation":               appconfig.OriginBuiltIn,
+		"validation_workspace":     appconfig.OriginBuiltIn,
 		"delivery":                 appconfig.OriginBuiltIn,
 		"interaction.trend_window": appconfig.OriginBuiltIn,
 	}
-	for _, key := range []string{"fix.target_score", "fix.focus", "fix.change_scope", "fix.profile", "fix.model", "fix.effort", "fix.delegation", "fix.max_attempts", "fix.attempt_timeout", "fix.prompt_template", "fix.branch_template", "fix.validation_plan", "concurrency.max_agents", "concurrency.max_verifiers", "concurrency.max_retained_jobs", "concurrency.max_transcript_bytes", "delivery.default_mode", "delivery.remote", "delivery.base_branch", "delivery.branch_template", "delivery.publisher", "delivery.draft_pull_requests"} {
+	for _, key := range []string{"fix.target_score", "fix.focus", "fix.change_scope", "fix.profile", "fix.model", "fix.effort", "fix.delegation", "fix.prompt_template", "fix.branch_template", "fix.validation_plan", "concurrency.max_agents", "concurrency.max_verifiers", "concurrency.max_retained_jobs", "concurrency.max_transcript_bytes", "concurrency.max_actors_per_job", "concurrency.max_candidate_preview_bytes", "concurrency.max_candidate_preview_lines", "validation_workspace.max_files", "validation_workspace.max_directories", "validation_workspace.max_path_bytes", "validation_workspace.max_file_bytes", "validation_workspace.max_total_bytes", "validation_workspace.container_pids", "validation_workspace.container_memory_bytes", "validation_workspace.container_cpu_millis", "validation_workspace.container_temporary_bytes", "validation_workspace.container_workspace_bytes", "validation_workspace.container_nofile_limit", "validation_workspace.container_generated_file_bytes", "validation_workspace.container_stop_timeout", "validation_workspace.container_control_timeout", "validation_workspace.container_sentinel_timeout", "validation_workspace.container_crash_probe_timeout", "delivery.default_mode", "delivery.remote", "delivery.base_branch", "delivery.branch_template", "delivery.publisher", "delivery.draft_pull_requests", "delivery.require_validation", "delivery.command_output_bytes"} {
 		result[key] = appconfig.OriginBuiltIn
 	}
 	return result
@@ -258,6 +259,10 @@ func markUserOrigins(resolved *appconfig.Resolved, partial preferences.PartialDo
 		resolved.Origins["validation"] = appconfig.OriginUser
 		markValidationEntryOrigins(resolved.Origins, defaults.Validation.Plans, user.Validation.Plans, appconfig.OriginUser)
 	}
+	if partial.ValidationWorkspace != nil && !reflect.DeepEqual(defaults.ValidationWorkspace, user.ValidationWorkspace) {
+		resolved.Origins["validation_workspace"] = appconfig.OriginUser
+		markValidationWorkspaceOrigins(resolved.Origins, defaults.ValidationWorkspace, user.ValidationWorkspace, appconfig.OriginUser)
+	}
 	if partial.Delivery != nil && !reflect.DeepEqual(defaults.Delivery, user.Delivery) {
 		resolved.Origins["delivery"] = appconfig.OriginUser
 		markDeliveryFieldOrigins(resolved.Origins, defaults.Delivery, user.Delivery, appconfig.OriginUser)
@@ -267,11 +272,40 @@ func markUserOrigins(resolved *appconfig.Resolved, partial preferences.PartialDo
 	}
 }
 
+func markValidationWorkspaceOrigins(origins map[string]appconfig.Origin, before, after preferences.ValidationWorkspace, origin appconfig.Origin) {
+	values := []struct {
+		key     string
+		changed bool
+	}{
+		{"validation_workspace.max_files", before.MaxFiles != after.MaxFiles},
+		{"validation_workspace.max_directories", before.MaxDirectories != after.MaxDirectories},
+		{"validation_workspace.max_path_bytes", before.MaxPathBytes != after.MaxPathBytes},
+		{"validation_workspace.max_file_bytes", before.MaxFileBytes != after.MaxFileBytes},
+		{"validation_workspace.max_total_bytes", before.MaxTotalBytes != after.MaxTotalBytes},
+		{"validation_workspace.container_pids", before.ContainerPIDs != after.ContainerPIDs},
+		{"validation_workspace.container_memory_bytes", before.ContainerMemoryBytes != after.ContainerMemoryBytes},
+		{"validation_workspace.container_cpu_millis", before.ContainerCPUMillis != after.ContainerCPUMillis},
+		{"validation_workspace.container_temporary_bytes", before.ContainerTemporaryBytes != after.ContainerTemporaryBytes},
+		{"validation_workspace.container_workspace_bytes", before.ContainerWorkspaceBytes != after.ContainerWorkspaceBytes},
+		{"validation_workspace.container_nofile_limit", before.ContainerNofileLimit != after.ContainerNofileLimit},
+		{"validation_workspace.container_generated_file_bytes", before.ContainerGeneratedFileBytes != after.ContainerGeneratedFileBytes},
+		{"validation_workspace.container_stop_timeout", before.ContainerStopTimeout != after.ContainerStopTimeout},
+		{"validation_workspace.container_control_timeout", before.ContainerControlTimeout != after.ContainerControlTimeout},
+		{"validation_workspace.container_sentinel_timeout", before.ContainerSentinelTimeout != after.ContainerSentinelTimeout},
+		{"validation_workspace.container_crash_probe_timeout", before.ContainerCrashProbeTimeout != after.ContainerCrashProbeTimeout},
+	}
+	for _, value := range values {
+		if value.changed {
+			origins[value.key] = origin
+		}
+	}
+}
+
 func markFixFieldOrigins(origins map[string]appconfig.Origin, before, after preferences.Fix, origin appconfig.Origin) {
 	values := []struct {
 		key     string
 		changed bool
-	}{{"fix.target_score", before.TargetScore != after.TargetScore}, {"fix.focus", !reflect.DeepEqual(before.Focus, after.Focus)}, {"fix.change_scope", before.ChangeScope != after.ChangeScope}, {"fix.profile", before.Profile != after.Profile}, {"fix.model", before.Model != after.Model}, {"fix.effort", before.Effort != after.Effort}, {"fix.delegation", before.Delegation != after.Delegation}, {"fix.max_attempts", before.MaxAttempts != after.MaxAttempts}, {"fix.attempt_timeout", before.AttemptTimeout != after.AttemptTimeout}, {"fix.prompt_template", before.PromptTemplate != after.PromptTemplate}, {"fix.branch_template", before.BranchTemplate != after.BranchTemplate}, {"fix.validation_plan", before.ValidationPlan != after.ValidationPlan}}
+	}{{"fix.target_score", before.TargetScore != after.TargetScore}, {"fix.focus", !reflect.DeepEqual(before.Focus, after.Focus)}, {"fix.change_scope", before.ChangeScope != after.ChangeScope}, {"fix.profile", before.Profile != after.Profile}, {"fix.model", before.Model != after.Model}, {"fix.effort", before.Effort != after.Effort}, {"fix.delegation", before.Delegation != after.Delegation}, {"fix.prompt_template", before.PromptTemplate != after.PromptTemplate}, {"fix.branch_template", before.BranchTemplate != after.BranchTemplate}, {"fix.validation_plan", before.ValidationPlan != after.ValidationPlan}}
 	for _, value := range values {
 		if value.changed {
 			origins[value.key] = origin
@@ -282,7 +316,7 @@ func markConcurrencyFieldOrigins(origins map[string]appconfig.Origin, before, af
 	values := []struct {
 		key     string
 		changed bool
-	}{{"concurrency.max_agents", before.MaxAgents != after.MaxAgents}, {"concurrency.max_verifiers", before.MaxVerifiers != after.MaxVerifiers}, {"concurrency.max_retained_jobs", before.MaxRetainedJobs != after.MaxRetainedJobs}, {"concurrency.max_transcript_bytes", before.MaxTranscriptBytes != after.MaxTranscriptBytes}}
+	}{{"concurrency.max_agents", before.MaxAgents != after.MaxAgents}, {"concurrency.max_verifiers", before.MaxVerifiers != after.MaxVerifiers}, {"concurrency.max_retained_jobs", before.MaxRetainedJobs != after.MaxRetainedJobs}, {"concurrency.max_transcript_bytes", before.MaxTranscriptBytes != after.MaxTranscriptBytes}, {"concurrency.max_actors_per_job", before.MaxActorsPerJob != after.MaxActorsPerJob}, {"concurrency.max_candidate_preview_bytes", before.MaxCandidatePreviewBytes != after.MaxCandidatePreviewBytes}, {"concurrency.max_candidate_preview_lines", before.MaxCandidatePreviewLines != after.MaxCandidatePreviewLines}}
 	for _, v := range values {
 		if v.changed {
 			origins[v.key] = origin
@@ -293,7 +327,9 @@ func markDeliveryFieldOrigins(origins map[string]appconfig.Origin, before, after
 	values := []struct {
 		key     string
 		changed bool
-	}{{"delivery.default_mode", before.DefaultMode != after.DefaultMode}, {"delivery.remote", before.Remote != after.Remote}, {"delivery.base_branch", before.BaseBranch != after.BaseBranch}, {"delivery.branch_template", before.BranchTemplate != after.BranchTemplate}, {"delivery.publisher", before.Publisher != after.Publisher}, {"delivery.draft_pull_requests", before.DraftPullRequests != after.DraftPullRequests}}
+	}{{"delivery.default_mode", before.DefaultMode != after.DefaultMode}, {"delivery.remote", before.Remote != after.Remote}, {"delivery.base_branch", before.BaseBranch != after.BaseBranch}, {"delivery.branch_template", before.BranchTemplate != after.BranchTemplate}, {"delivery.publisher", before.Publisher != after.Publisher}, {"delivery.draft_pull_requests", before.DraftPullRequests != after.DraftPullRequests}, {"delivery.require_validation", before.RequireValidation != after.RequireValidation}, {"delivery.command_output_bytes", before.CommandOutputBytes != after.CommandOutputBytes},
+		{"delivery.commit_policy", before.CommitPolicy != after.CommitPolicy}, {"delivery.commit_title_template", before.CommitTitleTemplate != after.CommitTitleTemplate}, {"delivery.commit_body_template", before.CommitBodyTemplate != after.CommitBodyTemplate},
+		{"delivery.pull_request_title_template", before.PullRequestTitleTemplate != after.PullRequestTitleTemplate}, {"delivery.pull_request_body_template", before.PullRequestBodyTemplate != after.PullRequestBodyTemplate}, {"delivery.cleanup_policy", before.CleanupPolicy != after.CleanupPolicy}}
 	for _, v := range values {
 		if v.changed {
 			origins[v.key] = origin

@@ -16,6 +16,7 @@ import (
 
 	"github.com/blater/slopwatch/internal/follow"
 	"github.com/blater/slopwatch/internal/isolation"
+	isolationdocker "github.com/blater/slopwatch/internal/isolation/docker"
 	"github.com/blater/slopwatch/internal/native"
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
@@ -78,6 +79,16 @@ func parser() (*flag.FlagSet, *options) {
 }
 
 func main() {
+	// These hidden image entry points must be dispatched before ordinary
+	// process supervision or flag parsing. The same installation-owned binary
+	// is copied into the confinement image and acts as its PID 1 and empirical
+	// descendant-escape probe.
+	if handled, code := isolationdocker.ContainerEscapeProbeMain(os.Args[1:]); handled {
+		os.Exit(code)
+	}
+	if handled, code := isolationdocker.ContainerSupervisorMain(os.Args[1:]); handled {
+		os.Exit(code)
+	}
 	if handled, code := isolation.ProbeMain(os.Args[1:]); handled {
 		os.Exit(code)
 	}

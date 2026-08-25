@@ -9,19 +9,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/blater/slopwatch/internal/isolation"
 )
 
 // ExecutableChecker runs a Go sentinel helper under `codex sandbox` using the
-// exact permission arguments that will protect a job. CrashContained must only
-// be set from an independent process-tree conformance result for this build and
-// platform.
+// exact permission arguments that will protect a job. Crash containment is
+// obtained only from the shared platform candidate-confinement boundary; the
+// provider adapter never infers it from process groups or prompt flags.
 type ExecutableChecker struct {
 	Runner           isolation.Executor
 	HelperExecutable string
-	CrashContained   bool
+	Confinement      isolation.CandidateConfinement
 	Getenv           func(string) string
 	Listen           func(string, string) (net.Listener, error)
 	Network          string
@@ -31,6 +30,10 @@ func (checker ExecutableChecker) Check(ctx context.Context, request isolation.Co
 	failed := isolation.Conformance{Diagnostic: "Codex confinement probe was not executed"}
 	if checker.Runner == nil || request.Executable == "" || len(request.ProfileArguments) == 0 ||
 		request.CandidateRoot == "" || request.GitCommonDir == "" || request.OutsideRoot == "" || len(request.SensitiveRoots) == 0 {
+		return failed
+	}
+	if request.Limits.WallTime <= 0 || request.Limits.TerminateGrace <= 0 || request.Limits.MaxStdoutBytes <= 0 || request.Limits.MaxStderrBytes <= 0 {
+		failed.Diagnostic = "Codex confinement probe limits are not configured"
 		return failed
 	}
 	for _, argument := range request.ProfileArguments {
@@ -104,7 +107,7 @@ func (checker ExecutableChecker) Check(ctx context.Context, request isolation.Co
 	run, err := checker.Runner.Run(ctx, isolation.Request{
 		Executable: request.Executable, Arguments: arguments, Directory: request.CandidateRoot,
 		Environment: transportEnvironment(getenv), Stdin: payload,
-		Limits: isolation.Limits{WallTime: 10 * time.Second, TerminateGrace: time.Second, MaxStdoutBytes: 64 << 10, MaxStderrBytes: 64 << 10},
+		Limits: request.Limits,
 	})
 	if err != nil || !run.Successful() || run.StdoutTruncated {
 		failed.Diagnostic = probeDiagnostic("Codex confinement helper failed", run, err)
@@ -123,6 +126,13 @@ func (checker ExecutableChecker) Check(ctx context.Context, request isolation.Co
 		networkConnected = networkConnected || connectionAccepted
 	default:
 	}
+	crashContained := false
+	confinementDiagnostic := ""
+	if checker.Confinement != nil {
+		capability := checker.Confinement.Capability(ctx)
+		crashContained = capability.Available && capability.CrashContainment
+		confinementDiagnostic = capability.Diagnostic
+	}
 	result := isolation.Conformance{
 		CandidateWrite:       observed.CandidateWrite,
 		OutsideWriteDenied:   !observed.OutsideWrite,
@@ -130,10 +140,13 @@ func (checker ExecutableChecker) Check(ctx context.Context, request isolation.Co
 		SensitiveReadsDenied: !observed.SensitiveRead,
 		ToolNetworkPolicy:    !networkConnected,
 		TransportAuth:        request.TransportAuthVerified && !observed.SensitiveRead,
-		CrashContainment:     checker.CrashContained,
+		CrashContainment:     crashContained,
 	}
 	if !result.MutationEligible() {
 		result.Diagnostic = fmt.Sprintf("Codex confinement gates failed: %v", result.FailedGates())
+		if !crashContained && confinementDiagnostic != "" {
+			result.Diagnostic += ": " + confinementDiagnostic
+		}
 	}
 	return result
 }

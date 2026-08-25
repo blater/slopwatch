@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +19,17 @@ import (
 	"github.com/blater/slopwatch/internal/isolation"
 )
 
-const probeOutputLimit = int64(8 << 20)
+const (
+	defaultProbeTimeout     = 15 * time.Second
+	defaultProbeOutputBytes = int64(8 << 20)
+	defaultTerminationGrace = 5 * time.Second
+)
+
+type probePolicy struct {
+	timeout          time.Duration
+	outputBytes      int64
+	terminationGrace time.Duration
+}
 
 var versionPattern = regexp.MustCompile(`(?m)codex-cli\s+([0-9]+\.[0-9]+\.[0-9]+(?:[-+][^\s]+)?)`)
 
@@ -41,6 +52,9 @@ func (*Strategy) ProfileDescriptor() agent.ProfileDescriptor {
 		{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true, Default: "codex"},
 		{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Description: "Provider-owned Codex login; run `codex login` in a terminal to authorize", Required: true, Default: "provider-owned"},
 		{Key: "options.denied_read_roots", OptionKey: "denied_read_roots", Label: "Additional denied roots", Kind: agent.ProfileFieldPathList, Description: "Path-list of sensitive roots"},
+		{Key: "options.probe_timeout", OptionKey: "probe_timeout", Label: "Probe timeout", Kind: agent.ProfileFieldText, Description: "Wall-clock deadline for Codex readiness and confinement probes; never times an active fix job.", Default: defaultProbeTimeout.String()},
+		{Key: "options.probe_output_bytes", OptionKey: "probe_output_bytes", Label: "Probe output bytes", Kind: agent.ProfileFieldText, Description: "Captured stdout/stderr budget for each Codex readiness or confinement probe.", Default: fmt.Sprint(defaultProbeOutputBytes), Pattern: `^[1-9][0-9]*$`},
+		{Key: "options.termination_grace", OptionKey: "termination_grace", Label: "Cancellation grace", Kind: agent.ProfileFieldText, Description: "How long a cancelled Codex process may exit cleanly before it is killed; this never cancels a live job by itself.", Default: defaultTerminationGrace.String()},
 	}}
 }
 
@@ -55,9 +69,12 @@ func (*Strategy) ValidateProfile(profile agent.Profile) error {
 		return errors.New("Codex CLI supports provider-owned authentication only")
 	}
 	for key := range profile.Options {
-		if key != "denied_read_roots" {
+		if key != "denied_read_roots" && key != "probe_timeout" && key != "probe_output_bytes" && key != "termination_grace" {
 			return fmt.Errorf("unsupported Codex profile option %q", key)
 		}
+	}
+	if _, err := configuredProbePolicy(profile); err != nil {
+		return err
 	}
 	return nil
 }
@@ -66,6 +83,11 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 	result := agent.ProbeResult{Runtime: RuntimeKind, State: agent.ProbeUnavailable}
 	if strategy == nil || strategy.runner == nil {
 		result.Diagnostic = "Codex process runner is not configured"
+		return result
+	}
+	policy, err := configuredProbePolicy(profile)
+	if err != nil {
+		result.Diagnostic = err.Error()
 		return result
 	}
 	executable, err := resolveExecutable(profile.Executable)
@@ -83,7 +105,7 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 		result.Diagnostic = err.Error()
 		return result
 	}
-	versionRun, err := strategy.runProbe(ctx, executable, directory, []string{"--version"})
+	versionRun, err := strategy.runProbe(ctx, policy, executable, directory, []string{"--version"})
 	if err != nil || !versionRun.Successful() {
 		result.Diagnostic = probeDiagnostic("Codex version probe failed", versionRun, err)
 		return result
@@ -96,13 +118,13 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 	}
 	result.Version = string(match[1])
 
-	authRun, err := strategy.runProbe(ctx, executable, directory, []string{"login", "status"})
+	authRun, err := strategy.runProbe(ctx, policy, executable, directory, []string{"login", "status"})
 	if err != nil || !authRun.Successful() || !strings.Contains(strings.ToLower(string(authRun.Stdout)), "logged in") {
 		result.State = agent.ProbeUnauthenticated
 		result.Diagnostic = probeDiagnostic("Codex is not authenticated", authRun, err)
 		return result
 	}
-	modelsRun, err := strategy.runProbe(ctx, executable, directory, []string{"debug", "models", "--bundled"})
+	modelsRun, err := strategy.runProbe(ctx, policy, executable, directory, []string{"debug", "models", "--bundled"})
 	if err != nil || !modelsRun.Successful() || modelsRun.StdoutTruncated {
 		result.State = agent.ProbeIncompatible
 		result.Diagnostic = probeDiagnostic("Codex model catalog probe failed", modelsRun, err)
@@ -115,7 +137,7 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 		return result
 	}
 
-	conformance := strategy.probeConfinement(ctx, executable, profile)
+	conformance := strategy.probeConfinement(ctx, executable, profile, policy)
 	result.Capabilities = capabilities(models, efforts, conformance)
 	if !conformance.MutationEligible() {
 		result.State = agent.ProbeDegraded
@@ -140,6 +162,11 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 	if !containsOption(probe.Capabilities.Models, request.Model) || !containsOption(probe.Capabilities.Efforts, request.Effort) || request.Delegation != agent.DelegationSingle {
 		result.Failure = agent.FailureUnsupportedCapability
 		result.Diagnostic = "requested Codex model, effort, or delegation mode is unavailable"
+		return result
+	}
+	if request.Limits.MaxOutputBytes <= 0 {
+		result.Failure = agent.FailureProtocol
+		result.Diagnostic = "Codex execution requires a configured output limit"
 		return result
 	}
 	executable, err := resolveExecutable(profile.Executable)
@@ -167,10 +194,17 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 		result.Diagnostic = err.Error()
 		return result
 	}
+	policy, err := configuredProbePolicy(profile)
+	if err != nil {
+		result.Failure = agent.FailureInvalidProfile
+		result.Diagnostic = err.Error()
+		return result
+	}
 	exactConformance := strategy.conformance.Check(ctx, isolation.ConformanceRequest{
 		Executable: executable, ProfileArguments: append([]string(nil), permissionArgs...), ProfileFingerprint: profile.Fingerprint,
 		CandidateRoot: request.Workspace.RepositoryRoot, GitCommonDir: request.Workspace.GitCommonDir,
 		OutsideRoot: outsideRoot, SensitiveRoots: sensitiveRoots, TransportAuthVerified: true,
+		Limits: isolation.Limits{WallTime: policy.timeout, TerminateGrace: policy.terminationGrace, MaxStdoutBytes: policy.outputBytes, MaxStderrBytes: policy.outputBytes},
 	})
 	if !exactConformance.MutationEligible() {
 		result.Failure = agent.FailureUnsupportedCapability
@@ -192,7 +226,8 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 		Executable: executable, Arguments: arguments, Directory: request.Workspace.RepositoryRoot,
 		Environment: transportEnvironment(strategy.getenv), Stdin: []byte(request.Task.Instructions.EffectiveBody()),
 		Limits: isolation.Limits{
-			WallTime: request.Limits.WallTime, MaxStdoutBytes: request.Limits.MaxOutputBytes,
+			TerminateGrace: policy.terminationGrace,
+			MaxStdoutBytes: request.Limits.MaxOutputBytes,
 			MaxStderrBytes: request.Limits.MaxOutputBytes,
 		},
 	}
@@ -265,7 +300,7 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 	return result
 }
 
-func (strategy *Strategy) probeConfinement(ctx context.Context, executable string, profile agent.Profile) isolation.Conformance {
+func (strategy *Strategy) probeConfinement(ctx context.Context, executable string, profile agent.Profile, policy probePolicy) isolation.Conformance {
 	root, err := os.MkdirTemp("", "slopwatch-codex-conformance-")
 	if err != nil {
 		return isolation.Conformance{Diagnostic: err.Error()}
@@ -313,6 +348,7 @@ func (strategy *Strategy) probeConfinement(ctx context.Context, executable strin
 		Executable: executable, ProfileArguments: arguments, ProfileFingerprint: profile.Fingerprint,
 		CandidateRoot: candidate, GitCommonDir: common, OutsideRoot: outside,
 		SensitiveRoots: sensitiveRoots, TransportAuthVerified: true,
+		Limits: isolation.Limits{WallTime: policy.timeout, TerminateGrace: policy.terminationGrace, MaxStdoutBytes: policy.outputBytes, MaxStderrBytes: policy.outputBytes},
 	})
 }
 
@@ -340,12 +376,38 @@ func cloneOptions(source map[string]string) map[string]string {
 	return result
 }
 
-func (strategy *Strategy) runProbe(ctx context.Context, executable, directory string, arguments []string) (isolation.Result, error) {
+func (strategy *Strategy) runProbe(ctx context.Context, policy probePolicy, executable, directory string, arguments []string) (isolation.Result, error) {
 	return strategy.runner.Run(ctx, isolation.Request{
 		Executable: executable, Arguments: arguments, Directory: directory,
 		Environment: transportEnvironment(strategy.getenv),
-		Limits:      isolation.Limits{WallTime: 15 * time.Second, TerminateGrace: time.Second, MaxStdoutBytes: probeOutputLimit, MaxStderrBytes: 64 << 10},
+		Limits:      isolation.Limits{WallTime: policy.timeout, TerminateGrace: policy.terminationGrace, MaxStdoutBytes: policy.outputBytes, MaxStderrBytes: policy.outputBytes},
 	})
+}
+
+func configuredProbePolicy(profile agent.Profile) (probePolicy, error) {
+	result := probePolicy{timeout: defaultProbeTimeout, outputBytes: defaultProbeOutputBytes, terminationGrace: defaultTerminationGrace}
+	if raw := strings.TrimSpace(profile.Options["probe_timeout"]); raw != "" {
+		value, err := time.ParseDuration(raw)
+		if err != nil || value <= 0 {
+			return probePolicy{}, errors.New("Codex probe timeout must be a positive duration such as 15s")
+		}
+		result.timeout = value
+	}
+	if raw := strings.TrimSpace(profile.Options["probe_output_bytes"]); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value <= 0 {
+			return probePolicy{}, errors.New("Codex probe output bytes must be a positive integer")
+		}
+		result.outputBytes = value
+	}
+	if raw := strings.TrimSpace(profile.Options["termination_grace"]); raw != "" {
+		value, err := time.ParseDuration(raw)
+		if err != nil || value <= 0 {
+			return probePolicy{}, errors.New("Codex cancellation grace must be a positive duration such as 5s")
+		}
+		result.terminationGrace = value
+	}
+	return result, nil
 }
 
 func capabilities(models []agent.Option[agent.ModelID], efforts []agent.Option[agent.EffortID], conformance isolation.Conformance) agent.Capabilities {

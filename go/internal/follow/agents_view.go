@@ -78,9 +78,9 @@ func agentsHeader(model Model) string {
 		filter = "ALL"
 	}
 	tier := responsiveTier(model.width, model.height)
-	left := " FILES [AGENTS]  STATE       AGENT          GOAL                 TARGETS  ACTIVITY  TIME"
+	left := " FILES [AGENTS]  STATE       ATTEMPT     AGENT          GOAL                 TARGETS  ACTIVITY  TIME"
 	if tier == ResponsiveMedium {
-		left = " FILES [AGENTS]  STATE       AGENT          GOAL                 TARGETS"
+		left = " FILES [AGENTS]  STATE       ATTEMPT     AGENT          GOAL                 TARGETS"
 	}
 	if tier == ResponsiveCompact {
 		left = " FILES [AGENTS]  " + filter
@@ -90,6 +90,9 @@ func agentsHeader(model Model) string {
 		sortKey = "attention"
 	}
 	right := fmt.Sprintf("%s · %s · %d JOBS ", filter, strings.ToUpper(sortKey), len(jobs))
+	if tier == ResponsiveMedium {
+		right = ""
+	}
 	if tier == ResponsiveCompact {
 		right = fmt.Sprintf("%d JOBS ", len(jobs))
 	}
@@ -221,24 +224,27 @@ func renderAgentJob(job fix.JobPresentation, expanded bool, tier ResponsiveTier,
 	badges := agentBadges(job)
 	if tier == ResponsiveCompact {
 		first := strings.Join(nonemptyStrings(disclosure, state, agent, goal), "  ")
-		second := "  " + strings.Join(nonemptyStrings(targets, cleanAgentText(job.CurrentAction), badges), " · ")
+		second := "  " + strings.Join(nonemptyStrings(targets, badges, cleanAgentText(job.CurrentAction)), " · ")
 		return []string{truncate(first, width), truncate(second, width)}
 	}
 	if tier == ResponsiveMedium {
-		return []string{fmt.Sprintf("%s  %-11s %-14s %-20s %s",
-			disclosure, truncate(state, 11), truncate(agent, 14), truncate(goal, 20), strings.Join(nonemptyStrings(targets, badges), " · "))}
+		return []string{fmt.Sprintf("%s  %-11s %-11s %-14s %-20s %s",
+			disclosure, truncate(state, 11), truncate(agentAttemptText(job), 11), truncate(agent, 14), truncate(goal, 20), targets)}
 	}
 	activity := cleanAgentText(job.CurrentAction)
 	if activity == "" {
 		activity = "-"
 	}
-	return []string{fmt.Sprintf("%s  %-11s %-22s %-20s %-8s %-16s %s",
-		disclosure, truncate(state, 11), truncate(agent, 22), truncate(goal, 20), truncate(targets, 8), truncate(activity, 16), agentJobTime(job, time.Now()))}
+	return []string{fmt.Sprintf("%s  %-11s %-11s %-22s %-20s %-8s %-16s %s",
+		disclosure, truncate(state, 11), truncate(agentAttemptText(job), 11), truncate(agent, 22), truncate(goal, 20), truncate(targets, 8), truncate(activity, 16), agentJobTime(job, time.Now()))}
 }
 
 func renderAgentFile(file fix.FilePresentation, tier ResponsiveTier, width, horizontalOffset int) []string {
 	classification := agentFileClass(file)
 	path := cleanAgentText(file.Path.String())
+	if file.PreviousPath != "" {
+		path = cleanAgentText(file.PreviousPath.String()) + " → " + path
+	}
 	metrics := agentFileMetrics(file)
 	if tier == ResponsiveCompact {
 		first := "    " + classification + "  " + path
@@ -285,9 +291,17 @@ func agentFileClass(file fix.FilePresentation) string {
 }
 
 func agentFileMetrics(file fix.FilePresentation) string {
-	if agentFileClass(file) == "S" && file.VerifiedScore == nil && len(file.Metrics) == 0 {
+	baselineMetrics := file.BaselineMetrics
+	if len(baselineMetrics) == 0 {
+		baselineMetrics = file.Metrics
+	}
+	if agentFileClass(file) == "S" && file.VerifiedScore == nil && len(baselineMetrics) == 0 {
 		if file.Changed {
-			return "supporting file · modified"
+			status := strings.TrimSpace(file.ChangeStatus)
+			if status == "" {
+				status = "modified"
+			}
+			return "supporting file · " + cleanAgentText(status)
 		}
 		return "supporting file · -"
 	}
@@ -296,7 +310,11 @@ func agentFileMetrics(file fix.FilePresentation) string {
 		verified = roundedIntegerText(*file.VerifiedScore) + agentVerificationGlyph(file.Verification)
 	}
 	parts := []string{fmt.Sprintf("SCORE %s→%s", roundedIntegerText(file.BaselineScore), verified)}
-	for _, metric := range file.Metrics {
+	verifiedMetrics := make(map[fix.MetricID]fix.MetricValue, len(file.VerifiedMetrics))
+	for _, metric := range file.VerifiedMetrics {
+		verifiedMetrics[metric.ID] = metric
+	}
+	for _, metric := range baselineMetrics {
 		label := cleanAgentText(metric.Label)
 		if label == "" {
 			label = strings.ToUpper(string(metric.ID))
@@ -304,6 +322,9 @@ func agentFileMetrics(file fix.FilePresentation) string {
 		value := "-"
 		if metric.Complete {
 			value = roundedIntegerText(metric.Value)
+		}
+		if after, ok := verifiedMetrics[metric.ID]; ok && after.Complete {
+			value += "→" + roundedIntegerText(after.Value)
 		}
 		parts = append(parts, label+" "+value)
 	}
@@ -378,7 +399,10 @@ func agentLabel(job fix.JobPresentation, tier ResponsiveTier) string {
 }
 
 func agentBadges(job fix.JobPresentation) string {
-	badges := make([]string, 0, 3)
+	badges := make([]string, 0, 4)
+	if attempt := agentAttemptText(job); attempt != "" {
+		badges = append(badges, attempt)
+	}
 	if job.ActorCount > 1 {
 		badges = append(badges, fmt.Sprintf("team %d", job.ActorCount))
 	}
@@ -389,6 +413,13 @@ func agentBadges(job fix.JobPresentation) string {
 		badges = append(badges, fmt.Sprintf("%d conflict", job.ConflictCount))
 	}
 	return strings.Join(badges, " · ")
+}
+
+func agentAttemptText(job fix.JobPresentation) string {
+	if job.AttemptOrdinal <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("attempt %d", job.AttemptOrdinal)
 }
 
 func agentJobTime(job fix.JobPresentation, now time.Time) string {

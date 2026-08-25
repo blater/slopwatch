@@ -92,6 +92,10 @@ func applyPatch(value *Resolved, patch Patch, origin Origin) {
 		value.Validation = cloneValidation(*patch.Validation)
 		value.Origins["validation"] = origin
 	}
+	if patch.ValidationWorkspace != nil {
+		value.ValidationWorkspace = *patch.ValidationWorkspace
+		value.Origins["validation_workspace"] = origin
+	}
 	if patch.Delivery != nil {
 		value.Delivery = *patch.Delivery
 		value.Origins["delivery"] = origin

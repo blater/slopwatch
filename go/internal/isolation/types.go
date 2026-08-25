@@ -24,13 +24,32 @@ type Limits struct {
 	MaxStderrBytes int64
 }
 
+// WorkspaceLimits are caller-selected candidate inventory/copy ceilings. The
+// same values must be used by host-side validation fingerprinting and the
+// confined workspace copy so neither boundary introduces a hidden lower cap.
+type WorkspaceLimits struct {
+	MaxFiles       int64
+	MaxDirectories int64
+	MaxPathBytes   int64
+	MaxFileBytes   int64
+	MaxTotalBytes  int64
+}
+
+func (limits WorkspaceLimits) Validate() error {
+	if limits.MaxFiles <= 0 || limits.MaxDirectories <= 0 || limits.MaxPathBytes <= 0 || limits.MaxFileBytes <= 0 || limits.MaxTotalBytes <= 0 {
+		return errors.New("workspace limits require positive file, directory, path, per-file, and total-byte ceilings")
+	}
+	return nil
+}
+
 type Request struct {
-	Executable  string
-	Arguments   []string
-	Directory   string
-	Environment []string
-	Stdin       []byte
-	Limits      Limits
+	Executable      string
+	Arguments       []string
+	Directory       string
+	Environment     []string
+	Stdin           []byte
+	Limits          Limits
+	WorkspaceLimits WorkspaceLimits
 }
 
 type Result struct {
@@ -128,6 +147,7 @@ type ConformanceRequest struct {
 	OutsideRoot           string
 	SensitiveRoots        []string
 	TransportAuthVerified bool
+	Limits                Limits
 }
 
 type Checker interface {

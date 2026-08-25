@@ -76,6 +76,7 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 	job.EffortLabel = "high"
 	job.Goal = "SCORE ≤100 · COG,CPL"
 	job.CurrentAction = "Running tests"
+	job.AttemptOrdinal = 2
 	job.ActorCount = 3
 	job.Targets[0].BaselineScore = 142
 	job.Targets[0].VerifiedScore = &verified
@@ -92,7 +93,7 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 		view := model.View()
 		assertScreenSize(t, view, size.width, size.height)
 		plain := ansi.Strip(view)
-		for _, wanted := range []string{"RUNNING", "Codex", "internal/service.go"} {
+		for _, wanted := range []string{"RUNNING", "Codex", "attempt 2", "internal/service.go"} {
 			if !strings.Contains(plain, wanted) {
 				t.Fatalf("%dx%d Agents view omitted %q: %q", size.width, size.height, wanted, plain)
 			}
@@ -103,9 +104,22 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 			}
 			assertCompactSelectedBlock(t, view, "internal/service.go", "SCORE 142→91✓", size.width)
 		}
+		if size.width >= 60 && size.width < 96 && !strings.Contains(plain, "ATTEMPT") {
+			t.Fatalf("medium Agents header omitted attempt column: %q", plain)
+		}
 		if size.width == 120 && (!strings.Contains(plain, "gpt-5.6") || !strings.Contains(plain, "Running tests")) {
 			t.Fatalf("wide view omitted model/activity: %q", plain)
 		}
+	}
+}
+
+func TestJobMonitorRendersAttemptOrdinal(t *testing.T) {
+	model := Model{jobMonitor: jobMonitorState{job: fix.JobPresentation{
+		ID: "job-1", Phase: fix.PhaseRunning, ProfileLabel: "Codex", AttemptOrdinal: 2,
+	}}}
+	view := ansi.Strip(strings.Join(model.jobMonitorContent(72, 8), "\n"))
+	if !strings.Contains(view, "attempt 2") {
+		t.Fatalf("job monitor omitted attempt ordinal: %q", view)
 	}
 }
 

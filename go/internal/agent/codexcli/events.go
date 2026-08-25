@@ -13,8 +13,6 @@ import (
 	"github.com/blater/slopwatch/internal/fix"
 )
 
-const maximumJSONLLine = 1 << 20
-
 type normalized struct {
 	summary          string
 	usage            agent.Usage
@@ -31,24 +29,25 @@ func normalizeEventReader(reader io.Reader, request agent.Request, sink agent.Ev
 		sink = agent.EventSinkFunc(func(agent.Event) error { return nil })
 	}
 	maximum := request.Limits.MaxEvents
-	if maximum <= 0 {
-		maximum = 10000
+	maximumLine := request.Limits.MaxOutputBytes
+	maximumActors := request.Limits.MaxActors
+	if maximumLine <= 0 {
+		return result, fmt.Errorf("Codex output limit must be configured")
+	}
+	if maximumLine > int64(^uint(0)>>1) {
+		maximumLine = int64(^uint(0) >> 1)
 	}
 	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 64<<10), maximumJSONLLine)
+	scanner.Buffer(make([]byte, min(64<<10, int(maximumLine))), int(maximumLine))
 	sequence := uint64(0)
 	seen := 0
 	actors := map[string]struct{}{}
-	maximumActors := request.Limits.MaxActors
-	if maximumActors <= 0 {
-		maximumActors = 32
-	}
 	for scanner.Scan() {
 		if len(bytes.TrimSpace(scanner.Bytes())) == 0 {
 			continue
 		}
 		seen++
-		if seen > maximum {
+		if maximum > 0 && seen > maximum {
 			return result, fmt.Errorf("Codex emitted more than %d events", maximum)
 		}
 		var raw map[string]any
@@ -59,7 +58,7 @@ func normalizeEventReader(reader io.Reader, request agent.Request, sink agent.Ev
 		for _, event := range events {
 			if event.ActorID != "" {
 				actors[event.ActorID] = struct{}{}
-				if len(actors) > maximumActors {
+				if maximumActors > 0 && len(actors) > maximumActors {
 					return result, fmt.Errorf("Codex reported more than %d actors", maximumActors)
 				}
 			}

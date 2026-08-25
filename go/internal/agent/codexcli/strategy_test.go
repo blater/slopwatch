@@ -2,7 +2,9 @@ package codexcli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,6 +87,71 @@ func TestProbeFailsClosedWhenConfinementIsUnproven(t *testing.T) {
 	}
 }
 
+func TestExecutableCheckerDoesNotPromoteExactSandboxWithoutSharedCrashContainment(t *testing.T) {
+	t.Parallel()
+	payload, err := json.Marshal(isolation.ProbeResult{CandidateWrite: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor := &recordingExecutor{results: []isolation.Result{{ExitCode: 0, Stdout: payload}}}
+	checker := ExecutableChecker{Runner: executor, HelperExecutable: os.Args[0], Confinement: isolation.UnsupportedConfinement{Reason: "no persistent descendant owner"}, Listen: func(string, string) (net.Listener, error) {
+		return &testInertListener{closed: make(chan struct{})}, nil
+	}}
+	result := checker.Check(t.Context(), isolation.ConformanceRequest{
+		Executable: "/codex", ProfileArguments: []string{"sandbox"}, CandidateRoot: "/candidate",
+		GitCommonDir: "/git", OutsideRoot: t.TempDir(), SensitiveRoots: []string{"/secret"}, TransportAuthVerified: true,
+		Limits: isolation.Limits{WallTime: time.Second, TerminateGrace: time.Second, MaxStdoutBytes: 1 << 20, MaxStderrBytes: 1 << 20},
+	})
+	if !result.CandidateWrite || !result.OutsideWriteDenied || !result.GitMetadataDenied || !result.SensitiveReadsDenied || !result.ToolNetworkPolicy || !result.TransportAuth {
+		t.Fatalf("exact provider gates = %#v", result)
+	}
+	if result.CrashContainment || result.MutationEligible() || !strings.Contains(result.Diagnostic, "persistent descendant") {
+		t.Fatalf("unproven shared confinement was promoted: %#v", result)
+	}
+}
+
+func TestProbePolicyIsProfileOwnedAndDescriptorVisible(t *testing.T) {
+	descriptor := (&Strategy{}).ProfileDescriptor()
+	seen := map[string]bool{}
+	for _, field := range descriptor.Fields {
+		seen[field.OptionKey] = true
+	}
+	if !seen["probe_timeout"] || !seen["probe_output_bytes"] || !seen["termination_grace"] {
+		t.Fatalf("probe settings absent from descriptor: %#v", descriptor.Fields)
+	}
+	profile := agent.Profile{ID: "codex", Runtime: RuntimeKind, Executable: "codex", AuthenticationRef: "provider-owned", Options: map[string]string{
+		"probe_timeout": "37s", "probe_output_bytes": "123456", "termination_grace": "9s",
+	}}
+	if err := (&Strategy{}).ValidateProfile(profile); err != nil {
+		t.Fatal(err)
+	}
+	policy, err := configuredProbePolicy(profile)
+	if err != nil || policy.timeout != 37*time.Second || policy.outputBytes != 123456 || policy.terminationGrace != 9*time.Second {
+		t.Fatalf("probe policy=%+v err=%v", policy, err)
+	}
+}
+
+type testInertListener struct{ closed chan struct{} }
+
+func (listener *testInertListener) Accept() (net.Conn, error) {
+	<-listener.closed
+	return nil, os.ErrClosed
+}
+func (listener *testInertListener) Close() error {
+	select {
+	case <-listener.closed:
+	default:
+		close(listener.closed)
+	}
+	return nil
+}
+func (*testInertListener) Addr() net.Addr { return testInertAddress("no-network") }
+
+type testInertAddress string
+
+func (address testInertAddress) Network() string { return "test" }
+func (address testInertAddress) String() string  { return string(address) }
+
 func TestExecuteBuildsConfinedEphemeralInvocationAndNormalizesEvents(t *testing.T) {
 	t.Parallel()
 	root := canonicalTestRoot(t)
@@ -128,7 +195,7 @@ func TestExecuteBuildsConfinedEphemeralInvocationAndNormalizesEvents(t *testing.
 		JobID: "job-1", AttemptID: "attempt-1", Model: "gpt-5.6-sol", Effort: "high", Delegation: agent.DelegationSingle,
 		Workspace: fix.CandidateIdentity{RepositoryRoot: candidate, GitCommonDir: common},
 		Task:      agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "trusted envelope", Objective: "fix main.go"}},
-		Limits:    agent.Limits{WallTime: time.Minute, MaxOutputBytes: 1 << 20, MaxEvents: 100},
+		Limits:    agent.Limits{MaxOutputBytes: 1 << 20, MaxEvents: 100},
 	}
 	var events []agent.Event
 	result := strategy.Execute(t.Context(), agent.Profile{Executable: fakeExecutable(t), Options: map[string]string{"denied_read_roots": secret}}, request, agent.EventSinkFunc(func(event agent.Event) error {
@@ -266,7 +333,7 @@ func minimalRequest(t *testing.T) agent.Request {
 		JobID: "job", AttemptID: "attempt", Model: "gpt-5.6-sol", Effort: "high", Delegation: agent.DelegationSingle,
 		Workspace: fix.CandidateIdentity{RepositoryRoot: candidate, GitCommonDir: common},
 		Task:      agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "envelope", Objective: "objective"}},
-		Limits:    agent.Limits{WallTime: time.Second, MaxOutputBytes: 1 << 20, MaxEvents: 10},
+		Limits:    agent.Limits{MaxOutputBytes: 1 << 20, MaxEvents: 10},
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopwatch/internal/appconfig"
 	"github.com/blater/slopwatch/internal/candidate"
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/fixanalysis"
@@ -37,6 +38,47 @@ func TestReviseDraftKeepsVerifierAndInstructionsInSync(t *testing.T) {
 	}
 	if len(revised.AllowedPaths) != 2 || revised.AllowedPaths[1] != "a_test.go" || !strings.Contains(revised.Instructions.Objective, "a_test.go") {
 		t.Fatalf("revised frozen scope = %v, prompt=%q", revised.AllowedPaths, revised.Instructions.Objective)
+	}
+}
+
+func TestEffectiveBranchTemplatePrefersDeliveryWithLegacyFallback(t *testing.T) {
+	tests := []struct {
+		name     string
+		resolved appconfig.Resolved
+		want     string
+	}{
+		{
+			name: "delivery setting wins",
+			resolved: appconfig.Resolved{
+				Fix:      appconfig.FixDefaults{BranchTemplate: "legacy/{target-stem}"},
+				Delivery: appconfig.Delivery{BranchTemplate: "delivery/{target-stem}"},
+				Origins:  map[string]appconfig.Origin{"delivery.branch_template": appconfig.OriginUser, "fix.branch_template": appconfig.OriginUser},
+			},
+			want: "delivery/{target-stem}",
+		},
+		{
+			name: "empty delivery setting falls back",
+			resolved: appconfig.Resolved{
+				Fix: appconfig.FixDefaults{BranchTemplate: "legacy/{target-stem}"},
+			},
+			want: "legacy/{target-stem}",
+		},
+		{
+			name: "explicit legacy setting survives built-in delivery default",
+			resolved: appconfig.Resolved{
+				Fix:      appconfig.FixDefaults{BranchTemplate: "legacy/{target-stem}"},
+				Delivery: appconfig.Delivery{BranchTemplate: "built-in/{target-stem}"},
+				Origins:  map[string]appconfig.Origin{"delivery.branch_template": appconfig.OriginBuiltIn, "fix.branch_template": appconfig.OriginRepository},
+			},
+			want: "legacy/{target-stem}",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := effectiveBranchTemplate(test.resolved); got != test.want {
+				t.Fatalf("effectiveBranchTemplate() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

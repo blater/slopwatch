@@ -33,6 +33,7 @@ type FixService interface {
 	CandidateFile(context.Context, fix.JobID, fix.RepoPath) (candidate.File, error)
 	Diff(context.Context, fix.JobID, fixapp.DiffRequest) (fixapp.DiffPage, error)
 	Transcript(context.Context, fix.JobID, fixapp.LogCursor, int) (fixapp.LogPage, error)
+	Reconfigure(context.Context, fixapp.RuntimeLimits) error
 	Shutdown(context.Context) error
 }
 
@@ -53,26 +54,29 @@ const (
 )
 
 type fixDialogState struct {
-	generation        uint64
-	target            fix.RepoPath
-	draft             fixapp.FixDraft
-	hasDraft          bool
-	loading           bool
-	submitting        bool
-	cursor            int
-	metricCursor      int
-	focus             map[fix.MetricID]bool
-	metrics           []fix.MetricID
-	branch            textinput.Model
-	prompt            textarea.Model
-	branchOriginal    string
-	promptOriginal    string
-	detached          bool
-	promptPreview     bool
-	promptDirtyCursor int
-	branchEditing     bool
-	errorText         string
-	statusText        string
+	generation         uint64
+	target             fix.RepoPath
+	draft              fixapp.FixDraft
+	hasDraft           bool
+	loading            bool
+	submitting         bool
+	cursor             int
+	metricCursor       int
+	focus              map[fix.MetricID]bool
+	metrics            []fix.MetricID
+	branch             textinput.Model
+	prompt             textarea.Model
+	branchOriginal     string
+	promptOriginal     string
+	detached           bool
+	promptPreview      bool
+	promptResetPending bool
+	promptDirtyCursor  int
+	branchEditing      bool
+	deliveryStale      bool
+	submitBlocked      bool
+	errorText          string
+	statusText         string
 }
 
 type cancelConfirmation struct {
@@ -81,6 +85,7 @@ type cancelConfirmation struct {
 	action       fix.JobAction
 	deliveryMode fix.DeliveryMode
 	branchName   string
+	diffHash     string
 	allowed      bool
 	pending      bool
 	errorText    string
@@ -96,16 +101,17 @@ type jobActionsState struct {
 }
 
 type jobMonitorState struct {
-	generation uint64
-	jobID      fix.JobID
-	focusPath  fix.RepoPath
-	job        fix.JobPresentation
-	activity   []fixapp.LogEntry
-	loading    bool
-	refreshing bool
-	pending    bool
-	errorText  string
-	offset     int
+	generation        uint64
+	jobID             fix.JobID
+	focusPath         fix.RepoPath
+	job               fix.JobPresentation
+	activity          []fixapp.LogEntry
+	activityTruncated bool
+	loading           bool
+	refreshing        bool
+	pending           bool
+	errorText         string
+	offset            int
 }
 
 type jobReaderState struct {
@@ -195,10 +201,8 @@ func (model *Model) openFixForSelected() tea.Cmd {
 	model.fixGeneration++
 	branch := textinput.New()
 	branch.Prompt = ""
-	branch.CharLimit = 240
 	prompt := textarea.New()
 	prompt.Placeholder = "Additional guidance for the agent"
-	prompt.CharLimit = 16 * 1024
 	model.fixDialog = fixDialogState{
 		generation: model.fixGeneration, target: path, loading: true, focus: map[fix.MetricID]bool{}, branch: branch, prompt: prompt,
 		statusText: "Preparing baseline and checking agent readiness…",
@@ -322,6 +326,10 @@ func (model Model) fixCodeForPath(path string) string {
 func (model Model) prepareFixCommand(path fix.RepoPath, profile *agent.ProfileID, generation uint64) tea.Cmd {
 	service := model.fixService
 	workspace := model.fixWorkspace
+	var selectedDelivery *fixapp.PrepareDelivery
+	if model.fixDialog.hasDraft {
+		selectedDelivery = &fixapp.PrepareDelivery{Mode: model.fixDialog.draft.DeliveryMode, Branch: model.fixDialog.draft.BranchName}
+	}
 	if workspace.RepositoryRoot == "" {
 		workspace.RepositoryRoot = model.options.Workspace
 		workspace.AnalysisRoot = model.options.Workspace
@@ -329,7 +337,7 @@ func (model Model) prepareFixCommand(path fix.RepoPath, profile *agent.ProfileID
 	return func() tea.Msg {
 		overrides := appconfig.SessionOverrides{Profile: profile}
 		draft, err := service.Prepare(context.Background(), fixapp.PrepareRequest{
-			Workspace: workspace, Targets: []fix.RepoPath{path}, Overrides: overrides,
+			Workspace: workspace, Targets: []fix.RepoPath{path}, Overrides: overrides, Delivery: selectedDelivery,
 		})
 		return fixPreparedMsg{generation: generation, draft: draft, err: err}
 	}
@@ -348,6 +356,8 @@ func (model *Model) handleFixPrepared(message fixPreparedMsg) {
 	old := model.fixDialog
 	model.fixDialog.draft = message.draft
 	model.fixDialog.hasDraft = true
+	model.fixDialog.submitBlocked = false
+	model.fixDialog.deliveryStale = false
 	model.fixDialog.errorText = ""
 	model.fixDialog.statusText = "Ready"
 	model.fixDialog.metrics = availableFixMetrics(message.draft)
@@ -376,6 +386,9 @@ func (model *Model) handleFixPrepared(message fixPreparedMsg) {
 		model.fixDialog.branch.SetValue(message.draft.BranchName)
 		model.fixDialog.promptOriginal = body
 		model.fixDialog.branchOriginal = message.draft.BranchName
+	}
+	if fixValidationNeedsRepair(model.fixDialog.draft) {
+		model.fixDialog.cursor = fixFieldValidation
 	}
 }
 
@@ -414,7 +427,8 @@ func (state fixDialogState) fixDraftEdits() fixapp.DraftEdits {
 		}
 	}
 	return fixapp.DraftEdits{
-		TargetScore: state.draft.TargetScore, Focus: goals, ChangeScope: state.draft.ChangeScope,
+		TargetScore: state.draft.TargetScore,
+		Focus:       goals, ChangeScope: state.draft.ChangeScope,
 		ValidationPlanID: state.draft.ValidationPlanID, DeliveryMode: state.draft.DeliveryMode,
 		BranchName: state.branch.Value(), Guidance: state.draft.Instructions.UserGuidance,
 		DetachedBody: func() string {
@@ -446,6 +460,9 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			state.branchEditing = false
 			state.branch.Blur()
 			model.syncFixDraft()
+			if state.branch.Value() != state.branchOriginal {
+				model.markFixDeliveryStale()
+			}
 			state.branchOriginal = state.branch.Value()
 			return model, nil
 		case "esc":
@@ -469,9 +486,31 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	if state.loading || state.submitting || !state.hasDraft {
+		if name == "r" && !state.loading && !state.submitting {
+			model.fixGeneration++
+			state.generation = model.fixGeneration
+			state.loading = true
+			state.errorText = ""
+			state.statusText = "Rechecking runtime, validation, and workspace readiness…"
+			return model, model.prepareFixCommand(state.target, nil, state.generation)
+		}
+		if name == "s" && !state.submitting && state.errorText != "" {
+			return model, model.openFixRemediationSettings()
+		}
 		return model, nil
 	}
 	switch name {
+	case "r":
+		model.fixGeneration++
+		state.generation = model.fixGeneration
+		state.loading = true
+		state.submitBlocked = false
+		state.errorText = ""
+		state.statusText = "Rechecking runtime, validation, and workspace readiness…"
+		profile := state.draft.Profile.ID
+		return model, model.prepareFixCommand(state.target, &profile, state.generation)
+	case "s":
+		return model, model.openFixRemediationSettings()
 	case "P":
 		state.promptPreview = true
 		state.prompt.Blur()
@@ -552,8 +591,12 @@ func (model *Model) adjustFixField(direction int) (tea.Model, tea.Cmd) {
 		state.draft.ValidationPlanID = fixCycleString(options, state.draft.ValidationPlanID, direction)
 		model.syncFixDraft()
 	case fixFieldDelivery:
+		previous := state.draft.DeliveryMode
 		state.draft.DeliveryMode = fix.DeliveryMode(fixCycleString(fixUniqueStrings(string(state.draft.DeliveryMode), "candidate", "branch", "pull-request"), string(state.draft.DeliveryMode), direction))
 		model.syncFixDraft()
+		if state.draft.DeliveryMode != previous {
+			model.markFixDeliveryStale()
+		}
 	}
 	return model, nil
 }
@@ -614,7 +657,20 @@ func (model *Model) handlePromptEditorKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return model, nil
 	}
+	if key.String() != "R" {
+		model.fixDialog.promptResetPending = false
+	}
 	switch key.String() {
+	case "R":
+		if !model.fixDialog.detached {
+			return model, nil
+		}
+		if !model.fixDialog.promptResetPending {
+			model.fixDialog.promptResetPending = true
+			return model, nil
+		}
+		model.resetPromptFromControls()
+		return model, nil
 	case "ctrl+s":
 		if !model.fixDialog.detached && model.fixDialog.prompt.Value() != model.fixDialog.promptOriginal {
 			model.overlays.Push(OverlayPromptDetach, OverlayCaller{MainView: MainViewFiles, Overlay: OverlayPromptEditor, Selected: model.fixDialog.target.String()})
@@ -643,7 +699,17 @@ func (model *Model) applyPromptEdits() {
 	model.fixDialog.detached = true
 	model.syncFixDraft()
 	model.fixDialog.promptOriginal = model.fixDialog.prompt.Value()
+	model.fixDialog.promptResetPending = false
 	model.overlays.Pop()
+}
+
+func (model *Model) resetPromptFromControls() {
+	body := generatedFixBody(model.fixDialog.draft)
+	model.fixDialog.prompt.SetValue(body)
+	model.fixDialog.detached = false
+	model.fixDialog.promptResetPending = false
+	model.syncFixDraft()
+	model.fixDialog.promptOriginal = body
 }
 
 func (model *Model) handlePromptDetachKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -699,12 +765,16 @@ func generatedFixBody(draft fixapp.FixDraft) string {
 }
 
 func (model *Model) submitFix() (tea.Model, tea.Cmd) {
+	if model.fixDialog.submitBlocked {
+		model.fixDialog.errorText = "Submission readiness is stale · press r to recheck before retrying"
+		return model, nil
+	}
 	if !model.syncFixDraft() {
 		return model, nil
 	}
 	state := &model.fixDialog
-	if !fixDraftRunnable(state.draft) {
-		state.errorText = "Run fix is unavailable until workspace and agent preflight are ready"
+	if !model.fixDialogRunnable() {
+		state.errorText = "Run fix is unavailable: " + fixPreflightSummary(state.draft)
 		return model, nil
 	}
 	state.submitting = true
@@ -723,7 +793,8 @@ func (model *Model) handleFixSubmitted(message fixSubmittedMsg) {
 	model.fixDialog.submitting = false
 	if message.err != nil {
 		model.fixDialog.errorText = message.err.Error()
-		model.fixDialog.statusText = "Submission failed"
+		model.fixDialog.statusText = "Submission blocked · r recheck readiness before retrying"
+		model.fixDialog.submitBlocked = true
 		return
 	}
 	model.overlays.Pop()
@@ -731,6 +802,72 @@ func (model *Model) handleFixSubmitted(message fixSubmittedMsg) {
 	model.switchMainView(MainViewAgents)
 	model.agents.FindQuery = ""
 	model.agents.Selected = AgentRowID{JobID: message.jobID}
+}
+
+func (model Model) fixDialogRunnable() bool {
+	return model.fixDialog.hasDraft && !model.fixDialog.submitBlocked && !model.fixDialog.deliveryStale && fixDraftRunnable(model.fixDialog.draft)
+}
+
+func (model *Model) markFixDeliveryStale() {
+	model.fixDialog.deliveryStale = true
+	model.fixDialog.statusText = "Delivery changed · press r to recheck readiness"
+}
+
+func (model *Model) openFixRemediationSettings() tea.Cmd {
+	kind, ok := model.fixRemediationSettingsKind()
+	if !ok {
+		model.fixDialog.statusText = "No settings remediation is available · resolve the diagnostic, then press r to recheck"
+		return nil
+	}
+	diagnostic := model.fixDialog.errorText
+	if diagnostic == "" && model.fixDialog.hasDraft {
+		diagnostic = fixPreflightSummary(model.fixDialog.draft)
+	}
+	model.fixNotice = "Fix blocked: " + cleanAgentText(diagnostic)
+	command := model.openConfigSettings(kind)
+	model.configSettings.returnToFix = true
+	model.overlays.Push(OverlayConfigSettings, OverlayCaller{
+		MainView: MainViewFiles, Overlay: OverlayFixForm, Selected: model.fixDialog.target.String(),
+	})
+	return command
+}
+
+func (model Model) fixRemediationSettingsKind() (configSettingsKind, bool) {
+	state := model.fixDialog
+	if state.hasDraft {
+		draft := state.draft
+		if draft.Probe.State == agent.ProbeUnauthenticated || draft.Probe.State == agent.ProbeUnavailable || draft.Probe.State == agent.ProbeIncompatible {
+			return configAgents, true
+		}
+		if draft.Probe.State == agent.ProbeDegraded || !draft.Probe.Capabilities.Isolation.EligibleForMutation() {
+			return "", false
+		}
+		if !fixOptionContains(draft.Probe.Capabilities.Models, draft.Model) ||
+			!fixOptionContains(draft.Probe.Capabilities.Efforts, draft.Effort) ||
+			!fixOptionContains(draft.Probe.Capabilities.Delegation, draft.Delegation) {
+			return configFix, true
+		}
+		if !fixValidationRunnable(draft) {
+			return configValidation, true
+		}
+		if draft.DeliveryMode != fix.DeliveryModeCandidate && strings.TrimSpace(draft.BranchName) == "" {
+			return configDelivery, true
+		}
+	}
+	message := strings.ToLower(state.errorText)
+	switch {
+	case strings.Contains(message, "validation"):
+		return configValidation, true
+	case strings.Contains(message, "delivery"), strings.Contains(message, "branch"), strings.Contains(message, "remote"), strings.Contains(message, "pull request"):
+		return configDelivery, true
+	case strings.Contains(message, "agent"), strings.Contains(message, "profile"), strings.Contains(message, "runtime"), strings.Contains(message, "executable"),
+		strings.Contains(message, "authentication"), strings.Contains(message, "codex"), strings.Contains(message, "claude"), strings.Contains(message, "grok"):
+		return configAgents, true
+	case strings.Contains(message, "config"), strings.Contains(message, "preference"):
+		return configFix, true
+	default:
+		return "", false
+	}
 }
 
 func (model Model) hasOverlay(kind OverlayKind) bool {
@@ -850,7 +987,7 @@ func (model Model) loadJobMonitorCommandWithService(service FixService, jobID fi
 		if !found {
 			return jobMonitorMsg{generation: generation, found: false}
 		}
-		activity, err := service.Transcript(context.Background(), jobID, 0, 100)
+		activity, err := loadRetainedTranscript(context.Background(), service, jobID)
 		if errors.Is(err, fixapp.ErrJobNotFound) {
 			err = nil
 		}
@@ -874,7 +1011,9 @@ func (model *Model) handleJobMonitor(message jobMonitorMsg) tea.Cmd {
 	if message.found {
 		model.jobMonitor.job = message.job
 		model.jobMonitor.activity = append([]fixapp.LogEntry(nil), message.activity.Entries...)
+		model.jobMonitor.activityTruncated = message.activity.Truncated
 	}
+	model.jobMonitor.offset = min(model.jobMonitor.offset, model.jobMonitorMaxOffset())
 	if model.jobMonitor.pending {
 		model.jobMonitor.pending = false
 		return model.beginJobMonitorRefresh()
@@ -889,11 +1028,11 @@ func (model *Model) handleJobMonitorKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		model.jobMonitor.offset = max(0, model.jobMonitor.offset-1)
 	case "down", "j":
-		model.jobMonitor.offset++
+		model.jobMonitor.offset = min(model.jobMonitorMaxOffset(), model.jobMonitor.offset+1)
 	case "pgup", "ctrl+b":
 		model.jobMonitor.offset = max(0, model.jobMonitor.offset-max(1, model.height-6))
 	case "pgdown", "ctrl+f":
-		model.jobMonitor.offset += max(1, model.height-6)
+		model.jobMonitor.offset = min(model.jobMonitorMaxOffset(), model.jobMonitor.offset+max(1, model.height-6))
 	case "[", "]":
 		jobs := model.visibleAgentJobs()
 		if len(jobs) == 0 {
@@ -955,43 +1094,85 @@ func (model *Model) openJobReader(kind OverlayKind, jobID fix.JobID, path fix.Re
 		switch kind {
 		case OverlayJobLog:
 			var page fixapp.LogPage
-			page, err = service.Transcript(context.Background(), jobID, 0, 500)
-			truncated = page.Truncated || !page.Complete
+			page, err = loadRetainedTranscript(context.Background(), service, jobID)
+			truncated = page.Truncated
 			for _, entry := range page.Entries {
 				at := entry.At.Format("15:04:05")
 				lines = append(lines, fmt.Sprintf("%s  %-16s %s", at, entry.Kind, cleanAgentText(entry.Summary)))
 			}
 		case OverlayJobDiff:
-			var page fixapp.DiffPage
-			page, err = service.Diff(context.Background(), jobID, fixapp.DiffRequest{Limit: 200})
-			truncated = !page.Complete
-			for _, file := range page.Files {
-				if path != "" && file.Path != path {
-					continue
+			offset := 0
+			fingerprint := ""
+			for {
+				var page fixapp.DiffPage
+				page, err = service.Diff(context.Background(), jobID, fixapp.DiffRequest{Offset: offset, Limit: 200})
+				if err != nil {
+					break
 				}
-				label := fmt.Sprintf("%-10s %s", cleanAgentText(file.Status), file.Path)
-				if file.Additions > 0 || file.Deletions > 0 {
-					label += fmt.Sprintf("  +%d -%d", file.Additions, file.Deletions)
+				if fingerprint == "" {
+					fingerprint = page.Fingerprint
+				} else if page.Fingerprint != fingerprint {
+					err = errors.New("candidate diff changed while loading; press r to refresh")
+					truncated = true
+					break
 				}
-				if file.Previous != "" {
-					label += "  from " + file.Previous.String()
+				for _, file := range page.Files {
+					if path != "" && file.Path != path {
+						continue
+					}
+					label := fmt.Sprintf("%-10s %s", cleanAgentText(file.Status), file.Path)
+					if file.Additions > 0 || file.Deletions > 0 {
+						label += fmt.Sprintf("  +%d -%d", file.Additions, file.Deletions)
+					}
+					if file.Previous != "" {
+						label += "  from " + file.Previous.String()
+					}
+					if file.Binary {
+						label += "  [binary]"
+					}
+					lines = append(lines, label)
 				}
-				if file.Binary {
-					label += "  [binary]"
+				if page.Complete {
+					break
 				}
-				lines = append(lines, label)
+				if page.NextOffset <= offset {
+					err = errors.New("diff pagination did not advance")
+					truncated = true
+					break
+				}
+				offset = page.NextOffset
 			}
 		case OverlayCandidateSource:
 			var file candidate.File
 			file, err = service.CandidateFile(context.Background(), jobID, path)
 			if err == nil {
 				lines = strings.Split(strings.ReplaceAll(string(file.Contents), "\r\n", "\n"), "\n")
-				if len(lines) > 5000 {
-					lines, truncated = lines[:5000], true
-				}
+				truncated = file.Truncated
 			}
 		}
 		return jobReaderMsg{generation: generation, kind: kind, lines: lines, truncated: truncated, err: err}
+	}
+}
+
+func loadRetainedTranscript(ctx context.Context, service FixService, jobID fix.JobID) (fixapp.LogPage, error) {
+	result := fixapp.LogPage{}
+	cursor := fixapp.LogCursor(0)
+	for {
+		page, err := service.Transcript(ctx, jobID, cursor, 500)
+		if err != nil {
+			return result, err
+		}
+		result.Entries = append(result.Entries, page.Entries...)
+		result.Next = page.Next
+		result.Truncated = result.Truncated || page.Truncated
+		if page.Complete {
+			result.Complete = true
+			return result, nil
+		}
+		if page.Next <= cursor {
+			return result, errors.New("activity pagination did not advance")
+		}
+		cursor = page.Next
 	}
 }
 
@@ -1067,9 +1248,7 @@ func (model *Model) handleShutdownKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		model.shutdown.pending = true
 		service := model.fixService
 		return model, func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			return shutdownCompleteMsg{err: service.Shutdown(ctx)}
+			return shutdownCompleteMsg{err: service.Shutdown(context.Background())}
 		}
 	}
 	return model, nil
@@ -1094,7 +1273,7 @@ func (model *Model) openCancelConfirmation() {
 		model.fixNotice = "Cancel is unavailable for the selected job"
 		return
 	}
-	model.cancelConfirmation = cancelConfirmation{jobID: job.ID, revision: job.Revision, action: fix.ActionCancel, deliveryMode: job.DeliveryMode, branchName: job.BranchName, allowed: true}
+	model.cancelConfirmation = cancelConfirmation{jobID: job.ID, revision: job.Revision, action: fix.ActionCancel, deliveryMode: job.DeliveryMode, branchName: job.BranchName, diffHash: job.DiffFingerprint, allowed: true}
 	model.overlays.Push(OverlayConfirmation, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: job.ID}.String()})
 }
 
@@ -1159,6 +1338,7 @@ func (model *Model) handleJobActionsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			model.cancelConfirmation = cancelConfirmation{
 				jobID: state.jobID, revision: state.revision, action: action,
 				deliveryMode: job.DeliveryMode, branchName: job.BranchName, allowed: true,
+				diffHash: job.DiffFingerprint,
 			}
 			model.overlays.Push(OverlayConfirmation, OverlayCaller{MainView: MainViewAgents, Overlay: OverlayJobActions, Selected: AgentRowID{JobID: state.jobID}.String()})
 			return model, nil
@@ -1231,7 +1411,13 @@ func (model *Model) executeSelectedJobAction(jobID fix.JobID, revision uint64, a
 		model.jobActions.pending = true
 	}
 	service := model.fixService
-	command := fix.JobCommand{RequestID: requestID, JobID: jobID, ExpectedRevision: revision, Action: action}
+	diffHash := ""
+	if confirmation {
+		diffHash = model.cancelConfirmation.diffHash
+	} else if job, ok := model.agentJobByID(jobID); ok {
+		diffHash = job.DiffFingerprint
+	}
+	command := fix.JobCommand{RequestID: requestID, JobID: jobID, ExpectedRevision: revision, Action: action, DiffHash: diffHash}
 	return model, func() tea.Msg {
 		receipt, executeErr := service.Execute(context.Background(), command)
 		return fixCommandMsg{jobID: command.JobID, action: action, receipt: receipt, err: executeErr}
@@ -1282,6 +1468,7 @@ func (model *Model) refreshActionAfterError(message fixCommandMsg, confirmation 
 			model.cancelConfirmation.revision = job.Revision
 			model.cancelConfirmation.deliveryMode = job.DeliveryMode
 			model.cancelConfirmation.branchName = job.BranchName
+			model.cancelConfirmation.diffHash = job.DiffFingerprint
 			model.cancelConfirmation.allowed = containsFixAction(job.AllowedActions, message.action)
 			if model.hasOverlay(OverlayJobActions) && model.jobActions.jobID == job.ID {
 				model.jobActions.revision = job.Revision

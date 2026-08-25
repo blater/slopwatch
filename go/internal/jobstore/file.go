@@ -2,9 +2,11 @@ package jobstore
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,10 +17,32 @@ import (
 )
 
 const (
-	journalName    = "jobs.journal"
-	maxRecordBytes = 16 << 20
-	headerBytes    = 4 + sha256.Size
+	journalName        = "jobs.journal"
+	maxRecordBytes     = 16 << 20
+	recordChunkBytes   = 8 << 20
+	headerBytes        = 4 + sha256.Size
+	recordChunkFrameV1 = "record-chunk-v1"
 )
+
+// recordChunkFrame keeps every physical journal frame inside the fixed
+// corruption-safe envelope while allowing a logical recovery record to be any
+// size supported by the configured application retention policy. The digest
+// authenticates the reassembled logical record, not just each physical frame.
+type recordChunkFrame struct {
+	Frame          string `json:"_jobstore_frame"`
+	RecordSequence uint64 `json:"record_sequence"`
+	Index          uint64 `json:"index"`
+	Final          bool   `json:"final"`
+	Digest         string `json:"digest"`
+	Data           []byte `json:"data"`
+}
+
+type pendingRecord struct {
+	sequence uint64
+	next     uint64
+	digest   string
+	data     bytes.Buffer
+}
 
 type File struct {
 	mu       sync.Mutex
@@ -111,7 +135,7 @@ func (store *File) Append(ctx context.Context, record Record) (Record, error) {
 	}
 	record.Version = RecordVersion
 	record.Sequence = store.sequence + 1
-	if err := writeRecord(store.file, record); err != nil {
+	if err := writeRecord(ctx, store.file, record); err != nil {
 		store.failed = err
 		return Record{}, err
 	}
@@ -160,7 +184,7 @@ func (store *File) Compact(ctx context.Context, records []Record) error {
 		}
 		record.Version = RecordVersion
 		record.Sequence = uint64(index + 1)
-		if err := writeRecord(temporary, record); err != nil {
+		if err := writeRecord(ctx, temporary, record); err != nil {
 			return fmt.Errorf("write job checkpoint: %w", err)
 		}
 	}
@@ -221,7 +245,8 @@ func (store *File) loadLocked() ([]Record, int64, error) {
 	}
 	reader := bufio.NewReader(store.file)
 	var result []Record
-	var validBytes int64
+	var consumedBytes, validBytes int64
+	var pending *pendingRecord
 	for {
 		header := make([]byte, headerBytes)
 		if _, err := io.ReadFull(reader, header); err != nil {
@@ -245,6 +270,58 @@ func (store *File) loadLocked() ([]Record, int64, error) {
 		if !equalChecksum(header[4:], checksum[:]) {
 			return nil, validBytes, fmt.Errorf("job record %d checksum mismatch", len(result)+1)
 		}
+		consumedBytes += int64(headerBytes) + int64(length)
+		var marker struct {
+			Frame string `json:"_jobstore_frame"`
+		}
+		if err := json.Unmarshal(payload, &marker); err != nil {
+			return nil, validBytes, fmt.Errorf("decode job frame %d: %w", len(result)+1, err)
+		}
+		if marker.Frame != "" {
+			if marker.Frame != recordChunkFrameV1 {
+				return nil, validBytes, fmt.Errorf("unsupported job frame %q", marker.Frame)
+			}
+			var frame recordChunkFrame
+			if err := json.Unmarshal(payload, &frame); err != nil {
+				return nil, validBytes, fmt.Errorf("decode job chunk %d: %w", len(result)+1, err)
+			}
+			if frame.RecordSequence != uint64(len(result)+1) || frame.Digest == "" || len(frame.Data) == 0 {
+				return nil, validBytes, fmt.Errorf("invalid job chunk identity at record %d", len(result)+1)
+			}
+			if pending == nil {
+				if frame.Index != 0 {
+					return nil, validBytes, fmt.Errorf("job record %d does not begin with chunk zero", len(result)+1)
+				}
+				pending = &pendingRecord{sequence: frame.RecordSequence, digest: frame.Digest}
+			}
+			if frame.RecordSequence != pending.sequence || frame.Index != pending.next || frame.Digest != pending.digest {
+				return nil, validBytes, fmt.Errorf("non-contiguous job chunks at record %d", len(result)+1)
+			}
+			_, _ = pending.data.Write(frame.Data)
+			pending.next++
+			if !frame.Final {
+				continue
+			}
+			logical := pending.data.Bytes()
+			digest := sha256.Sum256(logical)
+			if !equalChecksum([]byte(pending.digest), []byte(hex.EncodeToString(digest[:]))) {
+				return nil, validBytes, fmt.Errorf("job record %d chunk digest mismatch", len(result)+1)
+			}
+			var record Record
+			if err := json.Unmarshal(logical, &record); err != nil {
+				return nil, validBytes, fmt.Errorf("decode chunked job record %d: %w", len(result)+1, err)
+			}
+			if record.Version != RecordVersion || record.Sequence != uint64(len(result)+1) {
+				return nil, validBytes, fmt.Errorf("invalid chunked job record sequence/version at %d", len(result)+1)
+			}
+			result = append(result, record)
+			pending = nil
+			validBytes = consumedBytes
+			continue
+		}
+		if pending != nil {
+			return nil, validBytes, fmt.Errorf("job record %d chunk sequence was interrupted", len(result)+1)
+		}
 		var record Record
 		if err := json.Unmarshal(payload, &record); err != nil {
 			return nil, validBytes, fmt.Errorf("decode job record %d: %w", len(result)+1, err)
@@ -253,7 +330,7 @@ func (store *File) loadLocked() ([]Record, int64, error) {
 			return nil, validBytes, fmt.Errorf("invalid job record sequence/version at %d", len(result)+1)
 		}
 		result = append(result, record)
-		validBytes += int64(headerBytes) + int64(length)
+		validBytes = consumedBytes
 	}
 	return result, validBytes, nil
 }
@@ -279,13 +356,43 @@ func writeAll(writer io.Writer, data []byte) error {
 	return nil
 }
 
-func writeRecord(writer io.Writer, record Record) error {
+func writeRecord(ctx context.Context, writer io.Writer, record Record) error {
 	payload, err := json.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("encode job record: %w", err)
 	}
-	if len(payload) > maxRecordBytes {
-		return fmt.Errorf("job record exceeds %d bytes", maxRecordBytes)
+	if len(payload) <= maxRecordBytes {
+		return writeFrame(writer, payload)
+	}
+	digest := sha256.Sum256(payload)
+	digestText := hex.EncodeToString(digest[:])
+	var index uint64
+	for offset := 0; offset < len(payload); offset += recordChunkBytes {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		end := min(len(payload), offset+recordChunkBytes)
+		frame, err := json.Marshal(recordChunkFrame{
+			Frame: recordChunkFrameV1, RecordSequence: record.Sequence, Index: index,
+			Final: end == len(payload), Digest: digestText, Data: payload[offset:end],
+		})
+		if err != nil {
+			return fmt.Errorf("encode job record chunk %d: %w", index, err)
+		}
+		if len(frame) > maxRecordBytes {
+			return fmt.Errorf("encoded job record chunk %d exceeds protocol envelope", index)
+		}
+		if err := writeFrame(writer, frame); err != nil {
+			return fmt.Errorf("write job record chunk %d: %w", index, err)
+		}
+		index++
+	}
+	return nil
+}
+
+func writeFrame(writer io.Writer, payload []byte) error {
+	if len(payload) == 0 || len(payload) > maxRecordBytes {
+		return fmt.Errorf("job frame exceeds %d bytes", maxRecordBytes)
 	}
 	checksum := sha256.Sum256(payload)
 	header := make([]byte, headerBytes)

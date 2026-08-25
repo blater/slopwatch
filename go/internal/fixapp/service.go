@@ -1,16 +1,19 @@
 package fixapp
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
@@ -35,12 +38,25 @@ type Dependencies struct {
 	Delivery          delivery.SagaService
 	DeliveryPreflight delivery.PreflightService
 	Publisher         publisher.Service
+	SecretAdmission   SecretAdmission
+}
+
+// SecretAdmission checks untrusted user-authored text without exposing secret
+// values to orchestration or persistence.
+type SecretAdmission interface {
+	RejectKnownSecret(context.Context, string, ...string) error
 }
 
 type Options struct {
-	MaxAgents                  int
-	MaxVerifiers               int
-	MaxTranscriptItems         int
+	MaxAgents          int
+	MaxVerifiers       int
+	MaxRetainedJobs    int
+	MaxTranscriptBytes int64
+	// StartupValidationWorkspace is the exact workspace and container policy
+	// installed in the validation service for this process. Prepare rejects a
+	// newly resolved policy that differs from this snapshot, because pinning a
+	// policy which the running validator cannot enforce would be misleading.
+	StartupValidationWorkspace appconfig.ValidationWorkspace
 	JournalCompactRecords      int
 	TranscriptCheckpointEvents int
 	Clock                      func() time.Time
@@ -72,9 +88,11 @@ type jobRecord struct {
 	draft                 FixDraft
 	presentation          fix.JobPresentation
 	attempt               fix.AttemptID
+	retryEvidence         string
 	candidate             *fix.CandidateIdentity
 	cancel                context.CancelFunc
 	logs                  []LogEntry
+	logBytes              int64
 	truncated             bool
 	commands              map[fix.CommandID]CommandReceipt
 	actors                map[string]bool
@@ -128,11 +146,19 @@ type candidateCall struct {
 }
 
 type candidateResponse struct {
-	identity fix.CandidateIdentity
-	ok       bool
+	identity     fix.CandidateIdentity
+	previewBytes int64
+	previewLines int
+	ok           bool
 }
 
 type shutdownCall struct{ response chan error }
+
+type reconfigureCall struct {
+	ctx      context.Context
+	limits   RuntimeLimits
+	response chan error
+}
 
 type workerKind uint8
 
@@ -175,6 +201,7 @@ const (
 	publicationRemoteRef   publicationStep = "remote_ref"
 	publicationPullRequest publicationStep = "pull_request"
 	publicationReconcile   publicationStep = "reconcile"
+	publicationPRReconcile publicationStep = "pull_request_reconcile"
 )
 
 func New(dependencies Dependencies, options Options) (*Manager, error) {
@@ -182,14 +209,8 @@ func New(dependencies Dependencies, options Options) (*Manager, error) {
 		dependencies.Agents == nil || dependencies.Store == nil {
 		return nil, errors.New("fix service dependencies are incomplete")
 	}
-	if options.MaxAgents <= 0 {
-		options.MaxAgents = 2
-	}
-	if options.MaxVerifiers <= 0 {
-		options.MaxVerifiers = 1
-	}
-	if options.MaxTranscriptItems <= 0 {
-		options.MaxTranscriptItems = 2_000
+	if options.MaxAgents <= 0 || options.MaxVerifiers <= 0 || options.MaxRetainedJobs <= 0 || options.MaxTranscriptBytes <= 0 {
+		return nil, errors.New("fix service requires explicit positive scheduler and retention settings")
 	}
 	if options.JournalCompactRecords <= 0 {
 		options.JournalCompactRecords = 512
@@ -205,7 +226,7 @@ func New(dependencies Dependencies, options Options) (*Manager, error) {
 		_ = dependencies.Store.Close()
 		return nil, fmt.Errorf("load fix job journal: %w", err)
 	}
-	if err := validateInitialJournal(records, options.MaxTranscriptItems); err != nil {
+	if err := validateInitialJournal(records); err != nil {
 		_ = dependencies.Store.Close()
 		return nil, fmt.Errorf("restore fix job journal: %w", err)
 	}
@@ -232,10 +253,18 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 	if err != nil {
 		return FixDraft{}, fmt.Errorf("prepare fix preferences: %w", err)
 	}
+	if resolved.ValidationWorkspace != manager.options.StartupValidationWorkspace {
+		return FixDraft{}, errors.New("prepare fix: validation workspace or container settings changed after Slopwatch started; restart Slopwatch before preparing another Fix so the saved policy is enforced")
+	}
+	if resolved.Fix.PromptTemplate != "" && resolved.Fix.PromptTemplate != "default" {
+		return FixDraft{}, fmt.Errorf("unsupported fix prompt template %q", resolved.Fix.PromptTemplate)
+	}
 	profile, err := selectedProfile(resolved)
 	if err != nil {
 		return FixDraft{}, err
 	}
+	validationReadinessByPlan := manager.preflightValidationPlans(ctx, request.Workspace, resolved.Validation)
+	validationReadiness := selectedValidationReadiness(resolved.Fix.ValidationPlan, validationReadinessByPlan)
 	strategy, err := manager.deps.Agents.Strategy(profile.Runtime)
 	if err != nil {
 		return FixDraft{}, err
@@ -250,6 +279,7 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 	}
 	preflight, err := manager.deps.Candidates.Preflight(ctx, candidate.PreflightRequest{
 		Workspace: request.Workspace, Targets: append([]fix.RepoPath(nil), request.Targets...),
+		CommandOutputBytes: resolved.Delivery.CommandOutputBytes,
 	})
 	if err != nil {
 		return FixDraft{}, fmt.Errorf("prepare fix workspace: %w", err)
@@ -280,15 +310,24 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 	if err != nil {
 		return FixDraft{}, err
 	}
-	branchName := renderBranch(resolved.Fix.BranchTemplate, request.Targets, draftID, resolved.Fix.Focus, manager.options.Clock())
-	if err := manager.preflightDelivery(ctx, request.Workspace, resolved.Delivery.DefaultMode, resolved.Delivery.Remote, resolved.Delivery.BaseBranch, branchName); err != nil {
+	branchName := renderBranch(effectiveBranchTemplate(resolved), request.Targets, draftID, resolved.Fix.Focus, manager.options.Clock())
+	deliveryMode := resolved.Delivery.DefaultMode
+	if request.Delivery != nil {
+		deliveryMode = request.Delivery.Mode
+		branchName = request.Delivery.Branch
+	}
+	deliveryTarget, err := manager.preflightDelivery(ctx, request.Workspace, deliveryMode, resolved.Delivery, branchName, false)
+	if err != nil {
 		return FixDraft{}, err
 	}
 	baseline.Contract.Goal.Focus, err = configuredFocusGoals(resolved.Fix.Focus, baseline.Contract.Targets)
 	if err != nil {
 		return FixDraft{}, err
 	}
-	instructions, err := fixprompt.Compile(fixprompt.Input{Contract: baseline.Contract, AllowedScope: resolved.Fix.ChangeScope, AllowedPaths: allowedPaths})
+	instructions, err := fixprompt.Compile(fixprompt.Input{
+		Contract: baseline.Contract, AllowedScope: resolved.Fix.ChangeScope, AllowedPaths: allowedPaths,
+		ValidationPlan: resolved.Fix.ValidationPlan,
+	})
 	if err != nil {
 		return FixDraft{}, err
 	}
@@ -297,17 +336,40 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 		Targets: append([]fix.RepoPath(nil), request.Targets...), Baseline: baseline,
 		Preferences: resolved, Profile: cloneProfile(profile), Probe: cloneProbe(probe),
 		Model: resolved.Fix.Model, Effort: resolved.Fix.Effort, Delegation: resolved.Fix.Delegation,
-		TargetScore: resolved.Fix.TargetScore, Focus: append([]fix.MetricGoal(nil), baseline.Contract.Goal.Focus...), ChangeScope: resolved.Fix.ChangeScope,
-		AllowedPaths:     append([]fix.RepoPath(nil), allowedPaths...),
-		ValidationPlanID: resolved.Fix.ValidationPlan,
-		DeliveryMode:     resolved.Delivery.DefaultMode, BranchName: branchName,
+		TargetScore: resolved.Fix.TargetScore,
+		Focus:       append([]fix.MetricGoal(nil), baseline.Contract.Goal.Focus...), ChangeScope: resolved.Fix.ChangeScope,
+		AllowedPaths:              append([]fix.RepoPath(nil), allowedPaths...),
+		ValidationPlanID:          resolved.Fix.ValidationPlan,
+		ValidationReadiness:       validationReadiness,
+		ValidationReadinessByPlan: cloneValidationReadiness(validationReadinessByPlan),
+		DeliveryMode:              deliveryMode, DeliveryTarget: deliveryTarget, BranchName: branchName,
 		Instructions: instructions, Preflight: preflight,
 	}
 	manager.draftMu.Lock()
-	manager.prunePrepared(manager.options.Clock())
-	manager.prepared[draft.ID] = preparedDraft{hash: immutableDraftFingerprint(draft), at: manager.options.Clock()}
+	manager.prepared[draft.ID] = preparedDraft{draft: cloneSubmit(SubmitRequest{Draft: draft}).Draft, hash: immutableDraftFingerprint(draft)}
 	manager.draftMu.Unlock()
 	return draft, nil
+}
+
+func (manager *Manager) Reconfigure(ctx context.Context, limits RuntimeLimits) error {
+	if manager.closed.Load() {
+		return ErrClosed
+	}
+	if limits.MaxAgents <= 0 || limits.MaxVerifiers <= 0 || limits.MaxRetainedJobs <= 0 || limits.MaxTranscriptBytes <= 0 {
+		return errors.New("fix runtime limits must all be greater than zero")
+	}
+	response := make(chan error, 1)
+	if err := manager.send(ctx, reconfigureCall{ctx: ctx, limits: limits, response: response}); err != nil {
+		return err
+	}
+	select {
+	case err := <-response:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-manager.done:
+		return ErrClosed
+	}
 }
 
 // ReviseDraft atomically keeps form values, the verifier contract and the
@@ -329,6 +391,7 @@ func ReviseDraft(draft FixDraft, edits DraftEdits) (FixDraft, error) {
 		return FixDraft{}, fmt.Errorf("unsupported change scope %q", edits.ChangeScope)
 	}
 	result.ValidationPlanID = edits.ValidationPlanID
+	result.ValidationReadiness = selectedValidationReadiness(edits.ValidationPlanID, result.ValidationReadinessByPlan)
 	result.DeliveryMode = edits.DeliveryMode
 	result.BranchName = edits.BranchName
 	result.Baseline.Contract.Goal.MaximumScore = edits.TargetScore
@@ -364,6 +427,23 @@ func configuredFocusGoals(ids []fix.MetricID, targets []fix.TargetSnapshot) ([]f
 		}
 	}
 	return goals, nil
+}
+
+func effectiveBranchTemplate(resolved appconfig.Resolved) string {
+	deliveryTemplate := strings.TrimSpace(resolved.Delivery.BranchTemplate)
+	legacyTemplate := strings.TrimSpace(resolved.Fix.BranchTemplate)
+	if deliveryTemplate == "" {
+		return legacyTemplate
+	}
+	// Preferences written before Delivery.BranchTemplate existed may carry an
+	// explicit legacy Fix.BranchTemplate alongside the built-in delivery value.
+	// Preserve that choice until the user saves the new delivery setting.
+	if resolved.Origins["delivery.branch_template"] == appconfig.OriginBuiltIn &&
+		resolved.Origins["fix.branch_template"] != "" &&
+		resolved.Origins["fix.branch_template"] != appconfig.OriginBuiltIn && legacyTemplate != "" {
+		return legacyTemplate
+	}
+	return deliveryTemplate
 }
 
 func selectedProfile(resolved appconfig.Resolved) (agent.Profile, error) {
@@ -420,25 +500,47 @@ func sanitizeBranchPart(value string) string {
 func (manager *Manager) Submit(ctx context.Context, request SubmitRequest) (fix.JobID, error) {
 	request = cloneSubmit(request)
 	manager.draftMu.Lock()
-	manager.prunePrepared(manager.options.Clock())
 	expected, prepared := manager.prepared[request.Draft.ID]
 	manager.draftMu.Unlock()
 	if !prepared || expected.hash != immutableDraftFingerprint(request.Draft) {
 		return "", errors.New("submit fix: draft was not prepared by this service or its immutable fields changed")
+	}
+	reconstructed, err := reconstructPreparedDraft(expected.draft, request.Draft)
+	if err != nil {
+		return "", err
+	}
+	request.Draft = reconstructed
+	if err := validateDraft(request.Draft); err != nil {
+		return "", err
+	}
+	if err := validateUserInstructionText(request.Draft.Instructions.UserGuidance, request.Draft.Instructions.DetachedBody); err != nil {
+		return "", err
+	}
+	if manager.deps.SecretAdmission != nil {
+		// Check the exact compiled body that the adapter will send. Generated
+		// target paths and evidence are repository-controlled input too; checking
+		// only the advanced-editor fields would leave a provider-visible gap.
+		if err := manager.deps.SecretAdmission.RejectKnownSecret(ctx, request.Draft.Profile.AuthenticationRef, request.Draft.Instructions.EffectiveBody()); err != nil {
+			return "", errors.New("submit fix: agent instructions contain protected authentication material")
+		}
 	}
 	strategy, err := manager.deps.Agents.Strategy(request.Draft.Profile.Runtime)
 	if err != nil {
 		return "", err
 	}
 	request.Draft.Probe = strategy.Probe(ctx, request.Draft.Profile)
-	preflight, err := manager.deps.Candidates.Preflight(ctx, candidate.PreflightRequest{Workspace: request.Draft.Workspace, Targets: request.Draft.Targets})
+	request.Draft.ValidationReadiness = manager.preflightSelectedValidation(ctx, request.Draft.Workspace, request.Draft.ValidationPlanID, request.Draft.Preferences.Validation)
+	preflight, err := manager.deps.Candidates.Preflight(ctx, candidate.PreflightRequest{Workspace: request.Draft.Workspace, Targets: request.Draft.Targets, CommandOutputBytes: request.Draft.Preferences.Delivery.CommandOutputBytes})
 	if err != nil {
 		return "", fmt.Errorf("submit fix preflight: %w", err)
 	}
+	preflight.AllowedPaths = append([]fix.RepoPath(nil), request.Draft.Preflight.AllowedPaths...)
 	request.Draft.Preflight = preflight
-	if err := manager.preflightDelivery(ctx, request.Draft.Workspace, request.Draft.DeliveryMode, request.Draft.Preferences.Delivery.Remote, request.Draft.Preferences.Delivery.BaseBranch, request.Draft.BranchName); err != nil {
+	deliveryTarget, err := manager.preflightDelivery(ctx, request.Draft.Workspace, request.Draft.DeliveryMode, request.Draft.Preferences.Delivery, request.Draft.BranchName, false)
+	if err != nil {
 		return "", err
 	}
+	request.Draft.DeliveryTarget = deliveryTarget
 	response := make(chan submitResponse, 1)
 	call := submitCall{ctx: ctx, request: request, response: response}
 	if err := manager.send(ctx, call); err != nil {
@@ -459,68 +561,181 @@ func (manager *Manager) Submit(ctx context.Context, request SubmitRequest) (fix.
 	}
 }
 
-func (manager *Manager) preflightDelivery(ctx context.Context, workspace fix.WorkspaceIdentity, mode fix.DeliveryMode, remote, base, branch string) error {
+func validateUserInstructionText(values ...string) error {
+	for _, value := range values {
+		for _, character := range value {
+			if character == '\n' || character == '\r' || character == '\t' {
+				continue
+			}
+			if character == '\x1b' || unicode.IsControl(character) {
+				return errors.New("submit fix: advanced instructions contain terminal or non-text controls")
+			}
+		}
+	}
+	return nil
+}
+
+func reconstructPreparedDraft(prepared, submitted FixDraft) (FixDraft, error) {
+	metricIDs := make([]fix.MetricID, 0, len(submitted.Focus))
+	seen := make(map[fix.MetricID]struct{}, len(submitted.Focus))
+	for _, goal := range submitted.Focus {
+		if goal.Metric == "" {
+			return FixDraft{}, errors.New("submit fix: selected focus metric is empty")
+		}
+		if _, duplicate := seen[goal.Metric]; duplicate {
+			return FixDraft{}, fmt.Errorf("submit fix: selected focus metric %q is duplicated", goal.Metric)
+		}
+		seen[goal.Metric] = struct{}{}
+		metricIDs = append(metricIDs, goal.Metric)
+	}
+	canonicalFocus, err := configuredFocusGoals(metricIDs, prepared.Baseline.Contract.Targets)
+	if err != nil {
+		return FixDraft{}, fmt.Errorf("submit fix: %w", err)
+	}
+	reconstructed, err := ReviseDraft(prepared, DraftEdits{
+		TargetScore: submitted.TargetScore,
+		Focus:       canonicalFocus, ChangeScope: submitted.ChangeScope,
+		ValidationPlanID: submitted.ValidationPlanID, DeliveryMode: submitted.DeliveryMode,
+		BranchName: submitted.BranchName, Guidance: submitted.Instructions.UserGuidance,
+		DetachedBody: submitted.Instructions.DetachedBody,
+	})
+	if err != nil {
+		return FixDraft{}, fmt.Errorf("submit fix: revise prepared draft: %w", err)
+	}
+	reconstructed.Model = submitted.Model
+	reconstructed.Effort = submitted.Effort
+	reconstructed.Delegation = submitted.Delegation
+
+	consistent := submitted.TargetScore == reconstructed.TargetScore &&
+		reflect.DeepEqual(submitted.Focus, reconstructed.Focus) &&
+		submitted.ChangeScope == reconstructed.ChangeScope &&
+		reflect.DeepEqual(submitted.AllowedPaths, reconstructed.AllowedPaths) &&
+		reflect.DeepEqual(submitted.Preflight.AllowedPaths, prepared.Preflight.AllowedPaths) &&
+		submitted.ValidationPlanID == reconstructed.ValidationPlanID &&
+		reflect.DeepEqual(submitted.ValidationReadiness, reconstructed.ValidationReadiness) &&
+		submitted.DeliveryMode == reconstructed.DeliveryMode &&
+		submitted.BranchName == reconstructed.BranchName &&
+		reflect.DeepEqual(submitted.Baseline.Contract.Goal, reconstructed.Baseline.Contract.Goal) &&
+		reflect.DeepEqual(submitted.Instructions, reconstructed.Instructions)
+	if !consistent {
+		return FixDraft{}, errors.New("submit fix: draft edits are inconsistent with the prepared scope, scoring contract, or instructions")
+	}
+	return reconstructed, nil
+}
+
+func (manager *Manager) preflightDelivery(ctx context.Context, workspace fix.WorkspaceIdentity, mode fix.DeliveryMode, config appconfig.Delivery, branch string, publication bool) (delivery.PreflightResult, error) {
 	if !mode.Valid() {
-		return fmt.Errorf("unsupported delivery mode %q", mode)
+		return delivery.PreflightResult{}, fmt.Errorf("unsupported delivery mode %q", mode)
 	}
 	if mode == fix.DeliveryModeCandidate {
-		return nil
+		return delivery.PreflightResult{}, nil
 	}
-	if remote == "" || branch == "" {
-		return errors.New("branch delivery requires a remote and proposed branch")
+	if config.Remote == "" || branch == "" {
+		return delivery.PreflightResult{}, errors.New("branch delivery requires a remote and proposed branch")
 	}
-	if mode == fix.DeliveryModePullRequest && base == "" {
-		return errors.New("pull-request delivery requires an explicit base branch")
+	if mode == fix.DeliveryModePullRequest && config.BaseBranch == "" {
+		return delivery.PreflightResult{}, errors.New("pull-request delivery requires an explicit base branch")
 	}
 	preflight := manager.deps.DeliveryPreflight
 	if preflight == nil {
 		preflight, _ = manager.deps.Delivery.(delivery.PreflightService)
 	}
 	if preflight == nil {
-		return errors.New("delivery preflight service is unavailable")
+		return delivery.PreflightResult{}, errors.New("delivery preflight service is unavailable")
 	}
-	if err := preflight.Preflight(ctx, delivery.PreflightRequest{Workspace: workspace, Mode: mode, Remote: remote, BaseBranch: base, Branch: branch}); err != nil {
-		return fmt.Errorf("delivery preflight: %w", err)
+	target, err := preflight.Preflight(ctx, delivery.PreflightRequest{Workspace: workspace, Mode: mode, Remote: config.Remote, BaseBranch: config.BaseBranch, Branch: branch, Publication: publication, CommandOutputBytes: config.CommandOutputBytes})
+	if err != nil {
+		return delivery.PreflightResult{}, fmt.Errorf("delivery preflight: %w", err)
 	}
-	return nil
+	if mode == fix.DeliveryModePullRequest {
+		if config.Publisher != "github-cli" {
+			return delivery.PreflightResult{}, fmt.Errorf("pull-request publisher %q is unsupported", config.Publisher)
+		}
+		if !strings.EqualFold(target.RemoteHost, "github.com") || target.HostRepository == "" {
+			return delivery.PreflightResult{}, errors.New("pull-request delivery requires a canonical github.com owner/repository remote")
+		}
+		publisherPreflight, ok := manager.deps.Publisher.(publisher.PreflightService)
+		if !ok {
+			return delivery.PreflightResult{}, errors.New("pull-request publisher preflight is unavailable")
+		}
+		if _, err := publisherPreflight.Preflight(ctx, publisher.PreflightRequest{Provider: config.Publisher, RepositoryRoot: workspace.RepositoryRoot,
+			RemoteHost: target.RemoteHost, HostRepository: target.HostRepository, Draft: config.DraftPullRequests, CommandOutputBytes: config.CommandOutputBytes}); err != nil {
+			return delivery.PreflightResult{}, fmt.Errorf("publisher preflight: %w", err)
+		}
+	}
+	return target, nil
+}
+
+func (manager *Manager) preflightValidationPlans(ctx context.Context, workspace fix.WorkspaceIdentity, plans []validation.Plan) map[string]validation.Readiness {
+	result := make(map[string]validation.Readiness, len(plans))
+	for _, plan := range plans {
+		result[plan.ID] = manager.preflightValidation(ctx, workspace, plan)
+	}
+	return result
+}
+
+func (manager *Manager) preflightSelectedValidation(ctx context.Context, workspace fix.WorkspaceIdentity, id string, plans []validation.Plan) validation.Readiness {
+	if id == "" {
+		return validation.Readiness{Ready: true}
+	}
+	for _, plan := range plans {
+		if plan.ID == id {
+			return manager.preflightValidation(ctx, workspace, plan)
+		}
+	}
+	return validation.Readiness{Required: true, Diagnostic: fmt.Sprintf("validation plan %q is unavailable", id)}
+}
+
+func (manager *Manager) preflightValidation(ctx context.Context, workspace fix.WorkspaceIdentity, plan validation.Plan) validation.Readiness {
+	if manager.deps.Validation == nil {
+		return validation.Readiness{Required: true, Diagnostic: "validation service is unavailable"}
+	}
+	result := manager.deps.Validation.Preflight(ctx, workspace, plan)
+	result.Required = true
+	if !result.Ready && result.Diagnostic == "" {
+		result.Diagnostic = "validation executor is unavailable"
+	}
+	return result
+}
+
+func selectedValidationReadiness(id string, values map[string]validation.Readiness) validation.Readiness {
+	if id == "" {
+		return validation.Readiness{Ready: true}
+	}
+	if value, ok := values[id]; ok {
+		value.Required = true
+		return value
+	}
+	return validation.Readiness{Required: true, Diagnostic: fmt.Sprintf("validation plan %q is unavailable", id)}
+}
+
+func cloneValidationReadiness(values map[string]validation.Readiness) map[string]validation.Readiness {
+	result := make(map[string]validation.Readiness, len(values))
+	for id, value := range values {
+		result[id] = value
+	}
+	return result
 }
 
 type preparedDraft struct {
-	hash [sha256.Size]byte
-	at   time.Time
-}
-
-func (manager *Manager) prunePrepared(now time.Time) {
-	for id, entry := range manager.prepared {
-		if now.Sub(entry.at) > time.Hour {
-			delete(manager.prepared, id)
-		}
-	}
-	for len(manager.prepared) > 512 {
-		var oldest fix.DraftID
-		var oldestAt time.Time
-		for id, entry := range manager.prepared {
-			if oldest == "" || entry.at.Before(oldestAt) {
-				oldest, oldestAt = id, entry.at
-			}
-		}
-		delete(manager.prepared, oldest)
-	}
+	draft FixDraft
+	hash  [sha256.Size]byte
 }
 
 func immutableDraftFingerprint(draft FixDraft) [sha256.Size]byte {
 	contract := cloneContract(draft.Baseline.Contract)
 	contract.Goal = fix.ScoringGoal{}
 	value := struct {
-		ID          fix.DraftID
-		Workspace   fix.WorkspaceIdentity
-		Targets     []fix.RepoPath
-		Contract    fix.ScoringContract
-		Preferences appconfig.Resolved
-		Profile     agent.Profile
-		Envelope    string
-		Version     string
-	}{draft.ID, draft.Workspace, draft.Targets, contract, cloneResolved(draft.Preferences), cloneProfile(draft.Profile), draft.Instructions.Envelope, draft.Instructions.Version}
+		ID                        fix.DraftID
+		Workspace                 fix.WorkspaceIdentity
+		Targets                   []fix.RepoPath
+		Contract                  fix.ScoringContract
+		Preferences               appconfig.Resolved
+		Profile                   agent.Profile
+		Envelope                  string
+		Version                   string
+		ValidationReadinessByPlan map[string]validation.Readiness
+	}{draft.ID, draft.Workspace, draft.Targets, contract, cloneResolved(draft.Preferences), cloneProfile(draft.Profile), draft.Instructions.Envelope, draft.Instructions.Version, cloneValidationReadiness(draft.ValidationReadinessByPlan)}
 	encoded, _ := json.Marshal(value)
 	return sha256.Sum256(encoded)
 }
@@ -606,15 +821,27 @@ func (manager *Manager) Shutdown(ctx context.Context) error {
 }
 
 func (manager *Manager) CandidateFile(ctx context.Context, id fix.JobID, path fix.RepoPath) (candidate.File, error) {
-	identity, err := manager.candidateIdentity(ctx, id)
+	identity, previewBytes, previewLines, err := manager.candidateIdentity(ctx, id)
 	if err != nil {
 		return candidate.File{}, err
 	}
-	return manager.deps.Candidates.ReadFile(ctx, identity, path)
+	file, err := manager.deps.Candidates.ReadFile(ctx, identity, path, previewBytes)
+	if err != nil {
+		return candidate.File{}, err
+	}
+	if previewLines <= 0 {
+		return candidate.File{}, errors.New("candidate preview line limit is not configured")
+	}
+	lines := bytes.Split(file.Contents, []byte("\n"))
+	if len(lines) > previewLines {
+		file.Contents = bytes.Join(lines[:previewLines], []byte("\n"))
+		file.Truncated = true
+	}
+	return file, nil
 }
 
 func (manager *Manager) Diff(ctx context.Context, id fix.JobID, request DiffRequest) (DiffPage, error) {
-	identity, err := manager.candidateIdentity(ctx, id)
+	identity, _, _, err := manager.candidateIdentity(ctx, id)
 	if err != nil {
 		return DiffPage{}, err
 	}
@@ -634,19 +861,19 @@ func (manager *Manager) Diff(ctx context.Context, id fix.JobID, request DiffRequ
 	}, nil
 }
 
-func (manager *Manager) candidateIdentity(ctx context.Context, id fix.JobID) (fix.CandidateIdentity, error) {
+func (manager *Manager) candidateIdentity(ctx context.Context, id fix.JobID) (fix.CandidateIdentity, int64, int, error) {
 	response := make(chan candidateResponse, 1)
 	if err := manager.send(ctx, candidateCall{id: id, response: response}); err != nil {
-		return fix.CandidateIdentity{}, err
+		return fix.CandidateIdentity{}, 0, 0, err
 	}
 	select {
 	case result := <-response:
 		if !result.ok {
-			return fix.CandidateIdentity{}, ErrJobNotFound
+			return fix.CandidateIdentity{}, 0, 0, ErrJobNotFound
 		}
-		return result.identity, nil
+		return result.identity, result.previewBytes, result.previewLines, nil
 	case <-ctx.Done():
-		return fix.CandidateIdentity{}, ctx.Err()
+		return fix.CandidateIdentity{}, 0, 0, ctx.Err()
 	}
 }
 
@@ -677,6 +904,7 @@ func cloneSubmit(request SubmitRequest) SubmitRequest {
 	request.Draft.AllowedPaths = append([]fix.RepoPath(nil), request.Draft.AllowedPaths...)
 	request.Draft.Preflight.AllowedPaths = append([]fix.RepoPath(nil), request.Draft.Preflight.AllowedPaths...)
 	request.Draft.Preflight.TargetBlobs = cloneObjectIDs(request.Draft.Preflight.TargetBlobs)
+	request.Draft.ValidationReadinessByPlan = cloneValidationReadiness(request.Draft.ValidationReadinessByPlan)
 	request.Draft.Profile = cloneProfile(request.Draft.Profile)
 	request.Draft.Probe = cloneProbe(request.Draft.Probe)
 	request.Draft.Preferences = cloneResolved(request.Draft.Preferences)

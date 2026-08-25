@@ -8,9 +8,10 @@ adversarial review.
 ## Implementation and release-gate record
 
 The initial implementation includes the provider-neutral runtime registry,
-Codex CLI strategy, isolated candidate worktrees, fresh scoring verification,
+Codex CLI and controlled OpenAI Responses strategies, isolated candidate
+worktrees, fresh scoring verification,
 durable concurrent job controller, retained candidate review, journaled Git
-publication saga, GitHub CLI draft-PR publisher, Fix form, Agents dashboard,
+publication saga, GitHub CLI PR publisher with draft/ready policy, Fix form, Agents dashboard,
 per-job actions, and the associated settings surfaces. The analysis cache and
 preferences document are supplied through typed application ports; runtime
 adapters do not access either directly.
@@ -23,14 +24,110 @@ that escapes into a new session. The adapter therefore reports `degraded` and
 cannot mutate on this host. This is the intended fail-closed result of the
 release gate, not a user-overridable warning. The adapter and its fake-runtime
 contract tests remain available for a platform confinement implementation
-that can prove all gates.
+that can prove all gates. The runnable GPT path is instead a complete Responses
+API agent loop whose only effects are four trusted Go tools: bounded candidate
+listing and reading, plus atomic whole-file write and delete. The model has no
+process, shell, Git, cache, preferences or ambient filesystem access. Because
+all effects stop when the Slopwatch process stops and every operation is rooted
+and revalidated through `os.Root`, this adapter truthfully meets the mutation
+eligibility contract without claiming that a remote API is an OS sandbox.
 
-Configured validation commands are likewise fail-closed in production until
-a platform executor proves candidate-only writes, denied Git/sensitive reads,
-default-deny tool networking, bounded output/time, and crash containment.
+Configured validation commands use the hardened Docker CLI backend when an
+installation-owned immutable image digest and explicit local Unix daemon are
+configured. The backend verifies the image/protocol label, reconciles only
+installation-labelled orphans under the durable job-store lease, runs exact
+filesystem/network sentinels and an escaping-descendant crash probe, and then
+repeats the per-candidate conformance gate. Without that configuration or a
+successful measured gate, validation remains fail-closed and the UI identifies
+the exact missing installation property.
 Candidate-only review remains usable wherever an agent runtime passes its
-gate; pull-request publication additionally requires a configured validation
-plan to pass.
+gate. Pull-request publication requires a configured validation plan to pass
+only when the visible PR validation policy is set to require it.
+
+### Native macOS confinement finding and minimum supported backend
+
+The macOS gate is not satisfiable by composing the primitives available to an
+ordinary Slopwatch process. `sandbox-exec`/Seatbelt policy is inherited by
+descendants, but the public interface is deprecated and it does not give the
+owner a race-free way to terminate and reap a descendant which creates a new
+session. `launchd` documents cleanup of processes which retain the job's
+process-group ID; that does not cover a `setsid(2)` escape. Darwin's kqueue
+`NOTE_TRACK` child tracking has been unsupported since macOS 10.5, and the
+remaining coalition/Endpoint Security facilities are private, privileged or
+entitlement-gated. Process enumeration is not an equivalent substitute: a
+fork can race the enumeration and an escaped child can be reparented before it
+is identified. Native macOS therefore remains fail-closed. A Seatbelt sentinel
+pass must never be relabelled as `CrashContainment=true`.
+
+The minimum viable supported environment is a Linux container or VM backend
+with a kernel-enforced PID namespace and cgroup, plus a trusted Slopwatch PID 1
+watchdog. Availability of a `docker` executable is not proof of conformance.
+The backend is eligible only when all of the following are true for the exact
+immutable image digest and invocation profile:
+
+- the root filesystem is read-only; capabilities are dropped; privilege
+  escalation is disabled; PID, memory, CPU, output and wall-time bounds are
+  configured;
+- the host candidate root is mounted read-only at a source path and its `.git`
+  file is masked. PID 1 copies a bounded inventory (file, directory, path,
+  per-file and aggregate-byte limits; no symlinks, special files or nested
+  `.git`) into a size-limited tmpfs workspace. Validation runs only in that
+  throwaway copy, so success, failure, timeout and cancellation cannot mutate
+  or fill the host candidate filesystem. The real Git common directory,
+  sensitive roots, Docker socket and other host control sockets are never
+  mounted;
+- validation runs with the container network namespace disabled;
+- a Codex provider container may have only its required transport path. The
+  provider's generated tools remain default-deny for network through the exact
+  measured Codex tool policy. Provider authentication is copied or mounted
+  read-only into a provider-only path which that tool policy denies;
+- the trusted PID 1 reads a structured request from a private read-only mount,
+  launches an argument vector without a shell, treats control/attach EOF as
+  parent death, terminates the attempt and exits. Exiting PID 1 must cause the
+  runtime to kill every process in the namespace/cgroup, including a `setsid`
+  descendant;
+- cancellation and timeout perform stop, bounded wait, kill, wait and exact
+  container removal. Startup recovery reconciles containers by an
+  installation nonce and job/attempt labels; it never adopts an unlabelled or
+  mismatched container;
+- image selection is create-with-`--pull=never` against a configured digest,
+  not a mutable tag. The backend verifies its protocol/version label before
+  use;
+- the full filesystem, sensitive-read, network, authentication and escaping
+  process sentinel suite is executed through the same image, mounts, PID 1,
+  environment and provider argument profile used for the real attempt.
+
+The container executor is a process-launch strategy below the provider and
+validation ports, not provider logic in the coordinator. Executable resolution
+must be backend-aware: a configured in-image Codex or validation executable
+must not first be resolved with host `LookPath`/`os.Stat`. Container image,
+mount and auth inputs are typed configuration supplied through the application
+boundary. No adapter may inspect the analysis cache or preferences file to
+construct them. The Docker backend now implements this contract for
+network-disabled validation. Production selects it only when
+`SLOPWATCH_FIX_CONTAINER_IMAGE` is an immutable digest or image ID and
+`SLOPWATCH_FIX_DOCKER_HOST` is an explicit local `unix://` socket.
+`SLOPWATCH_FIX_DOCKER_EXECUTABLE` must be a canonical, non-writable absolute
+installation path outside the repository; no Docker executable is selected
+from ambient `PATH`. These are
+temporary installation-owned composition inputs until the separate properties
+PR exposes the same values through its typed application API. The temporary
+bridge also requires an explicit bounded JSON host-to-image executable map;
+the Docker and validation components themselves receive only typed values and
+never inspect environment or preference files. The repository includes the
+protocol-labelled `containers/fix-validation/Dockerfile` and a network-disabled
+`make build-fix-validation-image` workflow whose base must be pinned by digest.
+Monolithic Codex
+remains ineligible in this backend: its nested bubblewrap sandbox cannot create
+the required namespace under the hardened container, and Slopwatch does not
+weaken the container with `SYS_ADMIN` or privileged mode.
+
+The GitHub publisher is likewise composed only when
+`SLOPWATCH_FIX_GH_EXECUTABLE` supplies a canonical, non-writable absolute
+installation path outside the repository. Its private working directory and
+minimal child environment are application-owned. Publisher authentication and
+the exact canonical `github.com/owner/repository` target are checked before
+admission and immediately before the first publication mutation.
 
 ## Senior review record
 
@@ -45,18 +142,18 @@ contracts around analysis, application commands, workspace identity, runtime
 confinement, lifecycle/retry, crash recovery, publication idempotency and TUI
 presentation. Two adversarial revision passes resolved every veto, and all
 three reviewers approved the resulting plan. The normative resolutions are
-incorporated below. Phase 2 may not begin until the Phase 0/1 contract tests
-and platform/runtime feasibility gates prove them.
+incorporated below. Phase 2 implementation proceeded only after the Phase 0/1
+contract tests and the selected runtime feasibility gates proved their exact
+boundaries; unsupported Codex platforms remain fail-closed independently.
 
-The assembled implementation received a second review at PR time. The terminal
-UX slice was approved, and the application/provider architecture was approved,
-including frozen path scope, metric completeness, typed delivery, provider-owned
-settings schemas and repairable configuration. Release as a runnable Fix feature
-was vetoed: the current production composition truthfully declares Codex crash
-containment unavailable and uses a deny-all validation executor. Consequently,
-this branch is a disabled-foundation integration candidate until a platform
-executor proves both confinement contracts. A draft PR must preserve that
-distinction and must not describe the end-to-end mutation path as complete.
+The assembled foundation received a second review at PR time. The terminal UX
+and application/provider architecture were approved, including frozen path
+scope, metric completeness, typed delivery, provider-owned settings schemas
+and repairable configuration. The reviewers initially vetoed a runnable
+release because only the fail-closed Codex path and deny-all validation
+existed. The follow-up implementation resolves that veto with the controlled
+Responses tool loop and measured Docker validation backend; final review must
+verify those exact implementations rather than relax either original gate.
 
 ## Outcome
 
@@ -91,13 +188,21 @@ The recommended initial decisions are:
   captured when the job starts.
 - Cached reports and evidence may be used to construct the baseline task, but
   the agent layer never reads the analysis cache.
-- The initial runtime integrations are non-interactive coding-agent CLIs. A
-  raw model API is not an agent runtime and is not registered directly.
+- The initial runtime integrations are Codex CLI and a non-interactive OpenAI
+  Responses coding-agent loop. A raw model client is never registered directly:
+  the Responses strategy owns bounded orchestration, trusted tools, progress,
+  cancellation, usage, capability discovery and result normalization.
 - The agent runtime never creates branches, commits, pushes, or pull requests.
 - Git publication is a separate workflow performed after verified changes are
   reviewable.
 - Provider-specific capability differences are retained rather than flattened
   into a misleading lowest-common-denominator configuration.
+- All operational constraints are configuration, not hidden adapter constants:
+  adapter-owned schemas expose their effective turn/tool/token/file/context
+  budgets in Settings with units, origins and consequences. Responses defaults
+  to no Slopwatch turn/tool/token ceiling; cancellation remains explicit.
+- A fix has one initial attempt and unlimited explicit retries. Slopwatch does
+  not stop an active agent merely because wall-clock time elapsed.
 - No shell command template is used as the common provider abstraction.
 - Files and Agents are peer dashboard views. The Agents view is the global job
   control surface and replaces a separate job-center overlay.
@@ -107,11 +212,13 @@ The recommended initial decisions are:
 - V1 defaults are target score `100`, `targets-and-tests` change scope, two
   concurrent agents, one verifier, cancel-all-and-quit, and no automatic
   candidate/worktree deletion.
-- The first real runtime is Codex CLI only if an implementation spike proves
-  the required non-interactive protocol, write confinement and process-tree
-  cancellation. No adapter is grandfathered around those requirements.
-- The initial publisher is GitHub CLI and creates draft PRs. Publication is a
-  later phase and is never performed by the agent runtime.
+- Codex CLI is usable only where its exact implementation proves the common
+  confinement contract. GPT via Responses is the initial portable runnable
+  runtime because the model can act only through Slopwatch-controlled tools.
+  No adapter is grandfathered around the common eligibility requirements.
+- The initial publisher is GitHub CLI and creates draft or ready-for-review PRs
+  according to user settings. Publication is a later phase and is never
+  performed by the agent runtime.
 
 ## Dependency direction
 
@@ -126,8 +233,8 @@ fix coordinator -----> scoring verifier
 agent Runtime interface
     |
     +----> Codex CLI strategy
-    +----> Claude CLI strategy
-    +----> future tool-loop strategy ----> raw model API clients
+    +----> OpenAI Responses strategy ----> controlled candidate tool gateway
+    +----> future Claude/Grok/AG-UI strategies
 
 fix coordinator -----> workspace/Git workflow -----> PR publisher
 
@@ -140,6 +247,38 @@ into a provider-neutral task before calling the runtime.
 
 The follow TUI must not construct provider commands, parse provider events,
 handle credentials, manage Git, or determine whether a score passed.
+
+### AG-UI/OpenBot interoperability decision
+
+AG-UI is treated as a useful frontend-agent event vocabulary, not as the
+Slopwatch execution, security or durable-job protocol. Internal events retain
+Slopwatch-owned types while following compatible correlation semantics where
+they are useful: `JobID` corresponds to a stable thread, `AttemptID` to a run,
+phases to steps, tool calls to structured command activity, and actor/parent
+actor IDs to agent/subagent attribution. A provider run finishing never implies
+score compliance, validation success or completed delivery. Revisioned
+Slopwatch snapshots and the job journal remain authoritative; optional deltas
+are presentation projections only.
+
+A future `agui-http` implementation belongs behind `agent.Strategy`. Its
+adapter owns secure endpoint validation, a bounded SSE decoder, event
+normalization, runtime-specific cancellation/reconciliation and interrupt
+translation. AG-UI types stop inside that adapter. Declared remote capabilities
+or `sandboxed` metadata are descriptive only and cannot satisfy mutation
+eligibility. Aborting an HTTP stream proves only that Slopwatch stopped
+listening, so a remote adapter remains canceling until it has positive
+runtime-specific termination evidence.
+
+OpenBot is not embedded. Its valuable pattern is the mediated action gateway:
+resolve a target from trusted state, evaluate deny-first policy, durably audit
+the decision, execute through the candidate service, then record the outcome.
+The Responses file tools implement this boundary locally. Any future remote
+tool adapter must additionally validate its endpoint at save and use time,
+check every redirect hop, refuse metadata/private targets unless explicitly
+installation-allowed, never forward authorization across origins, and persist
+only credential references. Live activity stays bounded and ephemeral while
+the independent journal retains durable evidence. The current community AG-UI
+Go SDK and the OpenBot application stack are not dependencies in v1.
 
 ## Deep agent-runtime interface
 
@@ -339,7 +478,8 @@ status:
   goal passed;
 - `failed`: launch, provider, protocol or non-zero process failure;
 - `canceled`: context cancellation was observed and the process tree stopped;
-- `timed_out`: the attempt limit expired and the process tree stopped.
+- `timed_out`: an explicitly configured adapter/operation timeout expired and
+  the process tree stopped. Slopwatch does not impose a job wall-clock timeout.
 
 It may contain a provider session reference, normalized usage, an exit code,
 redacted diagnostics and a short agent summary. Provider session references
@@ -374,12 +514,12 @@ tests.
 Resume is optional. A resume token can be used only when the current strategy
 advertises resume support and its runtime kind, profile fingerprint and
 workspace match. Otherwise the coordinator starts a new attempt with explicit
-verification feedback. Resume never bypasses the attempt, time or permission
-limits.
+verification feedback. Resume never bypasses permission or visible adapter
+resource settings.
 
 Delegation is also capability-driven. `single` is the portable baseline.
 Provider-native team modes appear as advertised options with clear labels and
-limits. The coordinator does not emulate a team by launching several runtimes
+visible actor/resource settings. The coordinator does not emulate a team by launching several runtimes
 concurrently in the first version.
 
 ### Runtime framework acceptance tests
@@ -497,7 +637,7 @@ mutated only inside `Update`; service callbacks never mutate the TUI model.
 
 ### Scheduling and resource isolation
 
-The scheduler has independent resource limits:
+The scheduler has independent, settings-backed resource limits:
 
 - maximum simultaneously running agent attempts;
 - maximum simultaneous fresh verifications;
@@ -512,7 +652,8 @@ waiting for a verifier does not continue consuming an agent slot.
 
 One primary runtime attempt consumes one scheduler agent slot. Provider-native
 delegated actors remain part of that attempt rather than becoming hidden
-Slopwatch jobs; `Limits.MaxActors` bounds them and the runtime must enforce or
+Slopwatch jobs; the visible **Actors per job** setting supplies
+`Limits.MaxActors`, and the runtime must enforce or
 reject the request. The UI shows their telemetry when available. A future
 weighted scheduler may account for provider-native teams, but v1 does not
 pretend it can independently pause or schedule those actors.
@@ -813,7 +954,7 @@ detaches the body from form generation, the UI shows that state and offers
 
 The task includes the target paths, baseline evidence, exact acceptance
 conditions, allowed modification scope, behavioral/API preservation policy,
-validation expectations, and iteration limits. It also instructs the runtime
+validation expectations, and the effective adapter resource policy. It also instructs the runtime
 not to change scoring configuration, add waivers or suppressions, game metrics
 with dead code, or perform Git publication.
 
@@ -835,7 +976,8 @@ uses these stable sections:
 1. **Goal**: immutable targets/baseline, target SCORE and multi-select focus
    metrics limited to measurements available for those targets.
 2. **Execution**: agent profile, capability-derived model, effort, delegation,
-   attempt/time limits and resolved confinement/network summary.
+   and resolved confinement/network summary. Provider-specific budgets live in
+   the adapter-schema-driven profile Settings, not as hidden per-job limits.
 3. **Changes**: allowed `targets-and-tests` scope and validation policy.
 4. **Delivery**: candidate/local-branch/PR mode and an editable proposed branch
    name when relevant. Its default is rendered from the configured convention;
@@ -1323,17 +1465,24 @@ The delivery workflow owns:
 - commit creation and signing/hook policy;
 - exact-ref push and publication reconciliation.
 
-The PR publisher owns provider-specific draft-PR creation and lookup. The
+The PR publisher owns provider-specific PR creation and lookup. The
 initial implementation uses GitHub CLI. Branch names are validated with Git;
 an existing local or remote branch is never reused, reset or overwritten.
+For PR mode, the base is a user-configured literal branch name (not a revision
+expression or Git shorthand). Its exact `refs/heads/<base>` must exist on the
+admitted remote when publication begins; an absent base does not block the
+agent from producing a reviewable candidate.
 Agent-created hooks and repository hooks are not run, and non-interactive v1
 does not require commit signing. If policy requires hooks or signing, publish
 is unavailable with a clear explanation rather than prompting mid-job.
 
-The built-in branch convention is
+The suggested built-in branch convention is
 `slopwatch/fix/{target-stem}-{job-short-id}`. Template inputs are a fixed typed
 set (`target-stem`, `job-short-id`, `date` and selected metric names), are
 sanitized before rendering, and cannot execute functions or shell expansion.
+`{job-short-id}` is available but optional: organisation-specific conventions
+are accepted, and uniqueness is enforced by collision detection rather than a
+mandatory token.
 The proposed value is editable in the setup form and pinned at admission, but
 because the branch is created only after review its local and remote
 availability is checked again at publication. A late collision returns to
@@ -1347,7 +1496,8 @@ Publication is an idempotent journaled saga:
 3. atomically create the absent local ref at that object ID and journal it;
 4. atomically create the absent remote ref at that object ID, verify the remote
    value, and journal the ref;
-5. create a draft PR and journal its provider repository and PR identity;
+5. create a draft or ready-for-review PR according to the pinned setting and
+   journal its provider repository and exact PR identity;
 6. reconcile remote state before retrying any step whose response was lost.
 
 Local ref creation uses compare-and-swap against the zero object ID. Remote ref
@@ -1476,35 +1626,56 @@ The properties schema needs extension points for:
 
 - agent profiles: runtime kind, adapter properties, auth reference, defaults;
 - fix defaults: target, focus metrics, change scope, runtime profile, model,
-  effort, delegation, limits and prompt-template reference;
+  effort, delegation and prompt-template reference;
 - concurrency: maximum running agents, maximum verifiers, optional per-profile
-  limits and retained-job count;
-- validation: configured checks and required/optional policy;
-- Git delivery: default mode, base/remote, branch template, commit policy;
-- pull requests: publisher kind, draft policy, title/body templates;
+  limits, actors per job, transcript budget and retained-job count;
+- validation: configured checks, required/optional policy, per-check timeout and
+  output budget;
+- installation confinement: immutable validation image digest, explicit local
+  Docker Unix socket and trusted in-image executable mapping. Repository scope
+  may select a validation plan ID but cannot set or widen these properties;
+- Git delivery: default mode, user-selected base/remote, branch template,
+  commit policy, command-output budget and collision behaviour;
+- pull requests: publisher kind, draft/ready state, validation requirement and
+  title/body templates;
 - job retention: logs, worktrees and candidate cleanup policy.
 
 ### Settings information architecture
 
-Settings gains four feature-owned entries while continuing to save through
+Settings gains five feature-owned entries while continuing to save through
 the preferences application API:
 
 - **Agents**: configured profiles and their current readiness;
 - **Fix defaults**: goal, metrics, scope, validation, profile/model/effort,
-  delegation, limits and prompt template;
-- **Concurrency & retention**: agent/verifier limits, transcript limits and
+  delegation and prompt template;
+- **Concurrency & retention**: agent/verifier limits, actors per job,
+  transcript budget, retained jobs, candidate preview bytes/lines and
   archive/cleanup policy;
+- **Validation**: default plan; every check's required policy, timeout and
+  output budget; and the shared candidate file, directory, path-byte,
+  per-file-byte and total-byte ceilings used by confined copy and stable
+  fingerprinting; plus finite container process, memory, CPU, tmpfs, open-file,
+  generated-file, cleanup and readiness-probe policy. Executable/argument
+  definitions remain trusted configuration;
 - **Git & pull requests**: delivery default, remote/base policy, branch,
-  commit and draft-PR templates and publisher readiness.
+  commit and PR templates, draft/ready state, validation requirement and
+  publisher readiness.
+
+Every operational constraint row displays a human label, effective value and
+origin, plus a concise consequence when selected. Adapter-specific constraints
+come from `ProfileDescriptor` and render generically in **Agents**. A zero value
+must be labelled unambiguously as unlimited, provider default, disabled, or
+invalid; there are no compiled product ceilings above the displayed settings.
 
 Agents first shows a table of stable profile name, runtime kind, transport
-(`CLI` initially; future managed API/tool-loop), readiness, detected version
+(`CLI` or managed API/tool-loop), readiness, detected version
 and default marker. Add/Edit opens an adapter-schema-driven form. Common
-fields are profile name, runtime kind, executable selected from a resolved
-path or explicit trusted absolute path, authentication reference, permission
-policy and defaults. Adapter-specific options render only from that adapter's
-typed schema; users never author a shell command line. Changing runtime kind
-requires confirmation before incompatible fields are discarded.
+fields are profile name, runtime kind, authentication reference and defaults.
+Process adapters add an executable selected from a resolved path or explicit
+trusted absolute path; API adapters do not acquire a fictitious executable
+field. Adapter-specific options render only from that adapter's typed schema;
+users never author a shell command line. Changing runtime kind discards
+incompatible adapter fields and repopulates safe descriptor defaults.
 
 **Test connection** runs the read-only probe and shows version, auth status,
 capabilities, confinement guarantee and actionable diagnostics. It cannot run
@@ -1530,8 +1701,8 @@ settings UI probes readiness and either suspends the alternate screen for a
 trusted login flow or tells the user which external command to run. It does not
 proxy an unknown interactive login conversation inside a normal modal.
 
-Future API-backed runtimes resolve a keychain or environment reference at the
-last responsible moment. Credentials are not placed in argv, prompts, job
+API-backed runtimes resolve a keychain or environment reference at the last
+responsible moment. Credentials are not placed in argv, prompts, job
 journals, provider event payloads or repository-controlled process
 environments.
 
@@ -1771,7 +1942,8 @@ fakeable; tests do not need a real CLI, Git host or account.
 
 ### Phase 4: publication
 
-- Add the journaled commit/exact-ref push saga and GitHub CLI draft-PR publisher.
+- Add the journaled commit/exact-ref push saga and GitHub CLI PR publisher with
+  configurable initial draft/ready state.
 - Enable the delivery/publisher portions of Settings -> Git & pull requests.
 - Add branch, commit and PR templates with preview and collision handling.
 - Add lost-response reconciliation, multi-PR conflict visibility and explicit
@@ -1830,33 +2002,42 @@ No product choice from the senior review remains an implementation blocker:
   Other production/config/generated files remain visible but violate scope.
 - A stable candidate always reaches Review even when noncompliant, validation
   failed or validation is absent. Candidate-only Keep remains available.
-  Default PR publication requires compliant complete scoring, clean scope, at
-  least one configured validation check, and all required checks passing.
+  PR publication always requires compliant complete scoring and clean scope.
+  Validation is optional by default; when the visible policy requires it (or a
+  plan is selected), the selected checks must be runnable and pass.
 - Phase 2 requires the completely clean baseline defined above. A clean
-  detached HEAD is allowed for candidate-only work; PR mode additionally
-  requires an explicit resolvable base branch.
-- Initial real runtime is Codex CLI, but only where the protocol/confinement
-  spike meets the common contract. Failure blocks that adapter/platform rather
-  than weakening the boundary.
-- Initial publisher is GitHub CLI; all created PRs are draft.
-- Default capacity is two agent attempts and one verifier, configurable in
-  preferences and visible as the queue reason.
+  detached HEAD is allowed for candidate-only work. PR mode uses the
+  user-selected literal base and proves its exact presence on the pinned remote
+  at publication time, not before agent work.
+- Initial runnable runtime is GPT through the controlled OpenAI Responses
+  strategy. Codex CLI remains available for profiles and probing, but mutation
+  is enabled only where its exact protocol/confinement spike meets the common
+  contract. Failure blocks that adapter/platform rather than weakening the
+  boundary.
+- Initial publisher is GitHub CLI; draft is the default and ready-for-review is
+  a user-selectable setting.
+- Default capacity is two concurrently running agents and one verifier, configurable in
+  preferences and visible as the queue reason. No compiled maximum overrides
+  the configured value.
+- Each job starts with one attempt. Retry is explicit and unlimited, with a
+  durable attempt history. Active fix attempts have no Slopwatch wall-clock
+  timeout; activity remains observable and each job can be canceled.
 - Quit cancels and joins all jobs. Detached/background jobs are out of v1.
 - Completed jobs appear under All until archived. Worktrees, branches and
   transcripts have no time-based auto-deletion in v1; only explicit Discard or
   later reconciled cleanup removes proven job-owned artifacts.
 
-Two Phase 0 feasibility gates remain intentionally empirical rather than
-ambiguous: the incoming preferences API must satisfy the resolver/store seam,
-and each supported OS/runtime pair must prove write confinement and process
-control. A failed gate yields an actionable unsupported capability and a
-revised implementation proposal; it never authorizes a direct cache/property
-dependency or advisory-only mutating runtime.
+Runtime eligibility remains empirical rather than declarative. The
+preferences adapter satisfies the resolver/store seam and atomic save
+requirement. Each process-backed OS/runtime pair must still prove write
+confinement and process control. A failed gate yields an actionable unsupported
+capability; it never authorizes a direct cache/property dependency or
+advisory-only mutating runtime.
 
 ### Current implementation gate evidence (2026-08-25)
 
-The first Codex CLI adapter and executable conformance sentinel are implemented,
-but mutating Codex execution is intentionally unavailable on the audited macOS
+The Codex CLI adapter and executable conformance sentinel are implemented, but
+mutating Codex execution is intentionally unavailable on the audited macOS
 host. With Codex CLI 0.149.1, the exact generated permission profile denied the
 configured authentication/sensitive root, but the sentinel could still read
 the linked-worktree Git metadata and write outside the candidate (including
@@ -1864,7 +2045,26 @@ the platform temporary roots). The self-reexec supervisor proved cancellation,
 timeout, normal descendant cleanup and parent-crash cleanup for one process
 group, but a process group is not confinement against a child creating a new
 session. Production therefore reports failed measured gates and keeps
-`CrashContainment=false`; `Submit` rejects mutation. Validation is likewise
-fail-closed until an equivalent confined executor is available. This is an
-empirical platform release gate, not a user-overridable warning and not a claim
-that the end-to-end Fix action can currently mutate files on that host.
+`CrashContainment=false`; `Submit` rejects that adapter.
+
+The OpenAI Responses strategy is the runnable GPT path. It resolves only a
+secret reference, uses a composition-owned endpoint, follows no redirect, puts
+no credential in provider-visible context, and exposes no shell or process.
+All file effects are bounded rooted tools with an exact frozen write policy;
+cancellation stops the HTTP request and no independent mutator survives the
+application. Hermetic fake-provider tests cover traversal, `.git`, symlink and
+scope rejection, malformed protocol, bounded resources, cancellation and
+secret non-disclosure. Atomic writes stage in a private candidate-service-owned
+same-filesystem directory supplied through `CandidateIdentity`, outside the
+worktree inventory; a process crash therefore cannot strand an out-of-scope
+temporary file in the candidate.
+
+The Docker validation backend meets the container contract in fake-CLI state
+machine tests and a local Linux/Colima probe, including immutable-image
+inspection, a read-only host candidate plus bounded tmpfs validation copy,
+non-root execution, network denial, exact cleanup and a `setsid` descendant
+escape test. It stays unavailable until installation properties name an exact
+image, local socket and executable map and the startup/per-run probes pass.
+Absence of validation does not prevent candidate-only GPT fixes. PR publication
+requires a ready selected plan only when the visible validation policy requires
+it or the user selected one for that job.

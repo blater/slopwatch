@@ -1,6 +1,7 @@
 package follow
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -15,10 +16,13 @@ import (
 )
 
 func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
-	job := fix.JobPresentation{ID: "job-1", Revision: 2, Phase: fix.PhaseRunning, Goal: "SCORE <= 100", CurrentAction: "Running tests", Targets: []fix.FilePresentation{{Path: "a.go", BaselineScore: 120}}}
+	job := fix.JobPresentation{ID: "job-1", Revision: 2, Phase: fix.PhaseRunning, Goal: "SCORE <= 100", CurrentAction: "Running tests", AttemptOrdinal: 1,
+		Actors: []fix.ActorPresentation{{ID: "primary", CurrentAction: "Editing a.go"}, {ID: "reviewer", ParentID: "primary", CurrentAction: "Reviewing"}},
+		Usage:  fix.UsagePresentation{InputTokens: 100, CachedTokens: 25, OutputTokens: 30, ReasoningTokens: 10}, UsageReported: true,
+		Targets: []fix.FilePresentation{{Path: "a.go", BaselineScore: 120}}}
 	service := &fakeFixService{
 		jobs:      fixapp.JobListSnapshot{Revision: 2, Jobs: []fix.JobPresentation{job}},
-		log:       fixapp.LogPage{Entries: []fixapp.LogEntry{{At: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), Summary: "Read a.go"}}, Complete: true},
+		log:       fixapp.LogPage{Entries: []fixapp.LogEntry{{At: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), ActorID: "primary", Summary: "Read a.go"}}, Complete: true},
 		diff:      fixapp.DiffPage{Files: []candidate.DiffFile{{Path: "a.go", Status: "modified", Additions: 3, Deletions: 2}}, Complete: true},
 		candidate: candidate.File{Path: "a.go", Contents: []byte("package sample\n\x1b[31munsafe\x1b[0m\n")},
 	}
@@ -33,7 +37,7 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 	}
 	model.handleJobMonitor(command().(jobMonitorMsg))
 	monitor := ansi.Strip(model.View())
-	for _, want := range []string{"RUNNING", "Running tests", "Read a.go", "Focused file: a.go"} {
+	for _, want := range []string{"RUNNING", "Running tests", "Read a.go", "Focused file: a.go", "attempt 1", "ACTORS", "primary", "reviewer", "Usage: in 100", "cached 25"} {
 		if !strings.Contains(monitor, want) {
 			t.Fatalf("monitor missing %q: %q", want, monitor)
 		}
@@ -70,6 +74,64 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 		}
 		model.overlays.Pop()
 	}
+}
+
+func TestJobReadersConsumeEveryServicePageAndExplainConfiguredTruncation(t *testing.T) {
+	service := &pagedReaderFixService{
+		fakeFixService: &fakeFixService{},
+		logs: map[fixapp.LogCursor]fixapp.LogPage{
+			0: {Entries: []fixapp.LogEntry{{Summary: "first activity"}}, Next: 1},
+			1: {Entries: []fixapp.LogEntry{{Summary: "second activity"}}, Next: 2, Complete: true},
+		},
+		diffs: map[int]fixapp.DiffPage{
+			0: {Files: []candidate.DiffFile{{Path: "first.go", Status: "modified"}}, NextOffset: 1},
+			1: {Files: []candidate.DiffFile{{Path: "second.go", Status: "added"}}, Offset: 1, NextOffset: 2, Complete: true},
+		},
+	}
+	model := fixTestModel(service, 80, 24)
+	logMessage := model.openJobLog("job-pages")().(jobReaderMsg)
+	logText := strings.Join(logMessage.lines, "\n")
+	if logMessage.err != nil || logMessage.truncated || !strings.Contains(logText, "first activity") || !strings.Contains(logText, "second activity") {
+		t.Fatalf("paged log=%+v", logMessage)
+	}
+	if got := service.logCursors; len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("log cursors=%v", got)
+	}
+	model.overlays.Pop()
+	diffMessage := model.openJobDiff("job-pages", "")().(jobReaderMsg)
+	if diffMessage.err != nil || diffMessage.truncated || !strings.Contains(strings.Join(diffMessage.lines, "\n"), "first.go") || !strings.Contains(strings.Join(diffMessage.lines, "\n"), "second.go") {
+		t.Fatalf("paged diff=%+v", diffMessage)
+	}
+	if got := service.diffOffsets; len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("diff offsets=%v", got)
+	}
+
+	model.jobReader = jobReaderState{kind: OverlayCandidateSource, jobID: "job-pages", lines: []string{"partial"}, truncated: true}
+	if text := ansi.Strip(strings.Join(model.jobReaderContent(80, 5), "\n")); !strings.Contains(text, "configured candidate byte/line limit") || strings.Contains(text, "retained transcript") {
+		t.Fatalf("candidate truncation label=%q", text)
+	}
+	model.jobReader.kind = OverlayJobLog
+	if text := ansi.Strip(strings.Join(model.jobReaderContent(80, 5), "\n")); !strings.Contains(text, "configured transcript retention limit") {
+		t.Fatalf("log truncation label=%q", text)
+	}
+}
+
+type pagedReaderFixService struct {
+	*fakeFixService
+	logs        map[fixapp.LogCursor]fixapp.LogPage
+	diffs       map[int]fixapp.DiffPage
+	logCursors  []fixapp.LogCursor
+	diffOffsets []int
+}
+
+func (service *pagedReaderFixService) Transcript(_ context.Context, _ fix.JobID, cursor fixapp.LogCursor, _ int) (fixapp.LogPage, error) {
+	service.logCursors = append(service.logCursors, cursor)
+	return service.logs[cursor], nil
+}
+
+func (service *pagedReaderFixService) Diff(_ context.Context, _ fix.JobID, request fixapp.DiffRequest) (fixapp.DiffPage, error) {
+	service.diffOffsets = append(service.diffOffsets, request.Offset)
+	return service.diffs[request.Offset], nil
 }
 
 func TestJobMonitorCoalescesSubscriptionBurstsAndRejectsLateRefresh(t *testing.T) {
@@ -196,6 +258,31 @@ func TestFixValidationExplainsMissingBranch(t *testing.T) {
 	}
 }
 
+func TestPullRequestFormRequiresReadyValidationPlan(t *testing.T) {
+	draft := readyFixDraft("a.go")
+	draft.DeliveryMode = "pull-request"
+	draft.BranchName = "slopwatch/fix/a"
+	draft.ValidationPlanID = ""
+	draft.Preferences.Delivery.RequireValidation = true
+	if fixDraftRunnable(draft) {
+		t.Fatal("pull-request draft was runnable without a validation plan")
+	}
+	if got := fixPreflightSummary(draft); !strings.Contains(got, "configured to require validation") {
+		t.Fatalf("diagnostic=%q", got)
+	}
+}
+
+func TestPullRequestFormAllowsOptionalValidation(t *testing.T) {
+	draft := readyFixDraft("a.go")
+	draft.DeliveryMode = "pull-request"
+	draft.BranchName = "slopwatch/fix/a"
+	draft.ValidationPlanID = ""
+	draft.Preferences.Delivery.RequireValidation = false
+	if !fixDraftRunnable(draft) {
+		t.Fatalf("pull-request draft was blocked despite optional validation: %s", fixPreflightSummary(draft))
+	}
+}
+
 func TestAgentFindConsumesPrintableKeysAndSortCycles(t *testing.T) {
 	model := fixTestModel(&fakeFixService{}, 80, 24)
 	model.mainView = MainViewAgents
@@ -219,7 +306,7 @@ func TestHelpDocumentsFixAndAgentsWorkflow(t *testing.T) {
 	for _, entry := range mainScreenHelp {
 		text += entry.label + " " + entry.description + "\n"
 	}
-	for _, want := range []string{"Tab switches Files/Agents", "x opens Fix", "cancel-all", "diamond"} {
+	for _, want := range []string{"Tab switches Files/Agents", "x opens Fix", "cancel-all", "diamond", "Space opens its actions", "v opens candidate source"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("help missing %q", want)
 		}
@@ -244,7 +331,7 @@ func TestFeatureSettingsProtectDirtyExitAndUseCompactFullScreen(t *testing.T) {
 	model = settingsModel(configConcurrency, settingsResolved(), &settingsConfigStore{})
 	model.width, model.height = 40, 10
 	assertScreenSize(t, model.configSettingsFullScreen(), 40, 10)
-	if text := ansi.Strip(model.configSettingsFullScreen()); !strings.Contains(text, "CONCURRENCY & RETENTION") || !strings.Contains(text, "Esc back") {
+	if text := ansi.Strip(model.configSettingsFullScreen()); !strings.Contains(text, "CONCURRENCY & RETENTION") || !strings.Contains(text, "Esc") {
 		t.Fatalf("compact settings omitted fixed chrome: %q", text)
 	}
 }

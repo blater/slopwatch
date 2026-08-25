@@ -1,6 +1,7 @@
 package follow
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -163,6 +164,68 @@ func TestResizeAndAgentsShellFitRequiredTerminalSizes(t *testing.T) {
 	for _, size := range []struct{ width, height int }{{36, 8}, {60, 16}, {80, 24}, {120, 30}} {
 		model := Model{width: size.width, height: size.height, mainView: MainViewAgents}
 		assertScreenSize(t, model.View(), size.width, size.height)
+	}
+}
+
+func TestResizeScreenGatesInputForEveryHiddenOverlay(t *testing.T) {
+	overlays := []OverlayKind{
+		OverlayFind, OverlayInfo, OverlayHelp, OverlayDetail, OverlaySource, OverlayColumns, OverlaySort,
+		OverlayWeights, OverlayAppearance, OverlaySettings, OverlayConfigSettings, OverlayFixForm,
+		OverlayPromptEditor, OverlayPromptDetach, OverlayPromptDirty, OverlayJobMonitor, OverlayJobActions,
+		OverlayJobLog, OverlayJobDiff, OverlayCandidateSource, OverlayConfirmation, OverlaySettingsDirty,
+	}
+	for _, kind := range overlays {
+		t.Run(fmt.Sprint(kind), func(t *testing.T) {
+			service := &fakeFixService{draft: readyFixDraft("a.go")}
+			model := fixTestModel(service, 35, 6)
+			model.fixDialog = fixDialogState{hasDraft: true, draft: readyFixDraft("a.go"), cursor: fixFieldRun, detached: false}
+			model.jobActions = jobActionsState{jobID: "job", revision: 1, actions: []fix.JobAction{fix.ActionRetry}}
+			model.cancelConfirmation = cancelConfirmation{jobID: "job", revision: 1, action: fix.ActionDiscard, allowed: true}
+			model.configSettings = configSettingsState{open: true, dirty: true, dirtyCursor: 1}
+			model.overlays.Push(kind, OverlayCaller{MainView: MainViewFiles, Selected: "a.go"})
+			beforeLen := model.overlays.Len()
+			beforeCursor := model.fixDialog.cursor
+			beforePending := model.cancelConfirmation.pending
+
+			updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+			result := updated.(*Model)
+			top, ok := result.overlays.Top()
+			if command != nil || !ok || top.Kind != kind || result.overlays.Len() != beforeLen || result.fixDialog.cursor != beforeCursor ||
+				result.cancelConfirmation.pending != beforePending || service.executed.JobID != "" {
+				t.Fatalf("hidden overlay %d consumed Enter: top=%+v len=%d command=%v executed=%+v", kind, top, result.overlays.Len(), command, service.executed)
+			}
+			if view := ansi.Strip(result.View()); !strings.Contains(view, "RESIZE TERMINAL") {
+				t.Fatalf("hidden overlay %d escaped resize surface: %q", kind, view)
+			}
+		})
+	}
+}
+
+func TestResizeScreenAllowsOnlyVisibleShutdownConfirmation(t *testing.T) {
+	service := &fakeFixService{}
+	visible := fixTestModel(service, 35, 6)
+	visible.shutdown = shutdownState{active: 1}
+	visible.overlays.Push(OverlayShutdown, OverlayCaller{MainView: MainViewAgents})
+	if view := ansi.Strip(visible.View()); !strings.Contains(view, "ACTIVE FIX JOBS") || !strings.Contains(view, "Enter cancel all + quit") {
+		t.Fatalf("visible compact shutdown was not rendered: %q", view)
+	}
+	_, command := visible.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if command == nil || !visible.shutdown.pending {
+		t.Fatal("visible shutdown confirmation did not accept Enter")
+	}
+
+	hidden := fixTestModel(service, 20, 1)
+	hidden.shutdown = shutdownState{active: 1}
+	hidden.overlays.Push(OverlayShutdown, OverlayCaller{MainView: MainViewAgents})
+	before := hidden.overlays.Len()
+	if view := ansi.Strip(hidden.View()); !strings.Contains(view, "RESIZE TERMINAL") || strings.Contains(view, "ACTIVE FIX JOBS") {
+		t.Fatalf("unsafe shutdown surface was visible below 24x2: %q", view)
+	}
+	for _, key := range []tea.KeyMsg{{Type: tea.KeyEnter}, {Type: tea.KeyRunes, Runes: []rune{'q'}}} {
+		_, command = hidden.handleKey(key)
+		if command != nil || hidden.shutdown.pending || hidden.overlays.Len() != before {
+			t.Fatalf("hidden shutdown consumed %q: pending=%t overlays=%d command=%v", key.String(), hidden.shutdown.pending, hidden.overlays.Len(), command)
+		}
 	}
 }
 

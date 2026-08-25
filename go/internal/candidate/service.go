@@ -4,19 +4,15 @@ package candidate
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/blater/slopwatch/internal/fix"
 )
 
-const MaxReadFileBytes = 4 << 20
-
-var ErrFileTooLarge = errors.New("candidate file exceeds monitor read limit")
-
 type PreflightRequest struct {
-	Workspace fix.WorkspaceIdentity
-	Targets   []fix.RepoPath
+	Workspace          fix.WorkspaceIdentity
+	Targets            []fix.RepoPath
+	CommandOutputBytes int64
 }
 
 type PreflightResult struct {
@@ -41,8 +37,9 @@ type PrepareRequest struct {
 	// AllowedScope is a closed policy name such as "targets" or
 	// "targets-and-tests". It is interpreted by the trusted candidate service,
 	// never by an agent adapter.
-	AllowedScope string
-	AllowedPaths []fix.RepoPath
+	AllowedScope       string
+	AllowedPaths       []fix.RepoPath
+	CommandOutputBytes int64
 }
 
 type DiffFile struct {
@@ -69,6 +66,7 @@ type File struct {
 	Contents    []byte
 	ContentHash string
 	Mode        uint32
+	Truncated   bool
 }
 
 type Service interface {
@@ -76,7 +74,7 @@ type Service interface {
 	Prepare(context.Context, PrepareRequest) (fix.CandidateIdentity, error)
 	DiscoverPrepared(context.Context, PrepareRequest) (fix.CandidateIdentity, bool, error)
 	Diff(context.Context, fix.CandidateIdentity) (DiffSnapshot, error)
-	ReadFile(context.Context, fix.CandidateIdentity, fix.RepoPath) (File, error)
+	ReadFile(context.Context, fix.CandidateIdentity, fix.RepoPath, int64) (File, error)
 	Recover(context.Context, fix.CandidateIdentity, []fix.RepoPath, string, []fix.RepoPath) error
 	// ReconcileDiscard completes an interrupted discard using the durable
 	// ownership marker, or confirms that the exact owned candidate is gone.

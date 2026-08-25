@@ -76,7 +76,7 @@ func TestFixPrepareUsesGenerationAndOwnsKeys(t *testing.T) {
 }
 
 func TestFixDialogResponsiveSurfacesAndContractSafeSubmit(t *testing.T) {
-	for _, size := range []struct{ width, height int }{{36, 8}, {60, 16}, {80, 24}, {120, 30}} {
+	for _, size := range []struct{ width, height int }{{36, 6}, {36, 8}, {60, 16}, {80, 24}, {120, 30}} {
 		service := &fakeFixService{draft: readyFixDraft("a.go")}
 		model := fixTestModel(service, size.width, size.height)
 		command := model.openFixForSelected()
@@ -171,6 +171,35 @@ func TestAdvancedEditorLocksEnvelopeAndProtectsUnsavedBody(t *testing.T) {
 	}
 }
 
+func TestFixEditorsDoNotSilentlyClipLongInstructionsOrBranchNames(t *testing.T) {
+	service := &fakeFixService{draft: readyFixDraft("a.go")}
+	model := fixTestModel(service, 80, 24)
+	prepare := model.openFixForSelected()
+	model.handleFixPrepared(prepare().(fixPreparedMsg))
+
+	longInstructions := strings.TrimSpace(strings.Repeat("Preserve the parser's externally observable behavior. ", 512))
+	model.fixDialog.cursor = fixFieldAdvanced
+	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
+	model.fixDialog.prompt.SetValue(longInstructions)
+	if got := model.fixDialog.prompt.Value(); got != longInstructions {
+		t.Fatalf("advanced instructions were clipped to %d of %d bytes", len(got), len(longInstructions))
+	}
+	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyCtrlS})
+	model.handlePromptDetachKey(tea.KeyMsg{Type: tea.KeyEnter})
+
+	longBranch := strings.Repeat("engineering/platform/", 16) + "refactor-parser"
+	model.fixDialog.branch.SetValue(longBranch)
+	if got := model.fixDialog.branch.Value(); got != longBranch {
+		t.Fatalf("branch name was clipped to %d of %d bytes", len(got), len(longBranch))
+	}
+	if !model.syncFixDraft() {
+		t.Fatalf("long editor values were rejected: %s", model.fixDialog.errorText)
+	}
+	if model.fixDialog.draft.Instructions.DetachedBody != longInstructions || model.fixDialog.draft.BranchName != longBranch {
+		t.Fatalf("long editor values did not survive draft synchronization: branch=%d instructions=%d", len(model.fixDialog.draft.BranchName), len(model.fixDialog.draft.Instructions.DetachedBody))
+	}
+}
+
 func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) {
 	service := &fakeFixService{draft: readyFixDraft("a.go")}
 	model := fixTestModel(service, 80, 24)
@@ -256,10 +285,13 @@ func TestPublishAndDiscardConfirmationsAreResponsiveAndExplicit(t *testing.T) {
 		view := model.View()
 		assertScreenSize(t, view, size.width, size.height)
 		plain := ansi.Strip(view)
-		for _, wanted := range []string{"CONFIRM PUBLISH", "pull-request", "slopwatch/fix/parser", "pull request"} {
+		for _, wanted := range []string{"CONFIRM PUBLISH", "pull-request", "slopwatch/fix/parser", "pull request", "Enter confirm"} {
 			if !strings.Contains(plain, wanted) {
 				t.Fatalf("%dx%d publish confirmation omitted %q: %q", size.width, size.height, wanted, plain)
 			}
+		}
+		if strings.Contains(plain, "draft pull request") {
+			t.Fatalf("%dx%d confirmation claimed a PR state not projected by the job: %q", size.width, size.height, plain)
 		}
 	}
 
@@ -307,22 +339,24 @@ func TestStalePublishRefreshesRevisionAndRequiresReconfirmation(t *testing.T) {
 }
 
 type fakeFixService struct {
-	draft         fixapp.FixDraft
-	prepareErr    error
-	submitID      fix.JobID
-	submitErr     error
-	submitted     fixapp.FixDraft
-	jobs          fixapp.JobListSnapshot
-	executed      fix.JobCommand
-	executeErr    error
-	candidate     candidate.File
-	diff          fixapp.DiffPage
-	log           fixapp.LogPage
-	shutdowns     int
-	subscriptions int
+	draft          fixapp.FixDraft
+	prepareErr     error
+	prepareRequest fixapp.PrepareRequest
+	submitID       fix.JobID
+	submitErr      error
+	submitted      fixapp.FixDraft
+	jobs           fixapp.JobListSnapshot
+	executed       fix.JobCommand
+	executeErr     error
+	candidate      candidate.File
+	diff           fixapp.DiffPage
+	log            fixapp.LogPage
+	shutdowns      int
+	subscriptions  int
 }
 
-func (service *fakeFixService) Prepare(context.Context, fixapp.PrepareRequest) (fixapp.FixDraft, error) {
+func (service *fakeFixService) Prepare(_ context.Context, request fixapp.PrepareRequest) (fixapp.FixDraft, error) {
+	service.prepareRequest = request
 	return service.draft, service.prepareErr
 }
 
@@ -358,6 +392,8 @@ func (service *fakeFixService) Transcript(context.Context, fix.JobID, fixapp.Log
 }
 
 func (service *fakeFixService) Shutdown(context.Context) error { service.shutdowns++; return nil }
+
+func (service *fakeFixService) Reconfigure(context.Context, fixapp.RuntimeLimits) error { return nil }
 
 func (service *fakeFixService) Execute(_ context.Context, command fix.JobCommand) (fixapp.CommandReceipt, error) {
 	service.executed = command
@@ -396,15 +432,19 @@ func readyFixDraft(path fix.RepoPath) fixapp.FixDraft {
 				"cog": {ID: "cog", Label: "COG", Value: 12, Complete: true},
 			}}},
 		}},
-		Preferences: appconfig.Resolved{Profiles: []agent.Profile{{ID: "codex", Label: "Codex"}}},
-		Profile:     agent.Profile{ID: "codex", Label: "Codex"},
+		Preferences: appconfig.Resolved{
+			Profiles: []agent.Profile{{ID: "codex", Label: "Codex"}},
+			Fix:      appconfig.FixDefaults{},
+		},
+		Profile: agent.Profile{ID: "codex", Label: "Codex"},
 		Probe: agent.ProbeResult{State: agent.ProbeReady, Capabilities: agent.Capabilities{
 			Models: []agent.Option[agent.ModelID]{{ID: "gpt-5.6"}}, Efforts: []agent.Option[agent.EffortID]{{ID: "high"}},
 			Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle}},
 			Isolation:  agent.RuntimeIsolation{Writes: agent.CandidateTreeAndGitMetadataProtected, SensitiveReadsDenied: true, TransportAuthIsolated: true, CrashContainment: true},
 		}},
 		Model: "gpt-5.6", Effort: "high", Delegation: agent.DelegationSingle,
-		TargetScore: 100, ChangeScope: "targets-and-tests", DeliveryMode: "candidate", BranchName: "slopwatch/fix/a",
+		TargetScore: 100,
+		ChangeScope: "targets-and-tests", DeliveryMode: "candidate", BranchName: "slopwatch/fix/a",
 		AllowedPaths: []fix.RepoPath{path},
 		Instructions: agent.InstructionDocument{Version: "test", Envelope: "locked", Objective: "old", Evidence: "baseline"},
 		Preflight:    candidate.PreflightResult{Clean: true, Supported: true, AllowedPaths: []fix.RepoPath{path}},

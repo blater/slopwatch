@@ -28,22 +28,62 @@ func documentToResolved(value preferences.Document) (appconfig.Resolved, error) 
 	if err != nil {
 		return appconfig.Resolved{}, err
 	}
+	workspace, err := preferenceValidationWorkspaceToApp(value.ValidationWorkspace)
+	if err != nil {
+		return appconfig.Resolved{}, err
+	}
 	return appconfig.Resolved{
-		SchemaVersion: value.Version,
-		Fix:           fixDefaults,
-		Concurrency:   preferenceConcurrencyToApp(value.Concurrency),
-		Profiles:      preferenceProfilesToApp(value.Agents.Profiles),
-		Validation:    plans,
-		Delivery:      preferenceDeliveryToApp(value.Delivery),
-		TrendWindow:   trend,
+		SchemaVersion:       value.Version,
+		Fix:                 fixDefaults,
+		Concurrency:         preferenceConcurrencyToApp(value.Concurrency),
+		Profiles:            preferenceProfilesToApp(value.Agents.Profiles),
+		Validation:          plans,
+		ValidationWorkspace: workspace,
+		Delivery:            preferenceDeliveryToApp(value.Delivery),
+		TrendWindow:         trend,
 	}, nil
 }
 
-func preferenceFixToApp(value preferences.Fix) (appconfig.FixDefaults, error) {
-	timeout, err := parseDuration("fix.attempt_timeout", value.AttemptTimeout)
+func preferenceValidationWorkspaceToApp(value preferences.ValidationWorkspace) (appconfig.ValidationWorkspace, error) {
+	stop, err := parseDuration("validation_workspace.container_stop_timeout", value.ContainerStopTimeout)
 	if err != nil {
-		return appconfig.FixDefaults{}, err
+		return appconfig.ValidationWorkspace{}, err
 	}
+	control, err := parseDuration("validation_workspace.container_control_timeout", value.ContainerControlTimeout)
+	if err != nil {
+		return appconfig.ValidationWorkspace{}, err
+	}
+	sentinel, err := parseDuration("validation_workspace.container_sentinel_timeout", value.ContainerSentinelTimeout)
+	if err != nil {
+		return appconfig.ValidationWorkspace{}, err
+	}
+	crash, err := parseDuration("validation_workspace.container_crash_probe_timeout", value.ContainerCrashProbeTimeout)
+	if err != nil {
+		return appconfig.ValidationWorkspace{}, err
+	}
+	return appconfig.ValidationWorkspace{
+		MaxFiles: value.MaxFiles, MaxDirectories: value.MaxDirectories,
+		MaxPathBytes: value.MaxPathBytes, MaxFileBytes: value.MaxFileBytes, MaxTotalBytes: value.MaxTotalBytes,
+		ContainerPIDs: value.ContainerPIDs, ContainerMemoryBytes: value.ContainerMemoryBytes, ContainerCPUMillis: value.ContainerCPUMillis,
+		ContainerTemporaryBytes: value.ContainerTemporaryBytes, ContainerWorkspaceBytes: value.ContainerWorkspaceBytes,
+		ContainerNofileLimit: value.ContainerNofileLimit, ContainerGeneratedFileBytes: value.ContainerGeneratedFileBytes,
+		ContainerStopTimeout: stop, ContainerControlTimeout: control, ContainerSentinelTimeout: sentinel, ContainerCrashProbeTimeout: crash,
+	}, nil
+}
+
+func appValidationWorkspaceToPreference(value appconfig.ValidationWorkspace) preferences.ValidationWorkspace {
+	return preferences.ValidationWorkspace{
+		MaxFiles: value.MaxFiles, MaxDirectories: value.MaxDirectories,
+		MaxPathBytes: value.MaxPathBytes, MaxFileBytes: value.MaxFileBytes, MaxTotalBytes: value.MaxTotalBytes,
+		ContainerPIDs: value.ContainerPIDs, ContainerMemoryBytes: value.ContainerMemoryBytes, ContainerCPUMillis: value.ContainerCPUMillis,
+		ContainerTemporaryBytes: value.ContainerTemporaryBytes, ContainerWorkspaceBytes: value.ContainerWorkspaceBytes,
+		ContainerNofileLimit: value.ContainerNofileLimit, ContainerGeneratedFileBytes: value.ContainerGeneratedFileBytes,
+		ContainerStopTimeout: value.ContainerStopTimeout.String(), ContainerControlTimeout: value.ContainerControlTimeout.String(),
+		ContainerSentinelTimeout: value.ContainerSentinelTimeout.String(), ContainerCrashProbeTimeout: value.ContainerCrashProbeTimeout.String(),
+	}
+}
+
+func preferenceFixToApp(value preferences.Fix) (appconfig.FixDefaults, error) {
 	focus := make([]fix.MetricID, len(value.Focus))
 	for index, id := range value.Focus {
 		focus[index] = fix.MetricID(id)
@@ -52,7 +92,6 @@ func preferenceFixToApp(value preferences.Fix) (appconfig.FixDefaults, error) {
 		TargetScore: value.TargetScore, Focus: focus, ChangeScope: value.ChangeScope,
 		Profile: agent.ProfileID(value.Profile), Model: agent.ModelID(value.Model),
 		Effort: agent.EffortID(value.Effort), Delegation: agent.DelegationMode(value.Delegation),
-		MaxAttempts: value.MaxAttempts, AttemptTimeout: timeout,
 		PromptTemplate: value.PromptTemplate,
 		BranchTemplate: value.BranchTemplate,
 		ValidationPlan: value.ValidationPlan,
@@ -125,6 +164,9 @@ func preferenceConcurrencyToApp(value preferences.Concurrency) appconfig.Concurr
 	return appconfig.Concurrency{
 		MaxAgents: value.MaxAgents, MaxVerifiers: value.MaxVerifiers,
 		MaxRetainedJobs: value.MaxRetainedJobs, MaxTranscriptBytes: value.MaxTranscriptBytes,
+		MaxActorsPerJob:          value.MaxActorsPerJob,
+		MaxCandidatePreviewBytes: value.MaxCandidatePreviewBytes,
+		MaxCandidatePreviewLines: value.MaxCandidatePreviewLines,
 	}
 }
 
@@ -132,7 +174,10 @@ func preferenceDeliveryToApp(value preferences.Delivery) appconfig.Delivery {
 	return appconfig.Delivery{
 		DefaultMode: fix.DeliveryMode(value.DefaultMode), Remote: value.Remote, BaseBranch: value.BaseBranch,
 		BranchTemplate: value.BranchTemplate, Publisher: value.Publisher,
-		DraftPullRequests: value.DraftPullRequests,
+		DraftPullRequests: value.DraftPullRequests, RequireValidation: value.RequireValidation,
+		CommandOutputBytes: value.CommandOutputBytes,
+		CommitPolicy:       value.CommitPolicy, CommitTitleTemplate: value.CommitTitleTemplate, CommitBodyTemplate: value.CommitBodyTemplate,
+		PullRequestTitleTemplate: value.PullRequestTitleTemplate, PullRequestBodyTemplate: value.PullRequestBodyTemplate, CleanupPolicy: value.CleanupPolicy,
 	}
 }
 
@@ -144,8 +189,7 @@ func appFixToPreference(value appconfig.FixDefaults) preferences.Fix {
 	return preferences.Fix{
 		TargetScore: value.TargetScore, Focus: focus, ChangeScope: value.ChangeScope,
 		Profile: string(value.Profile), Model: string(value.Model), Effort: string(value.Effort),
-		Delegation: string(value.Delegation), MaxAttempts: value.MaxAttempts,
-		AttemptTimeout: value.AttemptTimeout.String(), PromptTemplate: value.PromptTemplate,
+		Delegation: string(value.Delegation), PromptTemplate: value.PromptTemplate,
 		BranchTemplate: value.BranchTemplate,
 		ValidationPlan: value.ValidationPlan,
 	}
@@ -184,6 +228,9 @@ func appConcurrencyToPreference(value appconfig.Concurrency) preferences.Concurr
 	return preferences.Concurrency{
 		MaxAgents: value.MaxAgents, MaxVerifiers: value.MaxVerifiers,
 		MaxRetainedJobs: value.MaxRetainedJobs, MaxTranscriptBytes: value.MaxTranscriptBytes,
+		MaxActorsPerJob:          value.MaxActorsPerJob,
+		MaxCandidatePreviewBytes: value.MaxCandidatePreviewBytes,
+		MaxCandidatePreviewLines: value.MaxCandidatePreviewLines,
 	}
 }
 
@@ -191,7 +238,10 @@ func appDeliveryToPreference(value appconfig.Delivery) preferences.Delivery {
 	return preferences.Delivery{
 		DefaultMode: string(value.DefaultMode), Remote: value.Remote, BaseBranch: value.BaseBranch,
 		BranchTemplate: value.BranchTemplate, Publisher: value.Publisher,
-		DraftPullRequests: value.DraftPullRequests,
+		DraftPullRequests: value.DraftPullRequests, RequireValidation: value.RequireValidation,
+		CommandOutputBytes: value.CommandOutputBytes,
+		CommitPolicy:       value.CommitPolicy, CommitTitleTemplate: value.CommitTitleTemplate, CommitBodyTemplate: value.CommitBodyTemplate,
+		PullRequestTitleTemplate: value.PullRequestTitleTemplate, PullRequestBodyTemplate: value.PullRequestBodyTemplate, CleanupPolicy: value.CleanupPolicy,
 	}
 }
 

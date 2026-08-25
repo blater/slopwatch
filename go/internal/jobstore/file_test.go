@@ -1,6 +1,7 @@
 package jobstore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -44,6 +45,81 @@ func TestFileRoundTripAndIgnoresTornTail(t *testing.T) {
 	records, err := reopened.Load(context.Background())
 	if err != nil || len(records) != 1 || records[0].Kind != "admitted" {
 		t.Fatalf("Load() = %#v, %v", records, err)
+	}
+}
+
+func TestFileRoundTripsLogicalRecordLargerThanPhysicalEnvelope(t *testing.T) {
+	directory := t.TempDir()
+	store, err := OpenFile(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := largeRecordData(maxRecordBytes + 1)
+	appended, err := store.Append(context.Background(), Record{JobID: "job-large", Revision: 7, Kind: "checkpoint", Data: data})
+	if err != nil || appended.Sequence != 1 {
+		t.Fatalf("Append() = %#v, %v", appended, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenFile(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	records, err := reopened.Load(context.Background())
+	if err != nil || len(records) != 1 {
+		t.Fatalf("Load() records=%d err=%v", len(records), err)
+	}
+	if records[0].Sequence != 1 || records[0].Revision != 7 || records[0].Kind != "checkpoint" || !bytes.Equal(records[0].Data, data) {
+		t.Fatal("chunked logical record did not round-trip exactly")
+	}
+}
+
+func TestFileDropsAllChunksOfTornLogicalRecord(t *testing.T) {
+	directory := t.TempDir()
+	store, err := OpenFile(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := largeRecordData(maxRecordBytes + 1)
+	if _, err := store.Append(context.Background(), Record{JobID: "job-first", Kind: "checkpoint", Data: first}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := store.file.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstBoundary := info.Size()
+	if _, err := store.Append(context.Background(), Record{JobID: "job-torn", Kind: "checkpoint", Data: largeRecordData(maxRecordBytes + 2)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	journal := filepath.Join(directory, journalName)
+	complete, err := os.Stat(journal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(journal, complete.Size()-1); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenFile(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	records, err := reopened.Load(context.Background())
+	if err != nil || len(records) != 1 || records[0].JobID != "job-first" || !bytes.Equal(records[0].Data, first) {
+		t.Fatalf("Load() after torn chunks = records=%d err=%v", len(records), err)
+	}
+	repaired, err := os.Stat(journal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repaired.Size() != firstBoundary {
+		t.Fatalf("repaired journal size = %d, want complete logical boundary %d", repaired.Size(), firstBoundary)
 	}
 }
 
@@ -132,8 +208,9 @@ func TestFileCompactAtomicallyReplacesWithCompleteCheckpoints(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	largeCheckpoint := largeRecordData(maxRecordBytes + 1)
 	checkpoints := []Record{
-		{JobID: "job-one", Revision: 7, Kind: "checkpoint", Data: json.RawMessage(`{"state":"one"}`)},
+		{JobID: "job-one", Revision: 7, Kind: "checkpoint", Data: largeCheckpoint},
 		{JobID: "job-two", Revision: 4, Kind: "checkpoint", Data: json.RawMessage(`{"state":"two"}`)},
 	}
 	if err := store.Compact(context.Background(), checkpoints); err != nil {
@@ -152,9 +229,19 @@ func TestFileCompactAtomicallyReplacesWithCompleteCheckpoints(t *testing.T) {
 	}
 	defer reopened.Close()
 	records, err := reopened.Load(context.Background())
-	if err != nil || len(records) != 3 || records[0].JobID != "job-one" || records[1].JobID != "job-two" || records[2].Sequence != 3 {
+	if err != nil || len(records) != 3 || records[0].JobID != "job-one" || !bytes.Equal(records[0].Data, largeCheckpoint) || records[1].JobID != "job-two" || records[2].Sequence != 3 {
 		t.Fatalf("compacted records = %+v, %v", records, err)
 	}
+}
+
+func largeRecordData(contentBytes int) json.RawMessage {
+	result := make([]byte, contentBytes+2)
+	result[0] = '"'
+	for index := 1; index <= contentBytes; index++ {
+		result[index] = byte('a' + index%26)
+	}
+	result[len(result)-1] = '"'
+	return result
 }
 
 func TestFileIgnoresAbandonedTornCheckpointTemporary(t *testing.T) {

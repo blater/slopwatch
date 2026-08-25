@@ -3,12 +3,14 @@ package delivery
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +27,18 @@ type GitService struct {
 	runner isolation.Executor
 }
 
+type commandOutputContextKey struct{}
+
+func withCommandOutput(ctx context.Context, maximum int64) context.Context {
+	return context.WithValue(ctx, commandOutputContextKey{}, maximum)
+}
+
+var (
+	remoteAliasPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	sshUserPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+	remoteHostPattern  = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$`)
+)
+
 func NewGitService(runner isolation.Executor) (*GitService, error) {
 	if runner == nil {
 		return nil, errors.New("Git delivery requires a process runner")
@@ -40,34 +54,79 @@ func NewGitService(runner isolation.Executor) (*GitService, error) {
 	return &GitService{git: git, runner: runner}, nil
 }
 
-func (service *GitService) Preflight(ctx context.Context, request PreflightRequest) error {
+func (service *GitService) Preflight(ctx context.Context, request PreflightRequest) (PreflightResult, error) {
+	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
 	if !request.Mode.Valid() {
-		return errors.New("delivery mode is invalid")
+		return PreflightResult{}, errors.New("delivery mode is invalid")
 	}
 	if request.Mode == fix.DeliveryModeCandidate {
-		return nil
+		return PreflightResult{}, nil
 	}
 	if request.Workspace.RepositoryRoot == "" || request.Remote == "" || request.Branch == "" {
-		return errors.New("delivery repository, remote, and branch are required")
+		return PreflightResult{}, errors.New("delivery repository, remote, and branch are required")
 	}
-	if _, err := service.gitBytes(ctx, request.Workspace.RepositoryRoot, false, "check-ref-format", "--branch", request.Branch); err != nil {
-		return fmt.Errorf("invalid delivery branch: %w", err)
+	if !validRemoteAlias(request.Remote) {
+		return PreflightResult{}, errors.New("delivery remote must be a safe configured remote alias")
 	}
-	if _, err := service.gitBytes(ctx, request.Workspace.RepositoryRoot, false, "remote", "get-url", request.Remote); err != nil {
-		return fmt.Errorf("delivery remote %q is unavailable: %w", request.Remote, err)
+	if err := service.validateLiteralBranch(ctx, request.Workspace.RepositoryRoot, request.Branch); err != nil {
+		return PreflightResult{}, fmt.Errorf("invalid delivery branch: %w", err)
 	}
-	if request.Mode == fix.DeliveryModePullRequest {
+	remoteURL, err := service.resolveRemoteURL(ctx, request.Workspace.RepositoryRoot, request.Remote)
+	if err != nil {
+		return PreflightResult{}, fmt.Errorf("delivery remote %q is unavailable: %w", request.Remote, err)
+	}
+	target, err := remoteProviderTarget(remoteURL)
+	if err != nil {
+		return PreflightResult{}, fmt.Errorf("delivery remote %q has no supported provider identity: %w", request.Remote, err)
+	}
+	target.RemoteIdentity, err = remoteIdentity(remoteURL)
+	if err != nil {
+		return PreflightResult{}, fmt.Errorf("delivery remote %q identity is invalid: %w", request.Remote, err)
+	}
+	if request.Mode == fix.DeliveryModePullRequest && (!strings.EqualFold(target.RemoteHost, "github.com") || target.HostRepository == "") {
+		return PreflightResult{}, errors.New("pull-request delivery requires a canonical github.com owner/repository remote")
+	}
+	ref := "refs/heads/" + request.Branch
+	if exists, _, err := service.ref(ctx, request.Workspace.RepositoryRoot, ref); err != nil {
+		return PreflightResult{}, fmt.Errorf("check local delivery branch: %w", err)
+	} else if exists {
+		return PreflightResult{}, errors.New("delivery branch already exists locally")
+	}
+	if exists, _, err := service.remoteRefURL(ctx, request.Workspace.RepositoryRoot, remoteURL, ref); err != nil {
+		return PreflightResult{}, fmt.Errorf("check remote delivery branch: %w", err)
+	} else if exists {
+		return PreflightResult{}, errors.New("delivery branch already exists remotely")
+	}
+	if request.Mode == fix.DeliveryModePullRequest && request.Publication {
 		if request.BaseBranch == "" {
-			return errors.New("pull-request delivery requires an explicit base branch")
+			return PreflightResult{}, errors.New("pull-request delivery requires an explicit base branch")
 		}
-		if _, err := service.gitBytes(ctx, request.Workspace.RepositoryRoot, false, "rev-parse", "--verify", request.BaseBranch+"^{commit}"); err != nil {
-			return fmt.Errorf("pull-request base branch %q is not resolvable: %w", request.BaseBranch, err)
+		if err := service.validateLiteralBranch(ctx, request.Workspace.RepositoryRoot, request.BaseBranch); err != nil {
+			return PreflightResult{}, fmt.Errorf("pull-request base branch %q is not a literal branch: %w", request.BaseBranch, err)
 		}
+		baseRef := "refs/heads/" + request.BaseBranch
+		if exists, _, err := service.remoteRefURL(ctx, request.Workspace.RepositoryRoot, remoteURL, baseRef); err != nil {
+			return PreflightResult{}, fmt.Errorf("check pull-request base branch %q on admitted remote: %w", request.BaseBranch, err)
+		} else if !exists {
+			return PreflightResult{}, fmt.Errorf("pull-request base branch %q does not exist on the admitted remote", request.BaseBranch)
+		}
+	}
+	return target, nil
+}
+
+func (service *GitService) validateLiteralBranch(ctx context.Context, root, branch string) error {
+	data, err := service.gitBytes(ctx, root, false, "check-ref-format", "--branch", branch)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(data)) != branch {
+		return errors.New("Git resolved the value as branch shorthand")
 	}
 	return nil
 }
 
 func (service *GitService) PublishCommit(ctx context.Context, request Request) (Result, error) {
+	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
 	result, err := service.CreateCommit(ctx, request)
 	if err != nil {
 		return result, err
@@ -80,11 +139,18 @@ func (service *GitService) PublishCommit(ctx context.Context, request Request) (
 }
 
 func (service *GitService) CreateCommit(ctx context.Context, request Request) (Result, error) {
+	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
 	result := Result{}
 	if request.Job == "" || request.Candidate.RepositoryRoot == "" || request.Branch == "" || request.Remote == "" || request.DiffHash == "" {
 		return result, errors.New("delivery request is incomplete")
 	}
-	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, "check-ref-format", "--branch", request.Branch); err != nil {
+	if !validRemoteAlias(request.Remote) {
+		return result, errors.New("delivery remote must be a safe configured remote alias")
+	}
+	if err := service.verifyRequestRemote(ctx, request); err != nil {
+		return result, err
+	}
+	if err := service.validateLiteralBranch(ctx, request.Candidate.RepositoryRoot, request.Branch); err != nil {
 		return result, fmt.Errorf("invalid delivery branch: %w", err)
 	}
 	ref := "refs/heads/" + request.Branch
@@ -194,8 +260,12 @@ func privateIndexPath(root string) (string, error) {
 }
 
 func (service *GitService) CreateLocalRef(ctx context.Context, request Request, result Result) (Result, error) {
+	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
 	if result.Commit == "" || result.LocalRef != "" {
 		return result, errors.New("local ref step requires only a committed object")
+	}
+	if err := service.verifyRequestRemote(ctx, request); err != nil {
+		return result, err
 	}
 	ref := "refs/heads/" + request.Branch
 	lock, err := acquireDeliveryLock(request.Candidate.GitCommonDir)
@@ -227,7 +297,19 @@ func (service *GitService) CreateLocalRef(ctx context.Context, request Request, 
 	return result, nil
 }
 
+func (service *GitService) verifyRequestRemote(ctx context.Context, request Request) error {
+	if request.ExpectedRemoteIdentity == "" {
+		return errors.New("delivery request lacks the exact admitted remote identity")
+	}
+	remoteURL, err := service.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
+	if err != nil {
+		return err
+	}
+	return verifyExpectedRemote(remoteURL, request.ExpectedRemoteIdentity, request.ExpectedRemoteHost, request.HostRepository)
+}
+
 func (service *GitService) CreateRemoteRef(ctx context.Context, request Request, result Result) (Result, error) {
+	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
 	if result.Commit == "" || result.LocalRef == "" || result.Pushed {
 		return result, errors.New("remote ref step requires a committed local ref")
 	}
@@ -238,23 +320,30 @@ func (service *GitService) CreateRemoteRef(ctx context.Context, request Request,
 		return result, err
 	}
 	defer lock.Close()
-	if exists, oid, err := service.remoteRef(ctx, request.Candidate.RepositoryRoot, request.Remote, ref); err != nil {
+	remoteURL, err := service.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
+	if err != nil {
+		return result, err
+	}
+	if err := verifyExpectedRemote(remoteURL, request.ExpectedRemoteIdentity, request.ExpectedRemoteHost, request.HostRepository); err != nil {
+		return result, err
+	}
+	if exists, oid, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref); err != nil {
 		return result, err
 	} else if exists {
 		if oid == commit {
 			result.RemoteRef, result.Pushed = ref, true
-			result.Repository = service.remoteRepository(ctx, request.Candidate.RepositoryRoot, request.Remote)
+			result.Repository = remoteRepositoryURL(remoteURL)
 			return result, nil
 		}
 		return result, errors.New("delivery branch appeared remotely at a different commit")
 	}
 	lease := "--force-with-lease=" + ref + ":"
-	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, "push", "--porcelain", lease, request.Remote, commit+":"+ref); err != nil {
+	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, "push", "--porcelain", lease, remoteURL, commit+":"+ref); err != nil {
 		result.Ambiguous = true
 		result.Diagnostic = err.Error()
 		return result, fmt.Errorf("create remote delivery ref: %w", err)
 	}
-	exists, remoteCommit, err := service.remoteRef(ctx, request.Candidate.RepositoryRoot, request.Remote, ref)
+	exists, remoteCommit, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
 	if err != nil || !exists || remoteCommit != commit {
 		result.Ambiguous = true
 		result.Diagnostic = "remote ref could not be verified at the committed object"
@@ -262,11 +351,12 @@ func (service *GitService) CreateRemoteRef(ctx context.Context, request Request,
 	}
 	result.RemoteRef = ref
 	result.Pushed = true
-	result.Repository = service.remoteRepository(ctx, request.Candidate.RepositoryRoot, request.Remote)
+	result.Repository = remoteRepositoryURL(remoteURL)
 	return result, nil
 }
 
 func (service *GitService) Reconcile(ctx context.Context, request Request, previous Result) (Result, error) {
+	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
 	if previous.Commit == "" {
 		return previous, errors.New("delivery reconciliation requires the journaled commit")
 	}
@@ -274,7 +364,14 @@ func (service *GitService) Reconcile(ctx context.Context, request Request, previ
 	if ref == "" {
 		ref = "refs/heads/" + request.Branch
 	}
-	exists, commit, err := service.remoteRef(ctx, request.Candidate.RepositoryRoot, request.Remote, ref)
+	remoteURL, err := service.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
+	if err != nil {
+		return previous, err
+	}
+	if err := verifyExpectedRemote(remoteURL, request.ExpectedRemoteIdentity, request.ExpectedRemoteHost, request.HostRepository); err != nil {
+		return previous, err
+	}
+	exists, commit, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
 	if err != nil {
 		return previous, err
 	}
@@ -291,17 +388,13 @@ func (service *GitService) Reconcile(ctx context.Context, request Request, previ
 	}
 	previous.RemoteRef = ref
 	previous.Pushed = true
-	previous.Repository = service.remoteRepository(ctx, request.Candidate.RepositoryRoot, request.Remote)
+	previous.Repository = remoteRepositoryURL(remoteURL)
 	previous.Ambiguous = false
 	previous.Diagnostic = ""
 	return previous, nil
 }
 
-func (service *GitService) remoteRepository(ctx context.Context, root, remote string) string {
-	value, err := service.gitText(ctx, root, "remote", "get-url", "--push", remote)
-	if err != nil {
-		return ""
-	}
+func remoteRepositoryURL(value string) string {
 	if strings.HasPrefix(value, "git@github.com:") {
 		return normalizeGitHubRepository(strings.TrimPrefix(value, "git@github.com:"))
 	}
@@ -332,7 +425,15 @@ func (service *GitService) ref(ctx context.Context, root, ref string) (bool, str
 }
 
 func (service *GitService) remoteRef(ctx context.Context, root, remote, ref string) (bool, string, error) {
-	data, err := service.gitBytes(ctx, root, true, "ls-remote", "--exit-code", "--refs", remote, ref)
+	remoteURL, err := service.resolveRemoteURL(ctx, root, remote)
+	if err != nil {
+		return false, "", err
+	}
+	return service.remoteRefURL(ctx, root, remoteURL, ref)
+}
+
+func (service *GitService) remoteRefURL(ctx context.Context, root, remoteURL, ref string) (bool, string, error) {
+	data, err := service.gitBytes(ctx, root, true, "ls-remote", "--exit-code", "--refs", remoteURL, ref)
 	if errors.Is(err, errGitExitOne) || (err != nil && strings.Contains(err.Error(), "status 2")) {
 		return false, "", nil
 	}
@@ -347,6 +448,179 @@ func (service *GitService) remoteRef(ctx context.Context, root, remote, ref stri
 		return false, "", errors.New("malformed remote ref response")
 	}
 	return true, fields[0], nil
+}
+
+func validRemoteAlias(value string) bool {
+	return remoteAliasPattern.MatchString(value)
+}
+
+func (service *GitService) resolveRemoteURL(ctx context.Context, root, remote string) (string, error) {
+	if !validRemoteAlias(remote) {
+		return "", errors.New("delivery remote must be a safe configured remote alias")
+	}
+	value, err := service.gitText(ctx, root, "remote", "get-url", "--push", remote)
+	if err != nil {
+		return "", err
+	}
+	if err := validateRemoteURL(value); err != nil {
+		return "", err
+	}
+	return canonicalLocalRemote(value)
+}
+
+// canonicalLocalRemote removes mutable symlink components from local remote
+// paths before the admitted identity is calculated and before Git receives
+// the URL. Network remotes are already pinned by their normalized literal.
+func canonicalLocalRemote(value string) (string, error) {
+	if filepath.IsAbs(value) {
+		canonical, err := filepath.EvalSymlinks(value)
+		if err != nil {
+			return "", errors.New("delivery local remote cannot be canonicalized")
+		}
+		return canonical, nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "file" {
+		return value, nil
+	}
+	canonical, err := filepath.EvalSymlinks(parsed.Path)
+	if err != nil {
+		return "", errors.New("delivery local remote cannot be canonicalized")
+	}
+	return (&url.URL{Scheme: "file", Path: canonical}).String(), nil
+}
+
+func validateRemoteURL(value string) error {
+	if value == "" || strings.ContainsAny(value, "\x00\r\n\t ") || strings.HasPrefix(value, "-") {
+		return errors.New("delivery remote URL is unsafe")
+	}
+	if filepath.IsAbs(value) {
+		if filepath.Clean(value) != value {
+			return errors.New("delivery local remote path is not canonical")
+		}
+		return nil
+	}
+	if !strings.Contains(value, "://") {
+		authority, remotePath, ok := strings.Cut(value, ":")
+		user, host, hasUser := strings.Cut(authority, "@")
+		if !ok || !hasUser || !sshUserPattern.MatchString(user) || !remoteHostPattern.MatchString(host) || remotePath == "" ||
+			strings.ContainsAny(host+remotePath, "@?#") || strings.Contains(remotePath, "..") {
+			return errors.New("delivery remote URL uses an unsupported SSH form")
+		}
+		return nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Path == "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return errors.New("delivery remote URL is invalid")
+	}
+	if parsed.Scheme == "file" {
+		if parsed.User != nil || parsed.Host != "" && !strings.EqualFold(parsed.Host, "localhost") || !filepath.IsAbs(parsed.Path) {
+			return errors.New("delivery file remote URL is unsafe")
+		}
+		return nil
+	}
+	if parsed.Host == "" || !remoteHostPattern.MatchString(parsed.Hostname()) {
+		return errors.New("delivery remote URL is invalid")
+	}
+	if strings.EqualFold(parsed.Hostname(), "github.com") && parsed.Port() != "" {
+		return errors.New("delivery GitHub remote URL must not contain an explicit port")
+	}
+	switch parsed.Scheme {
+	case "https":
+		if parsed.User != nil {
+			return errors.New("delivery HTTPS remote URL must not contain credentials")
+		}
+	case "ssh":
+		if parsed.User != nil {
+			if _, hasPassword := parsed.User.Password(); hasPassword || !sshUserPattern.MatchString(parsed.User.Username()) {
+				return errors.New("delivery SSH remote URL contains unsupported credentials")
+			}
+		}
+	default:
+		return errors.New("delivery remote URL uses an unsupported protocol")
+	}
+	return nil
+}
+
+func remoteProviderTarget(value string) (PreflightResult, error) {
+	if filepath.IsAbs(value) || strings.HasPrefix(value, "file://") {
+		return PreflightResult{}, nil
+	}
+	var host, remotePath string
+	if !strings.Contains(value, "://") {
+		authority, path, ok := strings.Cut(value, ":")
+		if !ok {
+			return PreflightResult{}, errors.New("remote provider identity is unavailable")
+		}
+		_, host, _ = strings.Cut(authority, "@")
+		remotePath = path
+	} else {
+		parsed, err := url.Parse(value)
+		if err != nil {
+			return PreflightResult{}, errors.New("remote provider identity is invalid")
+		}
+		host = parsed.Hostname()
+		remotePath = parsed.Path
+	}
+	remotePath = strings.Trim(strings.TrimSuffix(remotePath, ".git"), "/")
+	parts := strings.Split(remotePath, "/")
+	if host == "" || len(parts) != 2 || parts[0] == "" || parts[1] == "" || strings.Contains(parts[0]+parts[1], "%") {
+		return PreflightResult{}, errors.New("remote must identify an owner/repository")
+	}
+	return PreflightResult{RemoteHost: strings.ToLower(host), HostRepository: parts[0] + "/" + parts[1]}, nil
+}
+
+func verifyExpectedRemote(remoteURL, expectedIdentity, expectedHost, expectedRepository string) error {
+	if expectedIdentity == "" {
+		return errors.New("delivery request lacks the exact admitted remote identity")
+	}
+	identity, err := remoteIdentity(remoteURL)
+	if err != nil || identity != expectedIdentity {
+		return errors.New("delivery remote identity changed since preflight")
+	}
+	if expectedRepository == "" && expectedHost == "" {
+		return nil
+	}
+	target, err := remoteProviderTarget(remoteURL)
+	if err != nil || !strings.EqualFold(target.RemoteHost, expectedHost) || !strings.EqualFold(target.HostRepository, expectedRepository) {
+		return errors.New("delivery remote identity changed since preflight")
+	}
+	return nil
+}
+
+func remoteIdentity(value string) (string, error) {
+	if err := validateRemoteURL(value); err != nil {
+		return "", err
+	}
+	var normalized string
+	if filepath.IsAbs(value) {
+		canonical, err := filepath.EvalSymlinks(value)
+		if err != nil {
+			return "", errors.New("delivery local remote cannot be canonicalized")
+		}
+		normalized = "file://" + filepath.ToSlash(canonical)
+	} else if !strings.Contains(value, "://") {
+		authority, remotePath, _ := strings.Cut(value, ":")
+		user, host, _ := strings.Cut(authority, "@")
+		normalized = "ssh-scp://" + user + "@" + strings.ToLower(host) + "/" + remotePath
+	} else {
+		parsed, _ := url.Parse(value)
+		if parsed.Scheme == "file" {
+			canonical, err := filepath.EvalSymlinks(parsed.Path)
+			if err != nil {
+				return "", errors.New("delivery local remote cannot be canonicalized")
+			}
+			normalized = "file://" + filepath.ToSlash(canonical)
+		} else {
+			userinfo := ""
+			if parsed.User != nil {
+				userinfo = parsed.User.Username() + "@"
+			}
+			normalized = strings.ToLower(parsed.Scheme) + "://" + userinfo + strings.ToLower(parsed.Host) + parsed.EscapedPath()
+		}
+	}
+	digest := sha256.Sum256([]byte(normalized))
+	return fmt.Sprintf("sha256:%x", digest[:]), nil
 }
 
 func (service *GitService) diffFingerprint(ctx context.Context, root string) (string, error) {
@@ -380,14 +654,23 @@ func (service *GitService) gitBytesEnv(ctx context.Context, root string, extraEn
 }
 
 func (service *GitService) gitBytesInputEnv(ctx context.Context, root string, extraEnvironment []string, input []byte, exitOne bool, arguments ...string) ([]byte, error) {
-	trusted := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.autocrlf=false", "-c", "core.filemode=true", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "protocol.ext.allow=never", "-c", "core.sshCommand=ssh", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"}
+	maximum, _ := ctx.Value(commandOutputContextKey{}).(int64)
+	if maximum <= 0 {
+		return nil, errors.New("Git command output budget is not configured")
+	}
+	trusted := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.autocrlf=false", "-c", "core.filemode=true",
+		// An admitted repository may name a remote, but it may not add a
+		// process-launch path to publication through local credential config.
+		// An empty helper value resets all helpers read earlier by Git.
+		"-c", "credential.helper=", "-c", "credential.interactive=never", "-c", "core.askPass=",
+		"-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "protocol.ext.allow=never", "-c", "core.sshCommand=ssh", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"}
 	trusted = append(trusted, arguments...)
 	environment := []string{"LANG=C.UTF-8", "LC_ALL=C", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=Slopwatch", "GIT_AUTHOR_EMAIL=slopwatch@localhost", "GIT_COMMITTER_NAME=Slopwatch", "GIT_COMMITTER_EMAIL=slopwatch@localhost"}
 	environment = append(environment, extraEnvironment...)
 	result, err := service.runner.Run(ctx, isolation.Request{Executable: service.git, Arguments: trusted, Directory: root,
 		Environment: environment,
 		Stdin:       input,
-		Limits:      isolation.Limits{WallTime: 2 * time.Minute, TerminateGrace: 2 * time.Second, MaxStdoutBytes: 4 << 20, MaxStderrBytes: 4 << 20}})
+		Limits:      isolation.Limits{TerminateGrace: 2 * time.Second, MaxStdoutBytes: maximum, MaxStderrBytes: maximum}})
 	if err != nil {
 		return nil, err
 	}

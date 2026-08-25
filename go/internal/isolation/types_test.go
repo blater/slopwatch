@@ -1,6 +1,10 @@
 package isolation
 
-import "testing"
+import (
+	"context"
+	"strings"
+	"testing"
+)
 
 func TestConformanceRequiresEveryGate(t *testing.T) {
 	t.Parallel()
@@ -27,5 +31,17 @@ func TestDenyAllCheckerFailsClosed(t *testing.T) {
 	result := (DenyAllChecker{}).Check(t.Context(), ConformanceRequest{})
 	if result.MutationEligible() || result.Diagnostic == "" {
 		t.Fatalf("DenyAllChecker result = %#v", result)
+	}
+}
+
+func TestProductionConfinementSelectorFailsClosedWithoutVerifiedBackend(t *testing.T) {
+	confinement := SelectCandidateConfinement(Runner{}, ConfinementOptions{})
+	capability := confinement.Capability(context.Background())
+	if capability.Available || capability.CrashContainment || capability.Diagnostic == "" {
+		t.Fatalf("Capability() = %#v", capability)
+	}
+	_, observed, err := confinement.RunCandidate(context.Background(), CandidatePolicy{}, Request{})
+	if err == nil || observed.MutationEligible() || !strings.Contains(err.Error(), "confinement") {
+		t.Fatalf("RunCandidate() conformance=%#v err=%v", observed, err)
 	}
 }

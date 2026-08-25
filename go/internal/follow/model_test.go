@@ -55,6 +55,20 @@ func testFile(path string, score float64) report.File {
 	}
 }
 
+func TestSearchInputsDoNotSilentlyClipLongQueries(t *testing.T) {
+	model, err := New(report.Document{}, &settingsAnalyzer{}, Options{Workspace: t.TempDir(), Targets: []string{"."}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(model.Close)
+	query := strings.Repeat("organisation/platform/component/", 16) + "target.go"
+	model.findInput.SetValue(query)
+	model.agentFindInput.SetValue(query)
+	if model.findInput.Value() != query || model.agentFindInput.Value() != query {
+		t.Fatalf("search query was clipped: files=%d jobs=%d want=%d", len(model.findInput.Value()), len(model.agentFindInput.Value()), len(query))
+	}
+}
+
 func TestArrowNavigationMovesImmediatelyWithoutATimer(t *testing.T) {
 	model := Model{
 		document: report.Document{Files: []report.File{testFile("a.go", 2), testFile("b.go", 1)}},
@@ -606,7 +620,7 @@ func TestHorizontalScrollDoesNotChangeVerticalSelection(t *testing.T) {
 	first := testFile("one/very/long/path/that/needs/horizontal/scrolling/first.go", 2)
 	second := testFile("two/very/long/path/that/needs/horizontal/scrolling/second.go", 1)
 	model := Model{
-		width: 30, height: 8, cursor: 0, selected: first.Path,
+		width: 36, height: 8, cursor: 0, selected: first.Path,
 		document: report.Document{Files: []report.File{first, second}},
 		rows:     map[string]rowState{first.Path: {}, second.Path: {}}, visible: map[string]bool{},
 	}

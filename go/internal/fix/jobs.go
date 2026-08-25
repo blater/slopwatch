@@ -96,11 +96,25 @@ type JobIssue struct {
 	Detail  string
 }
 
+type ActorPresentation struct {
+	ID, ParentID, CurrentAction string
+}
+
+type UsagePresentation struct {
+	InputTokens, CachedTokens, OutputTokens, ReasoningTokens int64
+}
+
 type FilePresentation struct {
-	Path           RepoPath
-	Classification string
-	BaselineScore  float64
-	VerifiedScore  *float64
+	Path            RepoPath
+	PreviousPath    RepoPath
+	Classification  string
+	ChangeStatus    string
+	BaselineScore   float64
+	VerifiedScore   *float64
+	BaselineMetrics []MetricValue
+	VerifiedMetrics []MetricValue
+	// Metrics is retained for journal compatibility. New code projects
+	// baseline and verified values separately.
 	Metrics        []MetricValue
 	Changed        bool
 	ScopeViolation bool
@@ -108,30 +122,36 @@ type FilePresentation struct {
 }
 
 type JobPresentation struct {
-	ID             JobID
-	Revision       uint64
-	Phase          Phase
-	Attention      Attention
-	ProfileLabel   string
-	ModelLabel     string
-	EffortLabel    string
-	Goal           string
-	Targets        []FilePresentation
-	CurrentAction  string
-	ActorCount     int
-	WarningCount   int
-	ConflictCount  int
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	FinishedAt     time.Time
-	AllowedActions []JobAction
-	Compliance     Compliance
-	Validation     ValidationState
-	Scope          ScopeState
-	Delivery       DeliveryState
-	DeliveryMode   DeliveryMode
-	BranchName     string
-	Issue          *JobIssue
+	ID              JobID
+	Revision        uint64
+	Phase           Phase
+	Attention       Attention
+	ProfileLabel    string
+	ProfileID       string
+	ModelLabel      string
+	EffortLabel     string
+	Goal            string
+	Targets         []FilePresentation
+	CurrentAction   string
+	AttemptOrdinal  int
+	ActorCount      int
+	Actors          []ActorPresentation
+	Usage           UsagePresentation
+	UsageReported   bool
+	WarningCount    int
+	ConflictCount   int
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	FinishedAt      time.Time
+	AllowedActions  []JobAction
+	Compliance      Compliance
+	Validation      ValidationState
+	Scope           ScopeState
+	Delivery        DeliveryState
+	DeliveryMode    DeliveryMode
+	BranchName      string
+	DiffFingerprint string
+	Issue           *JobIssue
 }
 
 type JobCommand struct {

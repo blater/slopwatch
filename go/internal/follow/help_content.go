@@ -58,7 +58,7 @@ var mainScreenHelp = []helpEntry{
 	{label: "Fix", description: "x opens Fix for the selected file, or opens its existing reservation-holding job. Space remains reserved for future multi-select."},
 	{label: "Help", description: "h opens this help system."},
 	{label: "Info", description: "i or Enter opens the full analysis for the selected file."},
-	{label: "Job details", description: "In Agents, i opens the monitor, d opens the candidate diff, l opens sanitized logs, and C cancels only the selected job after confirmation."},
+	{label: "Job details", description: "In Agents, Enter expands a job and Space opens its actions; i opens the monitor, d opens the candidate diff, l opens sanitized logs, and C cancels that job after confirmation. On an expanded file, v opens candidate source and i focuses its metrics."},
 	{label: "Job status", description: "QUEUED, RUNNING, VERIFYING, REVIEW, CANCELED, FAILED and DONE are textual states. A check is final verification; a diamond is an independent checkpoint."},
 	{label: "Jump to bottom", description: "G or End selects the final file immediately."},
 	{label: "Jump to top", description: "g or Home selects the first file immediately."},

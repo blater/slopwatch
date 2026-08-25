@@ -6,6 +6,24 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	name := key.String()
 	model.reconcileLegacyOverlayStack()
 	defer model.reconcileLegacyOverlayStack()
+	if model.width > 0 && model.height > 0 && responsiveTier(model.width, model.height) == ResponsiveResize {
+		// A resize screen must not leave a hidden modal active. In particular,
+		// Enter must never confirm publish/discard/cleanup while the confirmation
+		// itself is not visible. The shutdown surface is the sole exception and
+		// is rendered explicitly by view when there is enough room for it.
+		if overlay, ok := model.overlays.Top(); ok && overlay.Kind == OverlayShutdown {
+			if model.width >= 24 && model.height >= 2 {
+				return dispatchOverlayKey(model, overlay.Kind, key)
+			}
+			return model, nil
+		}
+		switch name {
+		case "q", "ctrl+c":
+			return model.requestQuit()
+		default:
+			return model, nil
+		}
+	}
 	if overlay, ok := model.overlays.Top(); ok {
 		return dispatchOverlayKey(model, overlay.Kind, key)
 	}

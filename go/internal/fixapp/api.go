@@ -11,8 +11,10 @@ import (
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
 	"github.com/blater/slopwatch/internal/candidate"
+	"github.com/blater/slopwatch/internal/delivery"
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/fixanalysis"
+	"github.com/blater/slopwatch/internal/validation"
 )
 
 var (
@@ -20,6 +22,7 @@ var (
 	ErrJobNotFound      = errors.New("fix job not found")
 	ErrTargetReserved   = errors.New("fix target is reserved")
 	ErrStaleRevision    = errors.New("stale job revision")
+	ErrStaleCandidate   = errors.New("candidate changed; review the refreshed diff and confirm again")
 	ErrActionNotAllowed = errors.New("job action not allowed")
 )
 
@@ -29,29 +32,42 @@ type PrepareRequest struct {
 	Workspace fix.WorkspaceIdentity
 	Targets   []fix.RepoPath
 	Overrides appconfig.SessionOverrides
+	Delivery  *PrepareDelivery
+}
+
+// PrepareDelivery carries the exact dialog selection into authoritative
+// preflight. It is deliberately separate from persisted preferences: a
+// readiness recheck must validate the session's edited tuple, not the saved
+// default that happened to seed the form.
+type PrepareDelivery struct {
+	Mode   fix.DeliveryMode
+	Branch string
 }
 
 type FixDraft struct {
-	ID               fix.DraftID
-	Revision         uint64
-	Workspace        fix.WorkspaceIdentity
-	Targets          []fix.RepoPath
-	Baseline         fixanalysis.BaselineSnapshot
-	Preferences      appconfig.Resolved
-	Profile          agent.Profile
-	Probe            agent.ProbeResult
-	Model            agent.ModelID
-	Effort           agent.EffortID
-	Delegation       agent.DelegationMode
-	TargetScore      float64
-	Focus            []fix.MetricGoal
-	ChangeScope      string
-	AllowedPaths     []fix.RepoPath
-	ValidationPlanID string
-	DeliveryMode     fix.DeliveryMode
-	BranchName       string
-	Instructions     agent.InstructionDocument
-	Preflight        candidate.PreflightResult
+	ID                        fix.DraftID
+	Revision                  uint64
+	Workspace                 fix.WorkspaceIdentity
+	Targets                   []fix.RepoPath
+	Baseline                  fixanalysis.BaselineSnapshot
+	Preferences               appconfig.Resolved
+	Profile                   agent.Profile
+	Probe                     agent.ProbeResult
+	Model                     agent.ModelID
+	Effort                    agent.EffortID
+	Delegation                agent.DelegationMode
+	TargetScore               float64
+	Focus                     []fix.MetricGoal
+	ChangeScope               string
+	AllowedPaths              []fix.RepoPath
+	ValidationPlanID          string
+	ValidationReadiness       validation.Readiness
+	ValidationReadinessByPlan map[string]validation.Readiness
+	DeliveryMode              fix.DeliveryMode
+	DeliveryTarget            delivery.PreflightResult
+	BranchName                string
+	Instructions              agent.InstructionDocument
+	Preflight                 candidate.PreflightResult
 }
 
 type SubmitRequest struct {
@@ -107,9 +123,12 @@ type DiffPage struct {
 type LogCursor int
 
 type LogEntry struct {
-	At      time.Time
-	Kind    agent.EventKind
-	Summary string
+	At            time.Time
+	Kind          agent.EventKind
+	Summary       string
+	ActorID       string
+	ParentActorID string
+	Usage         *agent.Usage
 }
 
 type LogPage struct {
@@ -117,6 +136,20 @@ type LogPage struct {
 	Next      LogCursor
 	Complete  bool
 	Truncated bool
+}
+
+// RuntimeLimits are the live scheduler/retention settings that may be updated
+// after preferences are saved. Reducing a limit never cancels running work;
+// it gates subsequent scheduling/admission and trims retained transcripts.
+type RuntimeLimits struct {
+	MaxAgents          int
+	MaxVerifiers       int
+	MaxRetainedJobs    int
+	MaxTranscriptBytes int64
+}
+
+func RuntimeLimitsFromConcurrency(value appconfig.Concurrency) RuntimeLimits {
+	return RuntimeLimits{MaxAgents: value.MaxAgents, MaxVerifiers: value.MaxVerifiers, MaxRetainedJobs: value.MaxRetainedJobs, MaxTranscriptBytes: value.MaxTranscriptBytes}
 }
 
 type Subscription interface {
@@ -134,5 +167,6 @@ type Service interface {
 	CandidateFile(context.Context, fix.JobID, fix.RepoPath) (candidate.File, error)
 	Diff(context.Context, fix.JobID, DiffRequest) (DiffPage, error)
 	Transcript(context.Context, fix.JobID, LogCursor, int) (LogPage, error)
+	Reconfigure(context.Context, RuntimeLimits) error
 	Shutdown(context.Context) error
 }

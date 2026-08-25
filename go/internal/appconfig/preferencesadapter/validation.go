@@ -5,9 +5,11 @@ import (
 	"math"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
+	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/blater/slopwatch/internal/validation"
@@ -28,11 +30,38 @@ func (adapter *Adapter) validateResolved(value appconfig.Resolved) error {
 		return err
 	}
 	if value.Concurrency.MaxAgents <= 0 || value.Concurrency.MaxVerifiers <= 0 ||
-		value.Concurrency.MaxRetainedJobs <= 0 || value.Concurrency.MaxTranscriptBytes <= 0 {
+		value.Concurrency.MaxRetainedJobs <= 0 || value.Concurrency.MaxTranscriptBytes <= 0 || value.Concurrency.MaxActorsPerJob <= 0 ||
+		value.Concurrency.MaxCandidatePreviewBytes <= 0 || value.Concurrency.MaxCandidatePreviewLines <= 0 {
 		return fmt.Errorf("concurrency limits must all be greater than zero")
+	}
+	if err := validateValidationWorkspace(value.ValidationWorkspace); err != nil {
+		return err
 	}
 	if !value.Delivery.DefaultMode.Valid() {
 		return fmt.Errorf("unsupported delivery mode %q", value.Delivery.DefaultMode)
+	}
+	if value.Delivery.Publisher != "github-cli" {
+		return fmt.Errorf("unsupported pull-request publisher %q", value.Delivery.Publisher)
+	}
+	if value.Delivery.DefaultMode == "pull-request" && strings.TrimSpace(value.Delivery.BaseBranch) == "" {
+		return fmt.Errorf("pull-request delivery requires an explicit base branch")
+	}
+	if value.Delivery.CommandOutputBytes <= 0 {
+		return fmt.Errorf("delivery command output budget must be greater than zero")
+	}
+	if err := appconfig.ValidateBranchTemplate(value.Delivery.BranchTemplate); err != nil {
+		return fmt.Errorf("delivery %w", err)
+	}
+	if value.Delivery.CommitPolicy != "on-publish" || value.Delivery.CleanupPolicy != "retain" {
+		return fmt.Errorf("delivery commit/cleanup policy is unsupported")
+	}
+	for label, text := range map[string]string{"commit title template": value.Delivery.CommitTitleTemplate, "commit body template": value.Delivery.CommitBodyTemplate, "pull request title template": value.Delivery.PullRequestTitleTemplate, "pull request body template": value.Delivery.PullRequestBodyTemplate} {
+		if strings.TrimSpace(text) == "" {
+			return fmt.Errorf("delivery %s cannot be empty", label)
+		}
+		if err := validateTrustedText(label, text); err != nil {
+			return err
+		}
 	}
 	profiles := make(map[agent.ProfileID]struct{}, len(value.Profiles))
 	for _, profile := range value.Profiles {
@@ -50,7 +79,22 @@ func (adapter *Adapter) validateResolved(value appconfig.Resolved) error {
 			return fmt.Errorf("agent profile %q: %w", profile.ID, err)
 		}
 		if profile.Executable == "" {
-			return fmt.Errorf("agent profile %q executable cannot be empty", profile.ID)
+			// Process-backed adapters require an executable through their own
+			// descriptor. API-backed adapters deliberately have no process field;
+			// imposing one here would leak one adapter's shape into shared config.
+			requiresExecutable := adapter.profileCatalog == nil
+			if adapter.profileCatalog != nil {
+				descriptor, descriptorErr := adapter.profileCatalog.Descriptor(profile.Runtime)
+				if descriptorErr != nil {
+					return fmt.Errorf("agent profile %q: %w", profile.ID, descriptorErr)
+				}
+				for _, field := range descriptor.Fields {
+					requiresExecutable = requiresExecutable || (field.Key == "executable" && field.Required)
+				}
+			}
+			if requiresExecutable {
+				return fmt.Errorf("agent profile %q executable cannot be empty", profile.ID)
+			}
 		}
 		if err := validateAuthReference(profile.AuthenticationRef); err != nil {
 			return fmt.Errorf("agent profile %q: %w", profile.ID, err)
@@ -104,8 +148,8 @@ func validateFix(value appconfig.FixDefaults) error {
 	if value.Delegation == "" {
 		return fmt.Errorf("fix delegation mode cannot be empty")
 	}
-	if value.MaxAttempts <= 0 || value.AttemptTimeout <= 0 {
-		return fmt.Errorf("fix attempts and timeout must be greater than zero")
+	if value.PromptTemplate != "default" {
+		return fmt.Errorf("unsupported fix prompt template %q; v1 provides only the locked default template", value.PromptTemplate)
 	}
 	seen := make(map[scoring.MetricID]struct{}, len(value.Focus))
 	for _, metric := range value.Focus {
@@ -117,6 +161,30 @@ func validateFix(value appconfig.FixDefaults) error {
 			return fmt.Errorf("fix focus metric %q is duplicated", metric)
 		}
 		seen[id] = struct{}{}
+	}
+	return nil
+}
+
+func validateValidationWorkspace(value appconfig.ValidationWorkspace) error {
+	if value.MaxFiles <= 0 || value.MaxDirectories <= 0 || value.MaxPathBytes <= 0 || value.MaxFileBytes <= 0 || value.MaxTotalBytes <= 0 {
+		return fmt.Errorf("validation workspace limits must all be greater than zero")
+	}
+	if value.MaxFileBytes > value.MaxTotalBytes {
+		return fmt.Errorf("validation workspace max file bytes cannot exceed max total bytes")
+	}
+	if value.ContainerPIDs <= 0 || value.ContainerMemoryBytes <= 0 || value.ContainerCPUMillis <= 0 || value.ContainerTemporaryBytes <= 0 ||
+		value.ContainerWorkspaceBytes <= 0 || value.ContainerNofileLimit <= 0 || value.ContainerGeneratedFileBytes <= 0 ||
+		value.ContainerStopTimeout <= 0 || value.ContainerControlTimeout <= 0 || value.ContainerSentinelTimeout <= 0 || value.ContainerCrashProbeTimeout <= 0 {
+		return fmt.Errorf("validation container operational limits must all be greater than zero")
+	}
+	if value.ContainerWorkspaceBytes <= value.MaxTotalBytes {
+		return fmt.Errorf("validation container workspace bytes must exceed admitted total bytes")
+	}
+	if value.ContainerGeneratedFileBytes < value.MaxFileBytes {
+		return fmt.Errorf("validation container generated-file bytes must cover admitted max file bytes")
+	}
+	if value.ContainerControlTimeout <= value.ContainerStopTimeout {
+		return fmt.Errorf("validation container control timeout must exceed stop timeout")
 	}
 	return nil
 }
@@ -181,9 +249,176 @@ func validateRepositoryPartial(value preferences.PartialDocument) error {
 	return nil
 }
 
+// validateRepositoryOverride is the repository allowlist. The checked-out
+// repository may tighten goals, paths, delivery and bounded resource limits,
+// but it cannot choose identities, templates or destinations owned by the
+// user. Fields without a provider-independent ordering must remain unchanged.
+func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.PartialDocument) error {
+	if value.ValidationWorkspace != nil {
+		return repositoryOwnedField("validation workspace limits")
+	}
+	if value.Fix != nil {
+		candidate, err := preferenceFixToApp(*value.Fix)
+		if err != nil {
+			return err
+		}
+		if candidate.TargetScore > inherited.Fix.TargetScore {
+			return repositoryBroadening("fix target score", candidate.TargetScore, inherited.Fix.TargetScore)
+		}
+		if !metricSuperset(candidate.Focus, inherited.Fix.Focus) {
+			return fmt.Errorf("repository preferences cannot remove inherited fix focus metrics")
+		}
+		if mutationScopeRank(candidate.ChangeScope) > mutationScopeRank(inherited.Fix.ChangeScope) {
+			return repositoryBroadening("fix change scope", candidate.ChangeScope, inherited.Fix.ChangeScope)
+		}
+		if candidate.Profile != inherited.Fix.Profile {
+			return repositoryOwnedField("fix profile")
+		}
+		if candidate.Model != inherited.Fix.Model {
+			return repositoryOwnedField("fix model")
+		}
+		if candidate.Effort != inherited.Fix.Effort {
+			return repositoryOwnedField("fix effort")
+		}
+		if candidate.Delegation != inherited.Fix.Delegation {
+			return repositoryOwnedField("fix delegation")
+		}
+		if candidate.PromptTemplate != inherited.Fix.PromptTemplate {
+			return repositoryOwnedField("fix prompt template")
+		}
+		if candidate.BranchTemplate != inherited.Fix.BranchTemplate {
+			return repositoryOwnedField("fix branch template")
+		}
+		if inherited.Fix.ValidationPlan != "" && candidate.ValidationPlan != inherited.Fix.ValidationPlan {
+			return fmt.Errorf("repository preferences cannot replace or remove inherited fix validation plan %q", inherited.Fix.ValidationPlan)
+		}
+	}
+	if value.Concurrency != nil {
+		candidate := preferenceConcurrencyToApp(*value.Concurrency)
+		if candidate.MaxAgents > inherited.Concurrency.MaxAgents {
+			return repositoryBroadening("concurrency max agents", candidate.MaxAgents, inherited.Concurrency.MaxAgents)
+		}
+		if candidate.MaxVerifiers > inherited.Concurrency.MaxVerifiers {
+			return repositoryBroadening("concurrency max verifiers", candidate.MaxVerifiers, inherited.Concurrency.MaxVerifiers)
+		}
+		if candidate.MaxRetainedJobs > inherited.Concurrency.MaxRetainedJobs {
+			return repositoryBroadening("concurrency retained jobs", candidate.MaxRetainedJobs, inherited.Concurrency.MaxRetainedJobs)
+		}
+		if candidate.MaxTranscriptBytes > inherited.Concurrency.MaxTranscriptBytes {
+			return repositoryBroadening("concurrency transcript bytes", candidate.MaxTranscriptBytes, inherited.Concurrency.MaxTranscriptBytes)
+		}
+		if candidate.MaxActorsPerJob > inherited.Concurrency.MaxActorsPerJob {
+			return repositoryBroadening("concurrency actors per job", candidate.MaxActorsPerJob, inherited.Concurrency.MaxActorsPerJob)
+		}
+		if candidate.MaxCandidatePreviewBytes > inherited.Concurrency.MaxCandidatePreviewBytes {
+			return repositoryBroadening("candidate preview bytes", candidate.MaxCandidatePreviewBytes, inherited.Concurrency.MaxCandidatePreviewBytes)
+		}
+		if candidate.MaxCandidatePreviewLines > inherited.Concurrency.MaxCandidatePreviewLines {
+			return repositoryBroadening("candidate preview lines", candidate.MaxCandidatePreviewLines, inherited.Concurrency.MaxCandidatePreviewLines)
+		}
+	}
+	if value.Delivery != nil {
+		candidate := preferenceDeliveryToApp(*value.Delivery)
+		if deliveryModeRank(candidate.DefaultMode) > deliveryModeRank(inherited.Delivery.DefaultMode) {
+			return repositoryBroadening("delivery mode", candidate.DefaultMode, inherited.Delivery.DefaultMode)
+		}
+		if candidate.Remote != inherited.Delivery.Remote {
+			return repositoryOwnedField("delivery remote")
+		}
+		if candidate.BaseBranch != inherited.Delivery.BaseBranch {
+			return repositoryOwnedField("delivery base branch")
+		}
+		if candidate.BranchTemplate != inherited.Delivery.BranchTemplate {
+			return repositoryOwnedField("delivery branch template")
+		}
+		if candidate.Publisher != inherited.Delivery.Publisher {
+			return repositoryOwnedField("delivery publisher")
+		}
+		if inherited.Delivery.DraftPullRequests && !candidate.DraftPullRequests {
+			return repositoryBroadening("draft pull request policy", candidate.DraftPullRequests, inherited.Delivery.DraftPullRequests)
+		}
+		if inherited.Delivery.RequireValidation && !candidate.RequireValidation {
+			return repositoryBroadening("pull request validation policy", candidate.RequireValidation, inherited.Delivery.RequireValidation)
+		}
+		if candidate.CommandOutputBytes > inherited.Delivery.CommandOutputBytes {
+			return repositoryBroadening("delivery command output bytes", candidate.CommandOutputBytes, inherited.Delivery.CommandOutputBytes)
+		}
+		if candidate.CommitPolicy != inherited.Delivery.CommitPolicy {
+			return repositoryOwnedField("delivery commit policy")
+		}
+		if candidate.CommitTitleTemplate != inherited.Delivery.CommitTitleTemplate {
+			return repositoryOwnedField("delivery commit title template")
+		}
+		if candidate.CommitBodyTemplate != inherited.Delivery.CommitBodyTemplate {
+			return repositoryOwnedField("delivery commit body template")
+		}
+		if candidate.PullRequestTitleTemplate != inherited.Delivery.PullRequestTitleTemplate {
+			return repositoryOwnedField("delivery pull request title template")
+		}
+		if candidate.PullRequestBodyTemplate != inherited.Delivery.PullRequestBodyTemplate {
+			return repositoryOwnedField("delivery pull request body template")
+		}
+		if candidate.CleanupPolicy != inherited.Delivery.CleanupPolicy {
+			return repositoryOwnedField("delivery cleanup policy")
+		}
+	}
+	return nil
+}
+
+func repositoryBroadening(field string, candidate, inherited any) error {
+	return fmt.Errorf("repository preferences cannot broaden %s: %v exceeds inherited %v", field, candidate, inherited)
+}
+
+func repositoryOwnedField(field string) error {
+	return fmt.Errorf("repository preferences cannot override user-owned %s", field)
+}
+
+func metricSuperset(candidate, inherited []fix.MetricID) bool {
+	available := make(map[fix.MetricID]struct{}, len(candidate))
+	for _, metric := range candidate {
+		available[metric] = struct{}{}
+	}
+	for _, metric := range inherited {
+		if _, exists := available[metric]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
+func mutationScopeRank(value string) int {
+	switch value {
+	case "targets-only":
+		return 0
+	case "targets-and-tests":
+		return 1
+	case "repository":
+		return 2
+	default:
+		// The normal resolved validation reports the unsupported value. Treat it
+		// as broad here so it can never slip through a repository comparison.
+		return 3
+	}
+}
+
+func deliveryModeRank(value fix.DeliveryMode) int {
+	switch value {
+	case fix.DeliveryModeCandidate:
+		return 0
+	case fix.DeliveryModeBranch:
+		return 1
+	case fix.DeliveryModePullRequest:
+		return 2
+	default:
+		return 3
+	}
+}
+
 func validateTrustedText(label, value string) error {
-	if strings.ContainsRune(value, 0) || strings.ContainsAny(value, "\r\n") {
-		return fmt.Errorf("%s contains invalid control characters", label)
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return fmt.Errorf("%s contains invalid control characters", label)
+		}
 	}
 	return nil
 }

@@ -114,5 +114,8 @@ func resizeView(width, height int) string {
 	if height > 1 {
 		lines[1] = padANSI(truncate("Need at least 36 columns x 6 rows", width), width)
 	}
+	if height > 2 {
+		lines[2] = padANSI(truncate("q quit · resize to continue", width), width)
+	}
 	return joinScreenLines(lines)
 }

@@ -46,4 +46,8 @@ type CandidateIdentity struct {
 	AnalysisRoot   string
 	GitCommonDir   string
 	BaseCommit     ObjectID
+	// StagingRoot is candidate-service-owned, private, and on the same
+	// filesystem as RepositoryRoot. Adapters may use it for crash-safe atomic
+	// staging; it is never part of the candidate diff inventory.
+	StagingRoot string
 }

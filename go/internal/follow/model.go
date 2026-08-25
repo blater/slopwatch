@@ -224,11 +224,9 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	findInput := textinput.New()
 	findInput.Prompt = "/ "
 	findInput.Placeholder = "find"
-	findInput.CharLimit = 256
 	agentFindInput := textinput.New()
 	agentFindInput.Prompt = "/ "
 	agentFindInput.Placeholder = "find jobs"
-	agentFindInput.CharLimit = 256
 	configWorkspace := options.ConfigWorkspace
 	if configWorkspace.RepositoryRoot == "" {
 		configWorkspace = options.FixWorkspace

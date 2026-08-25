@@ -13,12 +13,11 @@ import (
 	"time"
 )
 
-const (
-	defaultWallTime       = 30 * time.Minute
-	defaultTerminateGrace = 5 * time.Second
-	defaultOutputBytes    = int64(4 << 20)
-	parentCancelWait      = 2 * time.Second
-)
+// parentCancelWait is a fixed supervisor-cleanup allowance after the caller's
+// configured termination grace has elapsed. It never limits a live process;
+// it only bounds how long the already-cancelled parent waits before killing a
+// wedged supervisor.
+const parentCancelWait = 2 * time.Second
 
 type supervisorRequest struct {
 	Executable          string   `json:"executable"`
@@ -39,7 +38,6 @@ func (runner Runner) RunStreaming(ctx context.Context, request Request, observeS
 }
 
 func (runner Runner) run(ctx context.Context, request Request, observeStdout func([]byte)) (Result, error) {
-	request = withDefaults(request)
 	if err := validateRequest(request); err != nil {
 		return Result{}, err
 	}
@@ -159,27 +157,11 @@ func (writer *observedWriter) Write(data []byte) (int, error) {
 	return count, err
 }
 
-func withDefaults(request Request) Request {
-	if request.Limits.WallTime <= 0 {
-		request.Limits.WallTime = defaultWallTime
-	}
-	if request.Limits.TerminateGrace <= 0 {
-		request.Limits.TerminateGrace = defaultTerminateGrace
-	}
-	if request.Limits.MaxStdoutBytes <= 0 {
-		request.Limits.MaxStdoutBytes = defaultOutputBytes
-	}
-	if request.Limits.MaxStderrBytes <= 0 {
-		request.Limits.MaxStderrBytes = defaultOutputBytes
-	}
-	return request
-}
-
 func validateRequest(request Request) error {
 	if request.Executable == "" || !filepath.IsAbs(request.Executable) || request.Directory == "" || !filepath.IsAbs(request.Directory) {
 		return ErrInvalidRequest
 	}
-	if request.Limits.WallTime <= 0 || request.Limits.TerminateGrace <= 0 || request.Limits.MaxStdoutBytes <= 0 || request.Limits.MaxStderrBytes <= 0 {
+	if request.Limits.WallTime < 0 || request.Limits.TerminateGrace <= 0 || request.Limits.MaxStdoutBytes <= 0 || request.Limits.MaxStderrBytes <= 0 {
 		return ErrInvalidRequest
 	}
 	return nil

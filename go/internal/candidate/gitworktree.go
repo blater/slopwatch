@@ -22,20 +22,25 @@ import (
 	"github.com/blater/slopwatch/internal/isolation"
 )
 
-const gitOutputLimit = int64(4 << 20)
+type GitWorktreeConfig struct {
+	DiscoveryCommandOutputBytes int64
+}
+
+type commandOutputContextKey struct{}
 
 // GitWorktreeService owns detached per-job worktrees. It is the only
 // remediation component allowed to inspect Git metadata; agent adapters only
 // receive the resulting candidate root through agent.Request.
 type GitWorktreeService struct {
-	stateRoot string
-	git       string
-	runner    isolation.Executor
-	mu        sync.Mutex
-	policies  map[fix.JobID]candidatePolicy
-	leases    map[string]*repositoryOwnership
-	jobLeases map[fix.JobID]string
-	closed    bool
+	stateRoot                   string
+	git                         string
+	runner                      isolation.Executor
+	mu                          sync.Mutex
+	policies                    map[fix.JobID]candidatePolicy
+	leases                      map[string]*repositoryOwnership
+	jobLeases                   map[fix.JobID]string
+	closed                      bool
+	discoveryCommandOutputBytes int64
 }
 
 type repositoryOwnership struct {
@@ -44,8 +49,9 @@ type repositoryOwnership struct {
 }
 
 type candidatePolicy struct {
-	allowed map[fix.RepoPath]bool
-	scope   string
+	allowed            map[fix.RepoPath]bool
+	scope              string
+	commandOutputBytes int64
 }
 
 const (
@@ -54,16 +60,17 @@ const (
 )
 
 type ownershipRecord struct {
-	Version  int                   `json:"version"`
-	Identity fix.CandidateIdentity `json:"identity"`
-	Targets  []fix.RepoPath        `json:"targets"`
-	Allowed  []fix.RepoPath        `json:"allowed"`
-	Scope    string                `json:"scope"`
+	Version            int                   `json:"version"`
+	Identity           fix.CandidateIdentity `json:"identity"`
+	Targets            []fix.RepoPath        `json:"targets"`
+	Allowed            []fix.RepoPath        `json:"allowed"`
+	Scope              string                `json:"scope"`
+	CommandOutputBytes int64                 `json:"command_output_bytes"`
 }
 
-func NewGitWorktreeService(stateRoot string, runner isolation.Executor) (*GitWorktreeService, error) {
-	if stateRoot == "" || !filepath.IsAbs(stateRoot) || runner == nil {
-		return nil, errors.New("candidate worktree service requires an absolute private state root and process runner")
+func NewGitWorktreeService(stateRoot string, runner isolation.Executor, config GitWorktreeConfig) (*GitWorktreeService, error) {
+	if stateRoot == "" || !filepath.IsAbs(stateRoot) || runner == nil || config.DiscoveryCommandOutputBytes <= 0 {
+		return nil, errors.New("candidate worktree service requires an absolute private state root, process runner, and positive discovery command output budget")
 	}
 	git, err := exec.LookPath("git")
 	if err != nil {
@@ -83,12 +90,15 @@ func NewGitWorktreeService(stateRoot string, runner isolation.Executor) (*GitWor
 	if err != nil {
 		return nil, fmt.Errorf("canonicalize candidate state root: %w", err)
 	}
-	return &GitWorktreeService{stateRoot: stateRoot, git: git, runner: runner, policies: map[fix.JobID]candidatePolicy{}, leases: map[string]*repositoryOwnership{}, jobLeases: map[fix.JobID]string{}}, nil
+	return &GitWorktreeService{stateRoot: stateRoot, git: git, runner: runner, discoveryCommandOutputBytes: config.DiscoveryCommandOutputBytes, policies: map[fix.JobID]candidatePolicy{}, leases: map[string]*repositoryOwnership{}, jobLeases: map[fix.JobID]string{}}, nil
 }
 
 // DiscoverWorkspace resolves all security-sensitive repository paths via Git
 // rather than trusting a cache entry or a caller-composed .git path.
 func (service *GitWorktreeService) DiscoverWorkspace(ctx context.Context, root string) (fix.WorkspaceIdentity, error) {
+	if commandOutputBytes(ctx) <= 0 {
+		ctx = withCommandOutputBytes(ctx, service.discoveryCommandOutputBytes)
+	}
 	absolute, err := filepath.Abs(root)
 	if err != nil {
 		return fix.WorkspaceIdentity{}, err
@@ -118,6 +128,7 @@ func (service *GitWorktreeService) DiscoverWorkspace(ctx context.Context, root s
 }
 
 func (service *GitWorktreeService) Preflight(ctx context.Context, request PreflightRequest) (PreflightResult, error) {
+	ctx = withCommandOutputBytes(ctx, request.CommandOutputBytes)
 	checked := time.Now()
 	discovered, err := service.DiscoverWorkspace(ctx, request.Workspace.RepositoryRoot)
 	if err != nil {
@@ -275,15 +286,16 @@ func isTransformingAttribute(attribute string) bool {
 }
 
 func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareRequest) (fix.CandidateIdentity, error) {
-	if !validJobID(request.Job) || len(request.Targets) == 0 {
+	if !validJobID(request.Job) || len(request.Targets) == 0 || request.CommandOutputBytes <= 0 {
 		return fix.CandidateIdentity{}, errors.New("prepare candidate: job and targets are required")
 	}
+	ctx = withCommandOutputBytes(ctx, request.CommandOutputBytes)
 	if existing, found, err := service.DiscoverPrepared(ctx, request); err != nil {
 		return fix.CandidateIdentity{}, fmt.Errorf("reconcile prepared candidate: %w", err)
 	} else if found {
 		return existing, nil
 	}
-	preflight, err := service.Preflight(ctx, PreflightRequest{Workspace: request.Workspace, Targets: request.Targets})
+	preflight, err := service.Preflight(ctx, PreflightRequest{Workspace: request.Workspace, Targets: request.Targets, CommandOutputBytes: request.CommandOutputBytes})
 	if err != nil {
 		return fix.CandidateIdentity{}, err
 	}
@@ -317,6 +329,9 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 	if err := os.MkdirAll(jobRoot, 0o700); err != nil {
 		return fix.CandidateIdentity{}, fmt.Errorf("create job state directory: %w", err)
 	}
+	if err := os.Mkdir(filepath.Join(jobRoot, "staging"), 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+		return fix.CandidateIdentity{}, fmt.Errorf("create candidate staging directory: %w", err)
+	}
 	if err := ensureCandidateRecord(jobRoot, reservationName, ownership); err != nil {
 		return fix.CandidateIdentity{}, fmt.Errorf("persist candidate reservation: %w", err)
 	}
@@ -329,21 +344,31 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 		_, commandErr = service.gitBytes(ctx, worktree, "checkout", "--detach", string(discovered.BaseCommit), "--")
 	}
 	if commandErr != nil {
-		_, _ = service.gitBytes(ctx, discovered.RepositoryRoot, "worktree", "remove", "--force", worktree)
+		// Cancellation stops the operation that was in flight, but must not also
+		// cancel exact cleanup of a worktree Git may already have registered.
+		// Preserve the durable reservation if cleanup fails so Retry/restart can
+		// reconcile it instead of orphaning unowned Git metadata.
+		cleanupCtx := withCommandOutputBytes(context.Background(), request.CommandOutputBytes)
+		_, cleanupErr := service.gitBytes(cleanupCtx, discovered.RepositoryRoot, "worktree", "remove", "--force", worktree)
 		_ = lock.Close()
-		_ = os.RemoveAll(jobRoot)
-		return fix.CandidateIdentity{}, commandErr
+		if cleanupErr == nil {
+			cleanupErr = os.RemoveAll(jobRoot)
+		}
+		return fix.CandidateIdentity{}, errors.Join(commandErr, cleanupErr)
 	}
 	identity := ownership.Identity
-	policy := candidatePolicy{scope: request.AllowedScope, allowed: map[fix.RepoPath]bool{}}
+	policy := candidatePolicy{scope: request.AllowedScope, allowed: map[fix.RepoPath]bool{}, commandOutputBytes: request.CommandOutputBytes}
 	for _, path := range ownership.Allowed {
 		policy.allowed[path] = true
 	}
 	if err := writeOwnership(jobRoot, ownership); err != nil {
-		_, _ = service.gitBytes(ctx, worktree, "worktree", "remove", "--force", worktree)
+		cleanupCtx := withCommandOutputBytes(context.Background(), request.CommandOutputBytes)
+		_, cleanupErr := service.gitBytes(cleanupCtx, discovered.RepositoryRoot, "worktree", "remove", "--force", worktree)
 		_ = lock.Close()
-		_ = os.RemoveAll(jobRoot)
-		return fix.CandidateIdentity{}, fmt.Errorf("persist candidate ownership: %w", err)
+		if cleanupErr == nil {
+			cleanupErr = os.RemoveAll(jobRoot)
+		}
+		return fix.CandidateIdentity{}, errors.Join(fmt.Errorf("persist candidate ownership: %w", err), cleanupErr)
 	}
 	if err := lock.Close(); err != nil {
 		cleanupLock, lockErr := acquireRepositoryLock(discovered.GitCommonDir)
@@ -365,9 +390,10 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 // repository identity, base commit, targets, and frozen path policy exactly
 // match the request. It never creates or removes a worktree.
 func (service *GitWorktreeService) DiscoverPrepared(ctx context.Context, request PrepareRequest) (fix.CandidateIdentity, bool, error) {
-	if !validJobID(request.Job) {
+	if !validJobID(request.Job) || request.CommandOutputBytes <= 0 {
 		return fix.CandidateIdentity{}, false, errors.New("discover prepared candidate: invalid job ID")
 	}
+	ctx = withCommandOutputBytes(ctx, request.CommandOutputBytes)
 	jobRoot := filepath.Join(service.stateRoot, string(request.Job))
 	if _, err := os.Lstat(jobRoot); errors.Is(err, os.ErrNotExist) {
 		return fix.CandidateIdentity{}, false, nil
@@ -431,8 +457,9 @@ func (service *GitWorktreeService) expectedOwnership(request PrepareRequest) (ow
 	}
 	sort.Slice(allowed, func(i, j int) bool { return allowed[i] < allowed[j] })
 	identity := fix.CandidateIdentity{Job: request.Job, Repository: request.Workspace.Repository, RepositoryRoot: worktree,
-		AnalysisRoot: candidateAnalysisRoot, GitCommonDir: request.Workspace.GitCommonDir, BaseCommit: request.Workspace.BaseCommit}
-	return ownershipRecord{Version: 1, Identity: identity, Targets: targets, Allowed: allowed, Scope: request.AllowedScope}, nil
+		AnalysisRoot: candidateAnalysisRoot, GitCommonDir: request.Workspace.GitCommonDir, BaseCommit: request.Workspace.BaseCommit,
+		StagingRoot: filepath.Join(service.stateRoot, string(request.Job), "staging")}
+	return ownershipRecord{Version: 1, Identity: identity, Targets: targets, Allowed: allowed, Scope: request.AllowedScope, CommandOutputBytes: request.CommandOutputBytes}, nil
 }
 
 func (service *GitWorktreeService) verifyReservedWorktree(ctx context.Context, identity fix.CandidateIdentity) error {
@@ -452,7 +479,7 @@ func (service *GitWorktreeService) verifyReservedWorktree(ctx context.Context, i
 }
 
 func sameOwnership(left, right ownershipRecord) bool {
-	if left.Version != right.Version || left.Identity != right.Identity || left.Scope != right.Scope ||
+	if left.Version != right.Version || left.Identity != right.Identity || left.Scope != right.Scope || left.CommandOutputBytes != right.CommandOutputBytes ||
 		len(left.Targets) != len(right.Targets) || len(left.Allowed) != len(right.Allowed) {
 		return false
 	}
@@ -474,6 +501,7 @@ func (service *GitWorktreeService) Diff(ctx context.Context, identity fix.Candid
 	if err != nil {
 		return DiffSnapshot{}, err
 	}
+	ctx = withCommandOutputBytes(ctx, policy.commandOutputBytes)
 	data, err := service.gitBytes(ctx, identity.RepositoryRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		return DiffSnapshot{}, err
@@ -506,51 +534,55 @@ func (policy candidatePolicy) allows(path fix.RepoPath) bool {
 	return false
 }
 
-func (service *GitWorktreeService) ReadFile(ctx context.Context, identity fix.CandidateIdentity, path fix.RepoPath) (File, error) {
+func (service *GitWorktreeService) ReadFile(ctx context.Context, identity fix.CandidateIdentity, path fix.RepoPath, maximum int64) (File, error) {
 	if _, err := service.validateIdentity(ctx, identity); err != nil {
 		return File{}, err
 	}
 	if _, err := fix.ParseRepoPath(path.String()); err != nil {
 		return File{}, err
 	}
-	full := filepath.Join(identity.RepositoryRoot, filepath.FromSlash(path.String()))
-	canonical, err := filepath.EvalSymlinks(full)
+	if maximum <= 0 {
+		return File{}, errors.New("candidate preview byte limit must be positive")
+	}
+	root, err := os.OpenRoot(identity.RepositoryRoot)
 	if err != nil {
 		return File{}, err
 	}
-	if !within(identity.RepositoryRoot, canonical) {
-		return File{}, errors.New("candidate file escapes worktree")
-	}
-	info, err := os.Stat(canonical)
+	defer root.Close()
+	info, err := root.Lstat(path.String())
 	if err != nil {
 		return File{}, err
 	}
 	if !info.Mode().IsRegular() {
 		return File{}, errors.New("candidate file is not regular")
 	}
-	if info.Size() > MaxReadFileBytes {
-		return File{}, ErrFileTooLarge
-	}
-	opened, err := os.Open(canonical)
+	opened, err := root.Open(path.String())
 	if err != nil {
 		return File{}, err
 	}
 	defer opened.Close()
-	contents, err := io.ReadAll(io.LimitReader(opened, MaxReadFileBytes+1))
+	readLimit := maximum
+	if maximum < int64(^uint64(0)>>1) {
+		readLimit++
+	}
+	contents, err := io.ReadAll(io.LimitReader(opened, readLimit))
 	if err != nil {
 		return File{}, err
 	}
-	if len(contents) > MaxReadFileBytes {
-		return File{}, ErrFileTooLarge
+	truncated := info.Size() > maximum || int64(len(contents)) > maximum
+	if truncated {
+		contents = contents[:maximum]
 	}
 	hash := sha256.Sum256(contents)
-	return File{Path: path, Contents: contents, ContentHash: hex.EncodeToString(hash[:]), Mode: uint32(info.Mode().Perm())}, nil
+	return File{Path: path, Contents: contents, ContentHash: hex.EncodeToString(hash[:]), Mode: uint32(info.Mode().Perm()), Truncated: truncated}, nil
 }
 
 func (service *GitWorktreeService) Discard(ctx context.Context, identity fix.CandidateIdentity) error {
-	if _, err := service.validateIdentity(ctx, identity); err != nil {
+	policy, err := service.validateIdentity(ctx, identity)
+	if err != nil {
 		return err
 	}
+	ctx = withCommandOutputBytes(ctx, policy.commandOutputBytes)
 	lock, err := acquireRepositoryLock(identity.GitCommonDir)
 	if err != nil {
 		return err
@@ -592,6 +624,7 @@ func (service *GitWorktreeService) ReconcileDiscard(ctx context.Context, identit
 	if err != nil || record.Version != 1 || record.Identity != identity {
 		return errors.New("candidate discard ownership marker does not match journal identity")
 	}
+	ctx = withCommandOutputBytes(ctx, record.CommandOutputBytes)
 	if err := service.retainRepository(identity.GitCommonDir, identity.Job); err != nil {
 		return err
 	}
@@ -633,6 +666,10 @@ func (service *GitWorktreeService) validateIdentity(ctx context.Context, identit
 	if record.Version != 1 || record.Identity != identity {
 		return candidatePolicy{}, errors.New("candidate identity does not match its ownership record")
 	}
+	if record.CommandOutputBytes <= 0 {
+		return candidatePolicy{}, errors.New("candidate ownership lacks a command output budget")
+	}
+	ctx = withCommandOutputBytes(ctx, record.CommandOutputBytes)
 	service.mu.Lock()
 	leasedCommon, leased := service.jobLeases[identity.Job]
 	service.mu.Unlock()
@@ -651,7 +688,7 @@ func (service *GitWorktreeService) validateIdentity(ctx context.Context, identit
 	if err != nil || fix.ObjectID(head) != identity.BaseCommit {
 		return candidatePolicy{}, errors.New("candidate HEAD moved from its owned base commit")
 	}
-	policy := candidatePolicy{scope: record.Scope, allowed: make(map[fix.RepoPath]bool, len(record.Allowed))}
+	policy := candidatePolicy{scope: record.Scope, allowed: make(map[fix.RepoPath]bool, len(record.Allowed)), commandOutputBytes: record.CommandOutputBytes}
 	for _, target := range record.Allowed {
 		if _, err := fix.ParseRepoPath(target.String()); err != nil {
 			return candidatePolicy{}, errors.New("candidate ownership contains an invalid target")
@@ -678,6 +715,7 @@ func (service *GitWorktreeService) Recover(ctx context.Context, identity fix.Can
 	if err != nil || record.Version != 1 || record.Identity != identity {
 		return errors.New("candidate identity does not match its ownership record")
 	}
+	ctx = withCommandOutputBytes(ctx, record.CommandOutputBytes)
 	wantTargets := append([]fix.RepoPath(nil), targets...)
 	sort.Slice(wantTargets, func(i, j int) bool { return wantTargets[i] < wantTargets[j] })
 	if len(record.Targets) != len(wantTargets) {
@@ -704,7 +742,7 @@ func (service *GitWorktreeService) Recover(ctx context.Context, identity fix.Can
 	if scope != "repository" && len(allowed) == 0 {
 		allowed = wantTargets
 	}
-	want := candidatePolicy{scope: scope, allowed: make(map[fix.RepoPath]bool, len(allowed))}
+	want := candidatePolicy{scope: scope, allowed: make(map[fix.RepoPath]bool, len(allowed)), commandOutputBytes: record.CommandOutputBytes}
 	for _, target := range allowed {
 		if _, err := fix.ParseRepoPath(target.String()); err != nil {
 			return err
@@ -875,12 +913,16 @@ func (service *GitWorktreeService) gitBytesAllowExitOne(ctx context.Context, dir
 }
 
 func (service *GitWorktreeService) gitBytesWithInputAndExitOne(ctx context.Context, directory string, input []byte, exitOneOK bool, arguments ...string) ([]byte, error) {
+	maximum := commandOutputBytes(ctx)
+	if maximum <= 0 {
+		return nil, errors.New("candidate Git command output budget is not configured")
+	}
 	trusted := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.autocrlf=false", "-c", "core.filemode=true", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"}
 	trusted = append(trusted, arguments...)
 	result, err := service.runner.Run(ctx, isolation.Request{Executable: service.git, Arguments: trusted, Directory: directory,
 		Environment: []string{"LANG=C.UTF-8", "LC_ALL=C", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null"},
 		Stdin:       input,
-		Limits:      isolation.Limits{WallTime: 2 * time.Minute, TerminateGrace: 2 * time.Second, MaxStdoutBytes: gitOutputLimit, MaxStderrBytes: gitOutputLimit}})
+		Limits:      isolation.Limits{TerminateGrace: 2 * time.Second, MaxStdoutBytes: maximum, MaxStderrBytes: maximum}})
 	if err != nil {
 		return nil, err
 	}
@@ -891,6 +933,15 @@ func (service *GitWorktreeService) gitBytesWithInputAndExitOne(ctx context.Conte
 		return nil, fmt.Errorf("git %s failed with exit %d: %s", arguments[0], result.ExitCode, strings.TrimSpace(string(result.Stderr)))
 	}
 	return result.Stdout, nil
+}
+
+func withCommandOutputBytes(ctx context.Context, maximum int64) context.Context {
+	return context.WithValue(ctx, commandOutputContextKey{}, maximum)
+}
+
+func commandOutputBytes(ctx context.Context) int64 {
+	maximum, _ := ctx.Value(commandOutputContextKey{}).(int64)
+	return maximum
 }
 
 func within(root, path string) bool {
