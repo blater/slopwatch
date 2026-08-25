@@ -36,6 +36,7 @@ func handleAppearanceKey(model *Model, name string) (tea.Model, tea.Cmd) {
 func (model *Model) selectAppearance() {
 	model.theme = appearanceThemes[model.appearanceCursor].theme
 	ConfigureTheme(model.theme)
+	model.persistUserPreferences()
 }
 
 func appearanceView(model Model) string {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/blater/slopwatch/internal/follow"
 	"github.com/blater/slopwatch/internal/native"
+	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
 )
 
@@ -57,7 +58,7 @@ func parser() (*flag.FlagSet, *options) {
 	flags.BoolVar(&options.compact, "compact", false, "show only score and path")
 	flags.BoolVar(&options.follow, "f", false, "open the live ranking dashboard")
 	flags.BoolVar(&options.follow, "follow", false, "open the live ranking dashboard")
-	flags.DurationVar(&options.trendWindow, "trend-window", 10*time.Minute, "movement indicator and edit-highlight window")
+	flags.DurationVar(&options.trendWindow, "trend-window", 0, "movement indicator and edit-highlight window (default: saved preference or 10m)")
 	flags.BoolVar(&options.includeTests, "include-tests", false, "include test sources")
 	flags.BoolVar(&options.typescriptTypes, "typescript-types", false, "enable compiler-aware TypeScript type-safety analysis")
 	flags.BoolVar(&options.followSymlinks, "follow-symlinks", false, "follow symbolic links found inside target directories")
@@ -186,18 +187,23 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 		// ordinary fresh scan. Reuse is enabled after that result is visible.
 		nativeAnalyzer.SetCacheReads(false)
 	}
+	preferencesPath, pathErr := preferences.DefaultPath()
+	if pathErr != nil {
+		return pathErr
+	}
+	follow.ConfigureTerminalColours()
 	model, modelErr := follow.New(initial, nativeAnalyzer, follow.Options{
 		Workspace: workspace, Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, Limit: parsed.limit,
 		FollowSymlinks: parsed.followSymlinks,
-		TrendWindow:    parsed.trendWindow, Compact: parsed.compact,
+		TrendWindow:    parsed.trendWindow, Compact: parsed.compact, TypeScriptTypes: parsed.typescriptTypes,
+		PreferencesPath: preferencesPath,
 	})
 	if modelErr != nil {
 		return modelErr
 	}
 	model.StartInitialAnalysis()
 	defer model.Close()
-	follow.ConfigureTerminalColours()
 	program := tea.NewProgram(model, tea.WithAltScreen())
 	_, runErr := program.Run()
 	return runErr

@@ -11,9 +11,6 @@ import (
 	"github.com/blater/slopwatch/internal/style"
 )
 
-const maxComponentWeight = 20.0
-const componentWeightStep = 0.5
-
 var componentWeights = []struct {
 	id       string
 	label    string
@@ -167,6 +164,9 @@ func setColumnWeightEnabled(model *Model, columnKey string, enabled bool) {
 }
 
 func typeScriptTypesWanted(model Model) bool {
+	if model.options.TypeScriptTypes {
+		return true
+	}
 	if model.visible["typesafety"] {
 		return true
 	}
@@ -289,9 +289,9 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		model.weightCursor = min(len(componentWeights)-1, model.weightCursor+1)
 	case "left", "h", "-":
-		model.adjustWeight(-componentWeightStep)
+		model.adjustWeight(-model.weightStepValue())
 	case "right", "l", "+", "=":
-		model.adjustWeight(componentWeightStep)
+		model.adjustWeight(model.weightStepValue())
 	case "r":
 		model.resetWeight()
 		return model, model.syncTypeScriptTypes()
@@ -315,6 +315,7 @@ func resetWeight(model *Model) {
 	model.weightEnabled[item.id] = defaultWeightEnabled()[item.id]
 	model.rebuildWeightedDocument()
 	model.restoreSelection()
+	model.persistUserPreferences()
 }
 
 func resetAllWeights(model *Model) {
@@ -327,6 +328,7 @@ func resetAllWeights(model *Model) {
 	}
 	model.rebuildWeightedDocument()
 	model.restoreSelection()
+	model.persistUserPreferences()
 }
 
 func toggleWeight(model *Model) {
@@ -337,14 +339,16 @@ func toggleWeight(model *Model) {
 	model.weightEnabled[item.id] = !model.isWeightEnabled(item.id)
 	model.rebuildWeightedDocument()
 	model.restoreSelection()
+	model.persistUserPreferences()
 }
 
 func (model *Model) adjustWeight(delta float64) {
 	item := componentWeights[model.weightCursor]
 	value := model.weights[item.id] + delta
-	model.weights[item.id] = math.Max(0, math.Min(maxComponentWeight, value))
+	model.weights[item.id] = math.Max(0, math.Min(model.maximumWeightValue(), value))
 	model.rebuildWeightedDocument()
 	model.restoreSelection()
+	model.persistUserPreferences()
 }
 
 func settingsView(model Model) string {

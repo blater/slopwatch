@@ -43,7 +43,7 @@ var commandLineHelp = []helpEntry{
 	{label: "--languages LIST", description: "Analyze only the comma-separated languages in LIST."},
 	{label: "--limit NUMBER", description: "Return at most NUMBER ranked files. Zero, the default, returns every result."},
 	{label: "--pass-score SCORE", description: "Fail with exit status 3 when any analyzed file scores above SCORE."},
-	{label: "--trend-window DURATION", description: "Set how long follow mode displays movement and edit highlights. Uses durations such as 30s, 10m, or 1h."},
+	{label: "--trend-window DURATION", description: "Override the saved duration for movement and edit highlights. Uses values such as 30s, 10m, or 1h."},
 	{label: "--typescript-types", description: "Enable slower compiler-aware TypeScript type-safety analysis."},
 	{label: "--use-cache", description: "Reuse verified cached analysis units. Without this option, a normal report updates the cache but does not read from it."},
 }
@@ -66,7 +66,7 @@ var mainScreenHelp = []helpEntry{
 	{label: "Previous match", description: "N selects the previous result for the current search."},
 	{label: "Quit", description: "q or Ctrl-C exits the dashboard."},
 	{label: "Rescan", description: "r runs a full analysis again."},
-	{label: "Settings", description: "s opens Appearance, Columns, and Weights settings."},
+	{label: "Settings", description: "s opens persistent Appearance, Columns, and Weights settings."},
 	{label: "Sort", description: "o chooses the sort field and direction."},
 	{label: "View source", description: "v opens the selected file with syntax highlighting."},
 }
