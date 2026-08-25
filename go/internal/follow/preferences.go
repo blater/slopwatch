@@ -15,24 +15,24 @@ const defaultMaximumWeight = 20.0
 const defaultWeightStep = 0.5
 
 func defaultUserPreferences() userprefs.Document {
+	value := userprefs.DefaultDocument()
 	components := make(map[string]userprefs.ComponentPreference, len(componentWeights))
 	enabled := defaultWeightEnabled()
 	for _, item := range componentWeights {
 		components[item.id] = userprefs.ComponentPreference{Enabled: enabled[item.id], Weight: item.value}
 	}
-	return userprefs.Document{
-		Version:    userprefs.CurrentVersion,
-		Appearance: userprefs.Appearance{Theme: string(style.ThemeDark)},
-		Table: userprefs.Table{
-			VisibleColumns: visibleColumnKeys(defaultColumnVisibility()),
-			SortBy:         "score", SortDescending: true,
-		},
-		Interaction: userprefs.Interaction{TrendWindow: defaultTrendWindow.String()},
-		Scoring: userprefs.Scoring{
-			WeightStep: defaultWeightStep, MaximumWeight: defaultMaximumWeight,
-			Components: components,
-		},
+	value.Version = userprefs.CurrentVersion
+	value.Appearance = userprefs.Appearance{Theme: string(style.ThemeDark)}
+	value.Table = userprefs.Table{
+		VisibleColumns: visibleColumnKeys(defaultColumnVisibility()),
+		SortBy:         "score", SortDescending: true,
 	}
+	value.Interaction = userprefs.Interaction{TrendWindow: defaultTrendWindow.String()}
+	value.Scoring = userprefs.Scoring{
+		WeightStep: defaultWeightStep, MaximumWeight: defaultMaximumWeight,
+		Components: components,
+	}
+	return value
 }
 
 func loadUserPreferences(path string) (userprefs.Document, time.Duration, error) {
@@ -167,6 +167,15 @@ func persistUserPreferences(model *Model) {
 		return
 	}
 	value := model.preferences
+	// Feature settings save asynchronously through appconfig. Refresh the
+	// shared document before a legacy dashboard-only edit so Appearance,
+	// Columns, or Weights cannot overwrite newer agent/fix properties.
+	latest, _, err := loadUserPreferences(model.preferencesPath)
+	if err != nil {
+		model.status = err.Error()
+		return
+	}
+	value = latest
 	value.Appearance.Theme = string(model.theme)
 	value.Table.VisibleColumns = visibleColumnKeys(model.visible)
 	value.Table.SortBy = model.sortKey

@@ -30,13 +30,13 @@ func renderFixedColumns(model Model, file report.File, state rowState, backgroun
 	if marker != "" {
 		score += styleCell(marker, markerColour, background)
 	}
-	parts := []string{score}
+	fixCode := styleCell(pad(model.fixCodeForPath(file.Path), 3, false), style.TextPrimary, background)
+	parts := []string{score, fixCode}
 	activeColumns := model.activeColumns()
 	for _, column := range activeColumns {
 		parts = append(parts, renderMetricCell(file, column, background))
 	}
 	if len(activeColumns) > 0 {
-		parts[0] += separator
 		if activeColumns[len(activeColumns)-1].key == "god" {
 			parts[len(parts)-1] += separator
 		}

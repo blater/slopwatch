@@ -62,6 +62,20 @@ func New(workspace, installationRoot string, options Options) (*Analyzer, error)
 	return &Analyzer{workspace: workspace, root: installationRoot, catalog: catalog, options: options}, nil
 }
 
+// ScoringIdentity returns the immutable active catalog identity used by this
+// analyzer. Application adapters freeze it into scoring contracts so final
+// verification cannot silently use a different catalog.
+func (analyzer *Analyzer) ScoringIdentity() (string, error) {
+	analyzer.optionsMu.RLock()
+	options := analyzer.options
+	analyzer.optionsMu.RUnlock()
+	digest, err := analysisCatalogDigest(activeCatalog(analyzer.catalog, options))
+	if err != nil {
+		return "", fmt.Errorf("identify active analysis catalog: %w", err)
+	}
+	return string(digest), nil
+}
+
 func selectedLanguages(requested []string, discovered map[string][]string) ([]string, error) {
 	selected := requested
 	if len(selected) == 0 {

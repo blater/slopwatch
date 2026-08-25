@@ -7,146 +7,60 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/blater/slopwatch/internal/style"
 )
 
-var componentWeights = []struct {
+type componentWeight struct {
 	id       string
 	label    string
 	category string
 	parent   string
 	axis     string
 	value    float64
-}{
-	{"cognitive_complexity", "Cognitive complexity", "Structural", "COG", "structural_core", 10},
-	{"cyclomatic_method_complexity", "Routine", "Structural", "CYCLO", "structural_core", 5},
-	{"cyclomatic_class_complexity", "Type", "Structural", "CYCLO", "structural_language", 5},
-	{"npath_complexity", "NPath complexity", "Structural", "NPATH", "structural_core", 8},
-	{"deeply_nested_if", "Deep nesting", "Structural", "Nesting", "structural_core", 6},
-	{"module_shallowness", "Module shallowness", "Structural", "SHALLOW", "structural_core", 5},
-	{"coupling_between_objects", "Type coupling", "Structural", "Coupling", "structural_language", 10},
-	{"god_class", "Responsibility concentration", "Structural", "GOD", "structural_language", 1},
-	{"ambiguous_boolean_expression", "Ambiguous boolean", "Type safety", "", "typescript_type_safety", 4},
-	{"explicit_any", "Explicit any", "Type safety", "", "typescript_type_safety", 3},
-	{"non_exhaustive_union", "Non-exhaustive union", "Type safety", "", "typescript_type_safety", 8},
-	{"unsafe_type_assertion", "Unsafe assertion", "Type safety", "", "typescript_type_safety", 5},
-	{"unsafe_type_boundary", "Unsafe boundary", "Type safety", "", "typescript_type_safety", 10},
-	{"unsafe_type_propagation", "Unsafe propagation", "Type safety", "", "typescript_type_safety", 4},
-	{"unsafe_type_use", "Unsafe type use", "Type safety", "", "typescript_type_safety", 4},
+}
+
+var componentWeights = followComponentWeights()
+
+func followComponentWeights() []componentWeight {
+	definitions := scoring.Components()
+	result := make([]componentWeight, 0, len(definitions))
+	for _, definition := range definitions {
+		result = append(result, componentWeight{
+			id: definition.ID, label: definition.Label, category: definition.Category,
+			parent: definition.Parent, axis: definition.Axis, value: definition.DefaultWeight,
+		})
+	}
+	return result
 }
 
 func defaultWeights() map[string]float64 {
-	weights := make(map[string]float64, len(componentWeights))
-	for _, item := range componentWeights {
-		weights[item.id] = item.value
-	}
-	return weights
+	return scoring.DefaultWeights()
 }
 
 func defaultWeightEnabled() map[string]bool {
-	enabled := make(map[string]bool, len(componentWeights))
-	for _, item := range componentWeights {
-		enabled[item.id] = item.axis != "typescript_type_safety" && item.parent != "Nesting"
-	}
-	return enabled
+	return scoring.DefaultEnabled()
 }
 
 func isWeightEnabled(model Model, id string) bool {
-	if model.weightEnabled == nil {
-		return defaultWeightEnabled()[id]
-	}
-	enabled, known := model.weightEnabled[id]
-	if !known {
-		return defaultWeightEnabled()[id]
-	}
-	return enabled
+	return scoring.NewPolicy(model.weights, model.weightEnabled).Enabled(id)
 }
 
 func rebuildWeightedDocument(model *Model) {
 	if len(model.baseDocument.Files) == 0 && len(model.document.Files) > 0 {
 		model.baseDocument = model.document
 	}
-	document := model.baseDocument
-	document.Files = weightedFiles(model, model.baseDocument.Files)
-	document.SortAndRank()
+	document := scoring.ProjectDocument(
+		model.baseDocument,
+		scoring.NewPolicy(model.weights, model.weightEnabled),
+	)
 	model.document = document
 	model.refreshFreshnessStatus()
 	model.refreshDisplayFiles()
 }
 
-func weightedFiles(model *Model, originals []report.File) []report.File {
-	files := make([]report.File, 0, len(originals))
-	for _, original := range originals {
-		files = append(files, weightedFile(model, original))
-	}
-	return files
-}
-
-func weightedFile(model *Model, original report.File) report.File {
-	if len(original.Components) == 0 {
-		return original
-	}
-	file := original
-	file.Components = make(map[string]report.Component, len(original.Components))
-	file.Axes = map[string]float64{}
-	file.Score = 0
-	for id, originalComponent := range original.Components {
-		component, axis := weightedComponent(model, id, originalComponent)
-		file.Components[id] = component
-		file.Axes[axis] += component.Contribution
-	}
-	for axis, value := range file.Axes {
-		file.Axes[axis] = roundWeight(value)
-		file.Score += file.Axes[axis]
-	}
-	file.Score = roundWeight(file.Score)
-	file.ValidZero = file.Complete && file.Score == 0
-	return file
-}
-
-func weightedComponent(model *Model, id string, original report.Component) (report.Component, string) {
-	component := original
-	component.Subjects = append([]report.SubjectContribution(nil), original.Subjects...)
-	factor := componentWeightFactor(model, id)
-	component.Contribution = roundWeight(component.Contribution * factor)
-	component.ObservedContribution = original.ObservedContribution
-	for index := range component.Subjects {
-		component.Subjects[index].Contribution = roundWeight(component.Subjects[index].Contribution * factor)
-	}
-	return component, componentAxis(id)
-}
-
-func componentWeightFactor(model *Model, id string) float64 {
-	base := defaultWeight(id)
-	weight := model.weights[id]
-	if weight == 0 && base > 0 {
-		if _, known := model.weights[id]; !known {
-			weight = base
-		}
-	}
-	if base <= 0 || !model.isWeightEnabled(id) {
-		return 0
-	}
-	return weight / base
-}
-
 func defaultWeight(id string) float64 {
-	for _, item := range componentWeights {
-		if item.id == id {
-			return item.value
-		}
-	}
-	return 1
-}
-
-func componentAxis(id string) string {
-	for _, item := range componentWeights {
-		if item.id == id {
-			return item.axis
-		}
-	}
-	return "unknown"
+	return scoring.DefaultWeight(id)
 }
 
 func setColumnWeightEnabled(model *Model, columnKey string, enabled bool) {
@@ -210,10 +124,6 @@ func (model *Model) syncTypeScriptTypes() tea.Cmd {
 	return model.analyze(nil, true)
 }
 
-func roundWeight(value float64) float64 {
-	return math.Round(value*1e12) / 1e12
-}
-
 type settingsItem struct {
 	key   string
 	label string
@@ -223,6 +133,11 @@ var settingsItems = []settingsItem{
 	{key: "appearance", label: "Appearance"},
 	{key: "columns", label: "Columns"},
 	{key: "weights", label: "Weights"},
+	{key: "agents", label: "Agents"},
+	{key: "fix", label: "Fix defaults"},
+	{key: "concurrency", label: "Concurrency & retention"},
+	{key: "validation", label: "Validation"},
+	{key: "delivery", label: "Git & pull requests"},
 }
 
 func settingsIndex(key string) int {
@@ -243,12 +158,12 @@ func handleSettingsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		model.settingsCursor = min(len(settingsItems)-1, model.settingsCursor+1)
 	case "enter":
-		openSetting(model, settingsItems[model.settingsCursor].key)
+		return model, openSetting(model, settingsItems[model.settingsCursor].key)
 	}
 	return model, nil
 }
 
-func openSetting(model *Model, key string) {
+func openSetting(model *Model, key string) tea.Cmd {
 	model.settings = false
 	switch key {
 	case "appearance":
@@ -264,7 +179,10 @@ func openSetting(model *Model, key string) {
 		model.weightsOpen = true
 		model.weightCursor = 0
 		model.weightsResetConfirm = false
+	case "agents", "fix", "concurrency", "validation", "delivery":
+		return model.openConfigSettings(configSettingsKind(key))
 	}
+	return nil
 }
 
 func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
@@ -356,6 +274,7 @@ func settingsView(model Model) string {
 	for index, item := range settingsItems {
 		content = append(content, style.ModalOption(item.label, index == model.settingsCursor, 34))
 	}
+	content = scrollModalLines(content, model.settingsCursor, model.modalBodyHeight())
 	return style.Popup(style.Heading("SETTINGS"), content, "", 38)
 }
 

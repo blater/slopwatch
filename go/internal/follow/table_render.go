@@ -56,6 +56,12 @@ func tableTopParts(model Model) (string, string) {
 	if status != "" {
 		left += "  " + status
 	}
+	if len(model.agents.Jobs) > 0 {
+		left += "  " + fixAggregateText(model.agents.Jobs)
+	}
+	if model.fixUpdatesStale {
+		left += " · UPDATES STALE"
+	}
 	return left, right
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/blater/slopwatch/internal/style"
 )
 
@@ -57,33 +58,8 @@ func renderPath(path string, width, offset int, background lipgloss.Color) strin
 }
 
 func metric(file report.File, key string) (float64, bool, float64) {
-	if key == "typesafety" {
-		value, exists := file.Axes["typescript_type_safety"]
-		return value, exists, value
-	}
-	if key == "nesting" {
-		component, exists := file.Components["deeply_nested_if"]
-		return component.Contribution, exists, component.Contribution
-	}
-	if key == "coupling" {
-		component, exists := file.Components["coupling_between_objects"]
-		value, _ := report.Max(file, "coupling_between_objects")
-		return value, exists, component.Contribution
-	}
-	componentID := map[string]string{"cog": "cognitive_complexity", "npath": "npath_complexity", "cyclo": "cyclomatic_method_complexity", "deep": "module_shallowness", "god": "god_class"}[key]
-	contribution, exists := report.Contribution(file, componentID)
-	if !exists {
-		return 0, false, 0
-	}
-	if key == "deep" {
-		value, _ := report.Sum(file, componentID)
-		return value, true, contribution
-	}
-	if key == "god" {
-		return contribution, true, contribution
-	}
-	value, _ := report.Max(file, componentID)
-	return value, true, contribution
+	value := scoring.Metric(file, key)
+	return value.Value, value.Available, value.Contribution
 }
 
 func scoreColour(value float64) lipgloss.Color {

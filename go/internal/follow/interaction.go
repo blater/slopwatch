@@ -18,7 +18,12 @@ import (
 const pathScrollStep = 4
 
 func updateModel(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
-	return handleMessage(model, message)
+	model.reconcileLegacyOverlayStack()
+	updated, command := handleMessage(model, message)
+	if result, ok := updated.(*Model); ok {
+		result.reconcileLegacyOverlayStack()
+	}
+	return updated, command
 }
 
 func markFreshness(model *Model, paths []string, freshness report.Freshness, note string) {
@@ -189,6 +194,9 @@ type sortField struct {
 func sortFields() []sortField {
 	fields := make([]sortField, 0, len(columnDefinitions)+1)
 	for _, column := range columnDefinitions {
+		if column.key == "fix" {
+			continue
+		}
 		fields = append(fields, sortField{column: column})
 	}
 	fields = append(fields, sortField{column: column{key: "filename", title: "PATH", shortDescription: "filename", width: 1, defaultVisible: true}})

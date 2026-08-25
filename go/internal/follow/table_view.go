@@ -98,6 +98,9 @@ func (model Model) selectedFile() (report.File, bool) {
 func footer(model Model) string {
 	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
 	screenItems := [][2]string{{"o", "sort"}, {"r", "rescan"}, {"v", "view"}, {"i", "info"}}
+	if model.width >= 36 {
+		screenItems = append([][2]string{{"Tab", "agents"}, {"x", "fix"}}, screenItems...)
+	}
 	generalItems := [][2]string{{"f", "find"}, {"n", "next"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
 	screenFunctions := footerItems(screenItems)
 	generalFunctions := footerItems(generalItems)
@@ -138,6 +141,7 @@ type column struct {
 
 var columnDefinitions = []column{
 	{"score", "SCORE", "overall score", 8, true, true, false, 1},
+	{"fix", "FIX", "fix job state", 4, false, true, false, 0},
 	{"cog", "COG", "cognitive", 6, false, true, true, -1},
 	{"npath", "NPATH", "execution path complexity", 8, false, true, true, -2},
 	{"cyclo", "CYCLO", "cyclomatic complexity", 7, false, true, true, -3},
@@ -149,7 +153,13 @@ var columnDefinitions = []column{
 }
 
 func columnNames() []column {
-	return columnDefinitions[1:]
+	result := make([]column, 0, len(columnDefinitions))
+	for _, column := range columnDefinitions {
+		if column.configurable {
+			result = append(result, column)
+		}
+	}
+	return result
 }
 
 func defaultColumnVisibility() map[string]bool {
@@ -185,7 +195,7 @@ func activeColumns(model Model) []column {
 }
 
 func headerColumns(model Model) []column {
-	columns := []column{columnDefinitions[0]}
+	columns := []column{columnDefinitions[0], columnDefinitions[1]}
 	if !model.options.Compact {
 		columns = append(columns, model.activeColumns()...)
 	}
