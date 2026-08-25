@@ -12,7 +12,8 @@ import (
 func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := message.(type) {
 	case configProbeMsg:
-		if model.configSettings.open && message.generation == model.configSettings.generation {
+		if model.configSettings.open && message.generation == model.configSettings.generation &&
+			probeDefinitionCurrent(model.configSettings.working.Profiles, message.definition) {
 			if model.configSettings.probes == nil {
 				model.configSettings.probes = map[agent.ProfileID]agent.ProbeResult{}
 			}

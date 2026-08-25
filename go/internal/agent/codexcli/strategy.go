@@ -48,9 +48,9 @@ func New(runner isolation.Executor, conformance isolation.Checker) *Strategy {
 }
 
 func (*Strategy) ProfileDescriptor() agent.ProfileDescriptor {
-	return agent.ProfileDescriptor{Runtime: RuntimeKind, Label: "Codex CLI", Fields: []agent.ProfileField{
+	return agent.ProfileDescriptor{Runtime: RuntimeKind, Label: "Codex CLI — managed sign-in", Fields: []agent.ProfileField{
 		{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true, Default: "codex"},
-		{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Description: "Provider-owned Codex login; run `codex login` in a terminal to authorize", Required: true, Default: "provider-owned"},
+		{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Description: "Codex-managed sign-in; run `codex login` to use a ChatGPT account (recommended)", Required: true, Default: "provider-owned"},
 		{Key: "options.denied_read_roots", OptionKey: "denied_read_roots", Label: "Additional denied roots", Kind: agent.ProfileFieldPathList, Description: "Path-list of sensitive roots"},
 		{Key: "options.probe_timeout", OptionKey: "probe_timeout", Label: "Probe timeout", Kind: agent.ProfileFieldText, Description: "Wall-clock deadline for Codex readiness and confinement probes; never times an active fix job.", Default: defaultProbeTimeout.String()},
 		{Key: "options.probe_output_bytes", OptionKey: "probe_output_bytes", Label: "Probe output bytes", Kind: agent.ProfileFieldText, Description: "Captured stdout/stderr budget for each Codex readiness or confinement probe.", Default: fmt.Sprint(defaultProbeOutputBytes), Pattern: `^[1-9][0-9]*$`},
@@ -119,11 +119,14 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 	result.Version = string(match[1])
 
 	authRun, err := strategy.runProbe(ctx, policy, executable, directory, []string{"login", "status"})
-	if err != nil || !authRun.Successful() || !strings.Contains(strings.ToLower(string(authRun.Stdout)), "logged in") {
+	authText := strings.ToLower(string(authRun.Stdout) + "\n" + string(authRun.Stderr))
+	authentication, signedIn := parseAuthenticationStatus(authText)
+	if err != nil || !authRun.Successful() || !signedIn {
 		result.State = agent.ProbeUnauthenticated
-		result.Diagnostic = probeDiagnostic("Codex is not authenticated", authRun, err)
+		result.Diagnostic = "Not signed in — run `codex login`, then Test again"
 		return result
 	}
+	result.Authentication = authentication
 	modelsRun, err := strategy.runProbe(ctx, policy, executable, directory, []string{"debug", "models", "--bundled"})
 	if err != nil || !modelsRun.Successful() || modelsRun.StdoutTruncated {
 		result.State = agent.ProbeIncompatible
@@ -149,6 +152,22 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 	}
 	result.State = agent.ProbeReady
 	return result
+}
+
+func parseAuthenticationStatus(value string) (agent.Authentication, bool) {
+	value = strings.ToLower(value)
+	if strings.Contains(value, "not logged in") || strings.Contains(value, "login required") ||
+		strings.Contains(value, "authentication required") || !strings.Contains(value, "logged in") {
+		return agent.Authentication{}, false
+	}
+	switch {
+	case strings.Contains(value, "chatgpt"):
+		return agent.Authentication{Method: "chatgpt", Label: "Signed in with ChatGPT"}, true
+	case strings.Contains(value, "api key") || strings.Contains(value, "apikey"):
+		return agent.Authentication{Method: "api-key", Label: "Signed in with an API key"}, true
+	default:
+		return agent.Authentication{Method: "provider-owned", Label: "Signed in with Codex"}, true
+	}
 }
 
 func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, request agent.Request, sink agent.EventSink) agent.Result {

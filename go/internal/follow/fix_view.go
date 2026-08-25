@@ -499,10 +499,14 @@ func (model Model) fixFieldRows(width int) []string {
 	if state.detached {
 		advanced = "DETACHED · edit task body"
 	}
+	profile := state.draft.Profile.Label
+	if state.draft.Probe.Authentication.Label != "" {
+		profile += " · " + state.draft.Probe.Authentication.Label
+	}
 	values := []string{
 		fmt.Sprintf("Target SCORE  ≤ %.0f", state.draft.TargetScore),
 		"Focus metrics  " + metrics,
-		"Agent profile  " + state.draft.Profile.Label,
+		"Agent profile  " + profile,
 		"Model          " + string(state.draft.Model),
 		"Effort         " + string(state.draft.Effort),
 		"Delegation     " + delegation,

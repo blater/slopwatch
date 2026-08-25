@@ -187,14 +187,14 @@ func fixSensitiveRoots(workspace fix.WorkspaceIdentity, stateRoot, preferencesPa
 func agentDefaults(value preferences.Document, denied []string) preferences.Document {
 	value = preferences.Clone(value)
 	value.Agents.Profiles = []preferences.AgentProfile{
-		{ID: "gpt-default", Label: "GPT via OpenAI Responses", Runtime: string(openairesponses.RuntimeKind),
-			AuthenticationRef: "env:OPENAI_API_KEY", Options: map[string]string{}},
-		{ID: "codex-default", Label: "Codex CLI", Runtime: string(codexcli.RuntimeKind),
+		{ID: "codex-default", Label: "Codex — managed sign-in (ChatGPT recommended)", Runtime: string(codexcli.RuntimeKind),
 			Executable: "codex", RuntimeProfile: "slopwatch", AuthenticationRef: "provider-owned",
 			Options: map[string]string{"denied_read_roots": strings.Join(denied, string(os.PathListSeparator))}},
+		{ID: "gpt-default", Label: "OpenAI Responses API — API key", Runtime: string(openairesponses.RuntimeKind),
+			AuthenticationRef: "env:OPENAI_API_KEY", Options: map[string]string{}},
 	}
-	value.Fix.Profile = "gpt-default"
-	value.Fix.Model = "gpt-5.6"
+	value.Fix.Profile = "codex-default"
+	value.Fix.Model = ""
 	value.Fix.Effort = "high"
 	value.Fix.Delegation = string(agent.DelegationSingle)
 	return value

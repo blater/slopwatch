@@ -127,11 +127,20 @@ const (
 )
 
 type ProbeResult struct {
-	Runtime      RuntimeKind
-	Version      string
-	State        ProbeState
-	Diagnostic   string
-	Capabilities Capabilities
+	Runtime        RuntimeKind
+	Version        string
+	State          ProbeState
+	Diagnostic     string
+	Authentication Authentication
+	Capabilities   Capabilities
+}
+
+// Authentication is sanitized provider account metadata. Adapters must never
+// place credentials or refresh material here; it exists so the UI can state
+// which deliberately selected auth/billing route is active.
+type Authentication struct {
+	Method string
+	Label  string
 }
 
 type WritePolicy struct {

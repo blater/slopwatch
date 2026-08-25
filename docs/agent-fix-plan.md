@@ -5,6 +5,44 @@ runtime release gates are recorded below. This plan refines the initial
 `x`-to-fix feature and records the architectural constraints agreed during
 adversarial review.
 
+## OpenAI authentication and default-provider decision
+
+Slopwatch supports two deliberately separate OpenAI routes:
+
+- **Codex — managed sign-in** is the recommended built-in profile and the
+  default for new installations. Authentication is owned by the installed
+  Codex runtime (`codex login`); Slopwatch neither asks for nor stores an API
+  key or ChatGPT token. The readiness probe reports the actual sign-in method
+  returned by Codex so the UI can say `Signed in with ChatGPT` or identify an
+  API-key-backed Codex login truthfully.
+- **OpenAI Responses API — API key** remains an explicit alternative. It uses
+  an `env:VARIABLE` reference (default `env:OPENAI_API_KEY`) and makes clear
+  that API usage is billed separately from ChatGPT. The installed resolver
+  accepts only environment references; the UI does not offer credential-store
+  kinds this build cannot resolve.
+
+Profile selection is exact. Missing authentication, access failure, or rate
+limiting never causes Slopwatch to run another adapter or billing route. The
+Agents settings surface marks the default and lets the user change it
+explicitly; existing user-selected profiles are not rewritten merely because
+the built-in default changes. The built-in model is intentionally `runtime
+default`: preparation pins the selected adapter's advertised default model,
+and a visible profile change replaces an incompatible model/effort with that
+adapter's advertised default rather than carrying an invalid cross-provider
+choice forward.
+
+The t3code Codex integration was reviewed as a reference. Its strongest
+patterns are retained here: provider-owned login, live readiness/model
+discovery, adapter-owned event translation, explicit process lifecycle, and
+profile-local runtime configuration. t3code uses the long-lived Codex App
+Server because it owns interactive conversation sessions. Slopwatch's current
+fix attempt is a bounded, one-shot remediation transaction and uses Codex's
+non-interactive JSONL protocol behind the same deep `agent.Strategy` port.
+Introducing App Server later must be a distinct adapter with typed managed
+login and lifecycle ports, multiplexed turn-scoped cancellation, pinned schema
+compatibility, and independently proved confinement; it must not leak JSON-RPC
+or token management into the coordinator or replace the Responses adapter.
+
 ## Implementation and release-gate record
 
 The initial implementation includes the provider-neutral runtime registry,
@@ -21,10 +59,12 @@ confirmed non-interactive authentication and model discovery, but the exact
 tool sandbox did not deny every outside-workspace write and Git metadata read.
 The process-group supervisor also cannot prove containment of a descendant
 that escapes into a new session. The adapter therefore reports `degraded` and
-cannot mutate on this host. This is the intended fail-closed result of the
+cannot mutate on this host. Codex remains the product default because it is the
+account-authenticated path; readiness is still an empirical platform property,
+not inferred from that default. This is the intended fail-closed result of the
 release gate, not a user-overridable warning. The adapter and its fake-runtime
 contract tests remain available for a platform confinement implementation
-that can prove all gates. The runnable GPT path is instead a complete Responses
+that can prove all gates. The portable direct-API path is a complete Responses
 API agent loop whose only effects are four trusted Go tools: bounded candidate
 listing and reading, plus atomic whole-file write and delete. The model has no
 process, shell, Git, cache, preferences or ambient filesystem access. Because
@@ -188,7 +228,8 @@ The recommended initial decisions are:
   captured when the job starts.
 - Cached reports and evidence may be used to construct the baseline task, but
   the agent layer never reads the analysis cache.
-- The initial runtime integrations are Codex CLI and a non-interactive OpenAI
+- The initial runtime integrations are Codex CLI (the default account-authenticated
+  route) and a non-interactive OpenAI
   Responses coding-agent loop. A raw model client is never registered directly:
   the Responses strategy owns bounded orchestration, trusted tools, progress,
   cancellation, usage, capability discovery and result normalization.
@@ -209,11 +250,13 @@ The recommended initial decisions are:
 - V1 requires a completely clean Git repository, rejects follow-symlink fix
   targets and unsupported submodule/filter layouts, and creates detached
   candidates at a pinned commit.
-- V1 defaults are target score `100`, `targets-and-tests` change scope, two
+- V1 defaults are the Codex managed-sign-in profile (with ChatGPT sign-in
+  recommended), target score `100`,
+  `targets-and-tests` change scope, two
   concurrent agents, one verifier, cancel-all-and-quit, and no automatic
   candidate/worktree deletion.
 - Codex CLI is usable only where its exact implementation proves the common
-  confinement contract. GPT via Responses is the initial portable runnable
+  confinement contract. Responses is the portable direct-API runtime
   runtime because the model can act only through Slopwatch-controlled tools.
   No adapter is grandfathered around the common eligibility requirements.
 - The initial publisher is GitHub CLI and creates draft or ready-for-review PRs
@@ -2047,7 +2090,7 @@ group, but a process group is not confinement against a child creating a new
 session. Production therefore reports failed measured gates and keeps
 `CrashContainment=false`; `Submit` rejects that adapter.
 
-The OpenAI Responses strategy is the runnable GPT path. It resolves only a
+The OpenAI Responses strategy is the portable direct API-key path. It resolves only a
 secret reference, uses a composition-owned endpoint, follows no redirect, puts
 no credential in provider-visible context, and exposes no shell or process.
 All file effects are bounded rooted tools with an exact frozen write policy;

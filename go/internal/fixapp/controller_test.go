@@ -64,6 +64,24 @@ func TestManagerRunsJobsConcurrentlyAndAdmitsMoreWhileRunning(t *testing.T) {
 	waitForPhase(t, manager, third, fix.PhaseAwaitingReview)
 }
 
+func TestCompatibleOptionUsesSelectedThenAdapterDefaultThenFirst(t *testing.T) {
+	t.Parallel()
+	options := []agent.Option[agent.ModelID]{
+		{ID: "first", Label: "First"},
+		{ID: "default", Label: "Default", Default: true},
+	}
+	if got := compatibleOption(options, agent.ModelID("first")); got != "first" {
+		t.Fatalf("compatible selection = %q", got)
+	}
+	if got := compatibleOption(options, agent.ModelID("missing")); got != "default" {
+		t.Fatalf("adapter default = %q", got)
+	}
+	options[1].Default = false
+	if got := compatibleOption(options, agent.ModelID("missing")); got != "first" {
+		t.Fatalf("first fallback = %q", got)
+	}
+}
+
 func TestCancelAffectsOnlySelectedJobAndCommandIsIdempotent(t *testing.T) {
 	manager, runtime := newTestManager(t, 2)
 	defer shutdownManager(t, manager)

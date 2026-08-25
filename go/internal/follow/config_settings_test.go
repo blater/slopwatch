@@ -154,20 +154,25 @@ func TestFeatureSettingsSaveReportsConflictAndServiceErrors(t *testing.T) {
 func TestAgentSettingsOfferSafeCodexDefaultAndShowReadiness(t *testing.T) {
 	t.Parallel()
 	model := settingsModel(configAgents, settingsResolved(), &settingsConfigStore{})
+	model.width = 120
 	model.configSettings.working.Profiles = nil
 	model.addDefaultAgentProfile()
 	profiles := model.configSettings.working.Profiles
 	if len(profiles) != 1 || profiles[0].Runtime != "codex-cli" || profiles[0].Executable != "codex" || profiles[0].AuthenticationRef != "provider-owned" {
 		t.Fatalf("Codex default = %#v", profiles)
 	}
-	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady, Version: "1.2.3", Capabilities: agent.Capabilities{Isolation: agent.RuntimeIsolation{
+	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady, Version: "1.2.3", Authentication: agent.Authentication{Method: "chatgpt", Label: "Signed in with ChatGPT"}, Capabilities: agent.Capabilities{Isolation: agent.RuntimeIsolation{
 		Writes: agent.CandidateTreeAndGitMetadataProtected, SensitiveReadsDenied: true, TransportAuthIsolated: true, CrashContainment: true,
 	}}}
 	text := ansi.Strip(model.configSettingsView())
-	for _, fragment := range []string{"Codex", "ready 1.2.3", "auth provider-owned"} {
+	for _, fragment := range []string{"Codex CLI", "managed sign-in", "DEFAULT", "ready 1.", "D set default"} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("agent settings missing %q: %q", fragment, text)
 		}
+	}
+	model.configSettings.profileEditing = true
+	if text := ansi.Strip(strings.Join(model.configSettingsLines(160), "\n")); !strings.Contains(text, "Signed in with ChatGPT") {
+		t.Fatalf("agent settings omitted sanitized account method: %q", text)
 	}
 }
 
@@ -192,6 +197,234 @@ func TestAgentSettingsAddAndSwitchAdapterDefinedProfiles(t *testing.T) {
 	updated := model.configSettings.working.Profiles[0]
 	if updated.Runtime != "openai-responses" || updated.Executable != "" || updated.AuthenticationRef != "env:OPENAI_API_KEY" {
 		t.Fatalf("runtime switch retained foreign fields: %#v", updated)
+	}
+}
+
+func TestAgentSettingsCanExplicitlySetAndSaveDefaultProfile(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{
+		{ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
+		{ID: "api", Label: "OpenAI", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
+	}
+	resolved.Fix.Profile = "api"
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configAgents, resolved, store)
+	model.configSettings.cursor = 0
+	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady, Capabilities: agent.Capabilities{
+		Models:     []agent.Option[agent.ModelID]{{ID: "codex-model", Default: true}},
+		Efforts:    []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
+		Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Default: true}},
+	}}
+	updated, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}})
+	result := updated.(*Model)
+	if command != nil || result.configSettings.working.Fix.Profile != "codex" || result.configSettings.working.Fix.Model != "codex-model" || !result.configSettings.dirty {
+		t.Fatalf("set default state=%+v command=%v", result.configSettings, command)
+	}
+	save := result.saveConfigSettings()
+	if save == nil {
+		t.Fatal("setting default did not produce a save command")
+	}
+	result.handleConfigSaved(save().(configSavedMsg))
+	if store.resolved.Fix.Profile != "codex" || store.resolved.Fix.Model != "codex-model" {
+		t.Fatalf("saved Fix defaults=%#v", store.resolved.Fix)
+	}
+}
+
+func TestUnprobedDefaultSwitchPersistsRuntimeDefaults(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{
+		{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
+		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
+	}
+	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationSingle
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configAgents, resolved, store)
+	model.configSettings.cursor = 1
+	model.setSelectedAgentDefault()
+	if model.configSettings.working.Fix.Model != "" || model.configSettings.working.Fix.Effort != "" || model.configSettings.working.Fix.Delegation != agent.DelegationSingle {
+		t.Fatalf("untested adapter retained foreign selections: %#v", model.configSettings.working.Fix)
+	}
+	save := model.saveConfigSettings()
+	if save == nil {
+		t.Fatal("unprobed default switch did not save")
+	}
+	model.handleConfigSaved(save().(configSavedMsg))
+	if store.resolved.Fix.Profile != "api" || store.resolved.Fix.Model != "" || store.resolved.Fix.Effort != "" {
+		t.Fatalf("saved runtime defaults=%#v", store.resolved.Fix)
+	}
+}
+
+func TestFailedProbeDefaultSwitchDoesNotReuseItsCapabilities(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{
+		{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
+		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
+	}
+	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationSingle
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configAgents, resolved, store)
+	model.configSettings.cursor = 1
+	model.configSettings.probes["api"] = agent.ProbeResult{
+		State: agent.ProbeUnauthenticated,
+		Capabilities: agent.Capabilities{
+			Models:  []agent.Option[agent.ModelID]{{ID: "api-model", Default: true}},
+			Efforts: []agent.Option[agent.EffortID]{{ID: "medium", Default: true}},
+		},
+	}
+
+	model.setSelectedAgentDefault()
+	if got := model.configSettings.working.Fix; got.Profile != "api" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
+		t.Fatalf("failed probe was treated as a usable capability catalog: %#v", got)
+	}
+	save := model.saveConfigSettings()
+	if save == nil {
+		t.Fatal("failed-probe default switch did not save")
+	}
+	model.handleConfigSaved(save().(configSavedMsg))
+	if got := store.resolved.Fix; got.Profile != "api" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
+		t.Fatalf("failed-probe selections were persisted: %#v", got)
+	}
+}
+
+func TestFixSettingsProfileCycleClearsForeignRuntimeChoices(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{
+		{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
+		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
+	}
+	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationMode("team")
+
+	if !adjustFixSetting(&resolved, 2, 1, map[agent.ProfileID]agent.ProbeResult{}) {
+		t.Fatal("Fix Settings profile row did not change")
+	}
+	if resolved.Fix.Profile != "api" || resolved.Fix.Model != "" || resolved.Fix.Effort != "" || resolved.Fix.Delegation != agent.DelegationSingle {
+		t.Fatalf("Fix Settings retained choices belonging to the previous runtime: %#v", resolved.Fix)
+	}
+}
+
+func TestChangingTheDefaultProfileRuntimeAtomicallyResetsFixChoices(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{{
+		ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned",
+	}}
+	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationMode("team")
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configAgents, resolved, store)
+	services := &multiRuntimeProfileServices{}
+	model.profileCatalog = services
+	model.profileProber = services
+	model.configSettings.profileEditing = true
+	model.configSettings.cursor = 0
+	model.configSettings.profileCursor = 2
+
+	if !model.adjustProfileChoice(1) {
+		t.Fatal("runtime row did not change")
+	}
+	if got := model.configSettings.working.Fix; got.Profile != "codex" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle || !model.configSettings.defaultChanged {
+		t.Fatalf("default Fix choices were not reset with runtime: %#v (defaultChanged=%t)", got, model.configSettings.defaultChanged)
+	}
+	save := model.saveConfigSettings()
+	if save == nil {
+		t.Fatal("runtime/default reset did not produce a save")
+	}
+	model.handleConfigSaved(save().(configSavedMsg))
+	reloaded := settingsModel(configAgents, store.resolved, store)
+	if got := reloaded.configSettings.working.Fix; got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
+		t.Fatalf("reloaded Fix choices retained values from the old adapter: %#v", got)
+	}
+	if got := reloaded.configSettings.working.Profiles[0]; got.Runtime != "openai-responses" || got.Executable != "" || got.AuthenticationRef != "env:OPENAI_API_KEY" {
+		t.Fatalf("reloaded profile did not preserve the new runtime defaults: %#v", got)
+	}
+}
+
+func TestRuntimeChangeInvalidatesProbeBeforeProfileBecomesDefault(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{
+		{ID: "primary", Label: "Primary API", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
+		{ID: "candidate", Label: "Candidate", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
+	}
+	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "primary", "primary-model", "high", agent.DelegationSingle
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configAgents, resolved, store)
+	services := &multiRuntimeProfileServices{}
+	model.profileCatalog = services
+	model.profileProber = services
+	model.configSettings.probes["candidate"] = agent.ProbeResult{State: agent.ProbeReady, Capabilities: agent.Capabilities{
+		Models:     []agent.Option[agent.ModelID]{{ID: "stale-codex-model", Default: true}},
+		Efforts:    []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
+		Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Default: true}},
+	}}
+	model.configSettings.profileEditing = true
+	model.configSettings.cursor = 1
+	model.configSettings.profileCursor = 2
+	staleProbe := model.testSelectedProfileCommand()
+	if staleProbe == nil {
+		t.Fatal("old runtime did not produce a probe command")
+	}
+
+	if !model.adjustProfileChoice(1) {
+		t.Fatal("candidate runtime row did not change")
+	}
+	if _, exists := model.configSettings.probes["candidate"]; exists {
+		t.Fatal("runtime change retained the old adapter probe")
+	}
+	_, _ = handleMessage(model, staleProbe())
+	if _, exists := model.configSettings.probes["candidate"]; exists {
+		t.Fatal("late probe from the old runtime was accepted after the edit")
+	}
+	model.configSettings.profileEditing = false
+	model.setSelectedAgentDefault()
+	if got := model.configSettings.working.Fix; got.Profile != "candidate" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
+		t.Fatalf("new default reused the old runtime's capability choices: %#v", got)
+	}
+	save := model.saveConfigSettings()
+	if save == nil {
+		t.Fatal("runtime/default change did not produce a save")
+	}
+	model.handleConfigSaved(save().(configSavedMsg))
+	reloaded := settingsModel(configAgents, store.resolved, store)
+	if got := reloaded.configSettings.working.Fix; got.Profile != "candidate" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
+		t.Fatalf("reloaded settings retained a stale adapter selection: %#v", got)
+	}
+}
+
+func TestOnlyBuiltInCodexProfileCarriesRecommendation(t *testing.T) {
+	t.Parallel()
+	builtIn := agentProfileChoiceLabel(agent.Profile{ID: "codex-default", Runtime: "codex-cli"})
+	custom := agentProfileChoiceLabel(agent.Profile{ID: "work", Runtime: "codex-cli"})
+	if !strings.Contains(builtIn, "recommended") || strings.Contains(custom, "recommended") {
+		t.Fatalf("Codex choice labels: built-in=%q custom=%q", builtIn, custom)
+	}
+}
+
+func TestRenamingDefaultAgentPersistsUpdatedFixReference(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configAgents, resolved, store)
+	model.configSettings.profileEditing = true
+	model.configSettings.cursor = 0
+	model.configSettings.editField = 0
+	model.configSettings.input.SetValue("renamed-codex")
+	if err := model.commitConfigText(); err != nil {
+		t.Fatal(err)
+	}
+	if model.configSettings.working.Fix.Profile != "renamed-codex" || !model.configSettings.defaultChanged {
+		t.Fatalf("renamed default state=%+v", model.configSettings)
+	}
+	save := model.saveConfigSettings()
+	if save == nil {
+		t.Fatal("renamed default did not save")
+	}
+	model.handleConfigSaved(save().(configSavedMsg))
+	if store.resolved.Fix.Profile != "renamed-codex" {
+		t.Fatalf("saved default reference=%q", store.resolved.Fix.Profile)
 	}
 }
 

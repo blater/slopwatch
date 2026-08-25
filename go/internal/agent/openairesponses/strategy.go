@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -40,12 +41,12 @@ func (strategy *Strategy) ProfileDescriptor() agent.ProfileDescriptor {
 	fields := []agent.ProfileField{
 		{
 			Key: "authentication_ref", Label: "API authentication", Kind: agent.ProfileFieldAuthReference,
-			Description: "Secret reference resolved only at execution time, for example env:OPENAI_API_KEY",
-			Required:    true, Default: "env:OPENAI_API_KEY", Pattern: `^[A-Za-z][A-Za-z0-9+.-]*:[^[:space:]]+$`,
+			Description: "Environment variable containing an OpenAI API key; API usage is billed separately from ChatGPT",
+			Required:    true, Default: "env:OPENAI_API_KEY", Pattern: `^env:[A-Za-z_][A-Za-z0-9_]*$`,
 		},
 	}
 	fields = append(fields, strategy.config.profileFields()...)
-	return agent.ProfileDescriptor{Runtime: RuntimeKind, Label: "OpenAI Responses API", Fields: fields}
+	return agent.ProfileDescriptor{Runtime: RuntimeKind, Label: "OpenAI Responses API — API key", Fields: fields}
 }
 
 func (strategy *Strategy) ValidateProfile(profile agent.Profile) error {
@@ -55,28 +56,11 @@ func (strategy *Strategy) ValidateProfile(profile agent.Profile) error {
 	if profile.Executable != "" || profile.RuntimeProfile != "" {
 		return errors.New("Responses API profiles cannot configure a process runtime")
 	}
-	if !validSecretReference(profile.AuthenticationRef) {
-		return errors.New("Responses API authentication must be a secret reference, not secret material")
+	if name, ok := strings.CutPrefix(profile.AuthenticationRef, "env:"); !ok || !environmentName.MatchString(name) {
+		return errors.New("Responses API authentication must be an env:VARIABLE reference supported by this installation")
 	}
 	_, err := strategy.config.withProfile(profile)
 	return err
-}
-
-func validSecretReference(value string) bool {
-	if len(value) < 3 || len(value) > 512 || strings.ContainsAny(value, "\x00\r\n\t ") {
-		return false
-	}
-	scheme, reference, ok := strings.Cut(value, ":")
-	if !ok || scheme == "" || reference == "" {
-		return false
-	}
-	for index, character := range scheme {
-		if (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (index > 0 && character >= '0' && character <= '9') || (index > 0 && strings.ContainsRune("+.-", character)) {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func (strategy *Strategy) capabilities(endpoint string) agent.Capabilities {
@@ -153,9 +137,18 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 		result.Diagnostic = "Responses API returned unsafe authentication material"
 		return result
 	}
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+	if response.StatusCode == http.StatusUnauthorized {
 		result.State = agent.ProbeUnauthenticated
 		result.Diagnostic = "Responses API rejected authentication"
+		return result
+	}
+	if response.StatusCode == http.StatusForbidden {
+		result.State = agent.ProbeIncompatible
+		result.Diagnostic = "Responses API request was forbidden; check the API key, organization/project, and model access"
+		return result
+	}
+	if response.StatusCode == http.StatusTooManyRequests {
+		result.Diagnostic = rateLimitDiagnostic(response.Header.Get("Retry-After"))
 		return result
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -177,6 +170,7 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 	result.Capabilities.Models = available
 	result.State = agent.ProbeReady
 	result.Version = "responses-v1"
+	result.Authentication = agent.Authentication{Method: "api-key", Label: "API key available (usage billed separately)"}
 	return result
 }
 
@@ -306,7 +300,7 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 			result.Diagnostic = "Responses API context contains protected authentication material"
 			return result
 		}
-		body, status, err := strategy.post(ctx, config, endpoint, secret, payload, remainingResponseBytes)
+		body, status, retryAfter, err := strategy.post(ctx, config, endpoint, secret, payload, remainingResponseBytes)
 		if err != nil {
 			if errors.Is(err, errResponseTooLarge) {
 				result.Failure = agent.FailureProtocol
@@ -314,7 +308,7 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 				return result
 			}
 			if errors.Is(err, errSecretEcho) {
-				if status == http.StatusUnauthorized || status == http.StatusForbidden {
+				if status == http.StatusUnauthorized {
 					result.Failure = agent.FailureUnauthenticated
 					result.Diagnostic = "Responses API rejected authentication"
 				} else {
@@ -326,9 +320,19 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 			return canceledOr(result, ctx, agent.FailureProvider, "Responses API request failed")
 		}
 		remainingResponseBytes -= int64(len(body))
-		if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		if status == http.StatusUnauthorized {
 			result.Failure = agent.FailureUnauthenticated
 			result.Diagnostic = "Responses API rejected authentication"
+			return result
+		}
+		if status == http.StatusForbidden {
+			result.Failure = agent.FailureProvider
+			result.Diagnostic = "Responses API request was forbidden; check the API key, organization/project, and model access"
+			return result
+		}
+		if status == http.StatusTooManyRequests {
+			result.Failure = agent.FailureProvider
+			result.Diagnostic = rateLimitDiagnostic(retryAfter)
 			return result
 		}
 		if status < 200 || status >= 300 {
@@ -458,38 +462,49 @@ var (
 	errSecretEcho       = errors.New("provider response contained authentication material")
 )
 
-func (strategy *Strategy) post(ctx context.Context, config resolvedConfig, endpoint, secret string, payload []byte, maximum int64) ([]byte, int, error) {
+func (strategy *Strategy) post(ctx context.Context, config resolvedConfig, endpoint, secret string, payload []byte, maximum int64) ([]byte, int, string, error) {
 	if maximum <= 0 {
-		return nil, 0, errResponseTooLarge
+		return nil, 0, "", errResponseTooLarge
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
-		return nil, 0, errors.New("request construction failed")
+		return nil, 0, "", errors.New("request construction failed")
 	}
 	setHeaders(request, secret, true)
 	response, err := config.client.Do(request)
 	if err != nil {
-		return nil, 0, errors.New("transport failed")
+		return nil, 0, "", errors.New("transport failed")
 	}
 	defer response.Body.Close()
 	contentType := response.Header.Get("Content-Type")
 	if contentType != "" {
 		mediaType, _, parseErr := mime.ParseMediaType(contentType)
 		if parseErr != nil || mediaType != "application/json" {
-			return nil, response.StatusCode, errors.New("provider returned a non-JSON response")
+			return nil, response.StatusCode, "", errors.New("provider returned a non-JSON response")
 		}
 	}
 	body, tooLarge, err := readBounded(response.Body, maximum)
 	if err != nil {
-		return nil, response.StatusCode, errors.New("provider response could not be read")
+		return nil, response.StatusCode, "", errors.New("provider response could not be read")
 	}
 	if tooLarge {
-		return nil, response.StatusCode, errResponseTooLarge
+		return nil, response.StatusCode, "", errResponseTooLarge
 	}
 	if providerEchoesSecret(body, secret) {
-		return nil, response.StatusCode, errSecretEcho
+		return nil, response.StatusCode, "", errSecretEcho
 	}
-	return body, response.StatusCode, nil
+	return body, response.StatusCode, response.Header.Get("Retry-After"), nil
+}
+
+func rateLimitDiagnostic(retryAfter string) string {
+	retryAfter = strings.TrimSpace(retryAfter)
+	if seconds, err := strconv.ParseUint(retryAfter, 10, 31); err == nil {
+		return fmt.Sprintf("Responses API rate limited this profile · retry after %s", (time.Duration(seconds) * time.Second).String())
+	}
+	if at, err := http.ParseTime(retryAfter); err == nil {
+		return "Responses API rate limited this profile · retry after " + at.UTC().Format(time.RFC3339)
+	}
+	return "Responses API rate limited this profile"
 }
 
 func providerEchoesSecret(body []byte, secret string) bool {

@@ -34,8 +34,8 @@ trend_window = '10m0s'
 target_score = 100.0
 focus = []
 change_scope = 'targets-and-tests'
-profile = 'gpt-default'
-model = 'gpt-5.6'
+profile = 'codex-default'
+model = '' # selected adapter default
 effort = 'high'
 delegation = 'single'
 prompt_template = 'default'
@@ -70,8 +70,21 @@ container_sentinel_timeout = '10s'
 container_crash_probe_timeout = '15s'
 
 [[agents.profiles]]
+id = 'codex-default'
+label = 'Codex — managed sign-in (ChatGPT recommended)'
+runtime = 'codex-cli'
+executable = 'codex'
+runtime_profile = 'slopwatch'
+authentication_ref = 'provider-owned'
+
+[agents.profiles.options]
+probe_timeout = '15s'
+probe_output_bytes = '8388608'
+termination_grace = '5s'
+
+[[agents.profiles]]
 id = 'gpt-default'
-label = 'GPT via OpenAI Responses'
+label = 'OpenAI Responses API — API key'
 runtime = 'openai-responses'
 authentication_ref = 'env:OPENAI_API_KEY'
 

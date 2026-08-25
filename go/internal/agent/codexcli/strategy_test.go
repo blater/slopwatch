@@ -44,6 +44,26 @@ func TestProfileDescriptorAndValidationAreProviderOwned(t *testing.T) {
 	}
 }
 
+func TestAuthenticationStatusDistinguishesChatGPTAPIKeyAndSignedOut(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, output, method string
+		signedIn             bool
+	}{
+		{name: "ChatGPT", output: "Logged in using ChatGPT", method: "chatgpt", signedIn: true},
+		{name: "API key", output: "Logged in using API key", method: "api-key", signedIn: true},
+		{name: "signed out substring", output: "Not logged in", signedIn: false},
+		{name: "unknown", output: "authentication required", signedIn: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			authentication, signedIn := parseAuthenticationStatus(test.output)
+			if signedIn != test.signedIn || authentication.Method != test.method {
+				t.Fatalf("parseAuthenticationStatus(%q) = %#v, %t", test.output, authentication, signedIn)
+			}
+		})
+	}
+}
+
 func (executor *liveExecutor) RunStreaming(_ context.Context, request isolation.Request, observe func([]byte)) (isolation.Result, error) {
 	executor.mu.Lock()
 	executor.requests = append(executor.requests, request)
@@ -81,6 +101,9 @@ func TestProbeFailsClosedWhenConfinementIsUnproven(t *testing.T) {
 	result := strategy.Probe(t.Context(), agent.Profile{Executable: executable})
 	if result.State != agent.ProbeDegraded || result.Capabilities.Isolation.EligibleForMutation() {
 		t.Fatalf("Probe() = %#v", result)
+	}
+	if result.Authentication.Method != "chatgpt" || result.Authentication.Label != "Signed in with ChatGPT" {
+		t.Fatalf("Probe() authentication = %#v", result.Authentication)
 	}
 	if result.Capabilities.Resume {
 		t.Fatal("ephemeral Codex adapter advertised resume")
