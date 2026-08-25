@@ -112,6 +112,8 @@ func (model Model) settingsView() string { return settingsView(model) }
 
 func (model Model) appearanceView() string { return appearanceView(model) }
 
+func (model *Model) persistUserPreferences() { persistUserPreferences(model) }
+
 func (model *Model) handleAppearanceKey(name string) (tea.Model, tea.Cmd) {
 	return handleAppearanceKey(model, name)
 }

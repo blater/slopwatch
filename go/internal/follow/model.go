@@ -8,22 +8,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/style"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/blater/slopwatch/internal/preferences"
+	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 type Options struct {
-	Workspace      string
-	Targets        []string
-	Languages      []string
-	IncludeTests   bool
-	FollowSymlinks bool
-	Limit          int
-	TrendWindow    time.Duration
-	Compact        bool
+	Workspace       string
+	Targets         []string
+	Languages       []string
+	IncludeTests    bool
+	FollowSymlinks  bool
+	Limit           int
+	TrendWindow     time.Duration
+	Compact         bool
+	TypeScriptTypes bool
+	PreferencesPath string
 }
 
 type Analyzer interface {
@@ -130,6 +134,10 @@ type Model struct {
 	weightsResetConfirm  bool
 	weights              map[string]float64
 	weightEnabled        map[string]bool
+	weightStep           float64
+	maximumWeight        float64
+	preferencesPath      string
+	preferences          preferences.Document
 	baseDocument         report.Document
 	columnsFromSettings  bool
 	pendingFullAnalysis  bool
@@ -150,6 +158,13 @@ type Model struct {
 }
 
 func New(document report.Document, analyzer Analyzer, options Options) (*Model, error) {
+	userPreferences, preferenceTrendWindow, err := loadUserPreferences(options.PreferencesPath)
+	if err != nil {
+		return nil, err
+	}
+	if options.TrendWindow <= 0 {
+		options.TrendWindow = preferenceTrendWindow
+	}
 	watcher, err := newSourceWatcher(
 		options.Workspace, options.Targets, options.IncludeTests, options.FollowSymlinks, options.Languages,
 	)
@@ -162,9 +177,6 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	for _, file := range document.Files {
 		rows[file.Path] = rowState{ranks: []rankPoint{{at: now, rank: file.Rank}}}
 	}
-	if options.TrendWindow <= 0 {
-		options.TrendWindow = 10 * time.Minute
-	}
 	findInput := textinput.New()
 	findInput.Prompt = "/ "
 	findInput.Placeholder = "find"
@@ -172,12 +184,18 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	model := &Model{
 		analyzer: analyzer, watcher: watcher, options: options, document: document,
 		repositoryIdentity: repositoryIdentity(options.Workspace),
-		baseDocument:       document, weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
+		baseDocument:       document,
+		weights:            preferenceWeights(userPreferences), weightEnabled: preferenceWeightEnabled(userPreferences),
+		weightStep: userPreferences.Scoring.WeightStep, maximumWeight: userPreferences.Scoring.MaximumWeight,
+		preferencesPath: options.PreferencesPath, preferences: userPreferences,
 		rows: rows, queued: map[string]bool{},
 		findInput: findInput,
-		sortKey:   "score", sortReverse: true,
-		theme:   style.ThemeDark,
-		visible: defaultColumnVisibility(),
+		sortKey:   userPreferences.Table.SortBy, sortReverse: userPreferences.Table.SortDescending,
+		theme: style.Theme(userPreferences.Appearance.Theme), visible: preferenceColumns(userPreferences),
+	}
+	ConfigureTheme(model.theme)
+	if controller, ok := analyzer.(typeScriptTypesController); ok {
+		controller.SetTypeScriptTypes(model.typeScriptTypesWanted())
 	}
 	model.rebuildWeightedDocument()
 	if len(document.Files) > 0 {

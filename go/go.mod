@@ -10,6 +10,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.10.1
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/muesli/termenv v0.16.0
+	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/sys v0.36.0
 )
 

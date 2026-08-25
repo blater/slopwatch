@@ -437,6 +437,7 @@ func handleColumnKey(model *Model, name string) (tea.Model, tea.Cmd) {
 			model.restoreSelection()
 		}
 		model.clampPathOffset()
+		model.persistUserPreferences()
 		if key == "typesafety" {
 			return model, model.syncTypeScriptTypes()
 		}
@@ -495,6 +496,7 @@ func activateHighlightedSort(model *Model, direction bool, changeDirection bool)
 	model.sortReverse = model.sortDirections[key]
 	model.refreshDisplayFiles()
 	model.restoreSelection()
+	model.persistUserPreferences()
 }
 
 func openSelectedFileInfo(model *Model) {

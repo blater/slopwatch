@@ -53,6 +53,11 @@ the first or last result, `v` to view the selected file, `f` or `/` to find,
 `h` for topic-based help, and `q` to quit. Choose Settings → Appearance to
 switch between the dark and light themes.
 
+Dashboard appearance, columns, sorting, scoring weights, and interaction
+defaults persist in a versioned, user-editable TOML file. See
+[Preferences](docs/preferences.md) for its location, complete schema, and
+command-line precedence rules.
+
 ![Slopmark follow-mode dashboard](docs/follow-mode.svg)
 
 Common commands:
