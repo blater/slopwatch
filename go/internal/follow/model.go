@@ -191,7 +191,7 @@ func (model *Model) StartInitialAnalysis() {
 	model.startupLogoExpired = false
 }
 
-func (model Model) Init() tea.Cmd {
+func initModel(model Model) tea.Cmd {
 	commands := []tea.Cmd{tickAnimation(model.analyzing)}
 	if model.initialAnalysis {
 		// Establish the mutation barrier before the verifier reads any live
@@ -280,7 +280,7 @@ func (model *Model) ensureVisible() {
 	model.offset = min(model.offset, maxOffset)
 }
 
-func (model Model) View() string {
+func view(model Model) string {
 	if model.width <= 0 || model.height <= 0 {
 		return ""
 	}
@@ -321,7 +321,7 @@ func (model Model) View() string {
 	return base
 }
 
-func (model Model) columnsView() string {
+func columnsView(model Model) string {
 	body := make([]string, 0, len(columnNames()))
 	for index, column := range columnNames() {
 		mark := " "
@@ -333,7 +333,7 @@ func (model Model) columnsView() string {
 	return style.Popup(style.Heading("Columns"), scrollModalLines(body, model.columnCursor, model.modalBodyHeight()), "", 38)
 }
 
-func (model Model) sortView() string {
+func sortView(model Model) string {
 	const sortOptionWidth = 52
 	body := make([]string, 0, len(sortFields()))
 	for index, item := range sortFields() {

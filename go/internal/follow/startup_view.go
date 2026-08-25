@@ -33,10 +33,10 @@ func fitStartupLogo(value string, width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (model Model) startupOverlay(base, logo string) string {
+func startupOverlay(model Model, base, logo string) string {
 	return model.overlay(base, fitStartupLogo(logo, model.width, model.height))
 }
 
-func (model Model) startupView(base string) string {
+func startupView(model Model, base string) string {
 	return model.startupOverlay(base, embeddedStartupLogo)
 }

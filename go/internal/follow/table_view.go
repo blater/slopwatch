@@ -20,68 +20,11 @@ func ConfigureTerminalColours() {
 	lipgloss.SetHasDarkBackground(true)
 }
 
-func (model Model) tableView() string {
-	lines := make([]string, 0, model.height)
-	right := model.options.Workspace
-	if model.repositoryIdentity != "" {
-		right = model.repositoryIdentity + "  " + right
-	}
-	status := ""
-	if !model.analyzing && model.status != "" {
-		status = model.status
-	}
-	freshness := model.freshnessStatus()
-	if !model.analyzing && freshness != "" {
-		if status != "" {
-			status += "  "
-		}
-		status += freshness
-	}
-	logo := lipgloss.NewStyle().Foreground(style.AccentPositive).Bold(true).Render("-=[slopwatch]=-")
-	left := logo
-	if model.analyzing {
-		status = model.scanningIndicator(freshness)
-	} else if status != "" {
-		status = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(status)
-	}
-	if status != "" {
-		left += "  " + status
-	}
-	usableWidth := max(0, model.width-1)
-	left = truncateANSI(left, usableWidth)
-	rightWidth := max(0, usableWidth-lipgloss.Width(left)-1)
-	if rightWidth > 0 {
-		right = truncateLeft(right, rightWidth)
-	} else {
-		right = ""
-	}
-	right = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(right)
-	gap := max(0, usableWidth-lipgloss.Width(left)-lipgloss.Width(right))
-	topText := left + strings.Repeat(" ", gap) + right
-	if model.width > 0 {
-		topText += " "
-	}
-	lines = append(lines, lipgloss.NewStyle().Background(style.SurfaceTop).Render(padANSI(topText, model.width)))
-	lines = append(lines, model.header())
-	files := model.displayFiles()
-	page := model.bodyHeight()
-	for row := 0; row < page; row++ {
-		index := model.offset + row
-		if index >= len(files) {
-			lines = append(lines, lipgloss.NewStyle().Background(style.SurfaceScreen).Render(strings.Repeat(" ", model.width)))
-			continue
-		}
-		lines = append(lines, model.renderRow(files[index], index == model.cursor))
-	}
-	if model.findOpen {
-		lines = append(lines, model.findFooter(model.width))
-	} else {
-		lines = append(lines, model.footer())
-	}
-	return strings.Join(lines, "\n")
+func tableView(model Model) string {
+	return renderTable(model)
 }
 
-func (model Model) freshnessStatus() string {
+func freshnessStatus(model Model) string {
 	if model.freshnessStatusReady {
 		return model.freshnessStatusText
 	}
@@ -147,7 +90,7 @@ func (model Model) selectedFile() (report.File, bool) {
 	return files[model.cursor], true
 }
 
-func (model Model) footer() string {
+func footer(model Model) string {
 	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
 	screenItems := [][2]string{{"o", "sort"}, {"r", "rescan"}, {"v", "view"}, {"i", "info"}}
 	generalItems := [][2]string{{"f", "find"}, {"n", "next"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
@@ -223,7 +166,7 @@ func headerShift(key string) int {
 	return 0
 }
 
-func (model Model) activeColumns() []column {
+func activeColumns(model Model) []column {
 	if model.options.Compact {
 		return nil
 	}
@@ -236,54 +179,89 @@ func (model Model) activeColumns() []column {
 	return result
 }
 
-func (model Model) header() string {
+func headerColumns(model Model) []column {
 	columns := []column{columnDefinitions[0]}
 	if !model.options.Compact {
 		columns = append(columns, model.activeColumns()...)
 	}
+	return columns
+}
+
+func headerCell(model Model, columns []column, index int) (string, string) {
+	column := columns[index]
+	title := column.title
+	separator := ""
+	if index > 0 {
+		separator = " "
+		if columns[index-1].key == "score" {
+			separator = "  "
+		}
+	}
+	if model.sortKey == column.key {
+		marked := model.sortIndicator() + title
+		// SHALLOW is intentionally wider than the old DEEP heading. Keep
+		// its sort marker attached to the heading; the column still reserves
+		// the old four-character data width.
+		if lipgloss.Width(marked) <= column.width || column.key == "deep" {
+			title = marked
+		} else if index > 0 {
+			separator = model.sortIndicator()
+		}
+	}
+	return title, separator
+}
+
+func placeHeaderColumn(heading string, nominalPosition int, column column, title, separator string) (string, int) {
+	nominalPosition += lipgloss.Width(separator)
+	target := nominalPosition + headerShift(column.key)
+	if target < lipgloss.Width(heading) {
+		target = lipgloss.Width(heading)
+	}
+	heading += strings.Repeat(" ", max(0, target-lipgloss.Width(heading))) + title
+	nominalPosition += column.width
+	return heading, nominalPosition
+}
+
+func buildHeader(model Model, columns []column) string {
 	heading := ""
 	nominalPosition := 0
 	for index, column := range columns {
-		title := column.title
-		separator := ""
-		if index > 0 {
-			separator = " "
-			if columns[index-1].key == "score" {
-				separator = "  "
-			}
-		}
-		if model.sortKey == column.key {
-			marked := model.sortIndicator() + title
-			// SHALLOW is intentionally wider than the old DEEP heading. Keep
-			// its sort marker attached to the heading; the column still reserves
-			// the old four-character data width.
-			if lipgloss.Width(marked) <= column.width || column.key == "deep" {
-				title = marked
-			} else if index > 0 {
-				separator = model.sortIndicator()
-			}
-		}
-		nominalPosition += lipgloss.Width(separator)
-		target := nominalPosition + headerShift(column.key)
-		if target < lipgloss.Width(heading) {
-			target = lipgloss.Width(heading)
-		}
-		heading += strings.Repeat(" ", max(0, target-lipgloss.Width(heading))) + title
-		nominalPosition += column.width
+		title, separator := headerCell(model, columns, index)
+		heading, nominalPosition = placeHeaderColumn(
+			heading,
+			nominalPosition,
+			column,
+			title,
+			separator,
+		)
 	}
+	return heading
+}
+
+func headerSortSuffix(model Model, heading string) string {
 	if model.sortKey == "filename" {
-		heading += " " + model.sortIndicator()
-	} else if !model.sortColumnVisible() {
-		heading += " " + model.sortIndicator() + model.sortTitle()
+		return heading + " " + model.sortIndicator()
 	}
-	fileCount := "FILES: " + formatIntegerWithCommas(len(model.document.Files))
+	if !model.sortColumnVisible() {
+		return heading + " " + model.sortIndicator() + model.sortTitle()
+	}
+	return heading
+}
+
+func fitHeader(model Model, heading, fileCount string) (string, string) {
 	usableWidth := max(0, model.width-1)
 	if lipgloss.Width(fileCount) > usableWidth {
-		heading = ""
-		fileCount = truncateLeft(fileCount, usableWidth)
-	} else {
-		heading = truncateANSI(heading, max(0, usableWidth-lipgloss.Width(fileCount)-1))
+		return "", truncateLeft(fileCount, usableWidth)
 	}
+	return truncateANSI(heading, max(0, usableWidth-lipgloss.Width(fileCount)-1)), fileCount
+}
+
+func header(model Model) string {
+	columns := headerColumns(model)
+	heading := headerSortSuffix(model, buildHeader(model, columns))
+	fileCount := "FILES: " + formatIntegerWithCommas(len(model.document.Files))
+	heading, fileCount = fitHeader(model, heading, fileCount)
+	usableWidth := max(0, model.width-1)
 	gap := max(0, usableWidth-lipgloss.Width(heading)-lipgloss.Width(fileCount))
 	heading += strings.Repeat(" ", gap) + fileCount
 	if model.width > 0 {
@@ -300,14 +278,14 @@ func formatIntegerWithCommas(value int) string {
 	return digits
 }
 
-func (model Model) sortColumnVisible() bool {
+func sortColumnVisible(model Model) bool {
 	if model.sortKey == "score" || model.sortKey == "filename" {
 		return true
 	}
 	return model.visible[model.sortKey]
 }
 
-func (model Model) sortTitle() string {
+func sortTitle(model Model) string {
 	for _, field := range sortFields() {
 		if field.key == model.sortKey {
 			return field.title
@@ -316,7 +294,7 @@ func (model Model) sortTitle() string {
 	return ""
 }
 
-func (model Model) sortIndicator() string {
+func sortIndicator(model Model) string {
 	if model.sortReverse {
 		return "▼"
 	}
@@ -331,7 +309,7 @@ func (model Model) overlayBelowTitle(base, modal string) string {
 	return model.overlayAt(base, modal, 1)
 }
 
-func (model Model) overlayAt(base, modal string, minimumTop int) string {
+func overlayAt(model Model, base, modal string, minimumTop int) string {
 	baseLines := strings.Split(base, "\n")
 	for len(baseLines) < model.height {
 		baseLines = append(baseLines, strings.Repeat(" ", model.width))

@@ -2,7 +2,7 @@ package follow
 
 import "github.com/blater/slopwatch/internal/style"
 
-func (model Model) helpView() string {
+func helpView(model Model) string {
 	width := max(1, min(100, model.width-8))
 	body := make([]string, 0, len(metricInformation))
 	for index, info := range metricInformation {

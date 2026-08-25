@@ -69,9 +69,29 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 		executable = defaultExecutable()
 	}
 	includeTests, _ := options["include_tests"].(bool)
-	payload, err := json.Marshal(factRequest{facts.SchemaVersion, workspace, paths, includeTests})
+	command, stderr, stdout, err := startFactCommand(executable, factRequest{
+		facts.SchemaVersion,
+		workspace,
+		paths,
+		includeTests,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("encode Rust fact request: %w", err)
+		return nil, err
+	}
+	response, decodeErr := decodeFactResponse(stdout)
+	if err := command.Wait(); err != nil {
+		return nil, fmt.Errorf("Rust fact adapter failed: %w: %s", err, stderr.String())
+	}
+	if decodeErr != nil {
+		return nil, fmt.Errorf("decode Rust facts: %w", decodeErr)
+	}
+	return validateFactResponse(response)
+}
+
+func startFactCommand(executable string, request factRequest) (*exec.Cmd, *bytes.Buffer, io.ReadCloser, error) {
+	payload, err := json.Marshal(request)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("encode Rust fact request: %w", err)
 	}
 	command := exec.Command(executable)
 	command.Stdin = bytes.NewReader(payload)
@@ -79,11 +99,15 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 	command.Stderr = &stderr
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("open Rust fact output: %w", err)
+		return nil, nil, nil, fmt.Errorf("open Rust fact output: %w", err)
 	}
 	if err := command.Start(); err != nil {
-		return nil, fmt.Errorf("Rust fact adapter failed: %w: %s", err, stderr.String())
+		return nil, nil, nil, fmt.Errorf("Rust fact adapter failed: %w: %s", err, stderr.String())
 	}
+	return command, &stderr, stdout, nil
+}
+
+func decodeFactResponse(stdout io.Reader) (factResponse, error) {
 	decoder := json.NewDecoder(stdout)
 	decoder.DisallowUnknownFields()
 	var response factResponse
@@ -103,12 +127,10 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 		// block while Wait waits for its stdout pipe to close.
 		_, _ = io.Copy(io.Discard, stdout)
 	}
-	if err := command.Wait(); err != nil {
-		return nil, fmt.Errorf("Rust fact adapter failed: %w: %s", err, stderr.String())
-	}
-	if decodeErr != nil {
-		return nil, fmt.Errorf("decode Rust facts: %w", decodeErr)
-	}
+	return response, decodeErr
+}
+
+func validateFactResponse(response factResponse) (*facts.Program, error) {
 	if response.SchemaVersion != facts.SchemaVersion {
 		return nil, fmt.Errorf("Rust fact schema %d is unsupported", response.SchemaVersion)
 	}

@@ -37,6 +37,14 @@ type Analyzer struct {
 	runUnits  analyzerUnitsRunner
 }
 
+type analysisEngine Analyzer
+
+func (analyzer *Analyzer) engine() *analysisEngine { return (*analysisEngine)(analyzer) }
+
+func (analyzer *Analyzer) discover(targets []string, includeTests, followSymlinks bool) (map[string][]string, error) {
+	return discover(analyzer.engine(), targets, includeTests, followSymlinks)
+}
+
 // SetTypeScriptTypes changes whether subsequent analyses build the optional
 // compiler-aware TypeScript graph. In-flight analyses retain their snapshot.
 func (analyzer *Analyzer) SetTypeScriptTypes(enabled bool) {
@@ -86,7 +94,7 @@ func activeCatalog(catalog catalogDocument, options Options) catalogDocument {
 	return active
 }
 
-func (analyzer *Analyzer) analyzeLanguage(parent context.Context, catalog catalogDocument, executable, language string, files []string, options Options) (scoreInputs, error) {
+func analyzeLanguage(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, executable, language string, files []string, options Options) (scoreInputs, error) {
 	components := []requestedComponent{}
 	for _, descriptor := range catalog.Components {
 		if descriptor.Defaults.Enabled && descriptor.supported(language) {
@@ -115,6 +123,10 @@ func (analyzer *Analyzer) analyzeLanguage(parent context.Context, catalog catalo
 }
 
 func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, languages []string) (report.Document, error) {
+	return analyze(analyzer.engine(), parent, targets, languages)
+}
+
+func analysisOptions(analyzer *analysisEngine, targets, languages []string) Options {
 	analyzer.optionsMu.RLock()
 	options := analyzer.options
 	analyzer.optionsMu.RUnlock()
@@ -124,7 +136,36 @@ func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, lang
 	if languages != nil {
 		options.Languages = languages
 	}
-	discovered, err := analyzer.discover(options.Targets, options.IncludeTests, options.FollowSymlinks)
+	return options
+}
+
+func persistentCacheEnabled(analyzer *analysisEngine, options Options) bool {
+	return options.ReadCache && !options.FollowSymlinks && cacheStore(analyzer) != nil
+}
+
+func analyzeFresh(
+	analyzer *analysisEngine,
+	parent context.Context,
+	catalog catalogDocument,
+	discovered map[string][]string,
+	selected []string,
+	options Options,
+) (report.Document, error) {
+	document, err := analyzeUncached(analyzer, parent, catalog, discovered, selected, options)
+	if err != nil {
+		return report.Document{}, err
+	}
+	if err := validateDocumentInventory(document, discovered, selected); err != nil {
+		return report.Document{}, err
+	}
+	document.Summary["discovered_source_count"] = len(discoveredPathSet(discovered, selected))
+	persistProjection(analyzer, document, options)
+	return document, nil
+}
+
+func analyze(analyzer *analysisEngine, parent context.Context, targets []string, languages []string) (report.Document, error) {
+	options := analysisOptions(analyzer, targets, languages)
+	discovered, err := discover(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks)
 	if err != nil {
 		return report.Document{}, err
 	}
@@ -137,22 +178,13 @@ func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, lang
 	// slopmark path must remain the ordinary fresh analyzer plus a cheap
 	// post-analysis projection write; only explicit reuse enters the package
 	// coordinator and pays for planning, hashing, and snapshot validation.
-	if options.ReadCache && !options.FollowSymlinks && analyzer.cacheStore() != nil {
-		document, handled, cacheErr := analyzer.analyzeWithPersistentCache(parent, catalog, discovered, selected, options)
+	if persistentCacheEnabled(analyzer, options) {
+		document, handled, cacheErr := analyzeWithPersistentCache(analyzer, parent, catalog, discovered, selected, options)
 		if handled {
 			return document, cacheErr
 		}
 	}
-	document, err := analyzer.analyzeUncached(parent, catalog, discovered, selected, options)
-	if err != nil {
-		return report.Document{}, err
-	}
-	if err := validateDocumentInventory(document, discovered, selected); err != nil {
-		return report.Document{}, err
-	}
-	document.Summary["discovered_source_count"] = len(discoveredPathSet(discovered, selected))
-	analyzer.persistProjection(document, options)
-	return document, nil
+	return analyzeFresh(analyzer, parent, catalog, discovered, selected, options)
 }
 
 func validateDocumentInventory(document report.Document, discovered map[string][]string, selected []string) error {
@@ -182,7 +214,7 @@ func validateDocumentInventory(document report.Document, discovered map[string][
 	return fmt.Errorf("analysis returned %d of %d discovered source files (%d missing)", len(actual), len(expected), missing)
 }
 
-func (analyzer *Analyzer) analyzeUncached(parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options) (report.Document, error) {
+func analyzeUncached(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options) (report.Document, error) {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	inputsByLanguage := make([]scoreInputs, len(selected))
@@ -198,7 +230,7 @@ func (analyzer *Analyzer) analyzeUncached(parent context.Context, catalog catalo
 			if language == "typescript" {
 				executable = filepath.Join(analyzer.root, "build", "typescript", "slopslap-typescript")
 			}
-			inputs, runErr := analyzer.analyzeLanguage(ctx, catalog, executable, language, discovered[language], options)
+			inputs, runErr := analyzeLanguage(analyzer, ctx, catalog, executable, language, discovered[language], options)
 			if runErr != nil {
 				errorOnce.Do(func() {
 					firstError = runErr
@@ -224,22 +256,17 @@ var ignored = map[string]bool{".git": true, ".gradle": true, ".idea": true, ".my
 var testDirs = map[string]bool{"__tests__": true, "integration-test": true, "integration-tests": true, "integrationtest": true, "integrationtests": true, "spec": true, "specs": true, "test": true, "test-fixtures": true, "testfixtures": true, "tests": true}
 var sourceLanguages = map[string]string{".go": "go", ".java": "java", ".rs": "rust", ".ts": "typescript", ".tsx": "typescript", ".mts": "typescript", ".cts": "typescript"}
 
-func (analyzer *Analyzer) addDiscoveredPath(grouped map[string]map[string]bool, path string, includeTests bool) error {
-	name := strings.ToLower(filepath.Base(path))
-	language := sourceLanguages[strings.ToLower(filepath.Ext(name))]
-	if language == "" || (!includeTests && language == "go" && strings.HasSuffix(name, "_test.go")) || (!includeTests && language == "typescript" && typescriptTest(name)) {
+func addDiscoveredPath(analyzer *analysisEngine, grouped map[string]map[string]bool, path string, includeTests bool) error {
+	language, include := discoveredLanguage(path, includeTests)
+	if !include {
 		return nil
 	}
 	relative, err := filepath.Rel(analyzer.workspace, path)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("target %q is outside the analysis root %q", path, analyzer.workspace)
 	}
-	parts := strings.Split(filepath.ToSlash(relative), "/")
-	for _, part := range parts[:max(0, len(parts)-1)] {
-		lower := strings.ToLower(part)
-		if ignored[lower] || (!includeTests && testDirs[lower]) {
-			return nil
-		}
+	if excludedDiscoveryDirectory(relative, includeTests) {
+		return nil
 	}
 	if grouped[language] == nil {
 		grouped[language] = map[string]bool{}
@@ -248,7 +275,33 @@ func (analyzer *Analyzer) addDiscoveredPath(grouped map[string]map[string]bool, 
 	return nil
 }
 
-func (analyzer *Analyzer) walkTarget(target string, grouped map[string]map[string]bool, includeTests, followSymlinks bool) error {
+func discoveredLanguage(path string, includeTests bool) (string, bool) {
+	name := strings.ToLower(filepath.Base(path))
+	language := sourceLanguages[strings.ToLower(filepath.Ext(name))]
+	if language == "" {
+		return "", false
+	}
+	if !includeTests && language == "go" && strings.HasSuffix(name, "_test.go") {
+		return "", false
+	}
+	if !includeTests && language == "typescript" && typescriptTest(name) {
+		return "", false
+	}
+	return language, true
+}
+
+func excludedDiscoveryDirectory(relative string, includeTests bool) bool {
+	parts := strings.Split(filepath.ToSlash(relative), "/")
+	for _, part := range parts[:max(0, len(parts)-1)] {
+		lower := strings.ToLower(part)
+		if ignored[lower] || (!includeTests && testDirs[lower]) {
+			return true
+		}
+	}
+	return false
+}
+
+func walkTarget(analyzer *analysisEngine, target string, grouped map[string]map[string]bool, includeTests, followSymlinks bool) error {
 	metadata, err := os.Lstat(target)
 	if err != nil {
 		return err
@@ -261,12 +314,12 @@ func (analyzer *Analyzer) walkTarget(target string, grouped map[string]map[strin
 		}
 	}
 	if !info.IsDir() {
-		return analyzer.addDiscoveredPath(grouped, target, includeTests)
+		return addDiscoveredPath(analyzer, grouped, target, includeTests)
 	}
-	return analyzer.walkDirectory(target, grouped, includeTests, followSymlinks, map[string]bool{})
+	return walkDirectory(analyzer, target, grouped, includeTests, followSymlinks, map[string]bool{})
 }
 
-func (analyzer *Analyzer) walkDirectory(directory string, grouped map[string]map[string]bool, includeTests, followSymlinks bool, visited map[string]bool) error {
+func walkDirectory(analyzer *analysisEngine, directory string, grouped map[string]map[string]bool, includeTests, followSymlinks bool, visited map[string]bool) error {
 	if followSymlinks {
 		resolved, err := filepath.EvalSymlinks(directory)
 		if err != nil {
@@ -298,19 +351,19 @@ func (analyzer *Analyzer) walkDirectory(directory string, grouped map[string]map
 			if ignored[strings.ToLower(entry.Name())] {
 				continue
 			}
-			if err := analyzer.walkDirectory(path, grouped, includeTests, followSymlinks, visited); err != nil {
+			if err := walkDirectory(analyzer, path, grouped, includeTests, followSymlinks, visited); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := analyzer.addDiscoveredPath(grouped, path, includeTests); err != nil {
+		if err := addDiscoveredPath(analyzer, grouped, path, includeTests); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (analyzer *Analyzer) discover(targets []string, includeTests, followSymlinks bool) (map[string][]string, error) {
+func discover(analyzer *analysisEngine, targets []string, includeTests, followSymlinks bool) (map[string][]string, error) {
 	if len(targets) == 0 {
 		targets = []string{"."}
 	}
@@ -320,7 +373,7 @@ func (analyzer *Analyzer) discover(targets []string, includeTests, followSymlink
 		if !filepath.IsAbs(absolute) {
 			absolute = filepath.Join(analyzer.workspace, target)
 		}
-		if err := analyzer.walkTarget(filepath.Clean(absolute), grouped, includeTests, followSymlinks); err != nil {
+		if err := walkTarget(analyzer, filepath.Clean(absolute), grouped, includeTests, followSymlinks); err != nil {
 			return nil, err
 		}
 	}

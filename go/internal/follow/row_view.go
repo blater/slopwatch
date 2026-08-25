@@ -10,7 +10,7 @@ import (
 	"github.com/blater/slopwatch/internal/style"
 )
 
-func (model Model) renderRow(file report.File, selected bool) string {
+func renderRow(model Model, file report.File, selected bool) string {
 	state := model.rows[file.Path]
 	background := rowBackground(state, selected, model.options.TrendWindow)
 	prefix := model.renderFixedColumns(file, state, background)
@@ -22,7 +22,7 @@ func (model Model) renderRow(file report.File, selected bool) string {
 	return line
 }
 
-func (model Model) renderFixedColumns(file report.File, state rowState, background lipgloss.Color) string {
+func renderFixedColumns(model Model, file report.File, state rowState, background lipgloss.Color) string {
 	separator := lipgloss.NewStyle().Background(background).Render(" ")
 	marker, markerColour := model.rowMarker(file, state, time.Now())
 	scoreWidth := max(1, 7-lipgloss.Width(marker))
@@ -49,7 +49,7 @@ func (model Model) pathViewportWidth() int {
 	return max(0, model.width-lipgloss.Width(prefix))
 }
 
-func (model Model) rowMarker(file report.File, state rowState, now time.Time) (string, lipgloss.Color) {
+func rowMarker(model Model, file report.File, state rowState, now time.Time) (string, lipgloss.Color) {
 	switch file.Freshness {
 	case report.FreshnessProvisional, report.FreshnessVerifying:
 		return "◌", style.AccentWarning

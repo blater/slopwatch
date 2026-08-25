@@ -19,40 +19,67 @@ type rustTarget struct {
 }
 
 func planRust(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
+	packages, fallback := discoverRustPackages(context)
+	assignRustTargets(context, packages)
+	mainIDs := rustMainIDs(packages)
+	localDependencies, narrow, diagnostics := cargoDependencyGraph(context, packages)
+	configInputs := rustConfigInputsByPackage(context, packages)
+	if len(fallback) > 0 {
+		narrow = false
+		diagnostics = append(diagnostics, rustFallbackDiagnostic(fallback[0]))
+	}
+	units := rustUnits(packages, localDependencies, narrow, configInputs, mainIDs)
+	if len(fallback) > 0 {
+		units = append(units, rustFallbackUnit(fallback, rustWorkspaceConfigs(context)))
+	}
+	return units, diagnostics
+}
+
+func discoverRustPackages(context plannerContext) (map[string]*rustPackage, []string) {
+	packages := rustManifestPackages(context)
+	manifestDirs := make(map[string]bool, len(packages))
+	for directory := range packages {
+		manifestDirs[directory] = true
+	}
+	var fallback []string
+	for _, file := range context.files {
+		if !isRustSource(file) || lastPart(file) == "build.rs" {
+			continue
+		}
+		directory, ok := nearestAncestor(pathDirectory(file), manifestDirs)
+		if ok {
+			packages[directory].sources = append(packages[directory].sources, file)
+		} else {
+			fallback = append(fallback, file)
+		}
+	}
+	return packages, fallback
+}
+
+func rustManifestPackages(context plannerContext) map[string]*rustPackage {
 	packages := map[string]*rustPackage{}
-	manifestDirs := map[string]bool{}
 	for _, file := range context.files {
 		if lastPart(file) != "Cargo.toml" {
 			continue
 		}
 		directory := pathDirectory(file)
 		data, _ := context.read(file)
-		name := cargoPackageName(string(data))
-		if name != "" {
+		if name := cargoPackageName(string(data)); name != "" {
 			packages[directory] = &rustPackage{directory: directory, manifest: file, name: name}
-			manifestDirs[directory] = true
 		}
 	}
+	return packages
+}
 
-	var fallback []string
-	for _, file := range context.files {
-		if !strings.HasSuffix(file, ".rs") {
-			continue
-		}
-		if lastPart(file) == "build.rs" {
-			continue
-		}
-		directory, ok := nearestAncestor(pathDirectory(file), manifestDirs)
-		if !ok {
-			fallback = append(fallback, file)
-			continue
-		}
-		packages[directory].sources = append(packages[directory].sources, file)
-	}
+func isRustSource(file string) bool { return strings.HasSuffix(file, ".rs") }
 
+func assignRustTargets(context plannerContext, packages map[string]*rustPackage) {
 	for _, pkg := range packages {
 		pkg.targets = rustTargets(context, pkg)
 	}
+}
+
+func rustMainIDs(packages map[string]*rustPackage) map[string]string {
 	mainIDs := map[string]string{}
 	for directory, pkg := range packages {
 		for _, target := range pkg.targets {
@@ -64,49 +91,63 @@ func planRust(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 			}
 		}
 	}
-	localDependencies, narrow, diagnostics := cargoDependencyGraph(context, packages)
-	configInputs := rustConfigInputsByPackage(context, packages)
-	if len(fallback) > 0 {
-		narrow = false
-		diagnostics = append(diagnostics, Diagnostic{Path: fallback[0], Message: "Rust source outside a Cargo package broadened the workspace dependency graph"})
-	}
+	return mainIDs
+}
 
+func rustUnits(packages map[string]*rustPackage, localDependencies map[string]cargoDependencies, narrow bool, configInputs map[string][]string, mainIDs map[string]string) []Unit {
 	var units []Unit
 	for _, pkg := range packages {
-		configs := configInputs[pkg.directory]
 		for _, target := range pkg.targets {
-			dependencies := []string{}
-			if ownMain := mainIDs[pkg.directory]; ownMain != "" && ownMain != rustUnitID(pkg, target) {
-				dependencies = append(dependencies, ownMain)
-			}
-			if narrow {
-				for _, directory := range localDependencies[pkg.directory].forTarget(target) {
-					if id := mainIDs[directory]; id != "" {
-						dependencies = append(dependencies, id)
-					}
-				}
-			}
-			capabilities := []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies}
-			if target.tests {
-				capabilities = append(capabilities, CapabilityTests)
-			}
-			units = append(units, Unit{
-				ID: rustUnitID(pkg, target), Language: LanguageRust, Mode: ModeProject,
-				Capabilities: capabilities, Sources: rustTargetSources(pkg, target),
-				ContextSources: pkg.sources,
-				ConfigInputs:   configs, DirectDependencies: dependencies,
-				Conservative: !narrow || len(pkg.targets) > 1,
-			})
+			units = append(units, rustUnit(pkg, target, localDependencies, narrow, configInputs[pkg.directory], mainIDs))
 		}
 	}
-	if len(fallback) > 0 {
-		units = append(units, Unit{
-			ID: "rust:workspace-fallback", Language: LanguageRust, Mode: ModeProject,
-			Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies},
-			Sources:      fallback, ConfigInputs: rustWorkspaceConfigs(context), Conservative: true,
-		})
+	return units
+}
+
+func rustUnit(pkg *rustPackage, target rustTarget, localDependencies map[string]cargoDependencies, narrow bool, configs []string, mainIDs map[string]string) Unit {
+	return Unit{
+		ID: rustUnitID(pkg, target), Language: LanguageRust, Mode: ModeProject,
+		Capabilities: rustCapabilities(target), Sources: rustTargetSources(pkg, target),
+		ContextSources: pkg.sources, ConfigInputs: configs,
+		DirectDependencies: rustDependencies(pkg, target, localDependencies, narrow, mainIDs),
+		Conservative:       !narrow || len(pkg.targets) > 1,
 	}
-	return units, diagnostics
+}
+
+func rustCapabilities(target rustTarget) []Capability {
+	capabilities := []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies}
+	if target.tests {
+		capabilities = append(capabilities, CapabilityTests)
+	}
+	return capabilities
+}
+
+func rustDependencies(pkg *rustPackage, target rustTarget, localDependencies map[string]cargoDependencies, narrow bool, mainIDs map[string]string) []string {
+	dependencies := []string{}
+	if ownMain := mainIDs[pkg.directory]; ownMain != "" && ownMain != rustUnitID(pkg, target) {
+		dependencies = append(dependencies, ownMain)
+	}
+	if !narrow {
+		return dependencies
+	}
+	for _, directory := range localDependencies[pkg.directory].forTarget(target) {
+		if id := mainIDs[directory]; id != "" {
+			dependencies = append(dependencies, id)
+		}
+	}
+	return dependencies
+}
+
+func rustFallbackDiagnostic(path string) Diagnostic {
+	return Diagnostic{Path: path, Message: "Rust source outside a Cargo package broadened the workspace dependency graph"}
+}
+
+func rustFallbackUnit(sources, configs []string) Unit {
+	return Unit{
+		ID: "rust:workspace-fallback", Language: LanguageRust, Mode: ModeProject,
+		Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies},
+		Sources:      sources, ConfigInputs: configs, Conservative: true,
+	}
 }
 
 type cargoDependencies struct {
@@ -123,6 +164,22 @@ func (dependencies cargoDependencies) forTarget(target rustTarget) []string {
 }
 
 func rustTargets(context plannerContext, pkg *rustPackage) []rustTarget {
+	targets := standardRustTargets(context, pkg)
+	for _, source := range pkg.sources {
+		if target, ok := rustSourceTarget(source, pkg.directory); ok {
+			targets = append(targets, target)
+		}
+	}
+	if data, err := context.read(pkg.manifest); err == nil {
+		targets = mergeExplicitTargets(targets, explicitCargoTargets(string(data), pkg), context.fileSet)
+	}
+	if len(targets) == 0 && len(pkg.sources) > 0 {
+		targets = append(targets, rustTarget{kind: "crate", name: pkg.name, root: pkg.sources[0], main: true})
+	}
+	return targets
+}
+
+func standardRustTargets(context plannerContext, pkg *rustPackage) []rustTarget {
 	var targets []rustTarget
 	lib := joinPath(pkg.directory, "src/lib.rs")
 	if context.fileSet[lib] {
@@ -132,44 +189,79 @@ func rustTargets(context plannerContext, pkg *rustPackage) []rustTarget {
 	if context.fileSet[main] {
 		targets = append(targets, rustTarget{kind: "bin", name: pkg.name, root: main, main: true})
 	}
-	for _, source := range pkg.sources {
-		relative := strings.TrimPrefix(strings.TrimPrefix(source, pkg.directory), "/")
-		switch {
-		case strings.HasPrefix(relative, "src/bin/") && strings.Count(relative, "/") == 2 && strings.HasSuffix(relative, ".rs"):
-			targets = append(targets, rustTarget{kind: "bin", name: strings.TrimSuffix(lastPart(source), ".rs"), root: source, main: true})
-		case strings.HasPrefix(relative, "src/bin/") && strings.Count(relative, "/") == 3 && lastPart(source) == "main.rs":
-			targets = append(targets, rustTarget{kind: "bin", name: lastPart(pathDirectory(source)), root: source, main: true})
-		case strings.HasPrefix(relative, "tests/") && strings.Count(relative, "/") == 1:
-			targets = append(targets, rustTarget{kind: "test", name: strings.TrimSuffix(lastPart(source), ".rs"), root: source, tests: true})
-		case strings.HasPrefix(relative, "examples/") && strings.Count(relative, "/") == 1:
-			targets = append(targets, rustTarget{kind: "example", name: strings.TrimSuffix(lastPart(source), ".rs"), root: source})
-		case strings.HasPrefix(relative, "examples/") && strings.Count(relative, "/") == 2 && lastPart(source) == "main.rs":
-			targets = append(targets, rustTarget{kind: "example", name: lastPart(pathDirectory(source)), root: source})
-		case strings.HasPrefix(relative, "benches/") && strings.Count(relative, "/") == 1:
-			targets = append(targets, rustTarget{kind: "bench", name: strings.TrimSuffix(lastPart(source), ".rs"), root: source, tests: true})
-		case strings.HasPrefix(relative, "benches/") && strings.Count(relative, "/") == 2 && lastPart(source) == "main.rs":
-			targets = append(targets, rustTarget{kind: "bench", name: lastPart(pathDirectory(source)), root: source, tests: true})
-		}
+	return targets
+}
+
+func rustSourceTarget(source, directory string) (rustTarget, bool) {
+	relative := strings.TrimPrefix(strings.TrimPrefix(source, directory), "/")
+	switch {
+	case strings.HasPrefix(relative, "src/bin/"):
+		return rustBinaryTarget(source, relative)
+	case strings.HasPrefix(relative, "tests/"):
+		return rustNamedTarget(source, relative, "test", true)
+	case strings.HasPrefix(relative, "examples/"):
+		return rustExampleTarget(source, relative)
+	case strings.HasPrefix(relative, "benches/"):
+		return rustBenchTarget(source, relative)
 	}
-	if data, err := context.read(pkg.manifest); err == nil {
-		for _, explicit := range explicitCargoTargets(string(data), pkg) {
-			replaced := false
-			for index := range targets {
-				if targets[index].kind == explicit.kind && targets[index].root == explicit.root {
-					targets[index] = explicit
-					replaced = true
-					break
-				}
-			}
-			if !replaced && context.fileSet[explicit.root] {
-				targets = append(targets, explicit)
-			}
-		}
+	return rustTarget{}, false
+}
+
+func rustBinaryTarget(source, relative string) (rustTarget, bool) {
+	if strings.Count(relative, "/") == 2 && strings.HasSuffix(relative, ".rs") {
+		return rustTarget{kind: "bin", name: strings.TrimSuffix(lastPart(source), ".rs"), root: source, main: true}, true
 	}
-	if len(targets) == 0 && len(pkg.sources) > 0 {
-		targets = append(targets, rustTarget{kind: "crate", name: pkg.name, root: pkg.sources[0], main: true})
+	if strings.Count(relative, "/") == 3 && lastPart(source) == "main.rs" {
+		return rustTarget{kind: "bin", name: lastPart(pathDirectory(source)), root: source, main: true}, true
+	}
+	return rustTarget{}, false
+}
+
+func rustNamedTarget(source, relative, kind string, tests bool) (rustTarget, bool) {
+	if strings.Count(relative, "/") != 1 {
+		return rustTarget{}, false
+	}
+	return rustTarget{kind: kind, name: strings.TrimSuffix(lastPart(source), ".rs"), root: source, tests: tests}, true
+}
+
+func rustExampleTarget(source, relative string) (rustTarget, bool) {
+	if strings.Count(relative, "/") == 1 {
+		return rustNamedTarget(source, relative, "example", false)
+	}
+	if strings.Count(relative, "/") == 2 && lastPart(source) == "main.rs" {
+		return rustTarget{kind: "example", name: lastPart(pathDirectory(source)), root: source}, true
+	}
+	return rustTarget{}, false
+}
+
+func rustBenchTarget(source, relative string) (rustTarget, bool) {
+	if strings.Count(relative, "/") == 1 {
+		return rustNamedTarget(source, relative, "bench", true)
+	}
+	if strings.Count(relative, "/") == 2 && lastPart(source) == "main.rs" {
+		return rustTarget{kind: "bench", name: lastPart(pathDirectory(source)), root: source, tests: true}, true
+	}
+	return rustTarget{}, false
+}
+
+func mergeExplicitTargets(targets, explicit []rustTarget, files map[string]bool) []rustTarget {
+	for _, candidate := range explicit {
+		if index := targetIndex(targets, candidate); index >= 0 {
+			targets[index] = candidate
+		} else if files[candidate.root] {
+			targets = append(targets, candidate)
+		}
 	}
 	return targets
+}
+
+func targetIndex(targets []rustTarget, candidate rustTarget) int {
+	for index, target := range targets {
+		if target.kind == candidate.kind && target.root == candidate.root {
+			return index
+		}
+	}
+	return -1
 }
 
 func rustTargetSources(pkg *rustPackage, target rustTarget) []string {
@@ -183,128 +275,6 @@ func rustTargetSources(pkg *rustPackage, target rustTarget) []string {
 	return result
 }
 
-func explicitCargoTargets(contents string, pkg *rustPackage) []rustTarget {
-	type targetFields struct {
-		kind string
-		name string
-		path string
-	}
-	var result []rustTarget
-	current := targetFields{}
-	flush := func() {
-		if current.kind == "" {
-			return
-		}
-		name := current.name
-		if name == "" {
-			name = pkg.name
-		}
-		root := current.path
-		if root == "" {
-			if current.kind == "lib" {
-				root = "src/lib.rs"
-			} else if current.kind == "bin" && name == pkg.name {
-				root = "src/main.rs"
-			}
-		}
-		if root != "" {
-			result = append(result, rustTarget{
-				kind: current.kind, name: name, root: joinPath(pkg.directory, root),
-				main:  current.kind == "lib" || current.kind == "bin",
-				tests: current.kind == "test" || current.kind == "bench",
-			})
-		}
-		current = targetFields{}
-	}
-	for _, line := range strings.Split(contents, "\n") {
-		line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			flush()
-			section := strings.Trim(strings.TrimSpace(line), "[]")
-			switch section {
-			case "lib", "bin", "example", "test", "bench":
-				current.kind = section
-			}
-			continue
-		}
-		if current.kind == "" {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		value := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
-		switch strings.TrimSpace(parts[0]) {
-		case "name":
-			current.name = value
-		case "path":
-			current.path = value
-		}
-	}
-	flush()
-	return result
-}
-
 func rustUnitID(pkg *rustPackage, target rustTarget) string {
 	return "rust:cargo:" + relativeIDPath(pkg.directory) + ":" + target.kind + ":" + target.name
-}
-
-func rustConfigInputsByPackage(context plannerContext, packages map[string]*rustPackage) map[string][]string {
-	byOwner := map[string][]string{}
-	buildScripts := map[string]string{}
-	for _, file := range context.files {
-		base := lastPart(file)
-		switch base {
-		case "Cargo.toml", "Cargo.lock":
-			byOwner[pathDirectory(file)] = append(byOwner[pathDirectory(file)], file)
-		case "build.rs":
-			buildScripts[pathDirectory(file)] = file
-		}
-		if file == ".cargo/config" || file == ".cargo/config.toml" || strings.HasSuffix(file, "/.cargo/config") || strings.HasSuffix(file, "/.cargo/config.toml") {
-			byOwner[pathDirectory(pathDirectory(file))] = append(byOwner[pathDirectory(pathDirectory(file))], file)
-		}
-	}
-	result := make(map[string][]string, len(packages))
-	for directory, pkg := range packages {
-		for current := directory; ; current = pathDirectory(current) {
-			result[directory] = append(result[directory], byOwner[current]...)
-			if current == "." {
-				break
-			}
-		}
-		result[directory] = append(result[directory], pkg.manifest)
-		if buildScript := buildScripts[directory]; buildScript != "" {
-			result[directory] = append(result[directory], buildScript)
-		}
-	}
-	return result
-}
-
-func rustWorkspaceConfigs(context plannerContext) []string {
-	var result []string
-	for _, file := range context.files {
-		if lastPart(file) == "Cargo.toml" || lastPart(file) == "Cargo.lock" || lastPart(file) == "build.rs" || strings.Contains(file, "/.cargo/config") {
-			result = append(result, file)
-		}
-	}
-	return result
-}
-
-func cargoPackageName(contents string) string {
-	section := ""
-	for _, line := range strings.Split(contents, "\n") {
-		line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			section = strings.TrimSpace(strings.Trim(line, "[]"))
-			continue
-		}
-		if section == "package" && strings.HasPrefix(line, "name") {
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) == 2 {
-				return strings.Trim(strings.TrimSpace(parts[1]), `"'`)
-			}
-		}
-	}
-	return ""
 }

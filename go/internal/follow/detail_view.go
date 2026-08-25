@@ -13,7 +13,7 @@ import (
 	"github.com/blater/slopwatch/internal/style"
 )
 
-func (model Model) detailView() string {
+func detailView(model Model) string {
 	file, ok := model.selectedFile()
 	if !ok {
 		return ""
@@ -70,7 +70,14 @@ type detailLine struct {
 	bold   bool
 }
 
-func (model Model) detailContent(file report.File, width int) []string {
+func detailContent(model Model, file report.File, width int) []string {
+	logical := detailHeaderLines(file)
+	logical = append(logical, detailMetricLines(file)...)
+	logical = append(logical, detailComponentLines(file)...)
+	return renderDetailLines(logical, width)
+}
+
+func detailHeaderLines(file report.File) []detailLine {
 	logical := []detailLine{
 		{file.Path, style.TextPrimary, true},
 		{fmt.Sprintf("%s  ·  rank %d  ·  score %.1f", file.Language, file.Rank, file.Score), style.TextMuted, false},
@@ -90,6 +97,11 @@ func (model Model) detailContent(file report.File, width int) []string {
 		detailLine{"", style.TextPrimary, false},
 		detailLine{"METRIC SUMMARY", style.AccentPositive, true},
 	)
+	return logical
+}
+
+func detailMetricLines(file report.File) []detailLine {
+	logical := []detailLine{}
 	labels := []struct{ id, label string }{
 		{"cognitive_complexity", "Cognitive complexity"},
 		{"npath_complexity", "NPath complexity"},
@@ -104,15 +116,7 @@ func (model Model) detailContent(file report.File, width int) []string {
 			logical = append(logical, detailLine{fmt.Sprintf("%-24s unavailable", item.label), style.TextMuted, false})
 			continue
 		}
-		values := make([]float64, 0, len(component.Subjects))
-		for _, subject := range component.Subjects {
-			values = append(values, subject.Value)
-		}
-		maximum, total := 0.0, 0.0
-		for _, value := range values {
-			maximum = math.Max(maximum, value)
-			total += value
-		}
+		maximum := maxSubjectValue(component)
 		if item.id == "god_class" {
 			logical = append(logical, detailLine{fmt.Sprintf("%-24s %.1f across %d types", item.label, component.Contribution, component.Observations), style.TextMuted, false})
 		} else if item.id == "module_shallowness" {
@@ -126,6 +130,19 @@ func (model Model) detailContent(file report.File, width int) []string {
 		}
 	}
 	logical = append(logical, detailLine{"", style.TextPrimary, false}, detailLine{"COMPONENTS", style.AccentPositive, true})
+	return logical
+}
+
+func maxSubjectValue(component report.Component) float64 {
+	maximum := 0.0
+	for _, subject := range component.Subjects {
+		maximum = math.Max(maximum, subject.Value)
+	}
+	return maximum
+}
+
+func detailComponentLines(file report.File) []detailLine {
+	logical := []detailLine{}
 	componentIDs := make([]string, 0, len(file.Components))
 	for id := range file.Components {
 		componentIDs = append(componentIDs, id)
@@ -138,6 +155,10 @@ func (model Model) detailContent(file report.File, width int) []string {
 			logical = append(logical, detailLine{fmt.Sprintf("  • %s = %s  (+%s)", subject.Subject, report.DisplayNumber(subject.Value), report.DisplayNumber(subject.Contribution)), style.TextMuted, false})
 		}
 	}
+	return logical
+}
+
+func renderDetailLines(logical []detailLine, width int) []string {
 	result := []string{}
 	for _, line := range logical {
 		wrapped := []string{""}
@@ -152,7 +173,7 @@ func (model Model) detailContent(file report.File, width int) []string {
 	return result
 }
 
-func (model Model) detailDimensions() (outerWidth, outerHeight, titleHeight, bodyHeight, contentWidth int) {
+func detailDimensions(model Model) (outerWidth, outerHeight, titleHeight, bodyHeight, contentWidth int) {
 	outerWidth = min(model.width, max(4, int(math.Round(float64(model.width)*0.92))))
 	outerHeight = min(model.height, max(4, int(math.Round(float64(model.height)*0.88))))
 	innerWidth := max(1, outerWidth-2)
@@ -163,12 +184,12 @@ func (model Model) detailDimensions() (outerWidth, outerHeight, titleHeight, bod
 	return
 }
 
-func (model Model) detailBodyHeight() int {
+func detailBodyHeight(model Model) int {
 	_, _, _, bodyHeight, _ := model.detailDimensions()
 	return bodyHeight
 }
 
-func (model Model) detailMaxOffset() int {
+func detailMaxOffset(model Model) int {
 	file, ok := model.selectedFile()
 	if !ok {
 		return 0

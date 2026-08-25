@@ -6,7 +6,7 @@ import (
 	"github.com/blater/slopwatch/internal/report"
 )
 
-func (model *Model) mergeRowState(file report.File, state rowState, result analysisResult, oldScores map[string]float64, oldRanks map[string]int, now time.Time, baseline bool) rowState {
+func mergeRowState(model *Model, file report.File, state rowState, result analysisResult, oldScores map[string]float64, oldRanks map[string]int, now time.Time, baseline bool) rowState {
 	previousScore, existed := oldScores[file.Path]
 	analyzed := result.full || contains(result.replace, file.Path)
 	scoreChanged := existed && analyzed && file.Score != previousScore

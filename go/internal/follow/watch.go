@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 
@@ -78,7 +77,7 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 		})
 	}
 	monitor, err := workspacefs.New(workspacefs.Config{
-		Root: root, Scopes: monitorScopes, Inputs: result.configurationInputs(),
+		Root: root, Scopes: monitorScopes, Inputs: configurationInputs(result),
 		FollowSymlinks: followSymlinks,
 		Classifier: workspacefs.ClassifierFunc(func(relative string, directory bool) (workspacefs.Classification, bool) {
 			if directory {
@@ -89,10 +88,10 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 					return workspacefs.Classification{Kind: workspacefs.KindConfiguration, Language: language}, true
 				}
 			}
-			if result.excluded(relative) {
+			if excluded(result, relative) {
 				return workspacefs.Classification{}, false
 			}
-			language, ok := result.languageFor(relative)
+			language, ok := languageFor(result, relative)
 			if !ok || len(result.languages) > 0 && !result.languages[language] {
 				return workspacefs.Classification{}, false
 			}
@@ -107,65 +106,6 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 	}
 	result.monitor = monitor
 	return result, nil
-}
-
-func (watcher *sourceWatcher) configurationInputs() []workspacefs.Input {
-	seen := map[string]bool{}
-	var inputs []workspacefs.Input
-	add := func(path string) {
-		path = filepath.Clean(path)
-		if seen[path] || watcher.inScope(path) {
-			return
-		}
-		seen[path] = true
-		inputs = append(inputs, workspacefs.Input{Path: path, Kind: workspacefs.KindConfiguration})
-	}
-	for _, scope := range watcher.scopes {
-		directory := scope.path
-		if !scope.directory {
-			directory = filepath.Dir(directory)
-		}
-		for {
-			// Include known names even when absent so creation is observed.
-			for _, relative := range []string{
-				"go.mod", "go.sum", "go.work", "go.work.sum", "Cargo.toml", "Cargo.lock", "build.rs",
-				"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
-				"gradle.properties", "gradle.lockfile", "package.json", "package-lock.json",
-				"pnpm-lock.yaml", "yarn.lock", "tsconfig.json", ".cargo/config", ".cargo/config.toml",
-				".mvn/maven.config", ".mvn/jvm.config", "gradle/wrapper/gradle-wrapper.properties",
-			} {
-				add(filepath.Join(directory, filepath.FromSlash(relative)))
-			}
-			// Existing named tsconfig/build inputs can have project-specific names.
-			if entries, err := os.ReadDir(directory); err == nil {
-				for _, entry := range entries {
-					if entry.IsDir() {
-						continue
-					}
-					relative, err := filepath.Rel(watcher.root, filepath.Join(directory, entry.Name()))
-					if err == nil {
-						if _, ok := configurationLanguage(relative); ok {
-							add(filepath.Join(directory, entry.Name()))
-						}
-					}
-				}
-			}
-			if directory == watcher.root {
-				break
-			}
-			parent := filepath.Dir(directory)
-			if parent == directory {
-				break
-			}
-			relative, err := filepath.Rel(watcher.root, parent)
-			if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-				break
-			}
-			directory = parent
-		}
-	}
-	sort.Slice(inputs, func(i, j int) bool { return inputs[i].Path < inputs[j].Path })
-	return inputs
 }
 
 func (watcher *sourceWatcher) close() {
@@ -205,143 +145,4 @@ func (watcher *sourceWatcher) wait() sourceChange {
 		}
 	}
 	return sourceChange{Paths: paths, Full: full}
-}
-
-func (watcher *sourceWatcher) inScope(absolute string) bool {
-	for _, scope := range watcher.scopes {
-		if !scope.directory && filepath.Clean(absolute) == scope.path {
-			return true
-		}
-		if scope.directory {
-			relative, err := filepath.Rel(scope.path, absolute)
-			if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (watcher *sourceWatcher) excluded(relative string) bool {
-	parts := strings.Split(filepath.ToSlash(relative), "/")
-	for _, part := range parts[:max(0, len(parts)-1)] {
-		lower := strings.ToLower(part)
-		if ignoredDirectories[lower] || !watcher.includeTests && testDirectories[lower] {
-			return true
-		}
-	}
-	return false
-}
-
-func (watcher *sourceWatcher) languageFor(relative string) (string, bool) {
-	name := strings.ToLower(filepath.Base(relative))
-	switch ext := strings.ToLower(filepath.Ext(name)); ext {
-	case ".go":
-		if !watcher.includeTests && strings.HasSuffix(name, "_test.go") {
-			return "", false
-		}
-		return "go", true
-	case ".java":
-		return "java", true
-	case ".rs":
-		return "rust", true
-	case ".ts", ".tsx", ".mts", ".cts":
-		if !watcher.includeTests && isTypeScriptTest(name) {
-			return "", false
-		}
-		return "typescript", true
-	default:
-		return "", false
-	}
-}
-
-// configurationLanguage recognizes the analysis-affecting inputs owned by
-// the language planners. An empty language means the input can affect more
-// than one selected language.
-func configurationLanguage(relative string) (string, bool) {
-	name := strings.ToLower(filepath.Base(relative))
-	switch name {
-	case "go.mod", "go.sum", "go.work", "go.work.sum":
-		return "go", true
-	case "cargo.toml", "cargo.lock", "build.rs":
-		return "rust", true
-	case "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
-		"gradle.properties", "gradle.lockfile", "maven.config", "jvm.config":
-		return "java", true
-	case "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock":
-		return "typescript", true
-	}
-	if strings.HasPrefix(name, "tsconfig") && strings.HasSuffix(name, ".json") {
-		return "typescript", true
-	}
-	path := strings.ToLower(filepath.ToSlash(relative))
-	if strings.HasSuffix(path, "/.cargo/config") || strings.HasSuffix(path, "/.cargo/config.toml") ||
-		strings.HasSuffix(path, "/.mvn/maven.config") || strings.HasSuffix(path, "/.mvn/jvm.config") ||
-		strings.Contains("/"+path, "/gradle/wrapper/") {
-		return "", true
-	}
-	return "", false
-}
-
-func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return "", "", false
-	}
-	relative, err := filepath.Rel(watcher.root, absolute)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", "", false
-	}
-	if !watcher.inScope(absolute) || watcher.excluded(relative) {
-		return "", "", false
-	}
-	if !watcher.followSymlinks && watcher.isNestedSymlink(absolute) {
-		return "", "", false
-	}
-	language, ok := watcher.languageFor(relative)
-	if !ok || len(watcher.languages) > 0 && !watcher.languages[language] {
-		return "", "", false
-	}
-	return filepath.ToSlash(relative), language, true
-}
-
-func (watcher *sourceWatcher) isNestedSymlink(path string) bool {
-	for _, scope := range watcher.scopes {
-		if !scope.directory {
-			// An explicitly selected symlinked file is a target, not a nested
-			// link discovered while traversing a directory.
-			if filepath.Clean(path) == scope.path {
-				return false
-			}
-			continue
-		}
-		relative, err := filepath.Rel(scope.path, path)
-		if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			continue
-		}
-		current := scope.path
-		for _, part := range strings.Split(relative, string(filepath.Separator)) {
-			current = filepath.Join(current, part)
-			metadata, statErr := os.Lstat(current)
-			if statErr != nil {
-				break
-			}
-			if metadata.Mode()&os.ModeSymlink != 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func isTypeScriptTest(name string) bool {
-	for _, suffix := range []string{
-		".spec.cts", ".spec.mts", ".spec.ts", ".spec.tsx",
-		".test.cts", ".test.mts", ".test.ts", ".test.tsx",
-	} {
-		if strings.HasSuffix(name, suffix) {
-			return true
-		}
-	}
-	return false
 }

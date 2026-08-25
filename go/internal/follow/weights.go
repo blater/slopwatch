@@ -55,7 +55,7 @@ func defaultWeightEnabled() map[string]bool {
 	return enabled
 }
 
-func (model Model) isWeightEnabled(id string) bool {
+func isWeightEnabled(model Model, id string) bool {
 	if model.weightEnabled == nil {
 		return defaultWeightEnabled()[id]
 	}
@@ -66,60 +66,72 @@ func (model Model) isWeightEnabled(id string) bool {
 	return enabled
 }
 
-func (model *Model) rebuildWeightedDocument() {
+func rebuildWeightedDocument(model *Model) {
 	if len(model.baseDocument.Files) == 0 && len(model.document.Files) > 0 {
 		model.baseDocument = model.document
 	}
 	document := model.baseDocument
-	document.Files = make([]report.File, 0, len(model.baseDocument.Files))
-	for _, original := range model.baseDocument.Files {
-		if len(original.Components) == 0 {
-			document.Files = append(document.Files, original)
-			continue
-		}
-		file := original
-		file.Components = make(map[string]report.Component, len(original.Components))
-		file.Axes = map[string]float64{}
-		file.Score = 0
-		for id, originalComponent := range original.Components {
-			component := originalComponent
-			component.Subjects = append([]report.SubjectContribution(nil), originalComponent.Subjects...)
-			defaultWeight := defaultWeight(id)
-			weight := model.weights[id]
-			if weight == 0 && defaultWeight > 0 {
-				// Zero is a valid setting. Only an unknown component falls back.
-				if _, known := model.weights[id]; !known {
-					weight = defaultWeight
-				}
-			}
-			factor := 1.0
-			if defaultWeight > 0 {
-				factor = weight / defaultWeight
-			}
-			if !model.isWeightEnabled(id) {
-				factor = 0
-			}
-			component.Contribution = roundWeight(component.Contribution * factor)
-			component.ObservedContribution = originalComponent.ObservedContribution
-			for index := range component.Subjects {
-				component.Subjects[index].Contribution = roundWeight(component.Subjects[index].Contribution * factor)
-			}
-			file.Components[id] = component
-			axis := componentAxis(id)
-			file.Axes[axis] += component.Contribution
-		}
-		for axis, value := range file.Axes {
-			file.Axes[axis] = roundWeight(value)
-			file.Score += file.Axes[axis]
-		}
-		file.Score = roundWeight(file.Score)
-		file.ValidZero = file.Complete && file.Score == 0
-		document.Files = append(document.Files, file)
-	}
+	document.Files = weightedFiles(model, model.baseDocument.Files)
 	document.SortAndRank()
 	model.document = document
 	model.refreshFreshnessStatus()
 	model.refreshDisplayFiles()
+}
+
+func weightedFiles(model *Model, originals []report.File) []report.File {
+	files := make([]report.File, 0, len(originals))
+	for _, original := range originals {
+		files = append(files, weightedFile(model, original))
+	}
+	return files
+}
+
+func weightedFile(model *Model, original report.File) report.File {
+	if len(original.Components) == 0 {
+		return original
+	}
+	file := original
+	file.Components = make(map[string]report.Component, len(original.Components))
+	file.Axes = map[string]float64{}
+	file.Score = 0
+	for id, originalComponent := range original.Components {
+		component, axis := weightedComponent(model, id, originalComponent)
+		file.Components[id] = component
+		file.Axes[axis] += component.Contribution
+	}
+	for axis, value := range file.Axes {
+		file.Axes[axis] = roundWeight(value)
+		file.Score += file.Axes[axis]
+	}
+	file.Score = roundWeight(file.Score)
+	file.ValidZero = file.Complete && file.Score == 0
+	return file
+}
+
+func weightedComponent(model *Model, id string, original report.Component) (report.Component, string) {
+	component := original
+	component.Subjects = append([]report.SubjectContribution(nil), original.Subjects...)
+	factor := componentWeightFactor(model, id)
+	component.Contribution = roundWeight(component.Contribution * factor)
+	component.ObservedContribution = original.ObservedContribution
+	for index := range component.Subjects {
+		component.Subjects[index].Contribution = roundWeight(component.Subjects[index].Contribution * factor)
+	}
+	return component, componentAxis(id)
+}
+
+func componentWeightFactor(model *Model, id string) float64 {
+	base := defaultWeight(id)
+	weight := model.weights[id]
+	if weight == 0 && base > 0 {
+		if _, known := model.weights[id]; !known {
+			weight = base
+		}
+	}
+	if base <= 0 || !model.isWeightEnabled(id) {
+		return 0
+	}
+	return weight / base
 }
 
 func defaultWeight(id string) float64 {
@@ -140,7 +152,7 @@ func componentAxis(id string) string {
 	return "unknown"
 }
 
-func (model *Model) setColumnWeightEnabled(columnKey string, enabled bool) {
+func setColumnWeightEnabled(model *Model, columnKey string, enabled bool) {
 	if model.weightEnabled == nil {
 		model.weightEnabled = defaultWeightEnabled()
 	}
@@ -154,7 +166,7 @@ func (model *Model) setColumnWeightEnabled(columnKey string, enabled bool) {
 	}
 }
 
-func (model Model) typeScriptTypesWanted() bool {
+func typeScriptTypesWanted(model Model) bool {
 	if model.visible["typesafety"] {
 		return true
 	}
@@ -166,7 +178,7 @@ func (model Model) typeScriptTypesWanted() bool {
 	return false
 }
 
-func (model Model) hasTypeScriptTypeData() bool {
+func hasTypeScriptTypeData(model Model) bool {
 	found := false
 	for _, file := range model.baseDocument.Files {
 		if file.Language != "typescript" {
@@ -202,7 +214,7 @@ func roundWeight(value float64) float64 {
 	return math.Round(value*1e12) / 1e12
 }
 
-func (model *Model) handleSettingsKey(name string) (tea.Model, tea.Cmd) {
+func handleSettingsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	items := []string{"weights", "columns"}
 	switch name {
 	case "esc", "escape", "q", "s":
@@ -225,7 +237,7 @@ func (model *Model) handleSettingsKey(name string) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
-func (model *Model) handleWeightsKey(name string) (tea.Model, tea.Cmd) {
+func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	if model.weightsResetConfirm {
 		switch name {
 		case "y", "Y":
@@ -264,7 +276,7 @@ func (model *Model) handleWeightsKey(name string) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
-func (model *Model) resetWeight() {
+func resetWeight(model *Model) {
 	item := componentWeights[model.weightCursor]
 	model.weights[item.id] = defaultWeight(item.id)
 	if model.weightEnabled == nil {
@@ -275,7 +287,7 @@ func (model *Model) resetWeight() {
 	model.restoreSelection()
 }
 
-func (model *Model) resetAllWeights() {
+func resetAllWeights(model *Model) {
 	for _, item := range componentWeights {
 		model.weights[item.id] = item.value
 		if model.weightEnabled == nil {
@@ -287,7 +299,7 @@ func (model *Model) resetAllWeights() {
 	model.restoreSelection()
 }
 
-func (model *Model) toggleWeight() {
+func toggleWeight(model *Model) {
 	item := componentWeights[model.weightCursor]
 	if model.weightEnabled == nil {
 		model.weightEnabled = defaultWeightEnabled()
@@ -305,7 +317,7 @@ func (model *Model) adjustWeight(delta float64) {
 	model.restoreSelection()
 }
 
-func (model Model) settingsView() string {
+func settingsView(model Model) string {
 	content := make([]string, 0, 2)
 	for index, item := range []string{"Weights", "Columns"} {
 		content = append(content, style.ModalOption(item, index == model.settingsCursor, 34))
@@ -313,7 +325,7 @@ func (model Model) settingsView() string {
 	return style.Popup(style.Heading("SETTINGS"), content, "", 38)
 }
 
-func (model Model) weightsView() string {
+func weightsView(model Model) string {
 	body := []string{lipgloss.NewStyle().Bold(true).Foreground(style.TextPrimary).Render("  ENABLED     WEIGHT")}
 	selectedLine := 0
 	category := ""

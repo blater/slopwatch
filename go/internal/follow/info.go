@@ -19,7 +19,7 @@ type dialogPolicy struct {
 	hasInteractiveOptions bool
 }
 
-func (model Model) activeDialogPolicy() dialogPolicy {
+func activeDialogPolicy(model Model) dialogPolicy {
 	if model.infoOpen {
 		return dialogPolicy{}
 	}
@@ -29,7 +29,7 @@ func (model Model) activeDialogPolicy() dialogPolicy {
 	return dialogPolicy{}
 }
 
-func (model *Model) handleDialogKey(name string) bool {
+func handleDialogKey(model *Model, name string) bool {
 	policy := model.activeDialogPolicy()
 	if name == "enter" && !policy.hasInteractiveOptions && model.infoOpen {
 		model.infoOpen = false
@@ -83,14 +83,14 @@ func weightInfoKey(id string) string {
 	}
 }
 
-func (model *Model) openInfo(key string) {
+func openInfo(model *Model, key string) {
 	if _, ok := metricInfoFor(key); ok {
 		model.infoKey = key
 		model.infoOpen = true
 	}
 }
 
-func (model *Model) handleInfoKey(name string) (tea.Model, tea.Cmd) {
+func handleInfoKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	if model.handleDialogKey(name) {
 		return model, nil
 	}
@@ -100,7 +100,7 @@ func (model *Model) handleInfoKey(name string) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
-func (model *Model) handleHelpKey(name string) (tea.Model, tea.Cmd) {
+func handleHelpKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	switch name {
 	case "esc", "escape", "q", "h":
 		model.help = false
@@ -118,7 +118,7 @@ func (model *Model) handleHelpKey(name string) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
-func (model Model) infoView() string {
+func infoView(model Model) string {
 	info, ok := metricInfoFor(model.infoKey)
 	if !ok {
 		return ""

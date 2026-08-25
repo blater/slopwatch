@@ -42,13 +42,17 @@ func (analyzer *Analyzer) SetCacheReads(enabled bool) {
 	analyzer.optionsMu.Unlock()
 }
 
-func (analyzer *Analyzer) cacheStore() *analysiscache.Store {
+func cacheStore(analyzer *analysisEngine) *analysiscache.Store {
 	analyzer.cache.mu.RLock()
 	defer analyzer.cache.mu.RUnlock()
 	return analyzer.cache.store
 }
 
 func (analyzer *Analyzer) viewKey(options Options) (analysiscache.ViewKey, error) {
+	return viewKey(analyzer.engine(), options)
+}
+
+func viewKey(analyzer *analysisEngine, options Options) (analysiscache.ViewKey, error) {
 	return analysiscache.WorkspaceViewKey(analyzer.workspace, analysiscache.ViewOptions{
 		Targets: options.Targets, Languages: options.Languages,
 		IncludeTests: options.IncludeTests, TypeScriptTypes: options.TypeScriptTypes,
@@ -59,7 +63,11 @@ func (analyzer *Analyzer) viewKey(options Options) (analysiscache.ViewKey, error
 // CachedProjection returns the last complete view immediately. Its rows are
 // always provisional until the current workspace has been reconciled.
 func (analyzer *Analyzer) CachedProjection() (report.Document, bool) {
-	store := analyzer.cacheStore()
+	return cachedProjection(analyzer.engine())
+}
+
+func cachedProjection(analyzer *analysisEngine) (report.Document, bool) {
+	store := cacheStore(analyzer)
 	if store == nil {
 		return report.Document{}, false
 	}
@@ -69,7 +77,7 @@ func (analyzer *Analyzer) CachedProjection() (report.Document, bool) {
 	if !options.ReadCache || options.FollowSymlinks {
 		return report.Document{}, false
 	}
-	view, err := analyzer.viewKey(options)
+	view, err := viewKey(analyzer, options)
 	if err != nil {
 		return report.Document{}, false
 	}
@@ -81,7 +89,7 @@ func (analyzer *Analyzer) CachedProjection() (report.Document, bool) {
 	if !ok {
 		return report.Document{}, false
 	}
-	discovered, err := analyzer.discover(options.Targets, options.IncludeTests, options.FollowSymlinks)
+	discovered, err := discover(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks)
 	if err != nil {
 		return report.Document{}, false
 	}
@@ -130,12 +138,12 @@ func reconcileProjectionInventory(cached []report.File, discovered map[string][]
 	return files
 }
 
-func (analyzer *Analyzer) persistProjection(document report.Document, options Options) {
-	store := analyzer.cacheStore()
+func persistProjection(analyzer *analysisEngine, document report.Document, options Options) {
+	store := cacheStore(analyzer)
 	if store == nil {
 		return
 	}
-	view, err := analyzer.viewKey(options)
+	view, err := viewKey(analyzer, options)
 	if err != nil {
 		return
 	}

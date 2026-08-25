@@ -112,11 +112,70 @@ class Walker {
     this.walk(node.left);
     this.walk(node.right);
   }
-  private walk(node: ts.Node): void {
-    if (node !== this.fact.node && isFunctionNode(node)) {
-      this.nestedFunction(node);
-      return;
+
+  private walkNested(node: ts.Node): boolean {
+    if (node === this.fact.node || !isFunctionNode(node)) return false;
+    this.nestedFunction(node);
+    return true;
+  }
+
+  private walkStructuralNode(node: ts.Node): boolean {
+    if (
+      !ts.isForStatement(node) &&
+      !ts.isForInStatement(node) &&
+      !ts.isForOfStatement(node) &&
+      !ts.isWhileStatement(node) &&
+      !ts.isDoStatement(node) &&
+      !ts.isSwitchStatement(node) &&
+      !ts.isCatchClause(node) &&
+      !ts.isConditionalExpression(node)
+    ) {
+      return false;
     }
+    this.structural(node);
+    return true;
+  }
+
+  private walkBreakOrContinue(node: ts.Node): boolean {
+    if (!ts.isBreakStatement(node) && !ts.isContinueStatement(node)) {
+      return false;
+    }
+    if (node.label !== undefined) this.state.complexity++;
+    return true;
+  }
+
+  private walkLogicalExpression(node: ts.Node): boolean {
+    if (!ts.isBinaryExpression(node) || !logical(node)) return false;
+    this.walkLogical(node);
+    return true;
+  }
+
+  private walkNegation(node: ts.Node): boolean {
+    if (
+      !ts.isPrefixUnaryExpression(node) ||
+      node.operator !== ts.SyntaxKind.ExclamationToken
+    ) {
+      return false;
+    }
+    this.state.booleanOperation = undefined;
+    this.walk(node.operand);
+    return true;
+  }
+
+  private walkCall(node: ts.Node): boolean {
+    if (!ts.isCallExpression(node)) return false;
+    if (
+      ts.isIdentifier(node.expression) &&
+      this.state.methodStack.includes(node.expression.text)
+    ) {
+      this.state.complexity++;
+    }
+    this.children(node);
+    return true;
+  }
+
+  private walk(node: ts.Node): void {
+    if (this.walkNested(node)) return;
     if (ts.isBlock(node)) {
       this.walkBlock(node);
       return;
@@ -125,44 +184,11 @@ class Walker {
       this.ifStatement(node, false);
       return;
     }
-    if (
-      ts.isForStatement(node) ||
-      ts.isForInStatement(node) ||
-      ts.isForOfStatement(node) ||
-      ts.isWhileStatement(node) ||
-      ts.isDoStatement(node) ||
-      ts.isSwitchStatement(node) ||
-      ts.isCatchClause(node) ||
-      ts.isConditionalExpression(node)
-    ) {
-      this.structural(node);
-      return;
-    }
-    if (ts.isBreakStatement(node) || ts.isContinueStatement(node)) {
-      if (node.label !== undefined) this.state.complexity++;
-      return;
-    }
-    if (ts.isBinaryExpression(node) && logical(node)) {
-      this.walkLogical(node);
-      return;
-    }
-    if (
-      ts.isPrefixUnaryExpression(node) &&
-      node.operator === ts.SyntaxKind.ExclamationToken
-    ) {
-      this.state.booleanOperation = undefined;
-      this.walk(node.operand);
-      return;
-    }
-    if (ts.isCallExpression(node)) {
-      if (
-        ts.isIdentifier(node.expression) &&
-        this.state.methodStack.includes(node.expression.text)
-      )
-        this.state.complexity++;
-      this.children(node);
-      return;
-    }
+    if (this.walkStructuralNode(node)) return;
+    if (this.walkBreakOrContinue(node)) return;
+    if (this.walkLogicalExpression(node)) return;
+    if (this.walkNegation(node)) return;
+    if (this.walkCall(node)) return;
     this.children(node);
   }
 }

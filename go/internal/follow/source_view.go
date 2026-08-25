@@ -15,7 +15,7 @@ import (
 	"github.com/blater/slopwatch/internal/style"
 )
 
-func (model *Model) openSourceView() tea.Cmd {
+func openSourceView(model *Model) tea.Cmd {
 	file, ok := model.selectedFile()
 	if !ok {
 		return nil
@@ -85,7 +85,7 @@ func (model Model) sourceDimensions() (int, int) {
 	return min(model.width, max(10, int(float64(model.width)*0.96))), min(model.height, max(5, int(float64(model.height)*0.94)))
 }
 
-func (model Model) sourceViewView() string {
+func sourceViewView(model Model) string {
 	outerWidth, outerHeight := model.sourceDimensions()
 	innerWidth := max(1, outerWidth-2)
 	headerLeft := "  " + model.sourcePath
