@@ -110,6 +110,7 @@ type Model struct {
 	detailOffset         int
 	help                 bool
 	helpCursor           int
+	helpTopic            string
 	infoOpen             bool
 	infoKey              string
 	columns              bool
@@ -121,6 +122,9 @@ type Model struct {
 	sortDirections       map[string]bool
 	settings             bool
 	settingsCursor       int
+	appearance           bool
+	appearanceCursor     int
+	theme                style.Theme
 	weightsOpen          bool
 	weightCursor         int
 	weightsResetConfirm  bool
@@ -172,6 +176,7 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 		rows: rows, queued: map[string]bool{},
 		findInput: findInput,
 		sortKey:   "score", sortReverse: true,
+		theme:   style.ThemeDark,
 		visible: defaultColumnVisibility(),
 	}
 	model.rebuildWeightedDocument()
@@ -312,6 +317,9 @@ func modalView(model Model, base string) string {
 	}
 	if model.weightsOpen {
 		return model.overlay(base, model.weightsView())
+	}
+	if model.appearance {
+		return model.overlay(base, model.appearanceView())
 	}
 	if model.settings {
 		return model.overlay(base, model.settingsView())

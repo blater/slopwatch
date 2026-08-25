@@ -23,7 +23,7 @@ func activeDialogPolicy(model Model) dialogPolicy {
 	if model.infoOpen {
 		return dialogPolicy{}
 	}
-	if model.help || model.detail || model.sourceView || model.columns || model.sortOpen || model.weightsOpen || model.settings {
+	if model.help || model.detail || model.sourceView || model.columns || model.sortOpen || model.weightsOpen || model.appearance || model.settings {
 		return dialogPolicy{hasInteractiveOptions: true}
 	}
 	return dialogPolicy{}
@@ -101,19 +101,53 @@ func handleInfoKey(model *Model, name string) (tea.Model, tea.Cmd) {
 }
 
 func handleHelpKey(model *Model, name string) (tea.Model, tea.Cmd) {
+	if model.helpTopic == "" {
+		return handleHelpTopicsKey(model, name)
+	}
+	return handleHelpPageKey(model, name)
+}
+
+func handleHelpTopicsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	switch name {
 	case "esc", "escape", "q", "h":
 		model.help = false
 	case "up", "k":
 		model.helpCursor = max(0, model.helpCursor-1)
 	case "down", "j":
-		model.helpCursor = min(len(metricInformation)-1, model.helpCursor+1)
+		model.helpCursor = min(len(helpTopics)-1, model.helpCursor+1)
 	case "home", "g":
 		model.helpCursor = 0
 	case "end", "G":
-		model.helpCursor = len(metricInformation) - 1
+		model.helpCursor = len(helpTopics) - 1
+	case "enter":
+		model.helpTopic = helpTopics[model.helpCursor].key
+		model.helpCursor = 0
+	}
+	return model, nil
+}
+
+func handleHelpPageKey(model *Model, name string) (tea.Model, tea.Cmd) {
+	width := max(1, min(100, model.width-8)-4)
+	maximum := max(0, len(topicLines(model.helpTopic, width, model.helpCursor))-1)
+	switch name {
+	case "q", "h":
+		model.help = false
+		model.helpTopic = ""
+	case "esc", "escape", "left":
+		model.helpTopic = ""
+		model.helpCursor = 0
+	case "up", "k":
+		model.helpCursor = max(0, model.helpCursor-1)
+	case "down", "j":
+		model.helpCursor = min(maximum, model.helpCursor+1)
+	case "home", "g":
+		model.helpCursor = 0
+	case "end", "G":
+		model.helpCursor = maximum
 	case "i", "enter":
-		model.openInfo(metricInformation[model.helpCursor].key)
+		if model.helpTopic == helpScoring {
+			model.openInfo(metricInformation[model.helpCursor].key)
+		}
 	}
 	return model, nil
 }

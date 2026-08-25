@@ -48,8 +48,10 @@ Open the live dashboard with `slopwatch` (equivalent to `slopmark --follow`):
 slopwatch --limit 200 .
 ```
 
-In the dashboard, use the arrow keys or `j`/`k` to move, `v` to view the
-selected file, `f` or `/` to find, `h` for help, and `q` to quit.
+In the dashboard, use the arrow keys or `j`/`k` to move, `g`/`G` to jump to
+the first or last result, `v` to view the selected file, `f` or `/` to find,
+`h` for topic-based help, and `q` to quit. Choose Settings → Appearance to
+switch between the dark and light themes.
 
 ![Slopmark follow-mode dashboard](docs/follow-mode.svg)
 

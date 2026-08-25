@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func TestHighlightSourceUsesEmbeddedGrammars(t *testing.T) {
@@ -21,7 +23,7 @@ func TestHighlightSourceUsesEmbeddedGrammars(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			got := highlightSource(testCase.path, testCase.text)
+			got := highlightSource(testCase.path, testCase.text, style.ThemeDark)
 			if !strings.Contains(got, "\x1b[") {
 				t.Fatalf("highlightSource(%q) did not emit ANSI styling: %q", testCase.path, got)
 			}
@@ -37,7 +39,22 @@ func TestHighlightSourceUsesEmbeddedGrammars(t *testing.T) {
 
 func TestHighlightSourceFallsBackForUnsupportedFiles(t *testing.T) {
 	const source = "plain text"
-	if got := highlightSource("README.md", source); got != source {
+	if got := highlightSource("README.md", source, style.ThemeDark); got != source {
 		t.Fatalf("unsupported source was changed: %q", got)
+	}
+}
+
+func TestHighlightSourceUsesSelectedAppearance(t *testing.T) {
+	const source = "package main\nfunc main() {}"
+	dark := highlightSource("main.go", source, style.ThemeDark)
+	light := highlightSource("main.go", source, style.ThemeLight)
+	if dark == light {
+		t.Fatal("light syntax theme produced the dark highlighted output")
+	}
+	if !strings.Contains(dark, "48;2;9;23;35") {
+		t.Fatalf("dark syntax output is missing its background: %q", dark)
+	}
+	if !strings.Contains(light, "48;2;245;249;251") {
+		t.Fatalf("light syntax output is missing its background: %q", light)
 	}
 }

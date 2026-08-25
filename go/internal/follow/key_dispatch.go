@@ -34,6 +34,9 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if model.weightsOpen {
 		return model.handleWeightsKey(name)
 	}
+	if model.appearance {
+		return model.handleAppearanceKey(name)
+	}
 	if model.settings {
 		return model.handleSettingsKey(name)
 	}
@@ -52,11 +55,11 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		model.move(max(1, model.bodyHeight()))
 	case "ctrl+b", "pgup":
 		model.move(-max(1, model.bodyHeight()))
-	case "home":
+	case "home", "g":
 		model.cursor = 0
 		model.selectCursor()
 		model.ensureVisible()
-	case "end":
+	case "end", "G":
 		model.cursor = max(0, len(model.displayFiles())-1)
 		model.selectCursor()
 		model.ensureVisible()
@@ -66,7 +69,7 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, model.openSourceView()
 	case "c":
 		model.settings = true
-		model.settingsCursor = 1
+		model.settingsCursor = settingsIndex("columns")
 	case "s":
 		model.settings = true
 		model.settingsCursor = 0
@@ -75,6 +78,7 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "h":
 		model.help = true
 		model.helpCursor = 0
+		model.helpTopic = ""
 	case "f", "/":
 		return model.openFind(false)
 	case "n":

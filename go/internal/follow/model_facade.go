@@ -110,6 +110,12 @@ func (model *Model) toggleWeight() { toggleWeight(model) }
 
 func (model Model) settingsView() string { return settingsView(model) }
 
+func (model Model) appearanceView() string { return appearanceView(model) }
+
+func (model *Model) handleAppearanceKey(name string) (tea.Model, tea.Cmd) {
+	return handleAppearanceKey(model, name)
+}
+
 func (model Model) weightsView() string { return weightsView(model) }
 
 func (model *Model) mergeRows(result analysisResult, oldScores map[string]float64, oldRanks map[string]int, now time.Time, baseline bool) {

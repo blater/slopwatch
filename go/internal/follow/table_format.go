@@ -129,21 +129,34 @@ func editBackground(state rowState, now time.Time, window time.Duration) lipglos
 	if age < 0 || age > window {
 		return ""
 	}
-	base := [3]float64{72, 181, 235}
+	base := colourComponents(style.AccentInfo)
 	if state.direction < 0 {
-		base = [3]float64{48, 220, 157}
+		base = colourComponents(style.AccentPositive)
 	}
 	if state.direction > 0 {
-		base = [3]float64{255, 82, 105}
+		base = colourComponents(style.AccentCritical)
 	}
 	fast := min(1.0, age.Seconds()/5.0)
 	slow := max(0.0, 1-age.Seconds()/window.Seconds())
 	strength := (0.22 - (0.12 * fast)) * slow
-	background := [3]float64{7, 16, 25}
+	background := colourComponents(style.SurfaceScreen)
 	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x",
 		int(background[0]+(base[0]-background[0])*strength),
 		int(background[1]+(base[1]-background[1])*strength),
 		int(background[2]+(base[2]-background[2])*strength)))
+}
+
+func colourComponents(colour lipgloss.Color) [3]float64 {
+	hex := strings.TrimPrefix(string(colour), "#")
+	if len(hex) != 6 {
+		return [3]float64{}
+	}
+	components := [3]float64{}
+	for index := range components {
+		value, _ := strconv.ParseUint(hex[index*2:index*2+2], 16, 8)
+		components[index] = float64(value)
+	}
+	return components
 }
 
 func styleValue(value string, colour lipgloss.Color) string {

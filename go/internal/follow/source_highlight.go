@@ -8,6 +8,9 @@ import (
 
 	textmate "github.com/andersonpem/gopher-textmate"
 	"github.com/andersonpem/gopher-textmate/render"
+	textmatetheme "github.com/andersonpem/gopher-textmate/theme"
+
+	"github.com/blater/slopwatch/internal/style"
 )
 
 // The grammars are embedded so the installed binary has no runtime asset or
@@ -16,25 +19,24 @@ import (
 //go:embed grammars/*.json
 var sourceGrammarFiles embed.FS
 
+//go:embed themes/*.json
+var sourceThemeFiles embed.FS
+
 var (
 	sourceHighlighterOnce sync.Once
 	sourceHighlighter     *textmate.Highlighter
 	sourceHighlighterErr  error
 	sourceHighlighterMu   sync.Mutex
 	sourceGrammarsLoaded  = map[string]bool{}
+	sourceThemes          = map[style.Theme]*textmatetheme.Theme{}
 )
 
 func sourceHighlighterInstance() (*textmate.Highlighter, error) {
 	sourceHighlighterOnce.Do(func() {
 		sourceHighlighter, sourceHighlighterErr = textmate.New(
 			textmate.WithColorMode(render.TrueColor),
+			textmate.WithBackground(true),
 		)
-		if sourceHighlighterErr != nil {
-			return
-		}
-		if sourceHighlighterErr = sourceHighlighter.SetThemeBytes(textmate.DefaultThemeBytes()); sourceHighlighterErr != nil {
-			return
-		}
 	})
 	return sourceHighlighter, sourceHighlighterErr
 }
@@ -61,7 +63,7 @@ func sourceGrammarScope(path string) string {
 	return scope
 }
 
-func highlightSource(path, contents string) string {
+func highlightSource(path, contents string, selectedTheme style.Theme) string {
 	scope, grammar := sourceGrammar(path)
 	if scope == "" {
 		return contents
@@ -72,6 +74,9 @@ func highlightSource(path, contents string) string {
 	}
 	sourceHighlighterMu.Lock()
 	defer sourceHighlighterMu.Unlock()
+	if err := applySourceTheme(highlighter, selectedTheme); err != nil {
+		return contents
+	}
 	if !sourceGrammarsLoaded[grammar] {
 		data, readErr := sourceGrammarFiles.ReadFile("grammars/" + grammar)
 		if readErr != nil {
@@ -87,4 +92,32 @@ func highlightSource(path, contents string) string {
 		return contents
 	}
 	return result
+}
+
+func applySourceTheme(highlighter *textmate.Highlighter, selected style.Theme) error {
+	if selected != style.ThemeLight {
+		selected = style.ThemeDark
+	}
+	parsed := sourceThemes[selected]
+	if parsed == nil {
+		data := textmate.DefaultThemeBytes()
+		if selected == style.ThemeLight {
+			var err error
+			data, err = sourceThemeFiles.ReadFile("themes/light.json")
+			if err != nil {
+				return err
+			}
+		}
+		var err error
+		parsed, err = textmatetheme.Parse(data)
+		if err != nil {
+			return err
+		}
+		if selected == style.ThemeDark {
+			parsed.DefaultBG = &textmatetheme.RGB{R: 9, G: 23, B: 35}
+		}
+		sourceThemes[selected] = parsed
+	}
+	highlighter.SetTheme(parsed)
+	return nil
 }
