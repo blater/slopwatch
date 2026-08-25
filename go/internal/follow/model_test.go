@@ -318,7 +318,7 @@ func TestFindSearchesSourceAndMovesViewport(t *testing.T) {
 		findSource: true, findQuery: "needle", sourceSearchText: "first\nfiller\nsecond needle\nlast",
 		sourceViewport: viewport.New(40, 2),
 	}
-	model.sourceViewport.SetContent(highlightSource("example.go", model.sourceSearchText))
+	model.sourceViewport.SetContent(highlightSource("example.go", model.sourceSearchText, style.ThemeDark))
 	model.findNext(1)
 	if model.sourceViewport.YOffset != 2 {
 		t.Fatalf("source find offset = %d, want 2", model.sourceViewport.YOffset)
@@ -729,6 +729,7 @@ func TestSettingsOpensWeightsAndAdjustsScore(t *testing.T) {
 	if !result.settings || result.weightsOpen {
 		t.Fatal("s did not open settings")
 	}
+	result.settingsCursor = settingsIndex("weights")
 	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.weightsOpen || result.settings {
@@ -788,6 +789,7 @@ func TestWeightsAndHelpOpenTheSharedInfoPopup(t *testing.T) {
 	}
 	model.infoOpen = false
 	model.help = true
+	model.helpTopic = helpScoring
 	model.helpCursor = 1
 	model.handleHelpKey("i")
 	if !model.infoOpen || model.infoKey != "cog" {
@@ -808,7 +810,7 @@ func TestEnterClosesPurelyInformationalDialog(t *testing.T) {
 }
 
 func TestEnterDoesNotCloseHelpDialogWithOptions(t *testing.T) {
-	model := Model{help: true, helpCursor: 0}
+	model := Model{help: true, helpTopic: helpScoring, helpCursor: 0}
 	model.handleHelpKey("enter")
 	if !model.help || !model.infoOpen {
 		t.Fatal("Enter did not preserve Help while opening its info option")
@@ -821,21 +823,21 @@ func TestInfoPopupOverlaysItsParentPopup(t *testing.T) {
 	if !strings.Contains(view, "WEIGHTS") || !strings.Contains(view, "COG  cognitive complexity") {
 		t.Fatalf("info did not overlay the weights popup: %q", view)
 	}
-	model = Model{width: 80, height: 20, help: true, helpCursor: 1, infoOpen: true, infoKey: "cog"}
+	model = Model{width: 80, height: 20, help: true, helpTopic: helpScoring, helpCursor: 1, infoOpen: true, infoKey: "cog"}
 	view = ansi.Strip(model.View())
-	if !strings.Contains(view, "HELP") || !strings.Contains(view, "COG  cognitive complexity") {
+	if !strings.Contains(view, "COG  cognitive complexity") {
 		t.Fatalf("info did not overlay the help popup: %q", view)
 	}
 }
 
-func TestHelpScrollsAndHasNoCloseHint(t *testing.T) {
-	model := Model{help: true, helpCursor: len(metricInformation) - 1, width: 60, height: 10}
+func TestHelpScrollsAndHasTopicHint(t *testing.T) {
+	model := Model{help: true, helpTopic: helpScoring, helpCursor: len(metricInformation) - 1, width: 60, height: 10}
 	view := ansi.Strip(model.helpView())
 	if !strings.Contains(view, "PATH") || strings.Contains(view, "SCORE") {
 		t.Fatalf("help did not scroll to the selected entry: %q", view)
 	}
-	if strings.Contains(view, "Esc") || strings.Contains(view, "close help") {
-		t.Fatalf("help still shows a close hint: %q", view)
+	if !strings.Contains(view, "topics") {
+		t.Fatalf("help is missing its return-to-topics hint: %q", view)
 	}
 	if !strings.Contains(view, "info") {
 		t.Fatalf("help is missing its info option: %q", view)
@@ -1239,10 +1241,11 @@ func TestModalSelectionsUseBackgroundInsteadOfTextCursors(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80, settingsCursor: 0, weightCursor: 0}
 	for name, view := range map[string]string{
-		"settings": model.settingsView(),
-		"weights":  model.weightsView(),
-		"columns":  model.columnsView(),
-		"sort":     model.sortView(),
+		"settings":   model.settingsView(),
+		"appearance": model.appearanceView(),
+		"weights":    model.weightsView(),
+		"columns":    model.columnsView(),
+		"sort":       model.sortView(),
 	} {
 		for _, line := range strings.Split(ansi.Strip(view), "\n") {
 			if strings.Contains(line, "←/→ weights") {
@@ -1278,7 +1281,7 @@ func TestHintRowUsesSharedSpacingAndHyphenation(t *testing.T) {
 	}
 }
 
-func TestHelpShortcutShowsCompactWideColumnHelp(t *testing.T) {
+func TestHelpShortcutShowsTopicChooser(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 100, height: 24}
 	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
@@ -1292,9 +1295,9 @@ func TestHelpShortcutShowsCompactWideColumnHelp(t *testing.T) {
 	if width := lipgloss.Width(view); width < 60 {
 		t.Fatalf("help popup width = %d, want a wide popup", width)
 	}
-	for _, title := range []string{"SCORE", "COG", "NPATH", "CYCLO", "SHALLOW", "GOD", "PATH"} {
+	for _, title := range []string{"Command-line options", "Main-screen controls", "Scoring system"} {
 		if !strings.Contains(view, title) {
-			t.Errorf("help popup does not explain %s", title)
+			t.Errorf("help popup does not offer %s", title)
 		}
 	}
 	closed, _ := updated.(*Model).handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})

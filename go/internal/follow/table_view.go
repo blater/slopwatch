@@ -17,7 +17,12 @@ func ConfigureTerminalColours() {
 	// This interface has a deliberate application palette, including when
 	// NO_COLOR is inherited from the caller.
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	lipgloss.SetHasDarkBackground(true)
+	ConfigureTheme(style.ThemeDark)
+}
+
+func ConfigureTheme(theme style.Theme) {
+	style.ApplyTheme(theme)
+	lipgloss.SetHasDarkBackground(theme != style.ThemeLight)
 }
 
 func tableView(model Model) string {

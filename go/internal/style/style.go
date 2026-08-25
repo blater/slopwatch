@@ -6,25 +6,76 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	TextMuted          = lipgloss.Color("#668298")
-	TextPrimary        = lipgloss.Color("#d5e2eb")
-	AccentPositive     = lipgloss.Color("#58e7ad")
-	AccentWarning      = lipgloss.Color("#f0c765")
-	AccentCritical     = lipgloss.Color("#ff8291")
-	ScoreWarning       = lipgloss.Color("#f5c451")
-	ScoreCritical      = lipgloss.Color("#ff6174")
-	AccentInfo         = lipgloss.Color("#6fb9e8")
-	SurfaceSelected    = lipgloss.Color("#245a78")
-	SurfaceScreen      = lipgloss.Color("#071019")
-	SurfaceTop         = lipgloss.Color("#0a1622")
-	SurfaceHeader      = lipgloss.Color("#0b1e2d")
-	SurfaceFooter      = lipgloss.Color("#061019")
-	SurfaceModal       = lipgloss.Color("#0d1d29")
-	SurfaceDetailTitle = lipgloss.Color("#0b1e2d")
-	SurfaceDetailBody  = lipgloss.Color("#091723")
-	TextHeader         = lipgloss.Color("#6f8ca2")
+type Theme string
+
+const (
+	ThemeDark  Theme = "dark"
+	ThemeLight Theme = "light"
 )
+
+type palette struct {
+	textMuted, textPrimary, accentPositive, accentWarning, accentCritical lipgloss.Color
+	scoreWarning, scoreCritical, accentInfo                               lipgloss.Color
+	surfaceSelected, surfaceScreen, surfaceTop, surfaceHeader             lipgloss.Color
+	surfaceFooter, surfaceModal, surfaceDetailTitle, surfaceDetailBody    lipgloss.Color
+	textHeader                                                            lipgloss.Color
+}
+
+var darkPalette = palette{
+	textMuted: "#668298", textPrimary: "#d5e2eb", accentPositive: "#58e7ad",
+	accentWarning: "#f0c765", accentCritical: "#ff8291", scoreWarning: "#f5c451",
+	scoreCritical: "#ff6174", accentInfo: "#6fb9e8", surfaceSelected: "#245a78",
+	surfaceScreen: "#071019", surfaceTop: "#0a1622", surfaceHeader: "#0b1e2d",
+	surfaceFooter: "#061019", surfaceModal: "#0d1d29", surfaceDetailTitle: "#0b1e2d",
+	surfaceDetailBody: "#091723", textHeader: "#6f8ca2",
+}
+
+var lightPalette = palette{
+	textMuted: "#526879", textPrimary: "#182734", accentPositive: "#087a57",
+	accentWarning: "#8a6200", accentCritical: "#b42336", scoreWarning: "#956900",
+	scoreCritical: "#c22b3c", accentInfo: "#176b9e", surfaceSelected: "#b9def2",
+	surfaceScreen: "#f7fafc", surfaceTop: "#e8f1f6", surfaceHeader: "#dceaf2",
+	surfaceFooter: "#e5eef3", surfaceModal: "#f1f7fa", surfaceDetailTitle: "#dceaf2",
+	surfaceDetailBody: "#f5f9fb", textHeader: "#38596f",
+}
+
+var (
+	TextMuted          lipgloss.Color
+	TextPrimary        lipgloss.Color
+	AccentPositive     lipgloss.Color
+	AccentWarning      lipgloss.Color
+	AccentCritical     lipgloss.Color
+	ScoreWarning       lipgloss.Color
+	ScoreCritical      lipgloss.Color
+	AccentInfo         lipgloss.Color
+	SurfaceSelected    lipgloss.Color
+	SurfaceScreen      lipgloss.Color
+	SurfaceTop         lipgloss.Color
+	SurfaceHeader      lipgloss.Color
+	SurfaceFooter      lipgloss.Color
+	SurfaceModal       lipgloss.Color
+	SurfaceDetailTitle lipgloss.Color
+	SurfaceDetailBody  lipgloss.Color
+	TextHeader         lipgloss.Color
+)
+
+func init() { ApplyTheme(ThemeDark) }
+
+func ApplyTheme(theme Theme) {
+	selected := darkPalette
+	if theme == ThemeLight {
+		selected = lightPalette
+	}
+	TextMuted, TextPrimary = selected.textMuted, selected.textPrimary
+	AccentPositive, AccentWarning = selected.accentPositive, selected.accentWarning
+	AccentCritical, ScoreWarning = selected.accentCritical, selected.scoreWarning
+	ScoreCritical, AccentInfo = selected.scoreCritical, selected.accentInfo
+	SurfaceSelected, SurfaceScreen = selected.surfaceSelected, selected.surfaceScreen
+	SurfaceTop, SurfaceHeader = selected.surfaceTop, selected.surfaceHeader
+	SurfaceFooter, SurfaceModal = selected.surfaceFooter, selected.surfaceModal
+	SurfaceDetailTitle, SurfaceDetailBody = selected.surfaceDetailTitle, selected.surfaceDetailBody
+	TextHeader = selected.textHeader
+}
 
 func Heading(text string) string {
 	return lipgloss.NewStyle().Bold(true).Foreground(AccentInfo).Render(text)

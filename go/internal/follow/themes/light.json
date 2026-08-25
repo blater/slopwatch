@@ -1,0 +1,19 @@
+{
+  "name": "Slopwatch Light",
+  "type": "light",
+  "colors": {"editor.foreground": "#182734", "editor.background": "#f5f9fb"},
+  "tokenColors": [
+    {"settings": {"foreground": "#182734", "background": "#f5f9fb"}},
+    {"scope": ["comment", "punctuation.definition.comment"], "settings": {"foreground": "#4f762f", "fontStyle": "italic"}},
+    {"scope": ["string", "string.quoted", "string.template"], "settings": {"foreground": "#a23d16"}},
+    {"scope": ["constant.numeric"], "settings": {"foreground": "#526f13"}},
+    {"scope": ["constant.language", "constant.character", "constant.other"], "settings": {"foreground": "#155eaa"}},
+    {"scope": ["keyword", "keyword.control", "keyword.operator.new"], "settings": {"foreground": "#7b2f91"}},
+    {"scope": ["storage", "storage.type", "storage.modifier"], "settings": {"foreground": "#155eaa"}},
+    {"scope": ["entity.name.function", "support.function", "meta.function-call entity.name.function"], "settings": {"foreground": "#745f00"}},
+    {"scope": ["entity.name.type", "entity.name.class", "support.type", "support.class", "entity.name.namespace"], "settings": {"foreground": "#006b5c"}},
+    {"scope": ["entity.name.tag"], "settings": {"foreground": "#155eaa"}},
+    {"scope": ["entity.other.attribute-name", "variable", "variable.other", "variable.parameter"], "settings": {"foreground": "#0b6588"}},
+    {"scope": ["invalid", "invalid.illegal"], "settings": {"foreground": "#b42336"}}
+  ]
+}

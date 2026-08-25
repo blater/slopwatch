@@ -214,27 +214,57 @@ func roundWeight(value float64) float64 {
 	return math.Round(value*1e12) / 1e12
 }
 
+type settingsItem struct {
+	key   string
+	label string
+}
+
+var settingsItems = []settingsItem{
+	{key: "appearance", label: "Appearance"},
+	{key: "columns", label: "Columns"},
+	{key: "weights", label: "Weights"},
+}
+
+func settingsIndex(key string) int {
+	for index, item := range settingsItems {
+		if item.key == key {
+			return index
+		}
+	}
+	return 0
+}
+
 func handleSettingsKey(model *Model, name string) (tea.Model, tea.Cmd) {
-	items := []string{"weights", "columns"}
 	switch name {
 	case "esc", "escape", "q", "s":
 		model.settings = false
 	case "up", "k":
 		model.settingsCursor = max(0, model.settingsCursor-1)
 	case "down", "j":
-		model.settingsCursor = min(len(items)-1, model.settingsCursor+1)
+		model.settingsCursor = min(len(settingsItems)-1, model.settingsCursor+1)
 	case "enter":
-		model.settings = false
-		if model.settingsCursor == 0 {
-			model.weightsOpen = true
-			model.weightCursor = 0
-			model.weightsResetConfirm = false
-		} else {
-			model.columns = true
-			model.columnsFromSettings = true
-		}
+		openSetting(model, settingsItems[model.settingsCursor].key)
 	}
 	return model, nil
+}
+
+func openSetting(model *Model, key string) {
+	model.settings = false
+	switch key {
+	case "appearance":
+		model.appearance = true
+		model.appearanceCursor = 0
+		if model.theme == style.ThemeLight {
+			model.appearanceCursor = 1
+		}
+	case "columns":
+		model.columns = true
+		model.columnsFromSettings = true
+	case "weights":
+		model.weightsOpen = true
+		model.weightCursor = 0
+		model.weightsResetConfirm = false
+	}
 }
 
 func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
@@ -318,9 +348,9 @@ func (model *Model) adjustWeight(delta float64) {
 }
 
 func settingsView(model Model) string {
-	content := make([]string, 0, 2)
-	for index, item := range []string{"Weights", "Columns"} {
-		content = append(content, style.ModalOption(item, index == model.settingsCursor, 34))
+	content := make([]string, 0, len(settingsItems))
+	for index, item := range settingsItems {
+		content = append(content, style.ModalOption(item.label, index == model.settingsCursor, 34))
 	}
 	return style.Popup(style.Heading("SETTINGS"), content, "", 38)
 }

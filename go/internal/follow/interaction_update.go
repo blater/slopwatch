@@ -144,7 +144,7 @@ func handleSourceLoaded(model *Model, message sourceLoaded) (tea.Model, tea.Cmd)
 		return model, nil
 	}
 	width, height := model.sourceDimensions()
-	return model, highlightSourceCommand(message.generation, message.path, message.contents, width, height)
+	return model, highlightSourceCommand(message.generation, message.path, message.contents, width, height, model.theme)
 }
 
 func handleSourceHighlighted(model *Model, message sourceHighlighted) (tea.Model, tea.Cmd) {

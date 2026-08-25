@@ -57,10 +57,10 @@ func openSourceView(model *Model) tea.Cmd {
 	}
 }
 
-func highlightSourceCommand(generation uint64, path, contents string, width, height int) tea.Cmd {
+func highlightSourceCommand(generation uint64, path, contents string, width, height int, theme style.Theme) tea.Cmd {
 	return func() tea.Msg {
 		prepared := newSourceViewport(width, height)
-		prepared.SetContent(highlightSource(path, contents))
+		prepared.SetContent(highlightSource(path, contents, theme))
 		prepared.GotoTop()
 		return sourceHighlighted{generation: generation, path: path, viewport: prepared}
 	}
