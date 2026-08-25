@@ -16,6 +16,11 @@ immediately using an atomic file replacement. Hand edits are read on the next
 launch. An explicitly supplied command-line option takes precedence for that
 run; currently this applies to `--trend-window`.
 
+Low-frequency agent implementation settings—including runtime, executable,
+probe timing, cancellation grace, confinement roots, and provider resource
+limits—are edited only in this file. The Agents popup intentionally exposes
+only profile identity, authentication, readiness, and default selection.
+
 ```toml
 version = 1
 
@@ -79,7 +84,6 @@ authentication_ref = 'provider-owned'
 
 [agents.profiles.options]
 probe_timeout = '15s'
-probe_output_bytes = '8388608'
 termination_grace = '5s'
 
 [[agents.profiles]]
@@ -94,7 +98,7 @@ max_tool_calls = '0'
 max_output_tokens = '0'
 max_context_tokens = '0'
 # File, response, request, context, listing, probe and summary byte/entry
-# budgets are also shown and editable in Settings › Agents.
+# budgets are configured here when non-default values are needed.
 
 [delivery]
 default_mode = 'candidate'
@@ -181,16 +185,16 @@ weight = 4.0
 `nesting`, and `typesafety`. `sort_by` accepts those names plus `score` and
 `filename`. Themes are `dark` and `light`; durations use Go duration syntax.
 
-Agent-specific options are owned and validated by the selected runtime adapter;
-Settings › Agents is the authoritative schema-driven editor. For the OpenAI
-Responses adapter, `max_turns`, `max_tool_calls`, and token checks use `0` to
-mean no Slopwatch-imposed budget (or provider default for output tokens). Byte
-and entry budgets must be positive. Slopwatch does not impose an attempt count
-or job wall-clock timeout; Retry and per-job Cancel remain explicit actions.
-The Codex CLI adapter likewise exposes its readiness/confinement probe timeout,
-probe output bytes, and post-cancellation termination grace in Settings ›
-Agents. Probe fields govern probes only; termination grace starts only after
-the user or owning context cancels work. None disconnects a live fix attempt.
+Agent-specific options are owned and validated by the selected runtime adapter
+but are configured only in this preferences file. For the OpenAI Responses
+adapter, `max_turns`, `max_tool_calls`, and token checks use `0` to mean no
+Slopwatch-imposed budget (or provider default for output tokens). Byte and entry
+budgets must be positive. Slopwatch does not impose an attempt count or job
+wall-clock timeout; Retry and per-job Cancel remain explicit actions. The Codex
+CLI adapter's readiness/confinement probe timeout and post-cancellation
+termination grace are also preferences-file-only. Probe timeout governs probes
+only; termination grace starts only after the user or owning context cancels
+work. Neither disconnects a live fix attempt.
 
 `concurrency.max_transcript_bytes` is enforced exactly per job as the sum of
 the JSON-encoded transcript entries retained for display and recovery. Saving a

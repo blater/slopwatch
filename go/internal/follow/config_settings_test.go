@@ -176,7 +176,26 @@ func TestAgentSettingsOfferSafeCodexDefaultAndShowReadiness(t *testing.T) {
 	}
 }
 
-func TestAgentSettingsAddAndSwitchAdapterDefinedProfiles(t *testing.T) {
+func TestAgentTestStatusWrapsInsidePopupAndRemainsVisible(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = resolved.Profiles[:1]
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
+	model.width, model.height = 54, 16
+	model.configSettings.probes[resolved.Profiles[0].ID] = agent.ProbeResult{
+		State:      agent.ProbeDegraded,
+		Diagnostic: "Codex confinement gates failed: crash containment unavailable at /a/very/long/unbroken/provider/protocol/path; run Test again after correcting the installation",
+	}
+
+	text := ansi.Strip(model.configSettingsView())
+	for _, fragment := range []string{"Test: NOT RUNNABLE", "confinement gates failed", "/a/very/long/unbroken/provider/protocol/path", "run Test again", "installation"} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("wrapped Test status hid %q: %q", fragment, text)
+		}
+	}
+}
+
+func TestAgentSettingsAddAdapterDefinedProfilesWithoutImplementationNoise(t *testing.T) {
 	t.Parallel()
 	model := settingsModel(configAgents, settingsResolved(), &settingsConfigStore{})
 	model.profileCatalog = &multiRuntimeProfileServices{}
@@ -190,13 +209,14 @@ func TestAgentSettingsAddAndSwitchAdapterDefinedProfiles(t *testing.T) {
 	}
 	model.configSettings.cursor = 0
 	model.configSettings.profileEditing = true
-	model.configSettings.profileCursor = 2
-	if !model.adjustProfileChoice(1) {
-		t.Fatal("runtime row was not adapter-selectable")
+	text := ansi.Strip(strings.Join(model.configSettingsLines(120), "\n"))
+	for _, hidden := range []string{"Runtime", "Executable", "Probe timeout", "Cancellation grace", "Additional denied roots"} {
+		if strings.Contains(text, hidden) {
+			t.Fatalf("Agents popup exposed preferences-only field %q: %q", hidden, text)
+		}
 	}
-	updated := model.configSettings.working.Profiles[0]
-	if updated.Runtime != "openai-responses" || updated.Executable != "" || updated.AuthenticationRef != "env:OPENAI_API_KEY" {
-		t.Fatalf("runtime switch retained foreign fields: %#v", updated)
+	if !strings.Contains(text, "Authentication") {
+		t.Fatalf("Agents popup hid the user-owned authentication choice: %q", text)
 	}
 }
 
@@ -306,48 +326,24 @@ func TestFixSettingsProfileCycleClearsForeignRuntimeChoices(t *testing.T) {
 	}
 }
 
-func TestChangingTheDefaultProfileRuntimeAtomicallyResetsFixChoices(t *testing.T) {
+func TestPreferencesReloadClearsAgentProbeCatalog(t *testing.T) {
 	t.Parallel()
 	resolved := settingsResolved()
-	resolved.Profiles = []agent.Profile{{
-		ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned",
-	}}
-	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationMode("team")
-	store := &settingsConfigStore{resolved: resolved}
-	model := settingsModel(configAgents, resolved, store)
-	services := &multiRuntimeProfileServices{}
-	model.profileCatalog = services
-	model.profileProber = services
-	model.configSettings.profileEditing = true
-	model.configSettings.cursor = 0
-	model.configSettings.profileCursor = 2
-
-	if !model.adjustProfileChoice(1) {
-		t.Fatal("runtime row did not change")
-	}
-	if got := model.configSettings.working.Fix; got.Profile != "codex" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle || !model.configSettings.defaultChanged {
-		t.Fatalf("default Fix choices were not reset with runtime: %#v (defaultChanged=%t)", got, model.configSettings.defaultChanged)
-	}
-	save := model.saveConfigSettings()
-	if save == nil {
-		t.Fatal("runtime/default reset did not produce a save")
-	}
-	model.handleConfigSaved(save().(configSavedMsg))
-	reloaded := settingsModel(configAgents, store.resolved, store)
-	if got := reloaded.configSettings.working.Fix; got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
-		t.Fatalf("reloaded Fix choices retained values from the old adapter: %#v", got)
-	}
-	if got := reloaded.configSettings.working.Profiles[0]; got.Runtime != "openai-responses" || got.Executable != "" || got.AuthenticationRef != "env:OPENAI_API_KEY" {
-		t.Fatalf("reloaded profile did not preserve the new runtime defaults: %#v", got)
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
+	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady}
+	resolved.Profiles[0].Executable = "/configured/in/preferences"
+	model.handleConfigResolved(configResolvedMsg{generation: model.configSettings.generation, resolved: resolved})
+	if len(model.configSettings.probes) != 0 {
+		t.Fatalf("preferences reload retained probes for an old execution definition: %#v", model.configSettings.probes)
 	}
 }
 
-func TestRuntimeChangeInvalidatesProbeBeforeProfileBecomesDefault(t *testing.T) {
+func TestAuthenticationEditInvalidatesProbeBeforeProfileBecomesDefault(t *testing.T) {
 	t.Parallel()
 	resolved := settingsResolved()
 	resolved.Profiles = []agent.Profile{
 		{ID: "primary", Label: "Primary API", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
-		{ID: "candidate", Label: "Candidate", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
+		{ID: "candidate", Label: "Candidate", Runtime: "openai-responses", AuthenticationRef: "env:OLD_OPENAI_KEY"},
 	}
 	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "primary", "primary-model", "high", agent.DelegationSingle
 	store := &settingsConfigStore{resolved: resolved}
@@ -356,7 +352,7 @@ func TestRuntimeChangeInvalidatesProbeBeforeProfileBecomesDefault(t *testing.T) 
 	model.profileCatalog = services
 	model.profileProber = services
 	model.configSettings.probes["candidate"] = agent.ProbeResult{State: agent.ProbeReady, Capabilities: agent.Capabilities{
-		Models:     []agent.Option[agent.ModelID]{{ID: "stale-codex-model", Default: true}},
+		Models:     []agent.Option[agent.ModelID]{{ID: "stale-api-model", Default: true}},
 		Efforts:    []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
 		Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Default: true}},
 	}}
@@ -368,15 +364,17 @@ func TestRuntimeChangeInvalidatesProbeBeforeProfileBecomesDefault(t *testing.T) 
 		t.Fatal("old runtime did not produce a probe command")
 	}
 
-	if !model.adjustProfileChoice(1) {
-		t.Fatal("candidate runtime row did not change")
+	model.configSettings.editField = 2
+	model.configSettings.input.SetValue("env:NEW_OPENAI_KEY")
+	if err := model.commitConfigText(); err != nil {
+		t.Fatal(err)
 	}
 	if _, exists := model.configSettings.probes["candidate"]; exists {
-		t.Fatal("runtime change retained the old adapter probe")
+		t.Fatal("authentication change retained the old adapter probe")
 	}
 	_, _ = handleMessage(model, staleProbe())
 	if _, exists := model.configSettings.probes["candidate"]; exists {
-		t.Fatal("late probe from the old runtime was accepted after the edit")
+		t.Fatal("late probe for the old authentication definition was accepted after the edit")
 	}
 	model.configSettings.profileEditing = false
 	model.setSelectedAgentDefault()
@@ -385,7 +383,7 @@ func TestRuntimeChangeInvalidatesProbeBeforeProfileBecomesDefault(t *testing.T) 
 	}
 	save := model.saveConfigSettings()
 	if save == nil {
-		t.Fatal("runtime/default change did not produce a save")
+		t.Fatal("authentication/default change did not produce a save")
 	}
 	model.handleConfigSaved(save().(configSavedMsg))
 	reloaded := settingsModel(configAgents, store.resolved, store)
@@ -486,10 +484,10 @@ func TestAgentSettingsExposeTestDiagnosticsAndCanRemoveUnknownOption(t *testing.
 
 	model.configSettings.profileEditing = true
 	fields := model.profileEditorFields(model.configSettings.working.Profiles[0])
-	if len(fields) != 3 || fields[2].OptionKey != "obsolete" {
+	if len(fields) != 2 || fields[1].OptionKey != "obsolete" {
 		t.Fatalf("repair fields = %#v", fields)
 	}
-	model.configSettings.editField = 5
+	model.configSettings.editField = 3
 	model.configSettings.input.SetValue("")
 	if err := model.commitConfigText(); err != nil {
 		t.Fatal(err)
@@ -507,8 +505,11 @@ func (*settingsProfileServices) Descriptor(kind agent.RuntimeKind) (agent.Profil
 		return agent.ProfileDescriptor{}, fmt.Errorf("unknown runtime %s", kind)
 	}
 	return agent.ProfileDescriptor{Runtime: kind, Label: "Codex CLI", Fields: []agent.ProfileField{
-		{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true},
+		{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true, PreferencesOnly: true},
 		{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Required: true, Description: "Run `codex login` to authorize."},
+		{Key: "options.denied_read_roots", OptionKey: "denied_read_roots", Label: "Additional denied roots", Kind: agent.ProfileFieldPathList, PreferencesOnly: true},
+		{Key: "options.probe_timeout", OptionKey: "probe_timeout", Label: "Probe timeout", Kind: agent.ProfileFieldText, PreferencesOnly: true},
+		{Key: "options.termination_grace", OptionKey: "termination_grace", Label: "Cancellation grace", Kind: agent.ProfileFieldText, PreferencesOnly: true},
 	}}, nil
 }
 func (*settingsProfileServices) ValidateProfile(profile agent.Profile) error {

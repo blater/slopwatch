@@ -447,14 +447,14 @@ func TestProfileCapabilitiesAndProbeAreProviderOwned(t *testing.T) {
 	if descriptor.Runtime != RuntimeKind || len(descriptor.Fields) != 1+len(profileLimitFields) || descriptor.Fields[0].Kind != agent.ProfileFieldAuthReference {
 		t.Fatalf("descriptor=%#v", descriptor)
 	}
-	visibleLimits := make(map[string]agent.ProfileField, len(descriptor.Fields)-1)
+	preferenceLimits := make(map[string]agent.ProfileField, len(descriptor.Fields)-1)
 	for _, field := range descriptor.Fields[1:] {
-		visibleLimits[field.OptionKey] = field
+		preferenceLimits[field.OptionKey] = field
 	}
 	for _, definition := range profileLimitFields {
-		field, ok := visibleLimits[definition.key]
-		if !ok || field.Key != "options."+definition.key || field.Kind != agent.ProfileFieldText || field.Pattern != `^[0-9]+$` {
-			t.Fatalf("descriptor omitted or malformed visible limit %q: %#v", definition.key, field)
+		field, ok := preferenceLimits[definition.key]
+		if !ok || field.Key != "options."+definition.key || field.Kind != agent.ProfileFieldText || field.Pattern != `^[0-9]+$` || !field.PreferencesOnly {
+			t.Fatalf("descriptor omitted, exposed, or malformed preference-only limit %q: %#v", definition.key, field)
 		}
 	}
 	profile := testProfile()

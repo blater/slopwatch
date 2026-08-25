@@ -240,8 +240,9 @@ The recommended initial decisions are:
   into a misleading lowest-common-denominator configuration.
 - All operational constraints are configuration, not hidden adapter constants:
   adapter-owned schemas expose their effective turn/tool/token/file/context
-  budgets in Settings with units, origins and consequences. Responses defaults
-  to no Slopwatch turn/tool/token ceiling; cancellation remains explicit.
+  budgets through the preferences file with documented units and consequences.
+  Responses defaults to no Slopwatch turn/tool/token ceiling; cancellation
+  remains explicit.
 - A fix has one initial attempt and unlimited explicit retries. Slopwatch does
   not stop an active agent merely because wall-clock time elapsed.
 - No shell command template is used as the common provider abstraction.
@@ -1019,8 +1020,8 @@ uses these stable sections:
 1. **Goal**: immutable targets/baseline, target SCORE and multi-select focus
    metrics limited to measurements available for those targets.
 2. **Execution**: agent profile, capability-derived model, effort, delegation,
-   and resolved confinement/network summary. Provider-specific budgets live in
-   the adapter-schema-driven profile Settings, not as hidden per-job limits.
+   and resolved confinement/network summary. Provider-specific budgets live
+   only in the preferences file, not in this dialog or as hidden per-job limits.
 3. **Changes**: allowed `targets-and-tests` scope and validation policy.
 4. **Delivery**: candidate/local-branch/PR mode and an editable proposed branch
    name when relevant. Its default is rendered from the configured convention;

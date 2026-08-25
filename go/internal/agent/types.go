@@ -80,15 +80,16 @@ type Profile struct {
 }
 
 type ProfileField struct {
-	Key         string
-	OptionKey   string
-	Label       string
-	Description string
-	Kind        ProfileFieldKind
-	Required    bool
-	Default     string
-	Choices     []string
-	Pattern     string
+	Key             string
+	OptionKey       string
+	Label           string
+	Description     string
+	Kind            ProfileFieldKind
+	Required        bool
+	Default         string
+	Choices         []string
+	Pattern         string
+	PreferencesOnly bool
 }
 
 type ProfileFieldKind string

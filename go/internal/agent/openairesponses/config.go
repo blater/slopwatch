@@ -233,8 +233,10 @@ func (config resolvedConfig) profileFields() []agent.ProfileField {
 		fields = append(fields, agent.ProfileField{
 			Key: "options." + definition.key, OptionKey: definition.key,
 			Label: definition.label, Description: definition.description,
-			Kind:    agent.ProfileFieldText,
-			Default: strconv.FormatInt(definition.value(config), 10), Pattern: `^[0-9]+$`,
+			Kind:            agent.ProfileFieldText,
+			Default:         strconv.FormatInt(definition.value(config), 10),
+			Pattern:         `^[0-9]+$`,
+			PreferencesOnly: true,
 		})
 	}
 	return fields

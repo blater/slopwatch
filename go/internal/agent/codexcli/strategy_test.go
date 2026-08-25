@@ -133,23 +133,26 @@ func TestExecutableCheckerDoesNotPromoteExactSandboxWithoutSharedCrashContainmen
 	}
 }
 
-func TestProbePolicyIsProfileOwnedAndDescriptorVisible(t *testing.T) {
+func TestProbeTimingPolicyIsProfileOwnedAndPreferencesOnly(t *testing.T) {
 	descriptor := (&Strategy{}).ProfileDescriptor()
 	seen := map[string]bool{}
 	for _, field := range descriptor.Fields {
 		seen[field.OptionKey] = true
+		if (field.OptionKey == "probe_timeout" || field.OptionKey == "termination_grace") && !field.PreferencesOnly {
+			t.Fatalf("low-frequency probe setting leaked into the Agents popup: %#v", field)
+		}
 	}
-	if !seen["probe_timeout"] || !seen["probe_output_bytes"] || !seen["termination_grace"] {
+	if !seen["probe_timeout"] || !seen["termination_grace"] {
 		t.Fatalf("probe settings absent from descriptor: %#v", descriptor.Fields)
 	}
 	profile := agent.Profile{ID: "codex", Runtime: RuntimeKind, Executable: "codex", AuthenticationRef: "provider-owned", Options: map[string]string{
-		"probe_timeout": "37s", "probe_output_bytes": "123456", "termination_grace": "9s",
+		"probe_timeout": "37s", "termination_grace": "9s",
 	}}
 	if err := (&Strategy{}).ValidateProfile(profile); err != nil {
 		t.Fatal(err)
 	}
 	policy, err := configuredProbePolicy(profile)
-	if err != nil || policy.timeout != 37*time.Second || policy.outputBytes != 123456 || policy.terminationGrace != 9*time.Second {
+	if err != nil || policy.timeout != 37*time.Second || policy.terminationGrace != 9*time.Second {
 		t.Fatalf("probe policy=%+v err=%v", policy, err)
 	}
 }
