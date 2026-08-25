@@ -48,3 +48,15 @@ func TestFollowSymlinksIsExplicitOptIn(t *testing.T) {
 		t.Fatal("--follow-symlinks did not enable nested symlink traversal")
 	}
 }
+
+func TestPreviouslyIgnoredOptionsAreExplicit(t *testing.T) {
+	if err := validateOptions(&options{format: "text", backends: stringList{"go=legacy"}}); err == nil {
+		t.Fatal("--backend was silently accepted")
+	}
+	if err := validateOptions(&options{format: "text", config: "preferences.toml"}); err == nil {
+		t.Fatal("--config was silently accepted outside follow mode")
+	}
+	if err := validateOptions(&options{format: "text", follow: true, config: "preferences.toml"}); err != nil {
+		t.Fatalf("follow preferences path was rejected: %v", err)
+	}
+}

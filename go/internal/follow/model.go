@@ -12,22 +12,42 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopwatch/internal/appconfig"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixapp"
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/style"
 )
 
 type Options struct {
-	Workspace       string
-	Targets         []string
-	Languages       []string
-	IncludeTests    bool
-	FollowSymlinks  bool
-	Limit           int
-	TrendWindow     time.Duration
-	Compact         bool
-	TypeScriptTypes bool
-	PreferencesPath string
+	Workspace            string
+	Targets              []string
+	Languages            []string
+	IncludeTests         bool
+	FollowSymlinks       bool
+	Limit                int
+	TrendWindow          time.Duration
+	Compact              bool
+	TypeScriptTypes      bool
+	PreferencesPath      string
+	FixService           FixService
+	FixWorkspace         fix.WorkspaceIdentity
+	FixUnavailableReason string
+	ConfigStore          ConfigStore
+	ConfigWorkspace      fix.WorkspaceIdentity
+	ProfileProber        ProfileProber
+	ProfileCatalog       agent.ProfileCatalog
+}
+
+type ConfigStore interface {
+	appconfig.Resolver
+	appconfig.Store
+}
+
+type ProfileProber interface {
+	Probe(context.Context, agent.Profile) agent.ProbeResult
 }
 
 type Analyzer interface {
@@ -90,6 +110,29 @@ type Model struct {
 	analyzer             Analyzer
 	watcher              *sourceWatcher
 	options              Options
+	mainView             MainView
+	files                FilesState
+	agents               AgentsState
+	overlays             OverlayStack
+	fixService           FixService
+	fixWorkspace         fix.WorkspaceIdentity
+	fixSubscription      fixapp.Subscription
+	fixRevision          fixapp.GlobalRevision
+	fixGeneration        uint64
+	fixDialog            fixDialogState
+	jobActions           jobActionsState
+	cancelConfirmation   cancelConfirmation
+	jobMonitor           jobMonitorState
+	jobReader            jobReaderState
+	shutdown             shutdownState
+	fixNotice            string
+	fixUpdatesStale      bool
+	fixRetryGeneration   uint64
+	configStore          ConfigStore
+	configWorkspace      fix.WorkspaceIdentity
+	profileProber        ProfileProber
+	profileCatalog       agent.ProfileCatalog
+	configSettings       configSettingsState
 	repositoryIdentity   string
 	document             report.Document
 	displayFilesCache    []report.File
@@ -154,6 +197,7 @@ type Model struct {
 	findOpen             bool
 	findQuery            string
 	findSource           bool
+	agentFindInput       textinput.Model
 	visible              map[string]bool
 }
 
@@ -181,16 +225,27 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	findInput.Prompt = "/ "
 	findInput.Placeholder = "find"
 	findInput.CharLimit = 256
+	agentFindInput := textinput.New()
+	agentFindInput.Prompt = "/ "
+	agentFindInput.Placeholder = "find jobs"
+	agentFindInput.CharLimit = 256
+	configWorkspace := options.ConfigWorkspace
+	if configWorkspace.RepositoryRoot == "" {
+		configWorkspace = options.FixWorkspace
+	}
 	model := &Model{
 		analyzer: analyzer, watcher: watcher, options: options, document: document,
+		mainView: MainViewFiles, agents: AgentsState{Expanded: map[fix.JobID]bool{}},
+		fixService: options.FixService, fixWorkspace: options.FixWorkspace,
+		configStore: options.ConfigStore, configWorkspace: configWorkspace, profileProber: options.ProfileProber, profileCatalog: options.ProfileCatalog,
 		repositoryIdentity: repositoryIdentity(options.Workspace),
 		baseDocument:       document,
 		weights:            preferenceWeights(userPreferences), weightEnabled: preferenceWeightEnabled(userPreferences),
 		weightStep: userPreferences.Scoring.WeightStep, maximumWeight: userPreferences.Scoring.MaximumWeight,
 		preferencesPath: options.PreferencesPath, preferences: userPreferences,
 		rows: rows, queued: map[string]bool{},
-		findInput: findInput,
-		sortKey:   userPreferences.Table.SortBy, sortReverse: userPreferences.Table.SortDescending,
+		findInput: findInput, agentFindInput: agentFindInput,
+		sortKey: userPreferences.Table.SortBy, sortReverse: userPreferences.Table.SortDescending,
 		theme: style.Theme(userPreferences.Appearance.Theme), visible: preferenceColumns(userPreferences),
 	}
 	ConfigureTheme(model.theme)
@@ -201,10 +256,19 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	if len(document.Files) > 0 {
 		model.selected = document.Files[0].Path
 	}
+	model.captureFilesState()
+	if model.fixService != nil {
+		model.fixSubscription = model.fixService.Subscribe()
+	}
 	return model, nil
 }
 
-func (model *Model) Close() { model.watcher.close() }
+func (model *Model) Close() {
+	model.watcher.close()
+	if model.fixSubscription != nil {
+		_ = model.fixSubscription.Close()
+	}
+}
 
 // StartInitialAnalysis makes the first scan run after Bubble Tea has entered
 // the alternate screen, allowing the empty dashboard to render immediately.
@@ -216,6 +280,9 @@ func (model *Model) StartInitialAnalysis() {
 
 func initModel(model Model) tea.Cmd {
 	commands := []tea.Cmd{tickAnimation(model.analyzing)}
+	if model.fixService != nil {
+		commands = append(commands, initialFixJobsCommand(model.fixService))
+	}
 	if model.initialAnalysis {
 		// Establish the mutation barrier before the verifier reads any live
 		// input. This still runs after Bubble Tea renders the cached projection.
@@ -307,9 +374,20 @@ func view(model Model) string {
 	if model.width <= 0 || model.height <= 0 {
 		return ""
 	}
-	base := model.tableView()
+	if frame, ok := model.overlays.Top(); ok && frame.Kind == OverlayShutdown && model.width >= 24 && model.height >= 2 {
+		return model.featureOverlayView(resizeView(model.width, model.height), frame)
+	}
+	if responsiveTier(model.width, model.height) == ResponsiveResize {
+		return resizeView(model.width, model.height)
+	}
+	base := model.mainViewContent()
+	if frame, ok := model.overlays.Top(); ok && !frame.compatibility {
+		return model.featureOverlayView(base, frame)
+	}
 	if model.initialAnalysis && model.analyzing && !model.startupLogoExpired {
-		return model.startupView(base)
+		if model.mainView == MainViewFiles {
+			return model.startupView(base)
+		}
 	}
 	if model.detail {
 		return model.overlay(base, model.detailView())
@@ -318,6 +396,13 @@ func view(model Model) string {
 		return model.overlay(base, model.sourceViewView())
 	}
 	return modalView(model, base)
+}
+
+func (model Model) mainViewContent() string {
+	if model.mainView == MainViewAgents {
+		return agentsTableView(model)
+	}
+	return model.tableView()
 }
 
 func modalView(model Model, base string) string {
@@ -338,6 +423,12 @@ func modalView(model Model, base string) string {
 	}
 	if model.appearance {
 		return model.overlay(base, model.appearanceView())
+	}
+	if model.configSettings.open {
+		if fullScreenSurface(model.width, model.height) {
+			return model.configSettingsFullScreen()
+		}
+		return model.overlay(base, model.configSettingsView())
 	}
 	if model.settings {
 		return model.overlay(base, model.settingsView())

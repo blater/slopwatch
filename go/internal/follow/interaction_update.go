@@ -5,11 +5,24 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/report"
 )
 
 func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := message.(type) {
+	case configProbeMsg:
+		if model.configSettings.open && message.generation == model.configSettings.generation {
+			if model.configSettings.probes == nil {
+				model.configSettings.probes = map[agent.ProfileID]agent.ProbeResult{}
+			}
+			model.configSettings.probes[message.profile] = message.result
+		}
+		return model, nil
+	case configResolvedMsg:
+		return model, model.handleConfigResolved(message)
+	case configSavedMsg:
+		return model, model.handleConfigSaved(message)
 	case watcherReady:
 		return handleWatcherReady(model, message)
 	case tea.WindowSizeMsg:
@@ -28,6 +41,26 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 		return handleSourceLoaded(model, message)
 	case sourceHighlighted:
 		return handleSourceHighlighted(model, message)
+	case fixPreparedMsg:
+		model.handleFixPrepared(message)
+		return model, nil
+	case fixSubmittedMsg:
+		model.handleFixSubmitted(message)
+		return model, nil
+	case fixJobsMsg:
+		return model, model.handleFixJobs(message)
+	case fixCommandMsg:
+		model.handleFixCommand(message)
+		return model, nil
+	case fixRetrySubscriptionMsg:
+		return model, model.retryFixSubscription(message)
+	case jobMonitorMsg:
+		return model, model.handleJobMonitor(message)
+	case jobReaderMsg:
+		model.handleJobReader(message)
+		return model, nil
+	case shutdownCompleteMsg:
+		return model, model.handleShutdownComplete(message)
 	case tea.KeyMsg:
 		return model.handleKey(message)
 	default:
@@ -51,6 +84,12 @@ func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.C
 	model.width, model.height = message.Width, message.Height
 	model.ensureVisible()
 	model.clampPathOffset()
+	model.ensureAgentVisible()
+	model.clampAgentHorizontalOffset()
+	if model.hasOverlay(OverlayPromptEditor) {
+		model.fixDialog.prompt.SetWidth(max(1, model.width))
+		model.fixDialog.prompt.SetHeight(max(1, model.height-2))
+	}
 	model.clampDetailOffset()
 	if model.sourceView {
 		model.resizeSourceViewport()

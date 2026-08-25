@@ -3,9 +3,63 @@ package preferences
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestDefaultDocumentAndCloneDoNotShareMutableValues(t *testing.T) {
+	t.Parallel()
+	first := DefaultDocument()
+	second := DefaultDocument()
+	if first.Version != CurrentVersion || first.Fix.TargetScore != 100 || first.Concurrency.MaxAgents != 2 {
+		t.Fatalf("DefaultDocument() = %#v", first)
+	}
+	first.Table.VisibleColumns[0] = "mutated"
+	first.Scoring.Components["cognitive_complexity"] = ComponentPreference{}
+	if reflect.DeepEqual(first.Table.VisibleColumns, second.Table.VisibleColumns) ||
+		reflect.DeepEqual(first.Scoring.Components, second.Scoring.Components) {
+		t.Fatal("DefaultDocument calls share mutable values")
+	}
+
+	first.Agents.Profiles = []AgentProfile{{Options: map[string]string{"key": "value"}}}
+	first.Fix.Focus = []string{"cog"}
+	first.Validation.Plans = []ValidationPlan{{Checks: []ValidationCheck{{Arguments: []string{"test"}}}}}
+	cloned := Clone(first)
+	cloned.Agents.Profiles[0].Options["key"] = "mutated"
+	cloned.Fix.Focus[0] = "mutated"
+	cloned.Validation.Plans[0].Checks[0].Arguments[0] = "mutated"
+	if first.Agents.Profiles[0].Options["key"] != "value" || first.Fix.Focus[0] != "cog" ||
+		first.Validation.Plans[0].Checks[0].Arguments[0] != "test" {
+		t.Fatal("Clone shares nested mutable values")
+	}
+}
+
+func TestPartialRoundTripPreservesPresenceAndDeepCopies(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "preferences.toml")
+	partial := PartialDocument{Agents: &Agents{Profiles: []AgentProfile{{
+		ID: "codex", Options: map[string]string{"sandbox": "strict"},
+	}}}}
+	if err := SavePartial(path, partial); err != nil {
+		t.Fatal(err)
+	}
+	loaded, _, exists, err := LoadPartial(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists || loaded.Version == nil || loaded.Agents == nil || loaded.Fix != nil {
+		t.Fatalf("LoadPartial() = %#v, exists %v", loaded, exists)
+	}
+	loaded.Agents.Profiles[0].Options["sandbox"] = "mutated"
+	again, _, _, err := LoadPartial(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Agents.Profiles[0].Options["sandbox"] != "strict" {
+		t.Fatal("partial load shared mutable values")
+	}
+}
 
 func testDefaults() Document {
 	return Document{

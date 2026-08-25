@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/blater/slopwatch/internal/follow"
+	"github.com/blater/slopwatch/internal/isolation"
 	"github.com/blater/slopwatch/internal/native"
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
@@ -64,8 +65,8 @@ func parser() (*flag.FlagSet, *options) {
 	flags.BoolVar(&options.followSymlinks, "follow-symlinks", false, "follow symbolic links found inside target directories")
 	flags.IntVar(&options.limit, "limit", 0, "maximum results; 0 returns all")
 	flags.StringVar(&options.languages, "languages", "", "comma-separated languages")
-	flags.Var(&options.backends, "backend", "language=backend override (repeatable)")
-	flags.StringVar(&options.config, "config", "", "configuration file")
+	flags.Var(&options.backends, "backend", "language=backend override (not supported by the native frontend)")
+	flags.StringVar(&options.config, "config", "", "preferences file (follow mode)")
 	flags.StringVar(&options.passScore, "pass-score", "", "maximum passing score")
 	flags.BoolVar(&options.useCache, "use-cache", false, "reuse verified cached analysis units")
 	flags.Usage = func() {
@@ -77,6 +78,12 @@ func parser() (*flag.FlagSet, *options) {
 }
 
 func main() {
+	if handled, code := isolation.ProbeMain(os.Args[1:]); handled {
+		os.Exit(code)
+	}
+	if handled, code := isolation.SupervisorMain(os.Args[1:]); handled {
+		os.Exit(code)
+	}
 	if err := run(os.Args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return
@@ -133,6 +140,12 @@ func validateOptions(parsed *options) error {
 	if parsed.follow && parsed.format != "text" {
 		return errors.New("--follow cannot be combined with --format json")
 	}
+	if len(parsed.backends) != 0 {
+		return errors.New("--backend is not supported by the native frontend")
+	}
+	if parsed.config != "" && !parsed.follow {
+		return errors.New("--config requires --follow")
+	}
 	return nil
 }
 
@@ -187,26 +200,51 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 		// ordinary fresh scan. Reuse is enabled after that result is visible.
 		nativeAnalyzer.SetCacheReads(false)
 	}
-	preferencesPath, pathErr := preferences.DefaultPath()
-	if pathErr != nil {
-		return pathErr
+	preferencesPath := parsed.config
+	if preferencesPath == "" {
+		var pathErr error
+		preferencesPath, pathErr = preferences.DefaultPath()
+		if pathErr != nil {
+			return pathErr
+		}
+	} else {
+		preferencesPath, err = filepath.Abs(preferencesPath)
+		if err != nil {
+			return fmt.Errorf("resolve preferences path: %w", err)
+		}
 	}
+	fixFeature, fixErr := buildFixFeature(context.Background(), workspace, installationRoot, preferencesPath, parsed, languages)
 	follow.ConfigureTerminalColours()
-	model, modelErr := follow.New(initial, nativeAnalyzer, follow.Options{
+	followOptions := follow.Options{
 		Workspace: workspace, Targets: targets, Languages: languages,
 		IncludeTests: parsed.includeTests, Limit: parsed.limit,
 		FollowSymlinks: parsed.followSymlinks,
 		TrendWindow:    parsed.trendWindow, Compact: parsed.compact, TypeScriptTypes: parsed.typescriptTypes,
 		PreferencesPath: preferencesPath,
-	})
+	}
+	if fixFeature != nil {
+		followOptions.FixWorkspace = fixFeature.workspace
+		followOptions.ConfigStore = fixFeature.config
+		followOptions.ConfigWorkspace = fixFeature.workspace
+		followOptions.ProfileProber = fixFeature.prober
+		followOptions.ProfileCatalog = fixFeature.catalog
+	}
+	if fixErr == nil && fixFeature != nil {
+		followOptions.FixService = fixFeature.service
+	} else if fixErr != nil {
+		followOptions.FixUnavailableReason = fixErr.Error()
+	}
+	model, modelErr := follow.New(initial, nativeAnalyzer, followOptions)
 	if modelErr != nil {
+		_ = closeFixFeature(fixFeature)
 		return modelErr
 	}
 	model.StartInitialAnalysis()
 	defer model.Close()
 	program := tea.NewProgram(model, tea.WithAltScreen())
 	_, runErr := program.Run()
-	return runErr
+	closeErr := closeFixFeature(fixFeature)
+	return errors.Join(runErr, closeErr)
 }
 
 func runReport(workspace, installationRoot string, targets, languages []string, parsed *options, passScore *float64) error {

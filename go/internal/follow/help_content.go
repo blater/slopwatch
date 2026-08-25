@@ -51,10 +51,15 @@ var commandLineHelp = []helpEntry{
 // Main-screen entries are deliberately ordered by action name so this page is
 // predictable even when the footer has to hide shortcuts on a narrow terminal.
 var mainScreenHelp = []helpEntry{
+	{label: "Actions", description: "Space on an Agents job opens only the actions currently allowed for that exact job revision."},
+	{label: "Agents", description: "Tab switches Files/Agents; A jumps directly to Agents. a toggles Active/All, f finds jobs, and o cycles job sorting."},
 	{label: "Columns", description: "c opens Settings with Columns selected; Enter chooses which metric columns are visible."},
 	{label: "Find", description: "f or / searches file paths. Enter accepts the query and Esc cancels it."},
+	{label: "Fix", description: "x opens Fix for the selected file, or opens its existing reservation-holding job. Space remains reserved for future multi-select."},
 	{label: "Help", description: "h opens this help system."},
 	{label: "Info", description: "i or Enter opens the full analysis for the selected file."},
+	{label: "Job details", description: "In Agents, i opens the monitor, d opens the candidate diff, l opens sanitized logs, and C cancels only the selected job after confirmation."},
+	{label: "Job status", description: "QUEUED, RUNNING, VERIFYING, REVIEW, CANCELED, FAILED and DONE are textual states. A check is final verification; a diamond is an independent checkpoint."},
 	{label: "Jump to bottom", description: "G or End selects the final file immediately."},
 	{label: "Jump to top", description: "g or Home selects the first file immediately."},
 	{label: "Move down", description: "Down or j selects the next file."},
@@ -64,9 +69,9 @@ var mainScreenHelp = []helpEntry{
 	{label: "Page up", description: "Page Up or Ctrl-B moves up by one screen."},
 	{label: "Path scroll", description: "Left and Right reveal horizontally clipped file paths."},
 	{label: "Previous match", description: "N selects the previous result for the current search."},
-	{label: "Quit", description: "q or Ctrl-C exits the dashboard."},
+	{label: "Quit", description: "q or Ctrl-C exits when idle. With active fixes, Slopwatch confirms cancel-all and visibly joins them before exit."},
 	{label: "Rescan", description: "r runs a full analysis again."},
-	{label: "Settings", description: "s opens persistent Appearance, Columns, and Weights settings."},
+	{label: "Settings", description: "s opens persistent Appearance, Columns, and Weights, plus agent, fix-default, concurrency, validation, and Git-delivery settings. Degraded agents show textual diagnostics."},
 	{label: "Sort", description: "o chooses the sort field and direction."},
 	{label: "View source", description: "v opens the selected file with syntax highlighting."},
 }

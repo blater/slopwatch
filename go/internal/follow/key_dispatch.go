@@ -4,45 +4,86 @@ import tea "github.com/charmbracelet/bubbletea"
 
 func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	name := key.String()
-	if model.findOpen {
-		return model.handleFindKey(key)
+	model.reconcileLegacyOverlayStack()
+	defer model.reconcileLegacyOverlayStack()
+	if overlay, ok := model.overlays.Top(); ok {
+		return dispatchOverlayKey(model, overlay.Kind, key)
 	}
-	if model.infoOpen {
-		if model.handleDialogKey(name) {
-			return model, nil
-		}
-		return model.handleInfoKey(name)
-	}
-	if model.help {
-		return model.handleHelpKey(name)
-	}
-	if model.detail {
-		return model.handleDetailKey(name)
-	}
-	if model.sourceView {
-		if name == "f" || name == "/" {
-			return model.openFind(true)
-		}
-		return model.handleSourceKey(key)
-	}
-	if model.columns {
-		return model.handleColumnKey(name)
-	}
-	if model.sortOpen {
-		return model.handleSortKey(name)
-	}
-	if model.weightsOpen {
-		return model.handleWeightsKey(name)
-	}
-	if model.appearance {
-		return model.handleAppearanceKey(name)
-	}
-	if model.settings {
-		return model.handleSettingsKey(name)
+	if model.mainView == MainViewAgents && model.agents.FindEditing {
+		return model.handleAgentFindKey(key)
 	}
 	switch name {
+	case "tab":
+		model.toggleMainView()
+		return model, nil
+	case "A":
+		model.switchMainView(MainViewAgents)
+		return model, nil
 	case "ctrl+c", "q":
-		return model, tea.Quit
+		return model.requestQuit()
+	case "s":
+		model.settings = true
+		model.settingsCursor = 0
+		return model, nil
+	case "h":
+		model.help = true
+		model.helpCursor = 0
+		model.helpTopic = ""
+		return model, nil
+	}
+	if model.mainView == MainViewAgents {
+		switch name {
+		case "up", "k":
+			model.moveAgentSelection(-1)
+		case "down", "j":
+			model.moveAgentSelection(1)
+		case "left":
+			model.moveAgentHorizontal(-pathScrollStep)
+		case "right":
+			model.moveAgentHorizontal(pathScrollStep)
+		case "ctrl+f", "pgdown":
+			model.pageAgentSelection(1)
+		case "ctrl+b", "pgup":
+			model.pageAgentSelection(-1)
+		case "home", "g":
+			model.jumpAgentSelection(false)
+		case "end", "G":
+			model.jumpAgentSelection(true)
+		case "enter":
+			if model.agents.Selected.IsJob() {
+				model.toggleSelectedAgentJob()
+			} else {
+				return model, model.openJobMonitor(model.agents.Selected.JobID, model.agents.Selected.Path)
+			}
+		case "a":
+			model.toggleAgentFilter()
+		case "f", "/":
+			model.beginAgentFind()
+		case "o":
+			model.cycleAgentSort(1)
+		case "O":
+			model.agents.SortReverse = !model.agents.SortReverse
+			model.reconcileAgentSelection()
+		case "i":
+			return model, model.openJobMonitor(model.agents.Selected.JobID, model.agents.Selected.Path)
+		case "d":
+			return model, model.openJobDiff(model.agents.Selected.JobID, model.agents.Selected.Path)
+		case "l":
+			if model.agents.Selected.IsJob() {
+				return model, model.openJobLog(model.agents.Selected.JobID)
+			}
+		case "v":
+			if !model.agents.Selected.IsJob() {
+				return model, model.openCandidateSource(model.agents.Selected.JobID, model.agents.Selected.Path)
+			}
+		case "C":
+			model.openCancelConfirmation()
+		case " ":
+			model.openJobActions()
+		}
+		return model, nil
+	}
+	switch name {
 	case "up", "k":
 		model.move(-1)
 	case "down", "j":
@@ -65,20 +106,15 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		model.ensureVisible()
 	case "enter", "i":
 		model.openSelectedFileInfo()
+	case "x":
+		return model, model.openFixForSelected()
 	case "v":
 		return model, model.openSourceView()
 	case "c":
 		model.settings = true
 		model.settingsCursor = settingsIndex("columns")
-	case "s":
-		model.settings = true
-		model.settingsCursor = 0
 	case "o":
 		openSortDialog(model)
-	case "h":
-		model.help = true
-		model.helpCursor = 0
-		model.helpTopic = ""
 	case "f", "/":
 		return model.openFind(false)
 	case "n":
@@ -96,6 +132,62 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return model, nil
+}
+
+func dispatchOverlayKey(model *Model, kind OverlayKind, key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	name := key.String()
+	switch kind {
+	case OverlayFind:
+		return model.handleFindKey(key)
+	case OverlayInfo:
+		if model.handleDialogKey(name) {
+			return model, nil
+		}
+		return model.handleInfoKey(name)
+	case OverlayHelp:
+		return model.handleHelpKey(name)
+	case OverlayDetail:
+		return model.handleDetailKey(name)
+	case OverlaySource:
+		if name == "f" || name == "/" {
+			return model.openFind(true)
+		}
+		return model.handleSourceKey(key)
+	case OverlayColumns:
+		return model.handleColumnKey(name)
+	case OverlaySort:
+		return model.handleSortKey(name)
+	case OverlayWeights:
+		return model.handleWeightsKey(name)
+	case OverlayAppearance:
+		return model.handleAppearanceKey(name)
+	case OverlaySettings:
+		return model.handleSettingsKey(name)
+	case OverlayConfigSettings:
+		return model.handleConfigSettingsKey(key)
+	case OverlayFixForm:
+		return model.handleFixFormKey(key)
+	case OverlayPromptEditor:
+		return model.handlePromptEditorKey(key)
+	case OverlayPromptDetach:
+		return model.handlePromptDetachKey(key)
+	case OverlayPromptDirty:
+		return model.handlePromptDirtyKey(key)
+	case OverlayJobMonitor:
+		return model.handleJobMonitorKey(key)
+	case OverlayJobActions:
+		return model.handleJobActionsKey(key)
+	case OverlayJobLog, OverlayJobDiff, OverlayCandidateSource:
+		return model.handleJobReaderKey(key)
+	case OverlayConfirmation:
+		return model.handleCancelConfirmationKey(key)
+	case OverlaySettingsDirty:
+		return model.handleSettingsDirtyKey(key)
+	case OverlayShutdown:
+		return model.handleShutdownKey(key)
+	default:
+		return model, nil
+	}
 }
 
 func openSortDialog(model *Model) {
