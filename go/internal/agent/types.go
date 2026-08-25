@@ -33,15 +33,18 @@ const (
 )
 
 type RuntimeIsolation struct {
-	Writes                WriteConfinement
-	SensitiveReadsDenied  bool
-	TransportAuthIsolated bool
-	CrashContainment      bool
+	Writes                      WriteConfinement
+	SensitiveReadsDenied        bool
+	TransportAuthIsolated       bool
+	CrashContainment            bool
+	ProviderManagedCancellation bool
 }
 
 func (value RuntimeIsolation) EligibleForMutation() bool {
-	return value.Writes == CandidateTreeAndGitMetadataProtected &&
-		value.SensitiveReadsDenied && value.TransportAuthIsolated && value.CrashContainment
+	hostManaged := value.Writes == CandidateTreeAndGitMetadataProtected &&
+		value.SensitiveReadsDenied && value.CrashContainment
+	providerManaged := value.Writes >= CandidateTreeEnforced && value.ProviderManagedCancellation
+	return providerManaged || (value.TransportAuthIsolated && hostManaged)
 }
 
 type NetworkCapability struct {

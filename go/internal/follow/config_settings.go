@@ -874,7 +874,7 @@ func (model *Model) addDefaultAgentProfile() {
 		descriptor, descriptorErr = model.profileCatalog.Descriptor(selected)
 	}
 	if model.profileCatalog == nil || descriptorErr != nil {
-		descriptor = agent.ProfileDescriptor{Runtime: "codex-cli", Label: "Codex CLI", Fields: []agent.ProfileField{
+		descriptor = agent.ProfileDescriptor{Runtime: "codex-cli", Label: "Codex", Fields: []agent.ProfileField{
 			{Key: "executable", Default: "codex"}, {Key: "authentication_ref", Default: "provider-owned"},
 		}}
 		selected = "codex-cli"
@@ -1887,7 +1887,7 @@ func agentProfileChoiceLabel(profile agent.Profile) string {
 		if profile.ID == "codex-default" {
 			return "Codex — managed sign-in (ChatGPT recommended)"
 		}
-		return "Codex CLI — managed sign-in"
+		return "Codex — managed sign-in"
 	case "openai-responses":
 		return "OpenAI Responses API — API key (billed separately)"
 	default:

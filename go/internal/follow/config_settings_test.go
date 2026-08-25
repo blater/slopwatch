@@ -165,7 +165,7 @@ func TestAgentSettingsOfferSafeCodexDefaultAndShowReadiness(t *testing.T) {
 		Writes: agent.CandidateTreeAndGitMetadataProtected, SensitiveReadsDenied: true, TransportAuthIsolated: true, CrashContainment: true,
 	}}}
 	text := ansi.Strip(model.configSettingsView())
-	for _, fragment := range []string{"Codex CLI", "managed sign-in", "DEFAULT", "ready 1.", "D set default"} {
+	for _, fragment := range []string{"Codex", "managed sign-in", "DEFAULT", "ready 1.", "D set default"} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("agent settings missing %q: %q", fragment, text)
 		}
@@ -504,10 +504,9 @@ func (*settingsProfileServices) Descriptor(kind agent.RuntimeKind) (agent.Profil
 	if kind != "codex-cli" {
 		return agent.ProfileDescriptor{}, fmt.Errorf("unknown runtime %s", kind)
 	}
-	return agent.ProfileDescriptor{Runtime: kind, Label: "Codex CLI", Fields: []agent.ProfileField{
+	return agent.ProfileDescriptor{Runtime: kind, Label: "Codex", Fields: []agent.ProfileField{
 		{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true, PreferencesOnly: true},
 		{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Required: true, Description: "Run `codex login` to authorize."},
-		{Key: "options.denied_read_roots", OptionKey: "denied_read_roots", Label: "Additional denied roots", Kind: agent.ProfileFieldPathList, PreferencesOnly: true},
 		{Key: "options.probe_timeout", OptionKey: "probe_timeout", Label: "Probe timeout", Kind: agent.ProfileFieldText, PreferencesOnly: true},
 		{Key: "options.termination_grace", OptionKey: "termination_grace", Label: "Cancellation grace", Kind: agent.ProfileFieldText, PreferencesOnly: true},
 	}}, nil

@@ -191,10 +191,10 @@ adapter, `max_turns`, `max_tool_calls`, and token checks use `0` to mean no
 Slopwatch-imposed budget (or provider default for output tokens). Byte and entry
 budgets must be positive. Slopwatch does not impose an attempt count or job
 wall-clock timeout; Retry and per-job Cancel remain explicit actions. The Codex
-CLI adapter's readiness/confinement probe timeout and post-cancellation
-termination grace are also preferences-file-only. Probe timeout governs probes
-only; termination grace starts only after the user or owning context cancels
-work. Neither disconnects a live fix attempt.
+App Server adapter's readiness timeout and post-cancellation termination grace
+are also preferences-file-only. Probe timeout governs readiness checks only;
+termination grace starts only after the user or owning context cancels work.
+Neither disconnects a live fix attempt.
 
 `concurrency.max_transcript_bytes` is enforced exactly per job as the sum of
 the JSON-encoded transcript entries retained for display and recovery. Saving a

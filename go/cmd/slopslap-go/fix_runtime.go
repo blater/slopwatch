@@ -65,13 +65,11 @@ func buildFixFeature(ctx context.Context, workspace, installationRoot, preferenc
 	// discovered repository identity before any job can be admitted.
 	identity := fix.WorkspaceIdentity{RepositoryRoot: analysisRoot, AnalysisRoot: analysisRoot}
 	sensitiveRoots := fixSensitiveRoots(identity, stateRoot, preferencesPath)
-	confinement := isolation.SelectCandidateConfinement(runner, isolation.ConfinementOptions{})
-
 	registry := agent.NewRegistry()
-	// The exact provider probe and trusted validation consume the same platform
-	// confinement capability. Unsupported hosts remain fail-closed through that
-	// shared selector rather than independent composition booleans.
-	strategy := codexcli.New(runner, codexcli.ExecutableChecker{Runner: runner, Confinement: confinement})
+	// Codex follows the same deep-client integration as t3code: Slopwatch owns
+	// an App Server child per attempt and the adapter translates its lifecycle,
+	// events and turn-scoped cancellation behind agent.Strategy.
+	strategy := codexcli.New()
 	if err := registry.Register(codexcli.RuntimeKind, strategy); err != nil {
 		return nil, err
 	}
@@ -83,7 +81,7 @@ func buildFixFeature(ctx context.Context, workspace, installationRoot, preferenc
 	if err := registry.Register(openairesponses.RuntimeKind, responses); err != nil {
 		return nil, err
 	}
-	defaults := agentDefaults(preferences.DefaultDocument(), sensitiveRoots)
+	defaults := agentDefaults(preferences.DefaultDocument())
 	config, err := preferencesadapter.New(preferencesadapter.Options{UserPath: preferencesPath, Defaults: defaults, RuntimeKinds: registry.Kinds(), ProfileCatalog: registry})
 	if err != nil {
 		return nil, err
@@ -184,12 +182,11 @@ func fixSensitiveRoots(workspace fix.WorkspaceIdentity, stateRoot, preferencesPa
 	return denied
 }
 
-func agentDefaults(value preferences.Document, denied []string) preferences.Document {
+func agentDefaults(value preferences.Document) preferences.Document {
 	value = preferences.Clone(value)
 	value.Agents.Profiles = []preferences.AgentProfile{
 		{ID: "codex-default", Label: "Codex — managed sign-in (ChatGPT recommended)", Runtime: string(codexcli.RuntimeKind),
-			Executable: "codex", RuntimeProfile: "slopwatch", AuthenticationRef: "provider-owned",
-			Options: map[string]string{"denied_read_roots": strings.Join(denied, string(os.PathListSeparator))}},
+			Executable: "codex", RuntimeProfile: "slopwatch", AuthenticationRef: "provider-owned", Options: map[string]string{}},
 		{ID: "gpt-default", Label: "OpenAI Responses API — API key", Runtime: string(openairesponses.RuntimeKind),
 			AuthenticationRef: "env:OPENAI_API_KEY", Options: map[string]string{}},
 	}

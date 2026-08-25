@@ -12,7 +12,7 @@ import (
 )
 
 func TestBuiltInOpenAIDefaultUsesCodexAccountLoginAndKeepsAPIKeyAlternative(t *testing.T) {
-	value := agentDefaults(preferences.DefaultDocument(), nil)
+	value := agentDefaults(preferences.DefaultDocument())
 	if value.Fix.Profile != "codex-default" || len(value.Agents.Profiles) != 2 {
 		t.Fatalf("agent defaults = %#v", value)
 	}

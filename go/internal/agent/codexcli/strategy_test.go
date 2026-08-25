@@ -1,11 +1,12 @@
 package codexcli
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
-	"net"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -14,217 +15,60 @@ import (
 
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/isolation"
 )
 
-type recordingExecutor struct {
-	mu       sync.Mutex
-	requests []isolation.Request
-	results  []isolation.Result
-	err      error
-}
-
-type liveExecutor struct {
-	recordingExecutor
-	started chan struct{}
-	release chan struct{}
-}
-
-func TestProfileDescriptorAndValidationAreProviderOwned(t *testing.T) {
-	descriptor := (&Strategy{}).ProfileDescriptor()
-	if descriptor.Runtime != RuntimeKind || len(descriptor.Fields) < 3 || descriptor.Fields[0].Kind != agent.ProfileFieldExecutable || descriptor.Fields[1].Kind != agent.ProfileFieldAuthReference || descriptor.Fields[2].Kind != agent.ProfileFieldPathList {
+func TestProfileDescriptorKeepsOperationalDetailsInPreferences(t *testing.T) {
+	descriptor := New().ProfileDescriptor()
+	if descriptor.Runtime != RuntimeKind || descriptor.Label != "Codex — managed sign-in" {
 		t.Fatalf("descriptor = %#v", descriptor)
 	}
-	strategy := &Strategy{}
-	if err := strategy.ValidateProfile(agent.Profile{ID: "codex", Runtime: RuntimeKind, Executable: "codex"}); err == nil || !strings.Contains(err.Error(), "provider-owned") {
-		t.Fatalf("missing auth validation error = %v", err)
-	}
-	if err := strategy.ValidateProfile(agent.Profile{ID: "codex", Runtime: RuntimeKind, Executable: "codex", AuthenticationRef: "provider-owned"}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestAuthenticationStatusDistinguishesChatGPTAPIKeyAndSignedOut(t *testing.T) {
-	t.Parallel()
-	for _, test := range []struct {
-		name, output, method string
-		signedIn             bool
-	}{
-		{name: "ChatGPT", output: "Logged in using ChatGPT", method: "chatgpt", signedIn: true},
-		{name: "API key", output: "Logged in using API key", method: "api-key", signedIn: true},
-		{name: "signed out substring", output: "Not logged in", signedIn: false},
-		{name: "unknown", output: "authentication required", signedIn: false},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			authentication, signedIn := parseAuthenticationStatus(test.output)
-			if signedIn != test.signedIn || authentication.Method != test.method {
-				t.Fatalf("parseAuthenticationStatus(%q) = %#v, %t", test.output, authentication, signedIn)
-			}
-		})
-	}
-}
-
-func (executor *liveExecutor) RunStreaming(_ context.Context, request isolation.Request, observe func([]byte)) (isolation.Result, error) {
-	executor.mu.Lock()
-	executor.requests = append(executor.requests, request)
-	executor.mu.Unlock()
-	first := []byte("{\"type\":\"thread.started\",\"thread_id\":\"live-thread\"}\n")
-	observe(first)
-	close(executor.started)
-	<-executor.release
-	last := []byte("{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"live complete\"}}\n")
-	observe(last)
-	return isolation.Result{ExitCode: 0, Stdout: append(first, last...)}, nil
-}
-
-func (executor *recordingExecutor) Run(_ context.Context, request isolation.Request) (isolation.Result, error) {
-	executor.mu.Lock()
-	defer executor.mu.Unlock()
-	executor.requests = append(executor.requests, request)
-	if executor.err != nil {
-		return isolation.Result{}, executor.err
-	}
-	if len(executor.results) == 0 {
-		return isolation.Result{}, errors.New("unexpected invocation")
-	}
-	result := executor.results[0]
-	executor.results = executor.results[1:]
-	return result, nil
-}
-
-func TestProbeFailsClosedWhenConfinementIsUnproven(t *testing.T) {
-	t.Parallel()
-	executable := fakeExecutable(t)
-	executor := &recordingExecutor{results: probeResults()}
-	strategy := New(executor, nil)
-	strategy.workingDir = func() (string, error) { return t.TempDir(), nil }
-	result := strategy.Probe(t.Context(), agent.Profile{Executable: executable})
-	if result.State != agent.ProbeDegraded || result.Capabilities.Isolation.EligibleForMutation() {
-		t.Fatalf("Probe() = %#v", result)
-	}
-	if result.Authentication.Method != "chatgpt" || result.Authentication.Label != "Signed in with ChatGPT" {
-		t.Fatalf("Probe() authentication = %#v", result.Authentication)
-	}
-	if result.Capabilities.Resume {
-		t.Fatal("ephemeral Codex adapter advertised resume")
-	}
-}
-
-func TestExecutableCheckerDoesNotPromoteExactSandboxWithoutSharedCrashContainment(t *testing.T) {
-	t.Parallel()
-	payload, err := json.Marshal(isolation.ProbeResult{CandidateWrite: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	executor := &recordingExecutor{results: []isolation.Result{{ExitCode: 0, Stdout: payload}}}
-	checker := ExecutableChecker{Runner: executor, HelperExecutable: os.Args[0], Confinement: isolation.UnsupportedConfinement{Reason: "no persistent descendant owner"}, Listen: func(string, string) (net.Listener, error) {
-		return &testInertListener{closed: make(chan struct{})}, nil
-	}}
-	result := checker.Check(t.Context(), isolation.ConformanceRequest{
-		Executable: "/codex", ProfileArguments: []string{"sandbox"}, CandidateRoot: "/candidate",
-		GitCommonDir: "/git", OutsideRoot: t.TempDir(), SensitiveRoots: []string{"/secret"}, TransportAuthVerified: true,
-		Limits: isolation.Limits{WallTime: time.Second, TerminateGrace: time.Second, MaxStdoutBytes: 1 << 20, MaxStderrBytes: 1 << 20},
-	})
-	if !result.CandidateWrite || !result.OutsideWriteDenied || !result.GitMetadataDenied || !result.SensitiveReadsDenied || !result.ToolNetworkPolicy || !result.TransportAuth {
-		t.Fatalf("exact provider gates = %#v", result)
-	}
-	if result.CrashContainment || result.MutationEligible() || !strings.Contains(result.Diagnostic, "persistent descendant") {
-		t.Fatalf("unproven shared confinement was promoted: %#v", result)
-	}
-}
-
-func TestProbeTimingPolicyIsProfileOwnedAndPreferencesOnly(t *testing.T) {
-	descriptor := (&Strategy{}).ProfileDescriptor()
-	seen := map[string]bool{}
 	for _, field := range descriptor.Fields {
-		seen[field.OptionKey] = true
-		if (field.OptionKey == "probe_timeout" || field.OptionKey == "termination_grace") && !field.PreferencesOnly {
-			t.Fatalf("low-frequency probe setting leaked into the Agents popup: %#v", field)
+		if field.Key != "authentication_ref" && !field.PreferencesOnly {
+			t.Fatalf("operational field is visible in the Agents dialog: %#v", field)
 		}
 	}
-	if !seen["probe_timeout"] || !seen["termination_grace"] {
-		t.Fatalf("probe settings absent from descriptor: %#v", descriptor.Fields)
+}
+
+func TestProbeUsesAppServerAccountAndModelCatalog(t *testing.T) {
+	capture := filepath.Join(t.TempDir(), "capture.jsonl")
+	strategy := New()
+	strategy.workingDir = func() (string, error) { return t.TempDir(), nil }
+	result := strategy.Probe(t.Context(), testProfile(fakeAppServerExecutable(t, "complete", capture)))
+	if result.State != agent.ProbeReady || result.Version != "0.149.1" {
+		t.Fatalf("Probe() = %#v", result)
 	}
-	profile := agent.Profile{ID: "codex", Runtime: RuntimeKind, Executable: "codex", AuthenticationRef: "provider-owned", Options: map[string]string{
-		"probe_timeout": "37s", "termination_grace": "9s",
-	}}
-	if err := (&Strategy{}).ValidateProfile(profile); err != nil {
-		t.Fatal(err)
+	if result.Authentication.Method != "chatgpt" || !strings.Contains(result.Authentication.Label, "Plus") {
+		t.Fatalf("authentication = %#v", result.Authentication)
 	}
-	policy, err := configuredProbePolicy(profile)
-	if err != nil || policy.timeout != 37*time.Second || policy.terminationGrace != 9*time.Second {
-		t.Fatalf("probe policy=%+v err=%v", policy, err)
+	if len(result.Capabilities.Models) != 1 || result.Capabilities.Models[0].ID != "gpt-5.6-sol" || len(result.Capabilities.Efforts) != 2 {
+		t.Fatalf("capabilities = %#v", result.Capabilities)
+	}
+	isolation := result.Capabilities.Isolation
+	if !isolation.ProviderManagedCancellation || isolation.CrashContainment || isolation.SensitiveReadsDenied || isolation.TransportAuthIsolated || !isolation.EligibleForMutation() {
+		t.Fatalf("App Server lifecycle was misrepresented: %#v", isolation)
+	}
+	methods := capturedMethods(t, capture)
+	for _, wanted := range []string{"initialize", "initialized", "account/read", "model/list"} {
+		if !containsString(methods, wanted) {
+			t.Fatalf("missing %q in %v", wanted, methods)
+		}
 	}
 }
 
-type testInertListener struct{ closed chan struct{} }
-
-func (listener *testInertListener) Accept() (net.Conn, error) {
-	<-listener.closed
-	return nil, os.ErrClosed
-}
-func (listener *testInertListener) Close() error {
-	select {
-	case <-listener.closed:
-	default:
-		close(listener.closed)
-	}
-	return nil
-}
-func (*testInertListener) Addr() net.Addr { return testInertAddress("no-network") }
-
-type testInertAddress string
-
-func (address testInertAddress) Network() string { return "test" }
-func (address testInertAddress) String() string  { return string(address) }
-
-func TestExecuteBuildsConfinedEphemeralInvocationAndNormalizesEvents(t *testing.T) {
-	t.Parallel()
+func TestExecuteStreamsEventsAndUsesWorkspaceWrite(t *testing.T) {
 	root := canonicalTestRoot(t)
 	common := filepath.Join(root, "common.git")
 	candidate := filepath.Join(root, "candidate")
-	secret := filepath.Join(root, "secret")
-	for _, path := range []string{common, candidate, secret, filepath.Join(candidate, ".git")} {
-		if err := os.MkdirAll(path, 0o700); err != nil {
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
 			t.Fatal(err)
 		}
 	}
-	executor := &recordingExecutor{results: append(probeResults(), isolation.Result{ExitCode: 0, Stdout: []byte(strings.Join([]string{
-		`{"type":"thread.started","thread_id":"thread-1"}`,
-		`{"type":"item.started","item":{"id":"cmd-1","type":"command_execution","command":"go test ./..."}}`,
-		`{"type":"future.event","new_field":true}`,
-		`{"type":"item.completed","item":{"id":"change-1","type":"file_change","changes":[{"path":"main.go"}]}}`,
-		`{"type":"item.completed","item":{"id":"message-1","type":"agent_message","text":"Fixed the target."}}`,
-		`{"type":"turn.completed","usage":{"input_tokens":20,"cached_input_tokens":5,"output_tokens":8,"reasoning_output_tokens":3}}`,
-	}, "\n") + "\n")})}
-	strategy := New(executor, isolation.CheckerFunc(func(context.Context, isolation.ConformanceRequest) isolation.Conformance {
-		return passingConformance()
-	}))
+	capture := filepath.Join(root, "capture.jsonl")
+	strategy := New()
 	strategy.workingDir = func() (string, error) { return root, nil }
-	strategy.getenv = func(key string) string {
-		switch key {
-		case "PATH":
-			return "/usr/bin:/bin"
-		case "HOME":
-			return root
-		case "OPENAI_API_KEY":
-			return "must-not-leak"
-		default:
-			return ""
-		}
-	}
-	path, err := fix.ParseRepoPath("main.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	request := agent.Request{
-		JobID: "job-1", AttemptID: "attempt-1", Model: "gpt-5.6-sol", Effort: "high", Delegation: agent.DelegationSingle,
-		Workspace: fix.CandidateIdentity{RepositoryRoot: candidate, GitCommonDir: common},
-		Task:      agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "trusted envelope", Objective: "fix main.go"}},
-		Limits:    agent.Limits{MaxOutputBytes: 1 << 20, MaxEvents: 100},
-	}
 	var events []agent.Event
-	result := strategy.Execute(t.Context(), agent.Profile{Executable: fakeExecutable(t), Options: map[string]string{"denied_read_roots": secret}}, request, agent.EventSinkFunc(func(event agent.Event) error {
+	result := strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "complete", capture)), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
 		events = append(events, event)
 		return nil
 	}))
@@ -234,142 +78,595 @@ func TestExecuteBuildsConfinedEphemeralInvocationAndNormalizesEvents(t *testing.
 	if result.Usage.InputTokens != 20 || result.Usage.ReasoningTokens != 3 {
 		t.Fatalf("usage = %#v", result.Usage)
 	}
-	if len(events) != 5 || events[2].Path != path {
-		t.Fatalf("events = %#v", events)
-	}
-	executor.mu.Lock()
-	invocation := executor.requests[len(executor.requests)-1]
-	executor.mu.Unlock()
-	joined := strings.Join(invocation.Arguments, "\n")
-	for _, wanted := range []string{"default_permissions=\"slopwatch\"", common, secret, "--ephemeral", "--ignore-user-config", "--ignore-rules", "--disable\nmulti_agent"} {
-		if !strings.Contains(joined, wanted) {
-			t.Fatalf("invocation does not contain %q: %v", wanted, invocation.Arguments)
+	foundPath := false
+	for _, event := range events {
+		if event.Kind == agent.EventFileChanged && event.Path == "main.go" {
+			foundPath = true
 		}
 	}
-	if strings.Contains(joined, "trusted envelope") || string(invocation.Stdin) != "trusted envelope\n\nfix main.go" {
-		t.Fatalf("prompt was not isolated to stdin: args=%v stdin=%q", invocation.Arguments, invocation.Stdin)
+	if len(events) < 5 || events[0].Kind != agent.EventStarted || !foundPath {
+		t.Fatalf("events = %#v", events)
 	}
-	for _, value := range invocation.Environment {
-		if strings.Contains(value, "OPENAI_API_KEY") || strings.Contains(value, "must-not-leak") {
-			t.Fatalf("secret environment leaked: %q", value)
+	requests := capturedMessages(t, capture)
+	initializeCount := 0
+	for _, message := range requests {
+		if message.Method == "initialize" {
+			initializeCount++
+		}
+	}
+	if initializeCount != 1 {
+		t.Fatalf("fix attempt launched %d App Server sessions, want 1", initializeCount)
+	}
+	thread := findCaptured(t, requests, "thread/start")
+	turn := findCaptured(t, requests, "turn/start")
+	if stringField(thread.Params, "sandbox") != "workspace-write" || stringField(thread.Params, "cwd") != candidate {
+		t.Fatalf("thread/start params = %#v", thread.Params)
+	}
+	sandbox, _ := turn.Params["sandboxPolicy"].(map[string]any)
+	if stringField(sandbox, "type") != "workspaceWrite" || sandbox["networkAccess"] != false {
+		t.Fatalf("turn sandbox = %#v", sandbox)
+	}
+	input, _ := turn.Params["input"].([]any)
+	first, _ := input[0].(map[string]any)
+	if stringField(first, "text") != "trusted envelope\n\nfix main.go" {
+		t.Fatalf("turn input = %#v", input)
+	}
+}
+
+func TestExecuteIgnoresForeignThreadAndTurnEvents(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var events []agent.Event
+	result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "foreign", filepath.Join(root, "capture"))), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
+		events = append(events, event)
+		return nil
+	}))
+	if result.Status != agent.ResultCompleted || result.Summary != "Fixed the target." {
+		t.Fatalf("Execute() = %#v", result)
+	}
+	for _, event := range events {
+		if strings.Contains(event.Summary, "foreign") {
+			t.Fatalf("foreign event contaminated attempt: %#v", events)
 		}
 	}
 }
 
-func TestExecuteRejectsMalformedAndExcessJSONL(t *testing.T) {
-	t.Parallel()
-	request := minimalRequest(t)
+func TestExecuteCancellationBeforeAndDuringInitializationIsCanceled(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	request := testRequest(candidate, common)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if result := New().Execute(ctx, testProfile("not-resolved"), request, nil); result.Status != agent.ResultCanceled || result.Failure != agent.FailureCancellation {
+		t.Fatalf("pre-canceled result = %#v", result)
+	}
+
+	capture := filepath.Join(root, "capture")
+	ctx, cancel = context.WithCancel(t.Context())
+	finished := make(chan agent.Result, 1)
+	go func() {
+		finished <- New().Execute(ctx, testProfile(fakeAppServerExecutable(t, "blockinit", capture)), request, nil)
+	}()
+	waitForCapturedMethod(t, capture, "initialize")
+	cancel()
+	select {
+	case result := <-finished:
+		if result.Status != agent.ResultCanceled || result.Failure != agent.FailureCancellation {
+			t.Fatalf("initialize cancellation = %#v", result)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("initialization cancellation did not finish")
+	}
+}
+
+func TestExecuteEnforcesConfiguredProviderOutputAndEventBudgets(t *testing.T) {
 	for _, test := range []struct {
-		name   string
-		output string
-		limit  int
+		name      string
+		mode      string
+		bytes     int64
+		maxEvents int
 	}{
-		{name: "malformed", output: "not-json\n", limit: 10},
-		{name: "too_many", output: "{}\n{}\n", limit: 1},
-		{name: "too_many_actors", output: strings.Join([]string{
-			`{"type":"item.started","item":{"type":"command_execution","agent_id":"one"}}`,
-			`{"type":"item.started","item":{"type":"command_execution","agent_id":"two"}}`,
-		}, "\n") + "\n", limit: 10},
+		{name: "oversized frame", mode: "oversize", bytes: 4096},
+		{name: "event flood", mode: "flood", bytes: 1 << 20, maxEvents: 2},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			executor := &recordingExecutor{results: append(probeResults(), isolation.Result{ExitCode: 0, Stdout: []byte(test.output)})}
-			strategy := readyStrategy(t, executor)
-			request.Limits.MaxEvents = test.limit
-			if test.name == "too_many_actors" {
-				request.Limits.MaxActors = 1
+			root := canonicalTestRoot(t)
+			common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+			for _, path := range []string{common, candidate} {
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
 			}
-			result := strategy.Execute(t.Context(), agent.Profile{Executable: fakeExecutable(t)}, request, nil)
-			if result.Failure != agent.FailureProtocol {
+			request := testRequest(candidate, common)
+			request.Limits.MaxOutputBytes, request.Limits.MaxEvents = test.bytes, test.maxEvents
+			result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, test.mode, filepath.Join(root, "capture"))), request, nil)
+			if result.Failure != agent.FailureProtocol || !strings.Contains(result.Diagnostic, "configured") && !strings.Contains(result.Diagnostic, "more than") {
 				t.Fatalf("Execute() = %#v", result)
 			}
 		})
 	}
 }
 
-func TestExecuteEmitsStructuredProgressBeforeProcessExit(t *testing.T) {
-	executor := &liveExecutor{recordingExecutor: recordingExecutor{results: probeResults()}, started: make(chan struct{}), release: make(chan struct{})}
-	strategy := readyStrategy(t, executor)
-	request := minimalRequest(t)
-	events := make(chan agent.Event, 4)
+func TestExecuteSuppressesNotificationsAfterTurnCompletion(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var mu sync.Mutex
+	var summaries []string
+	result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "trailing", filepath.Join(root, "capture"))), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
+		mu.Lock()
+		summaries = append(summaries, event.Summary)
+		mu.Unlock()
+		return nil
+	}))
+	if result.Status != agent.ResultCompleted {
+		t.Fatalf("Execute() = %#v", result)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, summary := range summaries {
+		if strings.Contains(summary, "late provider warning") {
+			t.Fatalf("post-terminal notification reached sink: %v", summaries)
+		}
+	}
+}
+
+func TestOwnedCompletionSynchronouslySuppressesNextNotification(t *testing.T) {
+	request := agent.Request{JobID: "job", AttemptID: "attempt", Limits: agent.Limits{MaxOutputBytes: 1 << 20}}
+	var events []agent.Event
+	run := newAppServerRun(request, agent.EventSinkFunc(func(event agent.Event) error {
+		events = append(events, event)
+		return nil
+	}))
+	run.setThread("thread-1")
+	run.setTurn("turn-1")
+	completedParams, _ := json.Marshal(map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "completed"}})
+	warningParams, _ := json.Marshal(map[string]any{"message": "must not be emitted"})
+	run.handle(rpcMessage{Method: "turn/completed", Params: completedParams})
+	run.handle(rpcMessage{Method: "warning", Params: warningParams})
+	if len(events) != 0 {
+		t.Fatalf("post-completion notification reached sink: %#v", events)
+	}
+	select {
+	case completion := <-run.completed:
+		if completion.Status != "completed" {
+			t.Fatalf("completion = %#v", completion)
+		}
+	default:
+		t.Fatal("owned completion was not published")
+	}
+}
+
+func TestActorLimitFailureWakesSilentAttempt(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	request := testRequest(candidate, common)
+	request.Limits.MaxActors = 1
+	result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "actoroverflow", filepath.Join(root, "capture"))), request, nil)
+	if result.Failure != agent.FailureProtocol || !strings.Contains(result.Diagnostic, "more than 1 actors") {
+		t.Fatalf("Execute() = %#v", result)
+	}
+}
+
+func TestCloseJoinsAppServerStdoutReader(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	client, err := startAppServer(fakeAppServerExecutable(t, "readerjoin", filepath.Join(t.TempDir(), "capture")), t.TempDir(), os.Environ(), 1<<20, func(message rpcMessage) {
+		if message.Method == "warning" {
+			close(started)
+			<-release
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var initialized map[string]any
+	if err := client.Request(t.Context(), "initialize", map[string]any{}, &initialized); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("stdout handler did not start")
+	}
+	closed := make(chan error, 1)
+	go func() {
+		closed <- client.Close(500 * time.Millisecond)
+	}()
+	select {
+	case err := <-closed:
+		t.Errorf("Close returned before the stdout reader finished: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close did not join the released stdout reader")
+	}
+}
+
+func TestUnexpectedServerRequestIsRejected(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capture := filepath.Join(root, "capture")
+	result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "serverrequest", capture)), testRequest(candidate, common), nil)
+	if result.Status != agent.ResultCompleted {
+		t.Fatalf("Execute() = %#v", result)
+	}
+	data, err := os.ReadFile(capture)
+	if err != nil || !strings.Contains(string(data), `"id":99`) || !strings.Contains(string(data), `"code":-32601`) {
+		t.Fatalf("unexpected server request was not explicitly rejected: %q err=%v", data, err)
+	}
+}
+
+func TestProbeReportsActionableEarlyAppServerExit(t *testing.T) {
+	strategy := New()
+	strategy.workingDir = func() (string, error) { return t.TempDir(), nil }
+	result := strategy.Probe(t.Context(), testProfile(fakeAppServerExecutable(t, "fail", filepath.Join(t.TempDir(), "capture"))))
+	if result.State != agent.ProbeIncompatible || !strings.Contains(result.Diagnostic, "fake app-server startup failure") ||
+		!strings.Contains(result.Diagnostic, "install or update Codex") || !strings.Contains(result.Diagnostic, "Test again") {
+		t.Fatalf("Probe() = %#v", result)
+	}
+}
+
+func TestCancellationUsesTurnInterrupt(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capture := filepath.Join(root, "capture.jsonl")
+	strategy := New()
+	strategy.workingDir = func() (string, error) { return root, nil }
+	ctx, cancel := context.WithCancel(t.Context())
+	started := make(chan struct{})
 	finished := make(chan agent.Result, 1)
 	go func() {
-		finished <- strategy.Execute(t.Context(), agent.Profile{Executable: fakeExecutable(t)}, request, agent.EventSinkFunc(func(event agent.Event) error {
-			events <- event
+		finished <- strategy.Execute(ctx, testProfile(fakeAppServerExecutable(t, "cancel", capture)), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
+			if event.Kind == agent.EventStarted {
+				select {
+				case <-started:
+				default:
+					close(started)
+				}
+			}
 			return nil
 		}))
 	}()
 	select {
-	case <-executor.started:
-	case <-time.After(time.Second):
-		t.Fatal("streaming execution did not start")
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Codex turn did not start")
 	}
-	select {
-	case event := <-events:
-		if event.Kind != agent.EventStarted {
-			t.Fatalf("first live event = %#v", event)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("no structured event arrived while the runtime was still active")
-	}
+	cancel()
 	select {
 	case result := <-finished:
-		t.Fatalf("runtime completed before release: %#v", result)
-	default:
+		if result.Status != agent.ResultCanceled || result.Failure != agent.FailureCancellation {
+			t.Fatalf("canceled result = %#v", result)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("canceled turn did not finish")
 	}
-	close(executor.release)
-	if result := <-finished; result.Status != agent.ResultCompleted || result.Summary != "live complete" {
-		t.Fatalf("streamed Execute() = %#v", result)
-	}
-}
-
-func probeResults() []isolation.Result {
-	return []isolation.Result{
-		{ExitCode: 0, Stdout: []byte("codex-cli 0.149.1\n")},
-		{ExitCode: 0, Stdout: []byte("Logged in using ChatGPT\n")},
-		{ExitCode: 0, Stdout: []byte(`{"models":[{"slug":"gpt-5.6-sol","display_name":"GPT-5.6-Sol","default_reasoning_level":"low","supported_reasoning_levels":[{"effort":"low"},{"effort":"high"},{"effort":"ultra"}]}]}`)},
+	interrupt := findCaptured(t, capturedMessages(t, capture), "turn/interrupt")
+	if stringField(interrupt.Params, "threadId") != "thread-1" || stringField(interrupt.Params, "turnId") != "turn-1" {
+		t.Fatalf("interrupt params = %#v", interrupt.Params)
 	}
 }
 
-func passingConformance() isolation.Conformance {
-	return isolation.Conformance{
-		CandidateWrite: true, OutsideWriteDenied: true, GitMetadataDenied: true,
-		SensitiveReadsDenied: true, ToolNetworkPolicy: true, TransportAuth: true, CrashContainment: true,
-	}
-}
-
-func readyStrategy(t *testing.T, executor isolation.Executor) *Strategy {
-	t.Helper()
-	strategy := New(executor, isolation.CheckerFunc(func(context.Context, isolation.ConformanceRequest) isolation.Conformance { return passingConformance() }))
-	strategy.workingDir = func() (string, error) { return t.TempDir(), nil }
-	return strategy
-}
-
-func minimalRequest(t *testing.T) agent.Request {
-	t.Helper()
+func TestCancellationUnblocksProviderWriteBackpressure(t *testing.T) {
 	root := canonicalTestRoot(t)
-	common := filepath.Join(root, "common")
-	candidate := filepath.Join(root, "candidate")
-	if err := os.Mkdir(common, 0o700); err != nil {
-		t.Fatal(err)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if err := os.Mkdir(candidate, 0o700); err != nil {
-		t.Fatal(err)
+	ctx, cancel := context.WithCancel(t.Context())
+	started := make(chan struct{})
+	finished := make(chan agent.Result, 1)
+	go func() {
+		finished <- New().Execute(ctx, testProfile(fakeAppServerExecutable(t, "backpressure", filepath.Join(root, "capture"))), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
+			if event.Kind == agent.EventStarted {
+				select {
+				case <-started:
+				default:
+					close(started)
+				}
+			}
+			return nil
+		}))
+	}()
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("backpressured turn did not start")
 	}
-	return agent.Request{
-		JobID: "job", AttemptID: "attempt", Model: "gpt-5.6-sol", Effort: "high", Delegation: agent.DelegationSingle,
-		Workspace: fix.CandidateIdentity{RepositoryRoot: candidate, GitCommonDir: common},
-		Task:      agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "envelope", Objective: "objective"}},
-		Limits:    agent.Limits{MaxOutputBytes: 1 << 20, MaxEvents: 10},
+	cancel()
+	select {
+	case result := <-finished:
+		if result.Status != agent.ResultCanceled || result.Failure != agent.FailureCancellation {
+			t.Fatalf("Execute() = %#v", result)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("cancellation remained blocked on App Server stdin")
 	}
 }
 
-func fakeExecutable(t *testing.T) string {
+func TestCodexAppServerHelper(t *testing.T) {
+	if !containsString(os.Args, "app-server") {
+		return
+	}
+	if containsString(os.Args, "--disable") || containsString(os.Args, "-c") {
+		fmt.Fprintln(os.Stderr, "unexpected App Server launch constraint")
+		os.Exit(2)
+	}
+	serveFakeAppServer(os.Getenv("SLOPWATCH_FAKE_MODE"), os.Getenv("SLOPWATCH_FAKE_CAPTURE"))
+	os.Exit(0)
+}
+
+func serveFakeAppServer(mode, capture string) {
+	if mode == "fail" {
+		fmt.Fprintln(os.Stderr, "fake app-server startup failure")
+		return
+	}
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := append([]byte(nil), scanner.Bytes()...)
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params map[string]any  `json:"params"`
+		}
+		if json.Unmarshal(line, &request) != nil {
+			continue
+		}
+		appendCapture(capture, line)
+		respond := func(value any) {
+			encoded, _ := json.Marshal(map[string]any{"id": json.RawMessage(request.ID), "result": value})
+			fmt.Println(string(encoded))
+		}
+		respondError := func(message string) {
+			encoded, _ := json.Marshal(map[string]any{"id": json.RawMessage(request.ID), "error": map[string]any{"code": -32602, "message": message}})
+			fmt.Println(string(encoded))
+		}
+		notify := func(method string, params any) {
+			encoded, _ := json.Marshal(map[string]any{"method": method, "params": params})
+			fmt.Println(string(encoded))
+		}
+		switch request.Method {
+		case "initialize":
+			if mode == "blockinit" {
+				continue
+			}
+			respond(map[string]any{"userAgent": "codex-cli/0.149.1 (test)"})
+			if mode == "readerjoin" {
+				notify("warning", map[string]any{"message": "reader is active"})
+				return
+			}
+		case "initialized":
+		case "account/read":
+			respond(map[string]any{"account": map[string]any{"type": "chatgpt", "planType": "plus", "email": "test@example.com"}, "requiresOpenaiAuth": true})
+		case "model/list":
+			respond(map[string]any{"data": []any{map[string]any{
+				"model": "gpt-5.6-sol", "displayName": "GPT-5.6-Sol", "isDefault": true,
+				"defaultReasoningEffort": "high", "supportedReasoningEfforts": []any{
+					map[string]any{"reasoningEffort": "low", "description": "Low"},
+					map[string]any{"reasoningEffort": "high", "description": "High"},
+				},
+			}}, "nextCursor": nil})
+		case "thread/start":
+			if stringField(request.Params, "sandbox") != "workspace-write" {
+				respondError("invalid thread sandbox")
+				continue
+			}
+			respond(map[string]any{"thread": map[string]any{"id": "thread-1"}})
+		case "turn/start":
+			sandbox, _ := request.Params["sandboxPolicy"].(map[string]any)
+			if stringField(sandbox, "type") != "workspaceWrite" {
+				respondError("invalid turn sandbox")
+				continue
+			}
+			respond(map[string]any{"turn": map[string]any{"id": "turn-1", "status": "inProgress", "items": []any{}}})
+			notify("turn/started", map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1"}})
+			if mode == "serverrequest" {
+				encoded, _ := json.Marshal(map[string]any{"id": 99, "method": "item/permissions/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1"}})
+				fmt.Println(string(encoded))
+				// Give the client writer a chance to put the rejection on stdin
+				// before this deliberately unrealistic peer completes the turn.
+				time.Sleep(50 * time.Millisecond)
+			}
+			if mode == "backpressure" {
+				for index := 0; index < 5000; index++ {
+					encoded, _ := json.Marshal(map[string]any{"id": 10_000 + index, "method": "item/permissions/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1"}})
+					fmt.Println(string(encoded))
+				}
+			}
+			if mode == "descendant" {
+				startFakeDescendant(capture)
+			}
+			if mode == "stubborn" {
+				startTermIgnoringDescendant(capture)
+			}
+			if mode == "foreign" {
+				notify("item/completed", map[string]any{"threadId": "foreign-thread", "turnId": "foreign-turn", "item": map[string]any{"id": "foreign", "type": "agentMessage", "text": "foreign result"}})
+				notify("turn/completed", map[string]any{"threadId": "foreign-thread", "turn": map[string]any{"id": "foreign-turn", "status": "completed", "items": []any{}}})
+			}
+			if mode == "oversize" {
+				notify("item/completed", map[string]any{"threadId": "thread-1", "turnId": "turn-1", "item": map[string]any{"id": "large", "type": "agentMessage", "text": strings.Repeat("x", 8192)}})
+			}
+			if mode == "flood" {
+				for index := 0; index < 4; index++ {
+					notify("warning", map[string]any{"message": fmt.Sprintf("warning %d", index)})
+				}
+			}
+			if mode == "actoroverflow" {
+				identity := map[string]any{"threadId": "thread-1", "turnId": "turn-1"}
+				for _, actor := range []string{"actor-1", "actor-2"} {
+					notify("item/completed", mergeMap(identity, map[string]any{"item": map[string]any{"id": actor, "type": "collabAgentToolCall", "receiverThreadIds": []any{actor}}}))
+				}
+			}
+			if mode == "complete" || mode == "foreign" || mode == "flood" || mode == "descendant" || mode == "stubborn" || mode == "serverrequest" || mode == "trailing" {
+				identity := map[string]any{"threadId": "thread-1", "turnId": "turn-1"}
+				notify("item/started", mergeMap(identity, map[string]any{"item": map[string]any{"id": "cmd-1", "type": "commandExecution", "command": "go test ./..."}}))
+				notify("item/completed", mergeMap(identity, map[string]any{"item": map[string]any{"id": "change-1", "type": "fileChange", "changes": []any{map[string]any{"path": "main.go"}}}}))
+				notify("item/completed", mergeMap(identity, map[string]any{"item": map[string]any{"id": "message-1", "type": "agentMessage", "text": "Fixed the target."}}))
+				notify("thread/tokenUsage/updated", mergeMap(identity, map[string]any{"tokenUsage": map[string]any{"total": map[string]any{"inputTokens": 20, "cachedInputTokens": 5, "outputTokens": 8, "reasoningOutputTokens": 3}}}))
+				notify("turn/completed", map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "completed", "items": []any{}}})
+				if mode == "trailing" {
+					notify("warning", map[string]any{"message": "late provider warning"})
+				}
+			}
+		case "turn/interrupt":
+			respond(map[string]any{})
+			notify("turn/completed", map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "interrupted", "items": []any{}}})
+		}
+	}
+}
+
+func fakeAppServerExecutable(t *testing.T, mode, capture string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "codex")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+	script := "#!/bin/sh\nSLOPWATCH_FAKE_MODE=" + shellQuote(mode) + " SLOPWATCH_FAKE_CAPTURE=" + shellQuote(capture) + " exec " + shellQuote(os.Args[0]) + " -test.run=TestCodexAppServerHelper -- \"$@\"\n"
+	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func appendCapture(path string, line []byte) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return
+	}
+	_, _ = file.Write(append(line, '\n'))
+	_ = file.Close()
+}
+
+type capturedMessage struct {
+	Method string         `json:"method"`
+	Params map[string]any `json:"params"`
+}
+
+func capturedMessages(t *testing.T, path string) []capturedMessage {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result []capturedMessage
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		var message capturedMessage
+		if err := json.Unmarshal([]byte(line), &message); err != nil {
+			t.Fatal(err)
+		}
+		result = append(result, message)
+	}
+	return result
+}
+
+func capturedMethods(t *testing.T, path string) []string {
+	messages := capturedMessages(t, path)
+	result := make([]string, 0, len(messages))
+	for _, message := range messages {
+		result = append(result, message.Method)
+	}
+	return result
+}
+
+func waitForCapturedMethod(t *testing.T, path, method string) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		data, err := os.ReadFile(path)
+		if err == nil && strings.Contains(string(data), `"method":"`+method+`"`) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("method %q was not captured", method)
+}
+
+func startFakeDescendant(capture string) {
+	command := exec.Command("sh", "-c", `trap 'printf terminated > "$SLOPWATCH_CHILD_TERMINATED"; exit 0' TERM; printf ready > "$SLOPWATCH_CHILD_READY"; while :; do sleep 1; done`)
+	command.Env = append(os.Environ(), "SLOPWATCH_CHILD_READY="+capture+".ready", "SLOPWATCH_CHILD_TERMINATED="+capture+".terminated")
+	if command.Start() != nil {
+		return
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(capture + ".ready"); err == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func startTermIgnoringDescendant(capture string) {
+	command := exec.Command("sh", "-c", `trap '' TERM; printf '%s' "$$" > "$SLOPWATCH_CHILD_PID"; while :; do printf x >> "$SLOPWATCH_CHILD_WRITES"; sleep 0.01; done`)
+	command.Env = append(os.Environ(), "SLOPWATCH_CHILD_PID="+capture+".pid", "SLOPWATCH_CHILD_WRITES="+capture+".writes")
+	if command.Start() != nil {
+		return
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(capture + ".pid"); err == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func findCaptured(t *testing.T, values []capturedMessage, method string) capturedMessage {
+	t.Helper()
+	for i := len(values) - 1; i >= 0; i-- {
+		if values[i].Method == method {
+			return values[i]
+		}
+	}
+	t.Fatalf("method %q absent from %#v", method, values)
+	return capturedMessage{}
+}
+
+func testProfile(executable string) agent.Profile {
+	return agent.Profile{ID: "codex", Runtime: RuntimeKind, Executable: executable, AuthenticationRef: "provider-owned", Options: map[string]string{"termination_grace": "200ms"}}
+}
+
+func testRequest(candidate, common string) agent.Request {
+	return agent.Request{
+		JobID: "job-1", AttemptID: "attempt-1", Model: "gpt-5.6-sol", Effort: "high", Delegation: agent.DelegationSingle,
+		Workspace: fix.CandidateIdentity{RepositoryRoot: candidate, GitCommonDir: common},
+		Task:      agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "trusted envelope", Objective: "fix main.go"}},
+		Limits:    agent.Limits{MaxOutputBytes: 1 << 20, MaxActors: 10},
+	}
 }
 
 func canonicalTestRoot(t *testing.T) string {
@@ -379,4 +676,29 @@ func canonicalTestRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'" }
+func containsString(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
+}
+func stringField(value map[string]any, key string) string {
+	result, _ := value[key].(string)
+	return result
+}
+
+func mergeMap(left, right map[string]any) map[string]any {
+	result := make(map[string]any, len(left)+len(right))
+	for key, value := range left {
+		result[key] = value
+	}
+	for key, value := range right {
+		result[key] = value
+	}
+	return result
 }

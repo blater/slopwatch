@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/fixapp"
 	"github.com/blater/slopwatch/internal/validation"
@@ -89,6 +90,26 @@ func TestFixFormShowsResolvedConfinementAndNetworkAtResponsiveSizes(t *testing.T
 		view := ansi.Strip(model.View())
 		if !strings.Contains(view, "Confinement: enforced") || !strings.Contains(view, "Network:") {
 			t.Fatalf("%dx%d form omitted resolved runtime summary: %q", size.width, size.height, view)
+		}
+	}
+}
+
+func TestFixFormDescribesProviderManagedBoundaryWithoutOverclaiming(t *testing.T) {
+	draft := readyFixDraft("a.go")
+	draft.Probe.Capabilities.Isolation = agent.RuntimeIsolation{
+		Writes: agent.CandidateTreeEnforced, ProviderManagedCancellation: true,
+	}
+	service := &fakeFixService{draft: draft}
+	model := fixTestModel(service, 80, 24)
+	prepare := model.openFixForSelected()
+	model.handleFixPrepared(prepare().(fixPreparedMsg))
+	view := ansi.Strip(model.View())
+	if !strings.Contains(view, "provider workspace sandbox") || !strings.Contains(view, "per-job") || !strings.Contains(view, "cancellation") {
+		t.Fatalf("provider-managed boundary absent: %q", view)
+	}
+	for _, overclaim := range []string{"candidate/Git", "reads", "child processes"} {
+		if strings.Contains(view, overclaim) {
+			t.Fatalf("provider-managed boundary overclaimed %q: %q", overclaim, view)
 		}
 	}
 }

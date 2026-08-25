@@ -423,7 +423,9 @@ func (model Model) fixDialogContent(width, height int) []string {
 func fixRuntimeCapabilitySummary(draft fixapp.FixDraft) string {
 	isolation := draft.Probe.Capabilities.Isolation
 	confinement := "Confinement: NOT PROVEN"
-	if isolation.EligibleForMutation() {
+	if isolation.ProviderManagedCancellation && isolation.Writes >= agent.CandidateTreeEnforced {
+		confinement = "Confinement: provider workspace sandbox with per-job cancellation"
+	} else if isolation.EligibleForMutation() {
 		confinement = "Confinement: enforced for candidate/Git, reads, auth, and child processes"
 	}
 	network := "Network: tools offline"
