@@ -32,7 +32,14 @@ func TestMaterializeSnapshotIsReadOnlyAndUsesVerifiedBlobs(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cleanup() })
-	for path, want := range map[string][]byte{"go.mod": config, "pkg/source.go": goSource} {
+	assertSnapshotContents(t, root, map[string][]byte{"go.mod": config, "pkg/source.go": goSource})
+	assertSnapshotReadOnly(t, root)
+	assertSnapshotCleanup(t, root, cleanup)
+}
+
+func assertSnapshotContents(t *testing.T, root string, expected map[string][]byte) {
+	t.Helper()
+	for path, want := range expected {
 		fullPath := filepath.Join(root, filepath.FromSlash(path))
 		got, readErr := os.ReadFile(fullPath)
 		if readErr != nil {
@@ -49,6 +56,10 @@ func TestMaterializeSnapshotIsReadOnlyAndUsesVerifiedBlobs(t *testing.T) {
 			t.Fatalf("snapshot file %s is writable: %o", path, info.Mode().Perm())
 		}
 	}
+}
+
+func assertSnapshotReadOnly(t *testing.T, root string) {
+	t.Helper()
 	rootInfo, err := os.Stat(root)
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +72,10 @@ func TestMaterializeSnapshotIsReadOnlyAndUsesVerifiedBlobs(t *testing.T) {
 			t.Fatal("read-only snapshot file accepted a mutation")
 		}
 	}
+}
+
+func assertSnapshotCleanup(t *testing.T, root string, cleanup func() error) {
+	t.Helper()
 	if err := cleanup(); err != nil {
 		t.Fatal(err)
 	}

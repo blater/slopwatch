@@ -203,72 +203,88 @@ func defaultStrategies() []Strategy {
 		functionValueStrategy("cognitive_complexity", "pmd-sonar-v1", func(function *facts.Function) any { return Cognitive(function) }),
 		cyclomaticMethodStrategy(),
 		functionValueStrategy("npath_complexity", "pmd-v1", func(function *facts.Function) any { return NPath(function) }),
-		strategy{component: "deeply_nested_if", definition: "pmd-v1", measure: func(program *facts.Program) []Measurement {
-			output := make([]Measurement, 0)
-			for _, function := range program.Functions {
-				locations := make([]facts.Location, 0)
-				deepIf(function.Body, 0, &locations)
-				for _, location := range locations {
-					output = append(output, Measurement{"deeply_nested_if", "pmd-v1", "expression", 1, "if", location, map[string]any{
-						"problem_depth": 3, "routine_symbol": qualifiedFunctionName(function),
-					}})
-				}
-			}
-			return output
-		}},
-		strategy{component: "cyclomatic_class_complexity", definition: "pmd-v1", measure: func(program *facts.Program) []Measurement {
-			output := make([]Measurement, 0, len(program.Types))
-			for _, item := range program.Types {
-				output = append(output, Measurement{"cyclomatic_class_complexity", "pmd-v1", "type", typeWMC(item), item.Name, item.Location, map[string]any{"kind": item.Kind}})
-			}
-			return output
-		}, cached: func(program *facts.Program, cache *analysisCache) []Measurement {
-			output := make([]Measurement, 0, len(program.Types))
-			for _, item := range program.Types {
-				output = append(output, Measurement{"cyclomatic_class_complexity", "pmd-v1", "type", typeWMCWith(item, cache.cyclomaticValue), item.Name, item.Location, map[string]any{"kind": item.Kind}})
-			}
-			return output
-		}},
-		strategy{component: "coupling_between_objects", definition: "pmd-v1", measure: func(program *facts.Program) []Measurement {
-			output := make([]Measurement, 0, len(program.Types))
-			for _, item := range program.Types {
-				if available, _ := program.Availability(item.Location.Path, "coupling_between_objects"); !available {
-					continue
-				}
-				output = append(output, Measurement{"coupling_between_objects", "pmd-v1", "type", len(unique(item.ForeignTypes)), item.Name, item.Location, map[string]any{"kind": item.Kind}})
-			}
-			return output
-		}},
-		strategy{component: "god_class", definition: "pmd-v1", measure: func(program *facts.Program) []Measurement {
-			output := make([]Measurement, 0, len(program.Types))
-			for _, item := range program.Types {
-				if available, _ := program.Availability(item.Location.Path, "god_class"); !available {
-					continue
-				}
-				if item.Kind == "interface" {
-					continue
-				}
-				wmc := typeWMC(item)
-				output = append(output, Measurement{"god_class", "pmd-v1", "type", wmc, item.Name, item.Location, map[string]any{
-					"kind": item.Kind, "wmc": wmc, "atfd": len(unique(item.ForeignFields)), "tcc": tcc(item),
-				}})
-			}
-			return output
-		}, cached: func(program *facts.Program, cache *analysisCache) []Measurement {
-			output := make([]Measurement, 0, len(program.Types))
-			for _, item := range program.Types {
-				if available, _ := program.Availability(item.Location.Path, "god_class"); !available || item.Kind == "interface" {
-					continue
-				}
-				wmc := typeWMCWith(item, cache.cyclomaticValue)
-				output = append(output, Measurement{"god_class", "pmd-v1", "type", wmc, item.Name, item.Location, map[string]any{
-					"kind": item.Kind, "wmc": wmc, "atfd": len(unique(item.ForeignFields)), "tcc": tcc(item),
-				}})
-			}
-			return output
-		}},
+		deeplyNestedIfStrategy(),
+		cyclomaticClassStrategy(),
+		couplingStrategy(),
+		godClassStrategy(),
 		strategy{component: "module_shallowness", definition: shallowDefinition, measure: moduleShallownessMeasurements},
 	}
+}
+
+func deeplyNestedIfStrategy() Strategy {
+	return strategy{component: "deeply_nested_if", definition: "pmd-v1", measure: func(program *facts.Program) []Measurement {
+		output := make([]Measurement, 0)
+		for _, function := range program.Functions {
+			locations := make([]facts.Location, 0)
+			deepIf(function.Body, 0, &locations)
+			for _, location := range locations {
+				output = append(output, Measurement{"deeply_nested_if", "pmd-v1", "expression", 1, "if", location, map[string]any{
+					"problem_depth": 3, "routine_symbol": qualifiedFunctionName(function),
+				}})
+			}
+		}
+		return output
+	}}
+}
+
+func cyclomaticClassStrategy() Strategy {
+	return strategy{component: "cyclomatic_class_complexity", definition: "pmd-v1", measure: func(program *facts.Program) []Measurement {
+		output := make([]Measurement, 0, len(program.Types))
+		for _, item := range program.Types {
+			output = append(output, Measurement{"cyclomatic_class_complexity", "pmd-v1", "type", typeWMC(item), item.Name, item.Location, map[string]any{"kind": item.Kind}})
+		}
+		return output
+	}, cached: func(program *facts.Program, cache *analysisCache) []Measurement {
+		output := make([]Measurement, 0, len(program.Types))
+		for _, item := range program.Types {
+			output = append(output, Measurement{"cyclomatic_class_complexity", "pmd-v1", "type", typeWMCWith(item, cache.cyclomaticValue), item.Name, item.Location, map[string]any{"kind": item.Kind}})
+		}
+		return output
+	}}
+}
+
+func couplingStrategy() Strategy {
+	return strategy{component: "coupling_between_objects", definition: "pmd-v1", measure: func(program *facts.Program) []Measurement {
+		output := make([]Measurement, 0, len(program.Types))
+		for _, item := range program.Types {
+			if available, _ := program.Availability(item.Location.Path, "coupling_between_objects"); !available {
+				continue
+			}
+			output = append(output, Measurement{"coupling_between_objects", "pmd-v1", "type", len(unique(item.ForeignTypes)), item.Name, item.Location, map[string]any{"kind": item.Kind}})
+		}
+		return output
+	}}
+}
+
+func godClassStrategy() Strategy {
+	return strategy{component: "god_class", definition: "pmd-v1", measure: func(program *facts.Program) []Measurement {
+		output := make([]Measurement, 0, len(program.Types))
+		for _, item := range program.Types {
+			if available, _ := program.Availability(item.Location.Path, "god_class"); !available {
+				continue
+			}
+			if item.Kind == "interface" {
+				continue
+			}
+			wmc := typeWMC(item)
+			output = append(output, Measurement{"god_class", "pmd-v1", "type", wmc, item.Name, item.Location, map[string]any{
+				"kind": item.Kind, "wmc": wmc, "atfd": len(unique(item.ForeignFields)), "tcc": tcc(item),
+			}})
+		}
+		return output
+	}, cached: func(program *facts.Program, cache *analysisCache) []Measurement {
+		output := make([]Measurement, 0, len(program.Types))
+		for _, item := range program.Types {
+			if available, _ := program.Availability(item.Location.Path, "god_class"); !available || item.Kind == "interface" {
+				continue
+			}
+			wmc := typeWMCWith(item, cache.cyclomaticValue)
+			output = append(output, Measurement{"god_class", "pmd-v1", "type", wmc, item.Name, item.Location, map[string]any{
+				"kind": item.Kind, "wmc": wmc, "atfd": len(unique(item.ForeignFields)), "tcc": tcc(item),
+			}})
+		}
+		return output
+	}}
 }
 
 // DefaultRegistry returns the complete PMD-compatible strategy set.

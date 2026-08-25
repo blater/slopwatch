@@ -16,14 +16,26 @@ type goPackage struct {
 }
 
 func planGo(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
+	moduleDirs := goModuleDirectories(context.files)
+	packages := groupGoPackages(context.files)
+	diagnostics := loadGoModules(context, packages, moduleDirs)
+	productionIDs, importOwners := goPackageOwners(packages)
+	return goAnalysisUnits(context, packages, productionIDs, importOwners), diagnostics
+}
+
+func goModuleDirectories(files []string) map[string]bool {
 	moduleDirs := map[string]bool{}
-	for _, path := range context.files {
+	for _, path := range files {
 		if strings.HasSuffix(path, "/go.mod") || path == "go.mod" {
 			moduleDirs[pathDirectory(path)] = true
 		}
 	}
+	return moduleDirs
+}
+
+func groupGoPackages(files []string) map[string]*goPackage {
 	packages := map[string]*goPackage{}
-	for _, path := range context.files {
+	for _, path := range files {
 		if !strings.HasSuffix(path, ".go") {
 			continue
 		}
@@ -39,7 +51,10 @@ func planGo(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 			pkg.regular = append(pkg.regular, path)
 		}
 	}
+	return packages
+}
 
+func loadGoModules(context plannerContext, packages map[string]*goPackage, moduleDirs map[string]bool) []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, pkg := range packages {
 		if directory, ok := nearestAncestor(pkg.directory, moduleDirs); ok {
@@ -53,7 +68,10 @@ func planGo(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 			}
 		}
 	}
+	return diagnostics
+}
 
+func goPackageOwners(packages map[string]*goPackage) (map[string]string, map[string]string) {
 	productionIDs := map[string]string{}
 	importOwners := map[string]string{}
 	for _, pkg := range packages {
@@ -71,33 +89,50 @@ func planGo(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 			importOwners[importPath] = id
 		}
 	}
+	return productionIDs, importOwners
+}
 
+func goAnalysisUnits(context plannerContext, packages map[string]*goPackage, productionIDs, importOwners map[string]string) []Unit {
 	var units []Unit
 	for _, pkg := range packages {
 		configs := goConfigInputs(context, pkg)
-		if len(pkg.regular) > 0 {
-			dependencies, uncertain := goDependencies(context, pkg.regular, importOwners)
-			units = append(units, Unit{
-				ID: productionIDs[pkg.directory], Language: LanguageGo, Mode: ModeProject,
-				Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies},
-				Sources:      pkg.regular, ConfigInputs: configs, DirectDependencies: dependencies,
-				Conservative: pkg.module == "" || uncertain,
-			})
+		if unit, ok := goProductionUnit(context, pkg, configs, productionIDs, importOwners); ok {
+			units = append(units, unit)
 		}
-		if len(pkg.tests) > 0 {
-			dependencies, uncertain := goDependencies(context, pkg.tests, importOwners)
-			if productionIDs[pkg.directory] != "" {
-				dependencies = append(dependencies, productionIDs[pkg.directory])
-			}
-			units = append(units, Unit{
-				ID: "go:test-package:" + relativeIDPath(pkg.directory), Language: LanguageGo, Mode: ModeProject,
-				Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies, CapabilityTests},
-				Sources:      pkg.tests, ConfigInputs: configs, DirectDependencies: dependencies,
-				Conservative: pkg.module == "" || uncertain,
-			})
+		if unit, ok := goTestUnit(context, pkg, configs, productionIDs, importOwners); ok {
+			units = append(units, unit)
 		}
 	}
-	return units, diagnostics
+	return units
+}
+
+func goProductionUnit(context plannerContext, pkg *goPackage, configs []string, productionIDs, importOwners map[string]string) (Unit, bool) {
+	if len(pkg.regular) == 0 {
+		return Unit{}, false
+	}
+	dependencies, uncertain := goDependencies(context, pkg.regular, importOwners)
+	return Unit{
+		ID: productionIDs[pkg.directory], Language: LanguageGo, Mode: ModeProject,
+		Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies},
+		Sources:      pkg.regular, ConfigInputs: configs, DirectDependencies: dependencies,
+		Conservative: pkg.module == "" || uncertain,
+	}, true
+}
+
+func goTestUnit(context plannerContext, pkg *goPackage, configs []string, productionIDs, importOwners map[string]string) (Unit, bool) {
+	if len(pkg.tests) == 0 {
+		return Unit{}, false
+	}
+	dependencies, uncertain := goDependencies(context, pkg.tests, importOwners)
+	if productionID := productionIDs[pkg.directory]; productionID != "" {
+		dependencies = append(dependencies, productionID)
+	}
+	return Unit{
+		ID: "go:test-package:" + relativeIDPath(pkg.directory), Language: LanguageGo, Mode: ModeProject,
+		Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies, CapabilityTests},
+		Sources:      pkg.tests, ConfigInputs: configs, DirectDependencies: dependencies,
+		Conservative: pkg.module == "" || uncertain,
+	}, true
 }
 
 func goConfigInputs(context plannerContext, pkg *goPackage) []string {

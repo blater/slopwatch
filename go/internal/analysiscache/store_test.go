@@ -14,9 +14,21 @@ import (
 	"github.com/blater/slopwatch/internal/report"
 )
 
+type generationExpectation struct {
+	key Key
+	ref ArtifactRef
+}
+
 func TestStoreRoundTripAndPrivatePermissions(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
+	assertPrivateStoreDirectories(t, store)
+	assertSourceRoundTrip(t, store)
+	assertUnitRoundTrip(t, store)
+}
+
+func assertPrivateStoreDirectories(t *testing.T, store *Store) {
+	t.Helper()
 	info, err := os.Stat(store.Root())
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +45,10 @@ func TestStoreRoundTripAndPrivatePermissions(t *testing.T) {
 			t.Fatalf("%s permissions = %o, want 700", directory, got)
 		}
 	}
+}
 
+func assertSourceRoundTrip(t *testing.T, store *Store) {
+	t.Helper()
 	source := []byte("package cache\n")
 	digest, err := store.PutSource(source)
 	if err != nil {
@@ -47,7 +62,10 @@ func TestStoreRoundTripAndPrivatePermissions(t *testing.T) {
 	if err != nil || secondDigest != digest {
 		t.Fatalf("content-addressed source identity = %s, %v; want %s", secondDigest, err, digest)
 	}
+}
 
+func assertUnitRoundTrip(t *testing.T, store *Store) {
+	t.Helper()
 	unitKey := keyFor([]byte("unit"))
 	artifact := sampleUnit(unitKey)
 	ref, err := store.PutUnit(unitKey, artifact)
@@ -80,22 +98,7 @@ func TestCorruptUnitIndexIsCacheMiss(t *testing.T) {
 			}
 		}},
 		{"schema mismatch", func(t *testing.T, path string) {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var stored envelope
-			if err := json.Unmarshal(data, &stored); err != nil {
-				t.Fatal(err)
-			}
-			stored.Schema++
-			data, err = json.Marshal(stored)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(path, data, 0o600); err != nil {
-				t.Fatal(err)
-			}
+			mutateEnvelopeSchema(t, path)
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -109,6 +112,26 @@ func TestCorruptUnitIndexIsCacheMiss(t *testing.T) {
 				t.Fatal("corrupt unit index was accepted")
 			}
 		})
+	}
+}
+
+func mutateEnvelopeSchema(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored envelope
+	if err := json.Unmarshal(data, &stored); err != nil {
+		t.Fatal(err)
+	}
+	stored.Schema++
+	data, err = json.Marshal(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -126,35 +149,13 @@ func TestConcurrentUnitIndexReadersObserveWholeArtifacts(t *testing.T) {
 	var readers sync.WaitGroup
 	for index := 0; index < 8; index++ {
 		readers.Add(1)
-		go func() {
-			defer readers.Done()
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-				}
-				artifact, _, ok := store.LoadUnitByKey(key)
-				if !ok || (artifact.Language != "go" && artifact.Language != "rust") {
-					errors <- fmt.Errorf("observed torn unit index: %#v, %v", artifact, ok)
-					return
-				}
-			}
-		}()
+		go readUnitIndexUntilStopped(store, key, stop, errors, &readers)
 	}
 	var writers sync.WaitGroup
 	for writer := 0; writer < 4; writer++ {
 		writer := writer
 		writers.Add(1)
-		go func() {
-			defer writers.Done()
-			for index := 0; index < 10; index++ {
-				if _, err := store.PutUnit(key, artifacts[(writer+index)%len(artifacts)]); err != nil {
-					errors <- err
-					return
-				}
-			}
-		}()
+		go writeUnitIndex(store, key, artifacts, writer, errors, &writers)
 	}
 	writers.Wait()
 	close(stop)
@@ -162,6 +163,32 @@ func TestConcurrentUnitIndexReadersObserveWholeArtifacts(t *testing.T) {
 	close(errors)
 	for err := range errors {
 		t.Fatal(err)
+	}
+}
+
+func readUnitIndexUntilStopped(store *Store, key Key, stop <-chan struct{}, errors chan<- error, done *sync.WaitGroup) {
+	defer done.Done()
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+		}
+		artifact, _, ok := store.LoadUnitByKey(key)
+		if !ok || (artifact.Language != "go" && artifact.Language != "rust") {
+			errors <- fmt.Errorf("observed torn unit index: %#v, %v", artifact, ok)
+			return
+		}
+	}
+}
+
+func writeUnitIndex(store *Store, key Key, artifacts []UnitArtifact, writer int, errors chan<- error, done *sync.WaitGroup) {
+	defer done.Done()
+	for index := 0; index < 10; index++ {
+		if _, err := store.PutUnit(key, artifacts[(writer+index)%len(artifacts)]); err != nil {
+			errors <- err
+			return
+		}
 	}
 }
 
@@ -220,27 +247,32 @@ func TestCorruptArtifactsAreCacheMisses(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			store := newTestStore(t)
-			key := keyFor([]byte("unit"))
-			ref, err := store.PutUnit(key, sampleUnit(key))
-			if err != nil {
-				t.Fatal(err)
-			}
-			path, _ := store.casPath("artifacts", ref.Digest)
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			mutated := test.mutate(t, data)
-			mutatedRef := ArtifactRef{Digest: DigestBytes(mutated)}
-			mutatedPath, _ := store.casPath("artifacts", mutatedRef.Digest)
-			if err := writeAtomic(mutatedPath, mutated); err != nil {
-				t.Fatal(err)
-			}
-			if _, ok := store.LoadUnit(mutatedRef, key); ok {
-				t.Fatal("corrupt artifact was accepted")
-			}
+			assertCorruptArtifactMiss(t, test.mutate)
 		})
+	}
+}
+
+func assertCorruptArtifactMiss(t *testing.T, mutate func(*testing.T, []byte) []byte) {
+	t.Helper()
+	store := newTestStore(t)
+	key := keyFor([]byte("unit"))
+	ref, err := store.PutUnit(key, sampleUnit(key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, _ := store.casPath("artifacts", ref.Digest)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutated := mutate(t, data)
+	mutatedRef := ArtifactRef{Digest: DigestBytes(mutated)}
+	mutatedPath, _ := store.casPath("artifacts", mutatedRef.Digest)
+	if err := writeAtomic(mutatedPath, mutated); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.LoadUnit(mutatedRef, key); ok {
+		t.Fatal("corrupt artifact was accepted")
 	}
 }
 
@@ -350,19 +382,7 @@ func TestInterruptedCommitLeavesCurrentGeneration(t *testing.T) {
 func TestConcurrentReadersObserveWholeGenerations(t *testing.T) {
 	store := newTestStore(t)
 	workspace := keyFor([]byte("workspace"))
-	type expected struct {
-		key Key
-		ref ArtifactRef
-	}
-	templates := make([]Generation, 40)
-	wants := make(map[Digest]expected, len(templates))
-	for index := range templates {
-		projection := ArtifactRef{Digest: DigestBytes([]byte(fmt.Sprintf("projection-%d", index)))}
-		key := keyFor([]byte(fmt.Sprintf("unit-%d", index)))
-		ref := ArtifactRef{Digest: DigestBytes([]byte(fmt.Sprintf("artifact-%d", index)))}
-		templates[index] = Generation{Projection: projection, Units: map[Key]ArtifactRef{key: ref}}
-		wants[projection.Digest] = expected{key, ref}
-	}
+	templates, wants := generationFixtures(40)
 	if _, err := store.CommitGeneration(workspace, templates[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -372,26 +392,7 @@ func TestConcurrentReadersObserveWholeGenerations(t *testing.T) {
 	var readers sync.WaitGroup
 	for index := 0; index < 8; index++ {
 		readers.Add(1)
-		go func() {
-			defer readers.Done()
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-				}
-				generation, ok := store.LoadGeneration(workspace)
-				if !ok {
-					errCh <- fmt.Errorf("current generation became a cache miss")
-					return
-				}
-				want, known := wants[generation.Projection.Digest]
-				if !known || len(generation.Units) != 1 || generation.Units[want.key] != want.ref {
-					errCh <- fmt.Errorf("observed torn generation: %#v", generation)
-					return
-				}
-			}
-		}()
+		go readGenerationsUntilStopped(store, workspace, wants, stop, errCh, &readers)
 	}
 	for _, generation := range templates[1:] {
 		if _, err := store.CommitGeneration(workspace, generation); err != nil {
@@ -407,6 +408,40 @@ func TestConcurrentReadersObserveWholeGenerations(t *testing.T) {
 	final, ok := store.LoadGeneration(workspace)
 	if !ok || final.Number != uint64(len(templates)) {
 		t.Fatalf("final generation = %#v, %v", final, ok)
+	}
+}
+
+func generationFixtures(count int) ([]Generation, map[Digest]generationExpectation) {
+	templates := make([]Generation, count)
+	wants := make(map[Digest]generationExpectation, count)
+	for index := range templates {
+		projection := ArtifactRef{Digest: DigestBytes([]byte(fmt.Sprintf("projection-%d", index)))}
+		key := keyFor([]byte(fmt.Sprintf("unit-%d", index)))
+		ref := ArtifactRef{Digest: DigestBytes([]byte(fmt.Sprintf("artifact-%d", index)))}
+		templates[index] = Generation{Projection: projection, Units: map[Key]ArtifactRef{key: ref}}
+		wants[projection.Digest] = generationExpectation{key, ref}
+	}
+	return templates, wants
+}
+
+func readGenerationsUntilStopped(store *Store, workspace Key, wants map[Digest]generationExpectation, stop <-chan struct{}, errors chan<- error, done *sync.WaitGroup) {
+	defer done.Done()
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+		}
+		generation, ok := store.LoadGeneration(workspace)
+		if !ok {
+			errors <- fmt.Errorf("current generation became a cache miss")
+			return
+		}
+		want, known := wants[generation.Projection.Digest]
+		if !known || len(generation.Units) != 1 || generation.Units[want.key] != want.ref {
+			errors <- fmt.Errorf("observed torn generation: %#v", generation)
+			return
+		}
 	}
 }
 

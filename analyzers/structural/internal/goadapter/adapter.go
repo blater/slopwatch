@@ -63,6 +63,25 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 		return nil, fmt.Errorf("absolute workspace: %w", err)
 	}
 	fset := token.NewFileSet()
+	sources, err := parseSources(root, requested, fset)
+	if err != nil {
+		return nil, err
+	}
+	typeCheck(root, sources, fset)
+
+	b := &analysisContext{fset: fset}
+	collectFunctions(b, sources)
+	types := collectTypes(b, sources)
+	representation := representationExposures(types)
+	sortFunctions(b.functions)
+	sortOperations(b.operations)
+	return &facts.Program{
+		Functions: b.functions, Types: types, PublicOperations: b.operations,
+		Representation: representation, Files: sourcePaths(sources),
+	}, nil
+}
+
+func parseSources(root string, requested []string, fset *token.FileSet) ([]source, error) {
 	sources := make([]source, 0, len(requested))
 	seen := make(map[string]struct{}, len(requested))
 	for _, raw := range requested {
@@ -93,9 +112,10 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 		sources = append(sources, source{rel: rel, file: parsed, imports: imports})
 	}
 	sort.Slice(sources, func(left, right int) bool { return sources[left].rel < sources[right].rel })
-	typeCheck(root, sources, fset)
+	return sources, nil
+}
 
-	b := &analysisContext{fset: fset}
+func collectFunctions(b *analysisContext, sources []source) {
 	for _, item := range sources {
 		b.current = item
 		for _, declaration := range item.file.Decls {
@@ -106,7 +126,9 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 			b.functions = append(b.functions, functionDeclaration(b, function))
 		}
 	}
-	types := collectTypes(b, sources)
+}
+
+func representationExposures(types []*facts.Type) []*facts.RepresentationExposure {
 	representation := make([]*facts.RepresentationExposure, 0)
 	for _, item := range types {
 		for _, field := range item.Fields {
@@ -121,8 +143,12 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 			})
 		}
 	}
-	sort.Slice(b.functions, func(left, right int) bool {
-		a, c := b.functions[left].Location, b.functions[right].Location
+	return representation
+}
+
+func sortFunctions(functions []*facts.Function) {
+	sort.Slice(functions, func(left, right int) bool {
+		a, c := functions[left].Location, functions[right].Location
 		if a.Path != c.Path {
 			return a.Path < c.Path
 		}
@@ -131,8 +157,11 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 		}
 		return a.Column < c.Column
 	})
-	sort.Slice(b.operations, func(left, right int) bool {
-		a, c := b.operations[left].Location, b.operations[right].Location
+}
+
+func sortOperations(operations []*facts.PublicOperation) {
+	sort.Slice(operations, func(left, right int) bool {
+		a, c := operations[left].Location, operations[right].Location
 		if a.Path != c.Path {
 			return a.Path < c.Path
 		}
@@ -141,6 +170,9 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 		}
 		return a.Column < c.Column
 	})
+}
+
+func sourcePaths(sources []source) []string {
 	files := make([]string, 0, len(sources))
 	for _, item := range sources {
 		files = append(files, item.rel)
@@ -148,7 +180,7 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 	// Type facts have a deterministic AST fallback. This is essential for the
 	// distributed analyzer, which must not require a Go installation (and its
 	// GOROOT/package export data) merely to inspect source that has imports.
-	return &facts.Program{Functions: b.functions, Types: types, PublicOperations: b.operations, Representation: representation, Files: files}, nil
+	return files
 }
 
 func canonicalSource(workspace, raw string) (string, string, error) {

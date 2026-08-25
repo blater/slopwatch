@@ -62,64 +62,16 @@ export class AnalysisContext {
     const parseCounts = new Map<string, number>();
 
     for (const unit of request.units) {
-      if (unit.language !== "typescript") {
-        throw new Error(
-          `Unit ${unit.unit_id} has unsupported language ${String(unit.language)}`,
-        );
-      }
+      validateTypeScriptUnit(unit);
       for (const requestedPath of unit.source_paths) {
-        const candidate = path.isAbsolute(requestedPath)
-          ? requestedPath
-          : path.resolve(workspace, requestedPath);
-        const absolutePath = path.resolve(candidate);
-        const relativeNative = path.relative(workspace, absolutePath);
-        if (
-          relativeNative === ".." ||
-          relativeNative.startsWith(`..${path.sep}`) ||
-          path.isAbsolute(relativeNative)
-        ) {
-          throw new Error(
-            `Requested source is outside workspace: ${requestedPath}`,
-          );
-        }
-        const extension = path.extname(absolutePath).toLowerCase();
-        if (
-          !SUPPORTED_EXTENSIONS.has(extension) ||
-          isDeclarationFile(absolutePath)
-        ) {
-          throw new Error(`Unsupported TypeScript source: ${requestedPath}`);
-        }
-        const previousOwner = seen.get(absolutePath);
-        if (previousOwner !== undefined && previousOwner !== unit.unit_id) {
-          throw new Error(
-            `Source ${posixPath(relativeNative)} is owned by both ${previousOwner} and ${unit.unit_id}`,
-          );
-        }
-        if (previousOwner !== undefined) continue;
-
-        seen.set(absolutePath, unit.unit_id);
-        const text = fs.readFileSync(absolutePath, "utf8");
-        const sourceFile = ts.createSourceFile(
-          absolutePath,
-          text,
-          ts.ScriptTarget.Latest,
-          true,
-          scriptKind(absolutePath),
+        const source = loadSource(
+          workspace,
+          unit.unit_id,
+          requestedPath,
+          seen,
+          parseCounts,
         );
-        parseCounts.set(absolutePath, (parseCounts.get(absolutePath) ?? 0) + 1);
-        const syntaxErrors =
-          (
-            sourceFile as ts.SourceFile & {
-              parseDiagnostics?: readonly ts.Diagnostic[];
-            }
-          ).parseDiagnostics ?? [];
-        sources.push({
-          unitId: unit.unit_id,
-          absolutePath,
-          relativePath: posixPath(relativeNative),
-          sourceFile,
-          syntaxErrors,
-        });
+        if (source !== undefined) sources.push(source);
       }
     }
 
@@ -174,4 +126,90 @@ export class AnalysisContext {
     }
     return posixPath(relative);
   }
+}
+
+function validateTypeScriptUnit(unit: AnalyzerRequest["units"][number]): void {
+  if (unit.language !== "typescript") {
+    throw new Error(
+      `Unit ${unit.unit_id} has unsupported language ${String(unit.language)}`,
+    );
+  }
+}
+
+function loadSource(
+  workspace: string,
+  unitId: string,
+  requestedPath: string,
+  seen: Map<string, string>,
+  parseCounts: Map<string, number>,
+): SourceEntry | undefined {
+  const absolutePath = path.resolve(
+    path.isAbsolute(requestedPath)
+      ? requestedPath
+      : path.resolve(workspace, requestedPath),
+  );
+  const relativeNative = validateSourcePath(
+    workspace,
+    absolutePath,
+    requestedPath,
+  );
+  const previousOwner = seen.get(absolutePath);
+  if (previousOwner !== undefined && previousOwner !== unitId) {
+    throw new Error(
+      `Source ${posixPath(relativeNative)} is owned by both ${previousOwner} and ${unitId}`,
+    );
+  }
+  if (previousOwner !== undefined) return undefined;
+  seen.set(absolutePath, unitId);
+  return parseSource(unitId, absolutePath, relativeNative, parseCounts);
+}
+
+function validateSourcePath(
+  workspace: string,
+  absolutePath: string,
+  requestedPath: string,
+): string {
+  const relativeNative = path.relative(workspace, absolutePath);
+  if (
+    relativeNative === ".." ||
+    relativeNative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeNative)
+  ) {
+    throw new Error(`Requested source is outside workspace: ${requestedPath}`);
+  }
+  const extension = path.extname(absolutePath).toLowerCase();
+  if (!SUPPORTED_EXTENSIONS.has(extension) || isDeclarationFile(absolutePath)) {
+    throw new Error(`Unsupported TypeScript source: ${requestedPath}`);
+  }
+  return relativeNative;
+}
+
+function parseSource(
+  unitId: string,
+  absolutePath: string,
+  relativeNative: string,
+  parseCounts: Map<string, number>,
+): SourceEntry {
+  const text = fs.readFileSync(absolutePath, "utf8");
+  const sourceFile = ts.createSourceFile(
+    absolutePath,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKind(absolutePath),
+  );
+  parseCounts.set(absolutePath, (parseCounts.get(absolutePath) ?? 0) + 1);
+  const syntaxErrors =
+    (
+      sourceFile as ts.SourceFile & {
+        parseDiagnostics?: readonly ts.Diagnostic[];
+      }
+    ).parseDiagnostics ?? [];
+  return {
+    unitId,
+    absolutePath,
+    relativePath: posixPath(relativeNative),
+    sourceFile,
+    syntaxErrors,
+  };
 }

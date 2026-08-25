@@ -47,32 +47,40 @@ func expressionPaths(expression *facts.Expression, incoming *big.Int) conditionP
 		return conditionPaths{operand.end, operand.whenFalse, operand.whenTrue}
 	}
 	if (expression.Kind == facts.ExprAnd || expression.Kind == facts.ExprOr) && len(expression.Children) >= 2 {
-		left := expressionPaths(expression.Children[0], incoming)
-		if expression.Kind == facts.ExprAnd {
-			right := expressionPaths(expression.Children[1], left.whenTrue)
-			return conditionPaths{
-				sum(left.whenFalse, right.end), right.whenTrue,
-				sum(left.whenFalse, right.whenFalse),
-			}
-		}
-		right := expressionPaths(expression.Children[1], left.whenFalse)
-		return conditionPaths{
-			sum(left.whenTrue, right.end), sum(left.whenTrue, right.whenTrue),
-			right.whenFalse,
-		}
+		return logicalExpressionPaths(expression, incoming)
 	}
 	if expression.Kind == facts.ExprConditional && len(expression.Children) == 3 {
-		condition := expressionPaths(expression.Children[0], incoming)
-		whenTrue := expressionPaths(expression.Children[1], condition.whenTrue)
-		whenFalse := expressionPaths(expression.Children[2], condition.whenFalse)
-		end := sum(whenTrue.end, whenFalse.end)
-		return conditionPaths{end, copyNumber(end), copyNumber(end)}
+		return conditionalExpressionPaths(expression, incoming)
 	}
 	next := copyNumber(incoming)
 	for _, child := range expression.Children {
 		next = expressionPaths(child, next).end
 	}
 	return conditionPaths{next, copyNumber(next), copyNumber(next)}
+}
+
+func logicalExpressionPaths(expression *facts.Expression, incoming *big.Int) conditionPaths {
+	left := expressionPaths(expression.Children[0], incoming)
+	if expression.Kind == facts.ExprAnd {
+		right := expressionPaths(expression.Children[1], left.whenTrue)
+		return conditionPaths{
+			sum(left.whenFalse, right.end), right.whenTrue,
+			sum(left.whenFalse, right.whenFalse),
+		}
+	}
+	right := expressionPaths(expression.Children[1], left.whenFalse)
+	return conditionPaths{
+		sum(left.whenTrue, right.end), sum(left.whenTrue, right.whenTrue),
+		right.whenFalse,
+	}
+}
+
+func conditionalExpressionPaths(expression *facts.Expression, incoming *big.Int) conditionPaths {
+	condition := expressionPaths(expression.Children[0], incoming)
+	whenTrue := expressionPaths(expression.Children[1], condition.whenTrue)
+	whenFalse := expressionPaths(expression.Children[2], condition.whenFalse)
+	end := sum(whenTrue.end, whenFalse.end)
+	return conditionPaths{end, copyNumber(end), copyNumber(end)}
 }
 
 func sequence(statements []*facts.Statement, incoming *big.Int) flow {
@@ -112,43 +120,45 @@ func statementFlow(statement *facts.Statement, incoming *big.Int) flow {
 			elseFlow = sequence(statement.Else, condition.whenFalse)
 		}
 		return combineFlow(thenFlow, elseFlow)
-	case facts.StmtReturn:
-		exits := expressionsEnd(statement.Expressions, incoming)
-		result := emptyFlow(number(0))
-		result.returns = exits
-		return result
-	case facts.StmtPanic:
-		result := emptyFlow(number(0))
-		result.panics = expressionsEnd(statement.Expressions, incoming)
-		return result
-	case facts.StmtBreak:
-		result := emptyFlow(number(0))
-		result.breaks = copyNumber(incoming)
-		return result
-	case facts.StmtContinue:
-		result := emptyFlow(number(0))
-		result.continues = copyNumber(incoming)
-		return result
-	case facts.StmtGoto:
-		result := emptyFlow(number(0))
-		result.returns = copyNumber(incoming)
-		return result
 	case facts.StmtLoop:
-		condition := conditionPaths{copyNumber(incoming), copyNumber(incoming), number(0)}
-		if statement.Condition != nil {
-			condition = expressionPaths(statement.Condition, incoming)
-		} else if statement.MaySkip {
-			condition.whenFalse = copyNumber(incoming)
-		}
-		body := sequence(statement.Body, condition.whenTrue)
-		return flow{
-			sum(condition.whenFalse, body.breaks), body.returns, body.panics,
-			number(0), number(0), sum(body.loopbacks, body.next, body.continues),
-		}
+		return loopStatementFlow(statement, incoming)
 	case facts.StmtSwitch:
 		return switchFlow(statement, incoming)
 	default:
-		return emptyFlow(expressionsEnd(statement.Expressions, incoming))
+		return simpleStatementFlow(statement, incoming)
+	}
+}
+
+func simpleStatementFlow(statement *facts.Statement, incoming *big.Int) flow {
+	result := emptyFlow(number(0))
+	switch statement.Kind {
+	case facts.StmtReturn:
+		result.returns = expressionsEnd(statement.Expressions, incoming)
+	case facts.StmtPanic:
+		result.panics = expressionsEnd(statement.Expressions, incoming)
+	case facts.StmtBreak:
+		result.breaks = copyNumber(incoming)
+	case facts.StmtContinue:
+		result.continues = copyNumber(incoming)
+	case facts.StmtGoto:
+		result.returns = copyNumber(incoming)
+	default:
+		result.next = expressionsEnd(statement.Expressions, incoming)
+	}
+	return result
+}
+
+func loopStatementFlow(statement *facts.Statement, incoming *big.Int) flow {
+	condition := conditionPaths{copyNumber(incoming), copyNumber(incoming), number(0)}
+	if statement.Condition != nil {
+		condition = expressionPaths(statement.Condition, incoming)
+	} else if statement.MaySkip {
+		condition.whenFalse = copyNumber(incoming)
+	}
+	body := sequence(statement.Body, condition.whenTrue)
+	return flow{
+		sum(condition.whenFalse, body.breaks), body.returns, body.panics,
+		number(0), number(0), sum(body.loopbacks, body.next, body.continues),
 	}
 }
 

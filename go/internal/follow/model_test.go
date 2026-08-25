@@ -26,6 +26,15 @@ type settingsAnalyzer struct {
 	analyzeCalls    int
 }
 
+type catalogTestComponent struct {
+	ID       string            `json:"component_id"`
+	Axis     string            `json:"axis"`
+	Support  map[string]string `json:"support"`
+	Defaults struct {
+		Enabled bool `json:"enabled"`
+	} `json:"defaults"`
+}
+
 func (analyzer *settingsAnalyzer) SetTypeScriptTypes(enabled bool) {
 	analyzer.typeScriptTypes = enabled
 }
@@ -857,6 +866,16 @@ func TestWeightsViewGroupsIndentedMetricsByCategory(t *testing.T) {
 }
 
 func TestEveryWeightSettingMapsToAnEnabledCatalogComponent(t *testing.T) {
+	components := readTestCatalog(t)
+	byID := make(map[string]catalogTestComponent, len(components))
+	for _, component := range components {
+		byID[component.ID] = component
+	}
+	assertWeightSettingsMatchCatalog(t, byID)
+}
+
+func readTestCatalog(t *testing.T) []catalogTestComponent {
+	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -866,50 +885,45 @@ func TestEveryWeightSettingMapsToAnEnabledCatalogComponent(t *testing.T) {
 		t.Fatal(err)
 	}
 	var catalog struct {
-		Components []struct {
-			ID       string            `json:"component_id"`
-			Axis     string            `json:"axis"`
-			Support  map[string]string `json:"support"`
-			Defaults struct {
-				Enabled bool `json:"enabled"`
-			} `json:"defaults"`
-		} `json:"components"`
+		Components []catalogTestComponent `json:"components"`
 	}
 	if err := json.Unmarshal(payload, &catalog); err != nil {
 		t.Fatal(err)
 	}
-	byID := make(map[string]int, len(catalog.Components))
-	for index, component := range catalog.Components {
-		byID[component.ID] = index
-	}
+	return catalog.Components
+}
+
+func assertWeightSettingsMatchCatalog(t *testing.T, byID map[string]catalogTestComponent) {
+	t.Helper()
 	seen := map[string]bool{}
 	for _, setting := range componentWeights {
 		if seen[setting.id] {
 			t.Errorf("duplicate weight setting %s", setting.id)
 		}
 		seen[setting.id] = true
-		index, exists := byID[setting.id]
+		component, exists := byID[setting.id]
 		if !exists {
 			t.Errorf("weight setting %s has no catalog component", setting.id)
 			continue
 		}
-		component := catalog.Components[index]
-		if !component.Defaults.Enabled {
-			t.Errorf("weight setting %s exposes a disabled catalog component", setting.id)
-		}
-		if component.Axis != setting.axis {
-			t.Errorf("weight setting %s axis = %s, catalog = %s", setting.id, setting.axis, component.Axis)
-		}
-		supported := false
-		for _, level := range component.Support {
-			if level == "supported" || level == "conformant" || level == "best_effort" {
-				supported = true
-			}
-		}
-		if !supported {
-			t.Errorf("weight setting %s is unsupported by every language", setting.id)
+		assertWeightSetting(t, setting.id, setting.axis, component)
+	}
+}
+
+func assertWeightSetting(t *testing.T, id, axis string, component catalogTestComponent) {
+	t.Helper()
+	if !component.Defaults.Enabled {
+		t.Errorf("weight setting %s exposes a disabled catalog component", id)
+	}
+	if component.Axis != axis {
+		t.Errorf("weight setting %s axis = %s, catalog = %s", id, axis, component.Axis)
+	}
+	for _, level := range component.Support {
+		if level == "supported" || level == "conformant" || level == "best_effort" {
+			return
 		}
 	}
+	t.Errorf("weight setting %s is unsupported by every language", id)
 }
 
 func TestTypeSafetySettingsEnableAnalysisAndScheduleRefresh(t *testing.T) {
@@ -919,30 +933,16 @@ func TestTypeSafetySettingsEnableAnalysisAndScheduleRefresh(t *testing.T) {
 		apply         func(*Model) tea.Cmd
 	}{
 		{
-			name: "column",
-			selectSetting: func(model *Model) {
-				for index, column := range columnNames() {
-					if column.key == "typesafety" {
-						model.columnCursor = index
-						return
-					}
-				}
-			},
+			name:          "column",
+			selectSetting: selectTypeSafetyColumn,
 			apply: func(model *Model) tea.Cmd {
 				_, command := model.handleColumnKey(" ")
 				return command
 			},
 		},
 		{
-			name: "individual weight",
-			selectSetting: func(model *Model) {
-				for index, item := range componentWeights {
-					if item.id == "explicit_any" {
-						model.weightCursor = index
-						return
-					}
-				}
-			},
+			name:          "individual weight",
+			selectSetting: selectExplicitAnyWeight,
 			apply: func(model *Model) tea.Cmd {
 				_, command := model.handleWeightsKey(" ")
 				return command
@@ -950,24 +950,47 @@ func TestTypeSafetySettingsEnableAnalysisAndScheduleRefresh(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			analyzer := &settingsAnalyzer{}
-			model := &Model{
-				analyzer: analyzer, visible: defaultColumnVisibility(),
-				weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
-				queued: map[string]bool{},
-			}
-			test.selectSetting(model)
-			command := test.apply(model)
-			if !analyzer.typeScriptTypes {
-				t.Fatal("setting did not enable compiler-aware TypeScript analysis")
-			}
-			if !model.analyzing || command == nil {
-				t.Fatalf("refresh was not scheduled: analyzing=%t command=%v", model.analyzing, command)
-			}
-			if _, ok := command().(analysisResult); !ok || analyzer.analyzeCalls != 1 {
-				t.Fatalf("refresh command did not run analysis: calls=%d", analyzer.analyzeCalls)
-			}
+			assertTypeSafetyToggle(t, test.selectSetting, test.apply)
 		})
+	}
+}
+
+func selectTypeSafetyColumn(model *Model) {
+	for index, column := range columnNames() {
+		if column.key == "typesafety" {
+			model.columnCursor = index
+			return
+		}
+	}
+}
+
+func selectExplicitAnyWeight(model *Model) {
+	for index, item := range componentWeights {
+		if item.id == "explicit_any" {
+			model.weightCursor = index
+			return
+		}
+	}
+}
+
+func assertTypeSafetyToggle(t *testing.T, selectSetting func(*Model), apply func(*Model) tea.Cmd) {
+	t.Helper()
+	analyzer := &settingsAnalyzer{}
+	model := &Model{
+		analyzer: analyzer, visible: defaultColumnVisibility(),
+		weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
+		queued: map[string]bool{},
+	}
+	selectSetting(model)
+	command := apply(model)
+	if !analyzer.typeScriptTypes {
+		t.Fatal("setting did not enable compiler-aware TypeScript analysis")
+	}
+	if !model.analyzing || command == nil {
+		t.Fatalf("refresh was not scheduled: analyzing=%t command=%v", model.analyzing, command)
+	}
+	if _, ok := command().(analysisResult); !ok || analyzer.analyzeCalls != 1 {
+		t.Fatalf("refresh command did not run analysis: calls=%d", analyzer.analyzeCalls)
 	}
 }
 
@@ -978,22 +1001,32 @@ func TestTypeSafetyRefreshQueuesBehindAnAnalysisAndDisablingNeedsNoRefresh(t *te
 		weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
 		queued: map[string]bool{}, analyzing: true,
 	}
-	for index, column := range columnNames() {
-		if column.key == "typesafety" {
-			model.columnCursor = index
-			break
-		}
-	}
+	selectTypeSafetyColumn(model)
 	_, command := model.handleColumnKey(" ")
+	assertQueuedTypeSafetyEnable(t, model, analyzer, command)
+	_, command = model.Update(analysisResult{document: report.Document{}, full: true})
+	assertQueuedTypeSafetyRefresh(t, model, command)
+	model.analyzing = false
+	_, command = model.handleColumnKey(" ")
+	assertTypeSafetyDisabled(t, model, analyzer, command)
+}
+
+func assertQueuedTypeSafetyEnable(t *testing.T, model *Model, analyzer *settingsAnalyzer, command tea.Cmd) {
+	t.Helper()
 	if command != nil || !model.pendingFullAnalysis || !analyzer.typeScriptTypes {
 		t.Fatalf("enable during analysis = command %v, pending %t, enabled %t", command, model.pendingFullAnalysis, analyzer.typeScriptTypes)
 	}
-	_, command = model.Update(analysisResult{document: report.Document{}, full: true})
+}
+
+func assertQueuedTypeSafetyRefresh(t *testing.T, model *Model, command tea.Cmd) {
+	t.Helper()
 	if command == nil || model.pendingFullAnalysis || !model.analyzing {
 		t.Fatalf("queued refresh = command %v, pending %t, analyzing %t", command, model.pendingFullAnalysis, model.analyzing)
 	}
-	model.analyzing = false
-	_, command = model.handleColumnKey(" ")
+}
+
+func assertTypeSafetyDisabled(t *testing.T, model *Model, analyzer *settingsAnalyzer, command tea.Cmd) {
+	t.Helper()
 	if command != nil || analyzer.typeScriptTypes || model.visible["typesafety"] {
 		t.Fatalf("disable = command %v, analyzer enabled %t, visible %t", command, analyzer.typeScriptTypes, model.visible["typesafety"])
 	}
@@ -1020,68 +1053,44 @@ func TestWeightsEnablementControlsScoreIndependently(t *testing.T) {
 }
 
 func TestWeightEnablementIncludesAndExcludesEveryApplicableComponent(t *testing.T) {
-	for _, test := range []struct {
-		name     string
-		language string
-		include  func(item struct {
-			id       string
-			label    string
-			category string
-			parent   string
-			axis     string
-			value    float64
-		}) bool
-	}{
-		{name: "typescript", language: "typescript", include: func(item struct {
-			id       string
-			label    string
-			category string
-			parent   string
-			axis     string
-			value    float64
-		}) bool {
-			return true
-		}},
-		{name: "java", language: "java", include: func(item struct {
-			id       string
-			label    string
-			category string
-			parent   string
-			axis     string
-			value    float64
-		}) bool {
-			return item.axis != "typescript_type_safety"
-		}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			components := make(map[string]report.Component)
-			applicable := make([]string, 0, len(componentWeights))
-			for _, item := range componentWeights {
-				if !test.include(item) {
-					continue
-				}
-				components[item.id] = report.Component{Axis: item.axis, Contribution: 1}
-				applicable = append(applicable, item.id)
-			}
-			base := report.Document{Files: []report.File{{Path: "example." + test.language, Language: test.language, Complete: true, Components: components}}}
-			model := Model{document: base, baseDocument: base, weights: defaultWeights(), weightEnabled: map[string]bool{}}
-			for _, item := range componentWeights {
-				model.weightEnabled[item.id] = test.include(item)
-			}
-			model.rebuildWeightedDocument()
-			if got, want := model.document.Files[0].Score, float64(len(applicable)); got != want {
-				t.Fatalf("all applicable weights score = %v, want %v", got, want)
-			}
+	t.Run("typescript", func(t *testing.T) {
+		assertWeightScenario(t, "typescript", func(string) bool { return true })
+	})
+	t.Run("java", func(t *testing.T) {
+		assertWeightScenario(t, "java", func(axis string) bool { return axis != "typescript_type_safety" })
+	})
+}
 
-			for _, disabledID := range applicable {
-				model.weightEnabled[disabledID] = false
-				model.rebuildWeightedDocument()
-				if got, want := model.document.Files[0].Score, float64(len(applicable)-1); got != want {
-					t.Fatalf("disabled %s score = %v, want %v", disabledID, got, want)
-				}
-				model.weightEnabled[disabledID] = true
-			}
-		})
+func assertWeightScenario(t *testing.T, language string, include func(string) bool) {
+	t.Helper()
+	components := make(map[string]report.Component)
+	applicable := make([]string, 0, len(componentWeights))
+	model := Model{weights: defaultWeights(), weightEnabled: map[string]bool{}}
+	for _, item := range componentWeights {
+		model.weightEnabled[item.id] = include(item.axis)
+		if include(item.axis) {
+			components[item.id] = report.Component{Axis: item.axis, Contribution: 1}
+			applicable = append(applicable, item.id)
+		}
+	}
+	base := report.Document{Files: []report.File{{Path: "example." + language, Language: language, Complete: true, Components: components}}}
+	model.document, model.baseDocument = base, base
+	model.rebuildWeightedDocument()
+	if got, want := model.document.Files[0].Score, float64(len(applicable)); got != want {
+		t.Fatalf("all applicable weights score = %v, want %v", got, want)
+	}
+	assertEachWeightCanBeDisabled(t, &model, applicable)
+}
+
+func assertEachWeightCanBeDisabled(t *testing.T, model *Model, applicable []string) {
+	t.Helper()
+	for _, disabledID := range applicable {
+		model.weightEnabled[disabledID] = false
+		model.rebuildWeightedDocument()
+		if got, want := model.document.Files[0].Score, float64(len(applicable)-1); got != want {
+			t.Fatalf("disabled %s score = %v, want %v", disabledID, got, want)
+		}
+		model.weightEnabled[disabledID] = true
 	}
 }
 
@@ -1705,6 +1714,12 @@ func TestModalIsCompositedOverCurrentTable(t *testing.T) {
 
 func TestDetailPopupFitsTerminalAndScrollsWithinContent(t *testing.T) {
 	ConfigureTerminalColours()
+	model := longDetailPopupModel()
+	assertDetailPopupSize(t, &model)
+	assertDetailPopupScrolling(t, &model)
+}
+
+func longDetailPopupModel() Model {
 	file := sortableFile("long/path/example.go", 1, 80, 30, 300, 40, 2, 100)
 	component := file.Components["cognitive_complexity"]
 	for index := 0; index < 30; index++ {
@@ -1715,11 +1730,15 @@ func TestDetailPopupFitsTerminalAndScrollsWithinContent(t *testing.T) {
 	}
 	component.Observations = len(component.Subjects)
 	file.Components["cognitive_complexity"] = component
-	model := Model{
+	return Model{
 		width: 80, height: 24, detail: true, selected: file.Path,
 		document: report.Document{Files: []report.File{file}},
 		rows:     map[string]rowState{file.Path: {}}, sortKey: "score", sortReverse: true,
 	}
+}
+
+func assertDetailPopupSize(t *testing.T, model *Model) {
+	t.Helper()
 	view := model.detailView()
 	if got := lipgloss.Width(view); got != 74 {
 		t.Fatalf("detail width = %d, want 74", got)
@@ -1730,6 +1749,10 @@ func TestDetailPopupFitsTerminalAndScrollsWithinContent(t *testing.T) {
 	if !strings.Contains(ansi.Strip(view), "█") {
 		t.Fatal("scrollable detail has no visible scrollbar thumb")
 	}
+}
+
+func assertDetailPopupScrolling(t *testing.T, model *Model) {
+	t.Helper()
 	maximum := model.detailMaxOffset()
 	if maximum <= 0 {
 		t.Fatal("long detail unexpectedly fits without scrolling")
@@ -1766,6 +1789,14 @@ func TestDetailPopupShrinksWithTerminal(t *testing.T) {
 }
 
 func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
+	model := sourceViewTestModel(t)
+	model = openAndLoadSourceView(t, model)
+	assertSourceViewContents(t, &model)
+	assertSourceViewScrolling(t, &model)
+}
+
+func sourceViewTestModel(t *testing.T) Model {
+	t.Helper()
 	root := t.TempDir()
 	path := filepath.Join(root, "example.go")
 	lines := []string{"package example", "", "func Run() {", "\treturn", "}"}
@@ -1776,11 +1807,15 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	model := Model{
+	return Model{
 		width: 80, height: 24, selected: "example.go", options: Options{Workspace: root},
 		document: report.Document{Files: []report.File{testFile("example.go", 1)}},
 		rows:     map[string]rowState{"example.go": {}}, visible: map[string]bool{},
 	}
+}
+
+func openAndLoadSourceView(t *testing.T, model Model) Model {
+	t.Helper()
 	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
 	if command == nil || !updated.(*Model).sourceView {
 		t.Fatal("v did not open source view")
@@ -1801,7 +1836,11 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 	if command != nil {
 		t.Fatal("source highlighting unexpectedly returned a follow-up command")
 	}
-	model = *updated.(*Model)
+	return *updated.(*Model)
+}
+
+func assertSourceViewContents(t *testing.T, model *Model) {
+	t.Helper()
 	view := ansi.Strip(model.sourceViewView())
 	if !strings.Contains(view, "func Run()") {
 		t.Fatal("source view did not render selected file")
@@ -1812,6 +1851,11 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 	if !strings.Contains(view, "ctrl-f/b page  g/G jump") || !strings.Contains(view, "find  n/N next  ESC close") {
 		t.Fatalf("source footer does not contain the navigation and close groups: %q", view)
 	}
+	assertSourceViewInsets(t, view)
+}
+
+func assertSourceViewInsets(t *testing.T, view string) {
+	t.Helper()
 	for _, line := range strings.Split(view, "\n") {
 		if strings.Contains(line, "45 lines") && !strings.HasSuffix(line, "45 lines │") {
 			t.Errorf("line count is not inset one column from the right border: %q", line)
@@ -1820,6 +1864,17 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 			t.Errorf("footer actions are not inset one column from the right border: %q", line)
 		}
 	}
+}
+
+func assertSourceViewScrolling(t *testing.T, model *Model) {
+	t.Helper()
+	assertSourceVerticalScrolling(t, model)
+	assertSourceHorizontalScrolling(t, model)
+	assertSourceJumpAndClose(t, model)
+}
+
+func assertSourceVerticalScrolling(t *testing.T, model *Model) {
+	t.Helper()
 	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	if model.sourceViewport.YOffset != 1 {
 		t.Fatalf("first j moved source viewport by %d lines, want 1", model.sourceViewport.YOffset)
@@ -1836,12 +1891,20 @@ func TestSourceViewOpensSelectedFileAndUsesViewportScrolling(t *testing.T) {
 	if model.sourceViewport.YOffset == 0 {
 		t.Fatal("Ctrl-F did not advance source viewport")
 	}
+}
+
+func assertSourceHorizontalScrolling(t *testing.T, model *Model) {
+	t.Helper()
 	longLine := strings.Repeat("x", 200)
-	model.sourceViewport.SetContent(longLine + "\n" + contents)
+	model.sourceViewport.SetContent(longLine + "\n" + model.sourceSearchText)
 	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
 	if model.sourceViewport.HorizontalScrollPercent() == 0 {
 		t.Fatal("l did not horizontally scroll source viewport")
 	}
+}
+
+func assertSourceJumpAndClose(t *testing.T, model *Model) {
+	t.Helper()
 	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 	if model.sourceViewport.YOffset != 0 {
 		t.Fatalf("g moved source viewport to line %d, want top", model.sourceViewport.YOffset)

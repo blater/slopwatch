@@ -142,24 +142,29 @@ function isPublicMember(node: ts.Node): boolean {
   )
     return false;
   const owner = node.parent;
-  if (ts.isInterfaceDeclaration(owner)) return isExported(owner);
-  if (ts.isClassDeclaration(owner) || ts.isClassExpression(owner))
-    return isExported(owner);
-  if (ts.isTypeLiteralNode(owner)) {
-    for (
-      let current: ts.Node | undefined = owner.parent;
-      current !== undefined;
-      current = current.parent
-    ) {
-      if (
-        ts.isTypeAliasDeclaration(current) ||
-        ts.isInterfaceDeclaration(current)
-      )
-        return isExported(current);
-      if (ts.isSourceFile(current) || ts.isFunctionLike(current)) return false;
-    }
-  }
-  return false;
+	if (ts.isTypeLiteralNode(owner)) return isPublicTypeLiteral(owner);
+	return isExportedTypeOwner(owner) && isExported(owner);
+}
+
+function isExportedTypeOwner(node: ts.Node): boolean {
+	return (
+		ts.isInterfaceDeclaration(node) ||
+		ts.isClassDeclaration(node) ||
+		ts.isClassExpression(node)
+	);
+}
+
+function isPublicTypeLiteral(owner: ts.TypeLiteralNode): boolean {
+	for (
+		let current: ts.Node | undefined = owner.parent;
+		current !== undefined;
+		current = current.parent
+	) {
+		if (ts.isTypeAliasDeclaration(current) || ts.isInterfaceDeclaration(current))
+			return isExported(current);
+		if (ts.isSourceFile(current) || ts.isFunctionLike(current)) return false;
+	}
+	return false;
 }
 
 function isPublicFunction(node: ts.SignatureDeclaration): boolean {
@@ -188,14 +193,9 @@ function caseKey(
   checker: ts.TypeChecker,
   expression: ts.Expression,
 ): string | undefined {
-  if (ts.isStringLiteralLike(expression)) return `string:${expression.text}`;
-  if (ts.isNumericLiteral(expression)) return `number:${expression.text}`;
-  if (expression.kind === ts.SyntaxKind.TrueKeyword) return "boolean:true";
-  if (expression.kind === ts.SyntaxKind.FalseKeyword) return "boolean:false";
-  if (expression.kind === ts.SyntaxKind.NullKeyword) return "null";
-  if (ts.isIdentifier(expression) && expression.text === "undefined")
-    return "undefined";
-  if (
+	const literal = literalCaseKey(expression);
+	if (literal !== undefined) return literal;
+	if (
     ts.isPropertyAccessExpression(expression) ||
     ts.isElementAccessExpression(expression)
   ) {
@@ -207,7 +207,18 @@ function caseKey(
     );
     if (symbol !== undefined) return `enum:${checker.symbolToString(symbol)}`;
   }
-  return undefined;
+	return undefined;
+}
+
+function literalCaseKey(expression: ts.Expression): string | undefined {
+	if (ts.isStringLiteralLike(expression)) return `string:${expression.text}`;
+	if (ts.isNumericLiteral(expression)) return `number:${expression.text}`;
+	if (expression.kind === ts.SyntaxKind.TrueKeyword) return "boolean:true";
+	if (expression.kind === ts.SyntaxKind.FalseKeyword) return "boolean:false";
+	if (expression.kind === ts.SyntaxKind.NullKeyword) return "null";
+	if (ts.isIdentifier(expression) && expression.text === "undefined")
+		return "undefined";
+	return undefined;
 }
 
 function typeCaseKey(

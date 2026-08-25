@@ -46,14 +46,7 @@ func buildExpression(b *analysisContext, input ast.Expr) *facts.Expression {
 		}
 		children(expression.X)
 	case *ast.CallExpr:
-		switch function := expression.Fun.(type) {
-		case *ast.Ident:
-			result.Calls = append(result.Calls, function.Name)
-		case *ast.SelectorExpr:
-			if base, ok := function.X.(*ast.Ident); ok && base.Name == b.activeReceiver {
-				result.Calls = append(result.Calls, function.Sel.Name)
-			}
-		}
+		result.Calls = expressionCalls(b.activeReceiver, expression.Fun)
 		children(expression.Fun)
 		for _, argument := range expression.Args {
 			children(argument)
@@ -65,10 +58,7 @@ func buildExpression(b *analysisContext, input ast.Expr) *facts.Expression {
 	case *ast.IndexExpr:
 		children(expression.X, expression.Index)
 	case *ast.IndexListExpr:
-		children(expression.X)
-		for _, index := range expression.Indices {
-			children(index)
-		}
+		children(indexListExpressions(expression)...)
 	case *ast.SliceExpr:
 		children(expression.X, expression.Low, expression.High, expression.Max)
 	case *ast.TypeAssertExpr:
@@ -76,12 +66,7 @@ func buildExpression(b *analysisContext, input ast.Expr) *facts.Expression {
 	case *ast.StarExpr:
 		children(expression.X)
 	case *ast.CompositeLit:
-		children(expression.Type)
-		for _, element := range expression.Elts {
-			if value, ok := element.(ast.Expr); ok {
-				children(value)
-			}
-		}
+		children(compositeExpressions(expression)...)
 	case *ast.KeyValueExpr:
 		children(expression.Key, expression.Value)
 	case *ast.ArrayType:
@@ -92,6 +77,33 @@ func buildExpression(b *analysisContext, input ast.Expr) *facts.Expression {
 		children(expression.Value)
 	case *ast.Ellipsis:
 		children(expression.Elt)
+	}
+	return result
+}
+
+func expressionCalls(activeReceiver string, expression ast.Expr) []string {
+	switch function := expression.(type) {
+	case *ast.Ident:
+		return []string{function.Name}
+	case *ast.SelectorExpr:
+		base, ok := function.X.(*ast.Ident)
+		if ok && base.Name == activeReceiver {
+			return []string{function.Sel.Name}
+		}
+	}
+	return nil
+}
+
+func indexListExpressions(expression *ast.IndexListExpr) []ast.Expr {
+	return append([]ast.Expr{expression.X}, expression.Indices...)
+}
+
+func compositeExpressions(expression *ast.CompositeLit) []ast.Expr {
+	result := []ast.Expr{expression.Type}
+	for _, element := range expression.Elts {
+		if value, ok := element.(ast.Expr); ok {
+			result = append(result, value)
+		}
 	}
 	return result
 }

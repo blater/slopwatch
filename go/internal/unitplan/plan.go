@@ -144,16 +144,7 @@ var ignoredDirectories = map[string]bool{
 
 func workspaceFiles(root string, targets []string) ([]string, error) {
 	var files []string
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			if path != root && ignoredDirectories[entry.Name()] {
-				return filepath.SkipDir
-			}
-			return nil
-		}
+	err := walkWorkspaceTree(root, func(path string) error {
 		relative, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
@@ -165,55 +156,71 @@ func workspaceFiles(root string, targets []string) ([]string, error) {
 		return nil, fmt.Errorf("scan workspace: %w", err)
 	}
 	for _, target := range targets {
-		logical := target
-		if !filepath.IsAbs(logical) {
-			logical = filepath.Join(root, filepath.FromSlash(target))
+		targetFiles, err := explicitSymlinkTargetFiles(root, target)
+		if err != nil {
+			return nil, err
 		}
-		metadata, statErr := os.Lstat(logical)
-		if statErr != nil || metadata.Mode()&os.ModeSymlink == 0 {
-			continue
-		}
-		resolved, resolveErr := filepath.EvalSymlinks(logical)
-		if resolveErr != nil {
-			return nil, fmt.Errorf("resolve explicit target %s: %w", target, resolveErr)
-		}
-		info, statErr := os.Stat(resolved)
-		if statErr != nil {
-			return nil, statErr
-		}
-		if !info.IsDir() {
-			relative, relativeErr := filepath.Rel(root, logical)
-			if relativeErr == nil {
-				files = append(files, cleanPath(relative))
-			}
-			continue
-		}
-		walkErr := filepath.WalkDir(resolved, func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry.IsDir() {
-				if path != resolved && ignoredDirectories[entry.Name()] {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			physicalRelative, relativeErr := filepath.Rel(resolved, path)
-			if relativeErr != nil {
-				return relativeErr
-			}
-			workspaceRelative, relativeErr := filepath.Rel(root, filepath.Join(logical, physicalRelative))
-			if relativeErr != nil {
-				return relativeErr
-			}
-			files = append(files, cleanPath(workspaceRelative))
-			return nil
-		})
-		if walkErr != nil {
-			return nil, fmt.Errorf("scan explicit target %s: %w", target, walkErr)
-		}
+		files = append(files, targetFiles...)
 	}
 	return uniqueStrings(files), nil
+}
+
+func walkWorkspaceTree(start string, addFile func(string) error) error {
+	return filepath.WalkDir(start, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if path != start && ignoredDirectories[entry.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		return addFile(path)
+	})
+}
+
+func explicitSymlinkTargetFiles(root, target string) ([]string, error) {
+	logical := target
+	if !filepath.IsAbs(logical) {
+		logical = filepath.Join(root, filepath.FromSlash(target))
+	}
+	metadata, err := os.Lstat(logical)
+	if err != nil || metadata.Mode()&os.ModeSymlink == 0 {
+		return nil, nil
+	}
+	resolved, err := filepath.EvalSymlinks(logical)
+	if err != nil {
+		return nil, fmt.Errorf("resolve explicit target %s: %w", target, err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		relative, relativeErr := filepath.Rel(root, logical)
+		if relativeErr != nil {
+			return nil, nil
+		}
+		return []string{cleanPath(relative)}, nil
+	}
+	var files []string
+	err = walkWorkspaceTree(resolved, func(path string) error {
+		physicalRelative, err := filepath.Rel(resolved, path)
+		if err != nil {
+			return err
+		}
+		workspaceRelative, err := filepath.Rel(root, filepath.Join(logical, physicalRelative))
+		if err != nil {
+			return err
+		}
+		files = append(files, cleanPath(workspaceRelative))
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("scan explicit target %s: %w", target, err)
+	}
+	return files, nil
 }
 
 func finalize(plan *Plan) {

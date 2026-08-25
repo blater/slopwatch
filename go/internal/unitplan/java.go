@@ -1,6 +1,10 @@
 package unitplan
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/blater/slopwatch/internal/sourcepath"
+)
 
 type javaModule struct {
 	directory string
@@ -40,7 +44,7 @@ func javaSources(
 ) []string {
 	var fallback []string
 	for _, file := range context.files {
-		if !strings.HasSuffix(file, ".java") {
+		if !strings.HasSuffix(file, ".java") || sourcepath.IsJavaResource(file) {
 			continue
 		}
 		directory, ok := nearestAncestor(pathDirectory(file), moduleDirs)

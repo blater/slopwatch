@@ -18,6 +18,16 @@ import (
 )
 
 func TestStartupProjectionIsReconciledWithCurrentSourceInventory(t *testing.T) {
+	analyzer := startupProjectionFixture(t)
+	document, ok := analyzer.CachedProjection()
+	if !ok {
+		t.Fatal("current inventory rejected a readable startup projection")
+	}
+	assertStartupProjection(t, document)
+}
+
+func startupProjectionFixture(t *testing.T) *Analyzer {
+	t.Helper()
 	workspace := t.TempDir()
 	writeTestFile(t, workspace, "kept.java", "class Kept {}\n")
 	writeTestFile(t, workspace, "new.java", "class New {}\n")
@@ -44,10 +54,11 @@ func TestStartupProjectionIsReconciledWithCurrentSourceInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	document, ok := analyzer.CachedProjection()
-	if !ok {
-		t.Fatal("current inventory rejected a readable startup projection")
-	}
+	return analyzer
+}
+
+func assertStartupProjection(t *testing.T, document report.Document) {
+	t.Helper()
 	if len(document.Files) != 2 {
 		t.Fatalf("startup files = %d, want current inventory of 2", len(document.Files))
 	}
@@ -82,20 +93,12 @@ func TestPersistentUnitCacheHitAndContentInvalidation(t *testing.T) {
 		return fakeBatchInputs(t, request), nil
 	}
 
-	first, err := analyzer.Analyze(context.Background(), nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	first := analyzeTestDocument(t, analyzer)
 	if calls != 1 || len(first.Files) != 1 {
 		t.Fatalf("first analysis calls/files = %d/%d", calls, len(first.Files))
 	}
-	if _, err := analyzer.Analyze(context.Background(), nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	hit, err := analyzer.Analyze(context.Background(), nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_ = analyzeTestDocument(t, analyzer)
+	hit := analyzeTestDocument(t, analyzer)
 	if calls != 1 {
 		t.Fatalf("ReadCache=true did not reuse verified unit; calls = %d", calls)
 	}
@@ -112,12 +115,19 @@ func TestPersistentUnitCacheHitAndContentInvalidation(t *testing.T) {
 	if err := os.Chtimes(source, info.ModTime(), info.ModTime()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := analyzer.Analyze(context.Background(), nil, nil); err != nil {
-		t.Fatal(err)
-	}
+	_ = analyzeTestDocument(t, analyzer)
 	if calls != 2 {
 		t.Fatalf("same-size/same-mtime content change was a cache hit; calls = %d", calls)
 	}
+}
+
+func analyzeTestDocument(t *testing.T, analyzer *Analyzer) report.Document {
+	t.Helper()
+	document, err := analyzer.Analyze(context.Background(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return document
 }
 
 func TestCorruptUnitArtifactIsAMiss(t *testing.T) {
@@ -209,25 +219,7 @@ func TestMissingUnitsUseOneImmutableContextCompleteLanguageBatch(t *testing.T) {
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	var gotPaths []string
 	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
-		if len(request.Units) != 1 {
-			t.Fatalf("protocol units = %d, want one combined language unit", len(request.Units))
-		}
-		if request.Units[0].ID != "go-unit" {
-			t.Fatalf("combined unit ID = %q, want coverage-compatible go-unit", request.Units[0].ID)
-		}
-		if request.Workspace == workspace {
-			t.Fatal("analyzer received the live workspace")
-		}
-		gotPaths = append([]string(nil), request.Units[0].Paths...)
-		for _, path := range gotPaths {
-			info, err := os.Stat(filepath.Join(request.Workspace, filepath.FromSlash(path)))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if info.Mode().Perm()&0o222 != 0 {
-				t.Fatalf("snapshot source %s is writable: %o", path, info.Mode().Perm())
-			}
-		}
+		gotPaths = assertImmutableBatch(t, workspace, request)
 		return fakeBatchInputs(t, request), nil
 	}
 	document, err := analyzer.Analyze(context.Background(), nil, nil)
@@ -242,6 +234,30 @@ func TestMissingUnitsUseOneImmutableContextCompleteLanguageBatch(t *testing.T) {
 	if len(document.Files) != 1 || document.Files[0].Path != "a/a.go" {
 		t.Fatalf("target filtering leaked context rows: %#v", document.Files)
 	}
+}
+
+func assertImmutableBatch(t *testing.T, liveWorkspace string, request analyzerRequest) []string {
+	t.Helper()
+	if len(request.Units) != 1 {
+		t.Fatalf("protocol units = %d, want one combined language unit", len(request.Units))
+	}
+	if request.Units[0].ID != "go-unit" {
+		t.Fatalf("combined unit ID = %q, want coverage-compatible go-unit", request.Units[0].ID)
+	}
+	if request.Workspace == liveWorkspace {
+		t.Fatal("analyzer received the live workspace")
+	}
+	paths := append([]string(nil), request.Units[0].Paths...)
+	for _, path := range paths {
+		info, err := os.Stat(filepath.Join(request.Workspace, filepath.FromSlash(path)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0o222 != 0 {
+			t.Fatalf("snapshot source %s is writable: %o", path, info.Mode().Perm())
+		}
+	}
+	return paths
 }
 
 func TestMutationDuringSnapshotRetriesBeforeCommit(t *testing.T) {
@@ -296,6 +312,21 @@ func TestTypedNestedOwnershipIsUniqueAndNestedChangeInvalidatesBothFingerprints(
 	}
 	discovered := map[string][]string{"typescript": {"nested/inner.ts", "outer.ts"}}
 	active := filterPlannedUnits(plan.Units, discovered, []string{"typescript"}, false)
+	assertTypedOwnership(t, active)
+	first, err := analyzer.prepareCacheUnits(context.Background(), analyzer.catalog, plan.Units, active, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, workspace, "nested/inner.ts", "export const inner = 2;\n")
+	second, err := analyzer.prepareCacheUnits(context.Background(), analyzer.catalog, plan.Units, active, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAllUnitKeysChanged(t, unitKeysByID(first.units), unitKeysByID(second.units))
+}
+
+func assertTypedOwnership(t *testing.T, active []plannedCacheUnit) {
+	t.Helper()
 	owners := map[string]string{}
 	for _, unit := range active {
 		for _, path := range unit.owned {
@@ -308,16 +339,10 @@ func TestTypedNestedOwnershipIsUniqueAndNestedChangeInvalidatesBothFingerprints(
 	if len(owners) != 2 || !strings.Contains(owners["nested/inner.ts"], "nested/tsconfig.json") || owners["outer.ts"] == "" {
 		t.Fatalf("nested ownership = %#v", owners)
 	}
-	first, err := analyzer.prepareCacheUnits(context.Background(), analyzer.catalog, plan.Units, active, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeTestFile(t, workspace, "nested/inner.ts", "export const inner = 2;\n")
-	second, err := analyzer.prepareCacheUnits(context.Background(), analyzer.catalog, plan.Units, active, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	firstKeys, secondKeys := unitKeysByID(first.units), unitKeysByID(second.units)
+}
+
+func assertAllUnitKeysChanged(t *testing.T, firstKeys, secondKeys map[string]analysiscache.Key) {
+	t.Helper()
 	if len(firstKeys) != 2 {
 		t.Fatalf("typed units = %#v", firstKeys)
 	}

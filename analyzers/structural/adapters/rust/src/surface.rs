@@ -61,61 +61,78 @@ pub(crate) fn collect(
             syn::Item::Fn(function) if matches!(function.vis, syn::Visibility::Public(_)) => {
                 operations.push(function_operation(function, path))
             }
-            syn::Item::Impl(value) => {
-                let owner = match value.self_ty.as_ref() {
-                    syn::Type::Path(value) => value
-                        .path
-                        .segments
-                        .last()
-                        .map(|item| item.ident.to_string())
-                        .unwrap_or_else(|| "type".to_owned()),
-                    _ => "type".to_owned(),
-                };
-                for member in &value.items {
-                    if let syn::ImplItem::Method(method) = member {
-                        if matches!(method.vis, syn::Visibility::Public(_)) {
-                            operations.push(method_operation(method, path, &owner));
-                        }
-                    }
-                }
-            }
+            syn::Item::Impl(value) => collect_impl(value, path, operations),
             syn::Item::Trait(value) if matches!(value.vis, syn::Visibility::Public(_)) => {
-                for member in &value.items {
-                    if let syn::TraitItem::Method(method) = member {
-                        operations.push(trait_method_operation(
-                            method,
-                            path,
-                            &value.ident.to_string(),
-                        ));
-                    }
-                }
+                collect_trait(value, path, operations)
             }
-            syn::Item::Struct(value) => {
-                for field in &value.fields {
-                    if matches!(field.vis, syn::Visibility::Public(_)) {
-                        let name = field
-                            .ident
-                            .as_ref()
-                            .map(ToString::to_string)
-                            .unwrap_or_else(|| "tuple".to_owned());
-                        exposures.push(RepresentationExposure {
-                            stable_id: format!("{path}:{}:{name}", value.ident),
-                            kind: "public-mutable-field".to_owned(),
-                            entity: format!("{}.{}", value.ident, name),
-                            location: location(path, field.span()),
-                            evidence: "public Rust struct field exposes representation".to_owned(),
-                            confidence: "exact".to_owned(),
-                        });
-                    }
-                }
-            }
-            syn::Item::Mod(module) => {
-                if let Some((_, nested)) = &module.content {
-                    collect(nested, path, operations, exposures);
-                }
-            }
+            syn::Item::Struct(value) => collect_struct(value, path, exposures),
+            syn::Item::Mod(module) => collect_module(module, path, operations, exposures),
             _ => {}
         }
+    }
+}
+
+fn collect_impl(value: &syn::ItemImpl, path: &str, operations: &mut Vec<PublicOperation>) {
+    let owner = match value.self_ty.as_ref() {
+        syn::Type::Path(value) => value
+            .path
+            .segments
+            .last()
+            .map(|item| item.ident.to_string())
+            .unwrap_or_else(|| "type".to_owned()),
+        _ => "type".to_owned(),
+    };
+    for member in &value.items {
+        if let syn::ImplItem::Method(method) = member {
+            if matches!(method.vis, syn::Visibility::Public(_)) {
+                operations.push(method_operation(method, path, &owner));
+            }
+        }
+    }
+}
+
+fn collect_trait(value: &syn::ItemTrait, path: &str, operations: &mut Vec<PublicOperation>) {
+    let owner = value.ident.to_string();
+    for member in &value.items {
+        if let syn::TraitItem::Method(method) = member {
+            operations.push(trait_method_operation(method, path, &owner));
+        }
+    }
+}
+
+fn collect_struct(
+    value: &syn::ItemStruct,
+    path: &str,
+    exposures: &mut Vec<RepresentationExposure>,
+) {
+    for field in &value.fields {
+        if !matches!(field.vis, syn::Visibility::Public(_)) {
+            continue;
+        }
+        let name = field
+            .ident
+            .as_ref()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "tuple".to_owned());
+        exposures.push(RepresentationExposure {
+            stable_id: format!("{path}:{}:{name}", value.ident),
+            kind: "public-mutable-field".to_owned(),
+            entity: format!("{}.{}", value.ident, name),
+            location: location(path, field.span()),
+            evidence: "public Rust struct field exposes representation".to_owned(),
+            confidence: "exact".to_owned(),
+        });
+    }
+}
+
+fn collect_module(
+    module: &syn::ItemMod,
+    path: &str,
+    operations: &mut Vec<PublicOperation>,
+    exposures: &mut Vec<RepresentationExposure>,
+) {
+    if let Some((_, nested)) = &module.content {
+        collect(nested, path, operations, exposures);
     }
 }
 

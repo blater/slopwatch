@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/blater/slopwatch/internal/sourcepath"
 )
 
 func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {
@@ -45,6 +47,9 @@ func languageFor(watcher *sourceWatcher, relative string) (string, bool) {
 		}
 		return "go", true
 	case ".java":
+		if sourcepath.IsJavaResource(relative) {
+			return "", false
+		}
 		return "java", true
 	case ".rs":
 		return "rust", true

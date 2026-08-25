@@ -173,8 +173,21 @@ func TestMonitorTracksMissingNestedInputsThroughExistingAncestors(t *testing.T) 
 	if err := os.Mkdir(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	base := newFakeBackend()
-	backend := &existingPathBackend{fakeBackend: base}
+	m := newMissingInputsMonitor(t, root, project)
+	defer m.Close()
+
+	cargoDirectory := filepath.Join(root, ".cargo")
+	createWatchedDirectory(t, m, cargoDirectory)
+	gradleDirectory := filepath.Join(root, "gradle")
+	createWatchedDirectory(t, m, gradleDirectory)
+	wrapperDirectory := filepath.Join(gradleDirectory, "wrapper")
+	createWatchedDirectory(t, m, wrapperDirectory)
+	assertCreatedConfigIsTracked(t, m, cargoDirectory)
+}
+
+func newMissingInputsMonitor(t *testing.T, root, project string) *Monitor {
+	t.Helper()
+	backend := &existingPathBackend{fakeBackend: newFakeBackend()}
 	m, err := New(Config{
 		Root:   root,
 		Scopes: []Scope{{Path: project, Recursive: true, Kind: KindSource, Directory: true}},
@@ -192,29 +205,22 @@ func TestMonitorTracksMissingNestedInputsThroughExistingAncestors(t *testing.T) 
 	if err := m.Start(context.Background()); err != nil {
 		t.Fatalf("monitor rejected an absent optional input: %v", err)
 	}
-	defer m.Close()
+	return m
+}
 
-	cargoDirectory := filepath.Join(root, ".cargo")
-	if err := os.Mkdir(cargoDirectory, 0o755); err != nil {
+func createWatchedDirectory(t *testing.T, m *Monitor, directory string) {
+	t.Helper()
+	if err := os.Mkdir(directory, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m.handle(Event{Name: cargoDirectory, Op: OpCreate, IsDir: true})
-	if !m.isWatched(cargoDirectory) {
-		t.Fatal("new intermediate directory did not extend the watch chain")
+	m.handle(Event{Name: directory, Op: OpCreate, IsDir: true})
+	if !m.isWatched(directory) {
+		t.Fatalf("new intermediate directory was not watched: %s", directory)
 	}
-	gradleDirectory := filepath.Join(root, "gradle")
-	if err := os.Mkdir(gradleDirectory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	m.handle(Event{Name: gradleDirectory, Op: OpCreate, IsDir: true})
-	wrapperDirectory := filepath.Join(gradleDirectory, "wrapper")
-	if err := os.Mkdir(wrapperDirectory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	m.handle(Event{Name: wrapperDirectory, Op: OpCreate, IsDir: true})
-	if !m.isWatched(wrapperDirectory) {
-		t.Fatal("multi-level optional input did not extend the watch chain")
-	}
+}
+
+func assertCreatedConfigIsTracked(t *testing.T, m *Monitor, cargoDirectory string) {
+	t.Helper()
 	config := filepath.Join(cargoDirectory, "config.toml")
 	if err := os.WriteFile(config, nil, 0o600); err != nil {
 		t.Fatal(err)

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"slopslap.dev/structural/internal/facts"
 	"slopslap.dev/structural/internal/metrics"
 )
 
 func TestAdapterBuildsFunctionAndMultiMethodTypeFacts(t *testing.T) {
-	root := t.TempDir()
 	source := `package sample
 type Peer struct { Value int }
 type Service struct { state int; peer Peer }
@@ -22,14 +22,7 @@ func (s *Service) A(other Peer) int { return s.state + other.Value }
 func (s Service) B() int { if s.state > 0 { return 1 }; return 0 }
 func Run(ok bool) { callback := func() { if ok {} }; callback() }
 `
-	path := filepath.Join(root, "service.go")
-	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	program, err := Analyze(root, []string{"service.go"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	program := analyzeTestSource(t, source)
 	if len(program.Functions) != 4 {
 		t.Fatalf("functions = %d, want 4", len(program.Functions))
 	}
@@ -42,28 +35,54 @@ func Run(ok bool) { callback := func() { if ok {} }; callback() }
 	if len(program.PublicOperations[0].Parameters) == 0 || program.PublicOperations[0].Parameters[0].Name != "Peer" {
 		t.Fatalf("first operation signature = %#v", program.PublicOperations[0])
 	}
-	var serviceFound bool
+	assertServiceFacts(t, program)
+	assertPeerFacts(t, program)
+}
+
+func analyzeTestSource(t *testing.T, source string) *facts.Program {
+	t.Helper()
+	root := t.TempDir()
+	path := filepath.Join(root, "service.go")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	program, err := Analyze(root, []string{"service.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return program
+}
+
+func assertServiceFacts(t *testing.T, program *facts.Program) {
+	t.Helper()
 	for _, item := range program.Types {
 		if item.Name != "Service" {
 			continue
 		}
-		serviceFound = true
-		if len(item.Methods) != 2 {
-			t.Fatalf("methods = %d", len(item.Methods))
-		}
-		if len(item.MethodFields["A"]) != 1 || item.MethodFields["A"][0] != "state" {
-			t.Fatalf("A fields = %#v", item.MethodFields["A"])
-		}
-		if len(item.Fields) != 2 || item.Fields[0].Public || item.Fields[1].Public {
-			t.Fatalf("Service fields = %#v", item.Fields)
-		}
-		if len(item.ForeignFields) != 1 || item.ForeignFields[0] != "Peer.Value" {
-			t.Fatalf("foreign fields = %#v", item.ForeignFields)
-		}
+		assertServiceType(t, item)
+		return
 	}
-	if !serviceFound {
-		t.Fatal("Service type was not collected")
+	t.Fatal("Service type was not collected")
+}
+
+func assertServiceType(t *testing.T, item *facts.Type) {
+	t.Helper()
+	if len(item.Methods) != 2 {
+		t.Fatalf("methods = %d", len(item.Methods))
 	}
+	if len(item.MethodFields["A"]) != 1 || item.MethodFields["A"][0] != "state" {
+		t.Fatalf("A fields = %#v", item.MethodFields["A"])
+	}
+	if len(item.Fields) != 2 || item.Fields[0].Public || item.Fields[1].Public {
+		t.Fatalf("Service fields = %#v", item.Fields)
+	}
+	if len(item.ForeignFields) != 1 || item.ForeignFields[0] != "Peer.Value" {
+		t.Fatalf("foreign fields = %#v", item.ForeignFields)
+	}
+}
+
+func assertPeerFacts(t *testing.T, program *facts.Program) {
+	t.Helper()
 	for _, item := range program.Types {
 		if item.Name == "Peer" && (len(item.Fields) != 1 || !item.Fields[0].Public) {
 			t.Fatalf("Peer public fields = %#v", item.Fields)
@@ -111,12 +130,22 @@ func (s Service) Run(other missing.Peer) { _ = s.peer; _ = other.Value }
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertComponentsAvailable(t, program, "service.go")
+	assertFallbackTypeFacts(t, program)
+}
+
+func assertComponentsAvailable(t *testing.T, program *facts.Program, path string) {
+	t.Helper()
 	for _, component := range []string{"coupling_between_objects", "god_class"} {
-		available, reason := program.Availability("service.go", component)
+		available, reason := program.Availability(path, component)
 		if !available || reason != "" {
 			t.Fatalf("%s availability = %v, %q", component, available, reason)
 		}
 	}
+}
+
+func assertFallbackTypeFacts(t *testing.T, program *facts.Program) {
+	t.Helper()
 	if len(program.Types) != 1 {
 		t.Fatalf("types = %d, want 1", len(program.Types))
 	}
@@ -237,6 +266,17 @@ type Service struct { peer model.Peer }
 func (s Service) Value() int { return s.peer.Value }
 `,
 	}
+	writeGoFixtureFiles(t, root, files)
+	program, err := Analyze(root, []string{"model/model.go", "service/service.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertComponentsAvailable(t, program, "service/service.go")
+	assertResolvedServiceFacts(t, program)
+}
+
+func writeGoFixtureFiles(t *testing.T, root string, files map[string]string) {
+	t.Helper()
 	for relative, contents := range files {
 		path := filepath.Join(root, filepath.FromSlash(relative))
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -246,15 +286,10 @@ func (s Service) Value() int { return s.peer.Value }
 			t.Fatal(err)
 		}
 	}
-	program, err := Analyze(root, []string{"model/model.go", "service/service.go"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, component := range []string{"coupling_between_objects", "god_class"} {
-		if available, reason := program.Availability("service/service.go", component); !available {
-			t.Fatalf("%s unavailable: %s", component, reason)
-		}
-	}
+}
+
+func assertResolvedServiceFacts(t *testing.T, program *facts.Program) {
+	t.Helper()
 	for _, item := range program.Types {
 		if item.Name == "Service" {
 			if len(item.ForeignTypes) != 1 || item.ForeignTypes[0] != "example.test/project/model.Peer" {
@@ -271,6 +306,15 @@ func (s Service) Value() int { return s.peer.Value }
 
 func TestAdapterAcceptsDiscoveredSymlinkedSource(t *testing.T) {
 	root := t.TempDir()
+	assertSymlinkedFileAccepted(t, root)
+	assertSymlinkedDirectoryAccepted(t, root)
+	if _, err := Analyze(root, []string{"real/../real/nested.go"}); err == nil {
+		t.Fatal("expected non-canonical path rejection")
+	}
+}
+
+func assertSymlinkedFileAccepted(t *testing.T, root string) {
+	t.Helper()
 	target := filepath.Join(root, "real.go")
 	if err := os.WriteFile(target, []byte("package sample\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -281,6 +325,10 @@ func TestAdapterAcceptsDiscoveredSymlinkedSource(t *testing.T) {
 	if _, err := Analyze(root, []string{"linked.go"}); err != nil {
 		t.Fatalf("symlinked source: %v", err)
 	}
+}
+
+func assertSymlinkedDirectoryAccepted(t *testing.T, root string) {
+	t.Helper()
 	directory := filepath.Join(root, "real")
 	if err := os.Mkdir(directory, 0o700); err != nil {
 		t.Fatal(err)
@@ -293,8 +341,5 @@ func TestAdapterAcceptsDiscoveredSymlinkedSource(t *testing.T) {
 	}
 	if _, err := Analyze(root, []string{"alias/nested.go"}); err != nil {
 		t.Fatalf("source beneath symlinked directory: %v", err)
-	}
-	if _, err := Analyze(root, []string{"real/../real/nested.go"}); err == nil {
-		t.Fatal("expected non-canonical path rejection")
 	}
 }

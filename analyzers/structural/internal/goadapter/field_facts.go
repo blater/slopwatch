@@ -11,70 +11,92 @@ type fieldReference struct {
 	field string
 }
 
+type methodFieldCollector struct {
+	receiverName string
+	receiverType string
+	ownFields    map[string]struct{}
+	item         source
+	fields       map[string]struct{}
+	foreign      map[fieldReference]struct{}
+	stack        []ast.Node
+}
+
 func methodFieldFacts(method *ast.FuncDecl, receiverName, receiverType string, ownFields map[string]struct{}, item source) ([]string, []string) {
-	fields := make(map[string]struct{})
-	foreign := make(map[fieldReference]struct{})
-	stack := make([]ast.Node, 0, 16)
-	ast.Inspect(method.Body, func(node ast.Node) bool {
-		if node == nil {
-			stack = stack[:len(stack)-1]
-			return false
-		}
-		var parent ast.Node
-		if len(stack) > 0 {
-			parent = stack[len(stack)-1]
-		}
-		stack = append(stack, node)
-		selector, ok := node.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		base, ok := selector.X.(*ast.Ident)
-		if call, ok := parent.(*ast.CallExpr); ok && call.Fun == selector {
-			return true
-		}
-		if item.typesAvailable {
-			selection := item.typeInfo.Selections[selector]
-			field, isField := selectionObjectField(selection)
-			if !isField {
-				return true
-			}
-			owner := receiverTypeName(item.typeInfo.TypeOf(selector.X))
-			if owner == receiverType {
-				if _, exists := ownFields[field.Name()]; exists {
-					fields[field.Name()] = struct{}{}
-					return true
-				}
-			}
-			foreign[fieldReference{owner: owner, field: field.Name()}] = struct{}{}
-			return true
-		}
-		if !ok {
-			return true
-		}
-		if base.Name == receiverName {
-			if _, exists := ownFields[selector.Sel.Name]; exists {
-				fields[selector.Sel.Name] = struct{}{}
-			}
-			return true
-		}
-		if _, imported := item.imports[base.Name]; imported {
-			return true
-		}
-		foreign[fieldReference{owner: base.Name, field: selector.Sel.Name}] = struct{}{}
-		return true
-	})
-	fieldList := make([]string, 0, len(fields))
-	foreignList := make([]string, 0, len(foreign))
-	for value := range fields {
+	collector := &methodFieldCollector{
+		receiverName: receiverName, receiverType: receiverType, ownFields: ownFields, item: item,
+		fields: make(map[string]struct{}), foreign: make(map[fieldReference]struct{}), stack: make([]ast.Node, 0, 16),
+	}
+	ast.Inspect(method.Body, collector.inspect)
+	fieldList := make([]string, 0, len(collector.fields))
+	foreignList := make([]string, 0, len(collector.foreign))
+	for value := range collector.fields {
 		fieldList = append(fieldList, value)
 	}
-	for value := range foreign {
+	for value := range collector.foreign {
 		foreignList = append(foreignList, value.owner+"."+value.field)
 	}
 	sort.Strings(fieldList)
 	sort.Strings(foreignList)
 	return fieldList, foreignList
+}
+
+func (collector *methodFieldCollector) inspect(node ast.Node) bool {
+	if node == nil {
+		collector.stack = collector.stack[:len(collector.stack)-1]
+		return false
+	}
+	var parent ast.Node
+	if len(collector.stack) > 0 {
+		parent = collector.stack[len(collector.stack)-1]
+	}
+	collector.stack = append(collector.stack, node)
+	selector, ok := node.(*ast.SelectorExpr)
+	if !ok || isCalledSelector(parent, selector) {
+		return true
+	}
+	if collector.item.typesAvailable {
+		collector.collectTyped(selector)
+	} else {
+		collector.collectUntyped(selector)
+	}
+	return true
+}
+
+func isCalledSelector(parent ast.Node, selector *ast.SelectorExpr) bool {
+	call, ok := parent.(*ast.CallExpr)
+	return ok && call.Fun == selector
+}
+
+func (collector *methodFieldCollector) collectTyped(selector *ast.SelectorExpr) {
+	field, isField := selectionObjectField(collector.item.typeInfo.Selections[selector])
+	if !isField {
+		return
+	}
+	owner := receiverTypeName(collector.item.typeInfo.TypeOf(selector.X))
+	if owner == collector.receiverType {
+		if _, exists := collector.ownFields[field.Name()]; exists {
+			collector.fields[field.Name()] = struct{}{}
+			return
+		}
+	}
+	collector.foreign[fieldReference{owner: owner, field: field.Name()}] = struct{}{}
+}
+
+func (collector *methodFieldCollector) collectUntyped(selector *ast.SelectorExpr) {
+	base, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return
+	}
+	if base.Name == collector.receiverName {
+		if _, exists := collector.ownFields[selector.Sel.Name]; exists {
+			collector.fields[selector.Sel.Name] = struct{}{}
+		}
+		return
+	}
+	if _, imported := collector.item.imports[base.Name]; imported {
+		return
+	}
+	collector.foreign[fieldReference{owner: base.Name, field: selector.Sel.Name}] = struct{}{}
 }
 
 func selectionObjectField(selection *types.Selection) (*types.Var, bool) {

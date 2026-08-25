@@ -82,19 +82,23 @@ function validateUnit(
   unit: NonNullable<AnalyzerRequest["units"]>[number],
   unitIds: Set<string>,
 ): void {
-  if (typeof unit.unit_id !== "string" || unit.unit_id.length === 0)
-    throw new Error("each unit_id must be a non-empty analysis unit");
-  if (unitIds.has(unit.unit_id))
-    throw new Error(`duplicate unit_id ${unit.unit_id}`);
+	validateUnitID(unit.unit_id, unitIds);
   unitIds.add(unit.unit_id);
   if (unit.language !== "typescript")
-    throw new Error(`unsupported language ${String(unit.language)}`);
-  if (
-    !Array.isArray(unit.source_paths) ||
-    !unit.source_paths.every((item) => typeof item === "string")
-  ) {
-    throw new Error(`unit ${unit.unit_id} source_paths must be a string array`);
+	throw new Error(`unsupported language ${String(unit.language)}`);
+	if (!validSourcePaths(unit.source_paths)) {
+	throw new Error(`unit ${unit.unit_id} source_paths must be a string array`);
   }
+}
+
+function validateUnitID(value: unknown, unitIds: ReadonlySet<string>): asserts value is string {
+	if (typeof value !== "string" || value.length === 0)
+		throw new Error("each unit_id must be a non-empty analysis unit");
+	if (unitIds.has(value)) throw new Error(`duplicate unit_id ${value}`);
+}
+
+function validSourcePaths(value: unknown): value is string[] {
+	return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function validateComponents(request: Partial<AnalyzerRequest>): void {
@@ -110,12 +114,7 @@ function validateComponent(
   component: AnalyzerRequest["components"][number],
   requested: Set<string>,
 ): void {
-  if (
-    component === null ||
-    typeof component !== "object" ||
-    typeof component.component_id !== "string" ||
-    typeof component.definition_version !== "string"
-  ) {
+	if (!validComponentShape(component)) {
     throw new Error(
       "each component must contain component_id and definition_version",
     );
@@ -133,6 +132,17 @@ function validateComponent(
   requested.add(component.component_id);
 }
 
+function validComponentShape(
+	component: unknown,
+): component is AnalyzerRequest["components"][number] {
+	return (
+		component !== null &&
+		typeof component === "object" &&
+		typeof Reflect.get(component, "component_id") === "string" &&
+		typeof Reflect.get(component, "definition_version") === "string"
+	);
+}
+
 function validateOptions(request: Partial<AnalyzerRequest>): void {
   const mode = request.options?.typescript_types;
   if (
@@ -146,29 +156,31 @@ function validateOptions(request: Partial<AnalyzerRequest>): void {
 }
 
 function validateRequest(value: unknown): AnalyzerRequest {
-  if (typeof value !== "object" || value === null)
-    throw new Error("request must be a JSON object");
+	validateRequestObject(value);
   const request = value as Partial<AnalyzerRequest>;
-  if (request.type !== "request")
-    throw new Error("record type must be request");
-  if (request.protocol_version !== PROTOCOL_VERSION) {
-    throw new Error(
-      `unsupported protocol version ${String(request.protocol_version)}`,
-    );
-  }
-  if (
-    typeof request.invocation_id !== "string" ||
-    request.invocation_id.length === 0
-  ) {
-    throw new Error("invocation_id must be a non-empty string");
-  }
-  if (typeof request.workspace !== "string" || request.workspace.length === 0) {
-    throw new Error("workspace must be a non-empty string");
-  }
+	validateRequestEnvelope(request);
   validateUnits(request);
   validateComponents(request);
   validateOptions(request);
   return request as AnalyzerRequest;
+}
+
+function validateRequestObject(value: unknown): asserts value is object {
+	if (typeof value !== "object" || value === null)
+		throw new Error("request must be a JSON object");
+}
+
+function validateRequestEnvelope(request: Partial<AnalyzerRequest>): void {
+	if (request.type !== "request") throw new Error("record type must be request");
+	if (request.protocol_version !== PROTOCOL_VERSION) {
+		throw new Error(
+			`unsupported protocol version ${String(request.protocol_version)}`,
+		);
+	}
+	if (typeof request.invocation_id !== "string" || request.invocation_id.length === 0)
+		throw new Error("invocation_id must be a non-empty string");
+	if (typeof request.workspace !== "string" || request.workspace.length === 0)
+		throw new Error("workspace must be a non-empty string");
 }
 
 function syntaxDiagnostic(entry: {
@@ -244,40 +256,62 @@ function analyzeTypedSources(
     buffers.records.push(responseDiagnostic(invocationId, item));
   const unavailableReason = typedResult.unavailableReason;
   if (typedResult.context !== undefined) {
-    for (const entry of context.sources) {
-      if (entry.syntaxErrors.length > 0) {
-        for (const component of requestedTyped) {
-          buffers.coverage.push({
-            unit_id: entry.unitId,
-            path: entry.relativePath,
-            component_id: component,
-            definition_version:
-              COMPONENT_BY_ID.get(component)?.definition_version ?? "unknown",
-            state: "failed",
-            reason: "syntax errors prevent trustworthy typed analysis",
-          });
-        }
-        continue;
-      }
-      buffers.measurements.push(
-        ...analyzeTypeSafety(entry, typedResult.context, requestedTyped),
-      );
-      for (const component of requestedTyped) {
-        buffers.coverage.push({
-          unit_id: entry.unitId,
-          path: entry.relativePath,
-          component_id: component,
-          definition_version:
-            COMPONENT_BY_ID.get(component)?.definition_version ?? "unknown",
-          state: "complete",
-          reason:
-            "compiler-aware kernel completed with a trustworthy type graph",
-        });
-      }
-    }
-    return unavailableReason;
+	analyzeAvailableTypedSources(
+		context,
+		typedResult.context,
+		requestedTyped,
+		buffers,
+	);
+	return unavailableReason;
   }
+	markTypedAnalysisUnavailable(request, context, invocationId, requestedTyped, typeMode, buffers, unavailableReason);
+	return unavailableReason;
+}
 
+function analyzeAvailableTypedSources(
+	context: AnalysisContext,
+	typedContext: NonNullable<ReturnType<AnalysisContext["createTypedContext"]>["context"]>,
+	requestedTyped: ReadonlySet<string>,
+	buffers: AnalysisBuffers,
+): void {
+	for (const entry of context.sources) {
+		if (entry.syntaxErrors.length > 0) {
+			addTypedCoverage(entry, requestedTyped, buffers, "failed", "syntax errors prevent trustworthy typed analysis");
+			continue;
+		}
+		buffers.measurements.push(...analyzeTypeSafety(entry, typedContext, requestedTyped));
+		addTypedCoverage(entry, requestedTyped, buffers, "complete", "compiler-aware kernel completed with a trustworthy type graph");
+	}
+}
+
+function addTypedCoverage(
+	entry: AnalysisContext["sources"][number],
+	requestedTyped: ReadonlySet<string>,
+	buffers: AnalysisBuffers,
+	state: Coverage["state"],
+	reason: string,
+): void {
+	for (const component of requestedTyped) {
+		buffers.coverage.push({
+			unit_id: entry.unitId,
+			path: entry.relativePath,
+			component_id: component,
+			definition_version: COMPONENT_BY_ID.get(component)?.definition_version ?? "unknown",
+			state,
+			reason,
+		});
+	}
+}
+
+function markTypedAnalysisUnavailable(
+	request: AnalyzerRequest,
+	context: AnalysisContext,
+	invocationId: string,
+	requestedTyped: ReadonlySet<string>,
+	typeMode: TypeMode,
+	buffers: AnalysisBuffers,
+	unavailableReason: string | undefined,
+): void {
   const reason = unavailableReason ?? "typed analysis is unavailable";
   if (typeMode === "require" || typeMode === "off") {
     for (const unit of request.units) buffers.failedUnits.add(unit.unit_id);
@@ -293,19 +327,8 @@ function analyzeTypedSources(
     );
   }
   for (const entry of context.sources) {
-    for (const component of requestedTyped) {
-      buffers.coverage.push({
-        unit_id: entry.unitId,
-        path: entry.relativePath,
-        component_id: component,
-        definition_version:
-          COMPONENT_BY_ID.get(component)?.definition_version ?? "unknown",
-        state: "unavailable",
-        reason,
-      });
-    }
+	addTypedCoverage(entry, requestedTyped, buffers, "unavailable", reason);
   }
-  return unavailableReason;
 }
 
 function finishAnalysis(

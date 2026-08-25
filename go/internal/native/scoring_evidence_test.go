@@ -3,6 +3,8 @@ package native
 import (
 	"reflect"
 	"testing"
+
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func TestCountScoringPreservesEveryFindingAsStructuredEvidence(t *testing.T) {
@@ -38,12 +40,28 @@ func TestCountScoringPreservesEveryFindingAsStructuredEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertCountComponent(t, component, flatAttributes, nestedAttributes, provenance)
+}
+
+func assertCountComponent(t *testing.T, component report.Component, flatAttributes, nestedAttributes, provenance map[string]any) {
+	t.Helper()
+	assertCountSummary(t, component)
+	assertEvidenceLocations(t, component)
+	assertEvidenceMetadata(t, component, flatAttributes, nestedAttributes, provenance)
+}
+
+func assertCountSummary(t *testing.T, component report.Component) {
+	t.Helper()
 	if component.Contribution != 4 || len(component.Subjects) != 1 || component.Subjects[0].Subject != "deduplicated_count" {
 		t.Fatalf("count score changed: %#v", component)
 	}
 	if len(component.Evidence) != 2 {
 		t.Fatalf("evidence = %#v", component.Evidence)
 	}
+}
+
+func assertEvidenceLocations(t *testing.T, component report.Component) {
+	t.Helper()
 	flat, nested := component.Evidence[0], component.Evidence[1]
 	if flat.Symbol != "Service.Run.if" || flat.Scope != "expression" || flat.Location.Start.Line != 11 || flat.Location.End.Column != 4 {
 		t.Fatalf("flat evidence = %#v", flat)
@@ -51,6 +69,11 @@ func TestCountScoringPreservesEveryFindingAsStructuredEvidence(t *testing.T) {
 	if nested.Symbol != "Service.run.value" || nested.Routine != "Service.run" || nested.Location.Start.Offset != 410 || nested.Location.End.Offset != 415 {
 		t.Fatalf("nested evidence = %#v", nested)
 	}
+}
+
+func assertEvidenceMetadata(t *testing.T, component report.Component, flatAttributes, nestedAttributes, provenance map[string]any) {
+	t.Helper()
+	flat, nested := component.Evidence[0], component.Evidence[1]
 	if !reflect.DeepEqual(flat.Attributes, flatAttributes) || !reflect.DeepEqual(nested.Attributes, nestedAttributes) {
 		t.Fatalf("attributes were not preserved: %#v", component.Evidence)
 	}

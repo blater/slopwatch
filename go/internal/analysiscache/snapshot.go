@@ -68,63 +68,11 @@ func materializeSnapshot(ctx context.Context, files []SnapshotFile, load func(Sn
 	}()
 
 	directories := snapshotDirectories(root, files)
-	for _, directory := range directories {
-		if err := os.MkdirAll(directory, 0o700); err != nil {
-			return "", nil, fmt.Errorf("create snapshot directory: %w", err)
-		}
+	if err := createSnapshotDirectories(directories); err != nil {
+		return "", nil, err
 	}
-	errorsByFile := make([]error, len(files))
-	workers := min(runtime.GOMAXPROCS(0), 16)
-	if workers < 1 {
-		workers = 1
-	}
-	jobs := make(chan int)
-	var workersDone sync.WaitGroup
-	for worker := 0; worker < workers; worker++ {
-		workersDone.Add(1)
-		go func() {
-			defer workersDone.Done()
-			for index := range jobs {
-				file := files[index]
-				if contextErr := ctx.Err(); contextErr != nil {
-					errorsByFile[index] = contextErr
-					continue
-				}
-				contents, loadErr := load(file)
-				if loadErr != nil {
-					errorsByFile[index] = fmt.Errorf("load snapshot source %s: %w", file.Path, loadErr)
-					continue
-				}
-				destination := filepath.Join(root, filepath.FromSlash(file.Path))
-				output, openErr := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-				if openErr != nil {
-					errorsByFile[index] = fmt.Errorf("create snapshot file %s: %w", file.Path, openErr)
-					continue
-				}
-				if _, writeErr := output.Write(contents); writeErr != nil {
-					_ = output.Close()
-					errorsByFile[index] = fmt.Errorf("write snapshot file %s: %w", file.Path, writeErr)
-					continue
-				}
-				if closeErr := output.Close(); closeErr != nil {
-					errorsByFile[index] = fmt.Errorf("close snapshot file %s: %w", file.Path, closeErr)
-					continue
-				}
-				if chmodErr := os.Chmod(destination, 0o444); chmodErr != nil {
-					errorsByFile[index] = fmt.Errorf("make snapshot file %s read-only: %w", file.Path, chmodErr)
-				}
-			}
-		}()
-	}
-	for index := range files {
-		jobs <- index
-	}
-	close(jobs)
-	workersDone.Wait()
-	for _, fileErr := range errorsByFile {
-		if fileErr != nil {
-			return "", nil, fileErr
-		}
+	if err := materializeSnapshotFiles(ctx, root, files, load); err != nil {
+		return "", nil, err
 	}
 	if contextErr := ctx.Err(); contextErr != nil {
 		return "", nil, contextErr
@@ -134,6 +82,70 @@ func materializeSnapshot(ctx context.Context, files []SnapshotFile, load func(Sn
 	}
 	success = true
 	return root, cleanup, nil
+}
+
+func createSnapshotDirectories(directories []string) error {
+	for _, directory := range directories {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			return fmt.Errorf("create snapshot directory: %w", err)
+		}
+	}
+	return nil
+}
+
+func materializeSnapshotFiles(ctx context.Context, root string, files []SnapshotFile, load func(SnapshotFile) ([]byte, error)) error {
+	errorsByFile := make([]error, len(files))
+	jobs := make(chan int)
+	var workersDone sync.WaitGroup
+	workers := max(1, min(runtime.GOMAXPROCS(0), 16))
+	for range workers {
+		workersDone.Add(1)
+		go snapshotWorker(ctx, root, files, load, jobs, errorsByFile, &workersDone)
+	}
+	for index := range files {
+		jobs <- index
+	}
+	close(jobs)
+	workersDone.Wait()
+	for _, fileErr := range errorsByFile {
+		if fileErr != nil {
+			return fileErr
+		}
+	}
+	return nil
+}
+
+func snapshotWorker(ctx context.Context, root string, files []SnapshotFile, load func(SnapshotFile) ([]byte, error), jobs <-chan int, errorsByFile []error, done *sync.WaitGroup) {
+	defer done.Done()
+	for index := range jobs {
+		errorsByFile[index] = materializeSnapshotFile(ctx, root, files[index], load)
+	}
+}
+
+func materializeSnapshotFile(ctx context.Context, root string, file SnapshotFile, load func(SnapshotFile) ([]byte, error)) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	contents, err := load(file)
+	if err != nil {
+		return fmt.Errorf("load snapshot source %s: %w", file.Path, err)
+	}
+	destination := filepath.Join(root, filepath.FromSlash(file.Path))
+	output, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("create snapshot file %s: %w", file.Path, err)
+	}
+	if _, err := output.Write(contents); err != nil {
+		_ = output.Close()
+		return fmt.Errorf("write snapshot file %s: %w", file.Path, err)
+	}
+	if err := output.Close(); err != nil {
+		return fmt.Errorf("close snapshot file %s: %w", file.Path, err)
+	}
+	if err := os.Chmod(destination, 0o444); err != nil {
+		return fmt.Errorf("make snapshot file %s read-only: %w", file.Path, err)
+	}
+	return nil
 }
 
 // MaterializeWorkspaceSnapshot builds a private snapshot directly from live

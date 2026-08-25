@@ -33,6 +33,14 @@ func TestActiveCatalogMakesTypeScriptTypesOptInWithoutMutatingSource(t *testing.
 }
 
 func TestDiscoveryFollowsExplicitSymlinkTargetAndControlsNestedSymlinks(t *testing.T) {
+	workspace := symlinkDiscoveryFixture(t)
+	analyzer := &Analyzer{workspace: workspace}
+	assertDiscoveredJava(t, analyzer, false, "erBuilder/Main.java")
+	assertDiscoveredJava(t, analyzer, true, "erBuilder/Main.java,erBuilder/nested/Nested.java")
+}
+
+func symlinkDiscoveryFixture(t *testing.T) string {
+	t.Helper()
 	workspace := t.TempDir()
 	project := t.TempDir()
 	nested := t.TempDir()
@@ -54,22 +62,17 @@ func TestDiscoveryFollowsExplicitSymlinkTargetAndControlsNestedSymlinks(t *testi
 	if err := os.Symlink(project, filepath.Join(workspace, "erBuilder")); err != nil {
 		t.Fatal(err)
 	}
+	return workspace
+}
 
-	analyzer := &Analyzer{workspace: workspace}
-	discovered, err := analyzer.discover([]string{"erBuilder"}, false, false)
+func assertDiscoveredJava(t *testing.T, analyzer *Analyzer, followSymlinks bool, want string) {
+	t.Helper()
+	discovered, err := analyzer.discover([]string{"erBuilder"}, false, followSymlinks)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(discovered["java"], ","); got != "erBuilder/Main.java" {
-		t.Fatalf("default discovery = %q, want only the explicit symlink target's direct source", got)
-	}
-
-	discovered, err = analyzer.discover([]string{"erBuilder"}, false, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.Join(discovered["java"], ","); got != "erBuilder/Main.java,erBuilder/nested/Nested.java" {
-		t.Fatalf("follow-symlinks discovery = %q", got)
+	if got := strings.Join(discovered["java"], ","); got != want {
+		t.Fatalf("follow-symlinks=%t discovery = %q, want %q", followSymlinks, got, want)
 	}
 }
 
@@ -164,8 +167,8 @@ func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 	if len(document.Files) != 1 {
 		t.Fatalf("got %d files", len(document.Files))
 	}
-	if difference := math.Abs(document.Files[0].Score - 49.017512982810); difference > 1e-9 {
-		t.Fatalf("native score = %.12f, reference = 49.017512982810", document.Files[0].Score)
+	if difference := math.Abs(document.Files[0].Score - 24.515191350565); difference > 1e-9 {
+		t.Fatalf("native score = %.12f, reference = 24.515191350565", document.Files[0].Score)
 	}
 	if document.Files[0].Path != target {
 		t.Fatalf("path = %q", document.Files[0].Path)
@@ -173,28 +176,12 @@ func TestNativeStructuralAnalysisMatchesBalancedReference(t *testing.T) {
 }
 
 func TestBuiltGoAnalyzerReportsTypeMetricsWithoutGOROOT(t *testing.T) {
-	installationRoot, err := filepath.Abs(filepath.Join("..", "..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	installationRoot := testInstallationRoot(t)
 	executable := filepath.Join(installationRoot, "analyzers", "structural", "slopslap-structural")
 	if info, statErr := os.Stat(executable); statErr != nil || info.IsDir() {
 		t.Skip("structural analyzer is not built")
 	}
-	workspace := t.TempDir()
-	workspace, err = filepath.EvalSymlinks(workspace)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var source strings.Builder
-	source.WriteString("package sample\nimport \"fmt\"\ntype Peer struct { A, B, C, D, E, F int }\ntype Service struct { state int }\nfunc (s *Service) Run(peer Peer) int {\n_ = fmt.Sprint(peer.A)\n")
-	for index := 0; index < 48; index++ {
-		fmt.Fprintf(&source, "if peer.A > %d {}\n", index)
-	}
-	source.WriteString("return s.state + peer.A + peer.B + peer.C + peer.D + peer.E + peer.F\n}\n")
-	if err := os.WriteFile(filepath.Join(workspace, "main.go"), []byte(source.String()), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	workspace := highComplexityGoFixture(t)
 	t.Setenv("GOROOT", "")
 	analyzer, err := New(workspace, installationRoot, Options{Targets: []string{"."}, Languages: []string{"go"}})
 	if err != nil {
@@ -207,7 +194,38 @@ func TestBuiltGoAnalyzerReportsTypeMetricsWithoutGOROOT(t *testing.T) {
 	if len(document.Files) != 1 {
 		t.Fatalf("files = %d, want 1", len(document.Files))
 	}
-	file := document.Files[0]
+	assertGoTypeMetrics(t, document.Files[0])
+}
+
+func testInstallationRoot(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func highComplexityGoFixture(t *testing.T) string {
+	t.Helper()
+	workspace, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var source strings.Builder
+	source.WriteString("package sample\nimport \"fmt\"\ntype Peer struct { A, B, C, D, E, F int }\ntype Service struct { state int }\nfunc (s *Service) Run(peer Peer) int {\n_ = fmt.Sprint(peer.A)\n")
+	for index := 0; index < 48; index++ {
+		fmt.Fprintf(&source, "if peer.A > %d {}\n", index)
+	}
+	source.WriteString("return s.state + peer.A + peer.B + peer.C + peer.D + peer.E + peer.F\n}\n")
+	if err := os.WriteFile(filepath.Join(workspace, "main.go"), []byte(source.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return workspace
+}
+
+func assertGoTypeMetrics(t *testing.T, file report.File) {
+	t.Helper()
 	for _, componentID := range []string{"coupling_between_objects", "god_class"} {
 		if state := file.Coverage[componentID]; state != "complete" {
 			t.Fatalf("%s coverage = %q, want complete", componentID, state)
@@ -272,7 +290,7 @@ func TestNativeJavaAndRustScoresMatchBalancedReference(t *testing.T) {
 		path  string
 		score float64
 	}{
-		{"analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaAnalyzer.java", 51.370888906001},
+		{"analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaAnalyzer.java", 18.612330122355},
 		{"analyzers/structural/adapters/rust/src/parser.rs", 11.315172029169},
 	}
 	for _, test := range tests {

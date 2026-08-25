@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/sourcepath"
 )
 
 var ErrUnsupported = errors.New("native analyzer path is not yet supported")
@@ -268,6 +269,9 @@ func addDiscoveredPath(analyzer *analysisEngine, grouped map[string]map[string]b
 	if excludedDiscoveryDirectory(relative, includeTests) {
 		return nil
 	}
+	if language == "java" && sourcepath.IsJavaResource(relative) {
+		return nil
+	}
 	if grouped[language] == nil {
 		grouped[language] = map[string]bool{}
 	}
@@ -320,15 +324,9 @@ func walkTarget(analyzer *analysisEngine, target string, grouped map[string]map[
 }
 
 func walkDirectory(analyzer *analysisEngine, directory string, grouped map[string]map[string]bool, includeTests, followSymlinks bool, visited map[string]bool) error {
-	if followSymlinks {
-		resolved, err := filepath.EvalSymlinks(directory)
-		if err != nil {
-			return err
-		}
-		if visited[resolved] {
-			return nil
-		}
-		visited[resolved] = true
+	alreadyVisited, err := markVisitedDirectory(directory, followSymlinks, visited)
+	if err != nil || alreadyVisited {
+		return err
 	}
 	entries, err := os.ReadDir(directory)
 	if err != nil {
@@ -336,16 +334,12 @@ func walkDirectory(analyzer *analysisEngine, directory string, grouped map[strin
 	}
 	for _, entry := range entries {
 		path := filepath.Join(directory, entry.Name())
-		isDirectory := entry.IsDir()
-		if entry.Type()&os.ModeSymlink != 0 {
-			if !followSymlinks {
-				continue
-			}
-			metadata, err := os.Stat(path)
-			if err != nil {
-				return err
-			}
-			isDirectory = metadata.IsDir()
+		isDirectory, include, err := discoveryEntryType(entry, path, followSymlinks)
+		if err != nil {
+			return err
+		}
+		if !include {
+			continue
 		}
 		if isDirectory {
 			if ignored[strings.ToLower(entry.Name())] {
@@ -361,6 +355,35 @@ func walkDirectory(analyzer *analysisEngine, directory string, grouped map[strin
 		}
 	}
 	return nil
+}
+
+func markVisitedDirectory(directory string, followSymlinks bool, visited map[string]bool) (bool, error) {
+	if !followSymlinks {
+		return false, nil
+	}
+	resolved, err := filepath.EvalSymlinks(directory)
+	if err != nil {
+		return false, err
+	}
+	if visited[resolved] {
+		return true, nil
+	}
+	visited[resolved] = true
+	return false, nil
+}
+
+func discoveryEntryType(entry os.DirEntry, path string, followSymlinks bool) (isDirectory, include bool, err error) {
+	if entry.Type()&os.ModeSymlink == 0 {
+		return entry.IsDir(), true, nil
+	}
+	if !followSymlinks {
+		return false, false, nil
+	}
+	metadata, err := os.Stat(path)
+	if err != nil {
+		return false, false, err
+	}
+	return metadata.IsDir(), true, nil
 }
 
 func discover(analyzer *analysisEngine, targets []string, includeTests, followSymlinks bool) (map[string][]string, error) {

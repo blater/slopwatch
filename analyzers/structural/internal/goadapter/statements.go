@@ -23,76 +23,30 @@ func buildStatement(b *analysisContext, input ast.Stmt) []*facts.Statement {
 	case *ast.BlockStmt:
 		return []*facts.Statement{{Kind: facts.StmtBlock, Location: location(b, statement), Body: buildStatements(b, statement.List)}}
 	case *ast.IfStmt:
-		result := make([]*facts.Statement, 0, 2)
-		if statement.Init != nil {
-			result = append(result, buildStatement(b, statement.Init)...)
-		}
-		normalized := &facts.Statement{Kind: facts.StmtIf, Location: location(b, statement), Condition: buildExpression(b, statement.Cond), Body: buildStatements(b, statement.Body.List)}
-		if statement.Else != nil {
-			normalized.Else = buildStatement(b, statement.Else)
-		}
-		return append(result, normalized)
+		return buildIfStatement(b, statement)
 	case *ast.ForStmt:
-		result := make([]*facts.Statement, 0, 2)
-		if statement.Init != nil {
-			result = append(result, buildStatement(b, statement.Init)...)
-		}
-		body := buildStatements(b, statement.Body.List)
-		if statement.Post != nil {
-			body = append(body, buildStatement(b, statement.Post)...)
-		}
-		return append(result, &facts.Statement{Kind: facts.StmtLoop, Location: location(b, statement), Condition: buildExpression(b, statement.Cond), Body: body})
+		return buildForStatement(b, statement)
 	case *ast.RangeStmt:
 		return []*facts.Statement{{Kind: facts.StmtLoop, Location: location(b, statement), Condition: buildExpression(b, statement.X), Body: buildStatements(b, statement.Body.List), MaySkip: true}}
 	case *ast.SwitchStmt:
-		result := make([]*facts.Statement, 0, 2)
-		if statement.Init != nil {
-			result = append(result, buildStatement(b, statement.Init)...)
-		}
-		return append(result, &facts.Statement{Kind: facts.StmtSwitch, Location: location(b, statement), Condition: buildExpression(b, statement.Tag), Cases: buildCases(b, statement.Body.List)})
+		return buildSwitchStatement(b, statement)
 	case *ast.TypeSwitchStmt:
-		result := make([]*facts.Statement, 0, 3)
-		if statement.Init != nil {
-			result = append(result, buildStatement(b, statement.Init)...)
-		}
-		if statement.Assign != nil {
-			result = append(result, buildStatement(b, statement.Assign)...)
-		}
-		return append(result, &facts.Statement{Kind: facts.StmtSwitch, Location: location(b, statement), Cases: buildCases(b, statement.Body.List)})
+		return buildTypeSwitchStatement(b, statement)
 	case *ast.SelectStmt:
 		return []*facts.Statement{{Kind: facts.StmtSwitch, Location: location(b, statement), Cases: buildCommCases(b, statement.Body.List)}}
 	case *ast.ReturnStmt:
 		return []*facts.Statement{{Kind: facts.StmtReturn, Location: location(b, statement), Expressions: buildExpressions(b, statement.Results)}}
 	case *ast.BranchStmt:
-		kind := facts.StmtLinear
-		switch statement.Tok {
-		case token.BREAK:
-			kind = facts.StmtBreak
-		case token.CONTINUE:
-			kind = facts.StmtContinue
-		case token.GOTO:
-			kind = facts.StmtGoto
-		}
-		return []*facts.Statement{{Kind: kind, Location: location(b, statement), Labeled: statement.Label != nil}}
+		return buildBranchStatement(b, statement)
 	case *ast.ExprStmt:
-		if call, ok := statement.X.(*ast.CallExpr); ok {
-			if name, ok := call.Fun.(*ast.Ident); ok && name.Name == "panic" {
-				return []*facts.Statement{{Kind: facts.StmtPanic, Location: location(b, statement), Expressions: buildExpressions(b, call.Args)}}
-			}
+		if panicStatement := buildPanicStatement(b, statement); panicStatement != nil {
+			return panicStatement
 		}
 		return linear(statement.X)
 	case *ast.AssignStmt:
 		return linear(append(append([]ast.Expr{}, statement.Lhs...), statement.Rhs...)...)
 	case *ast.DeclStmt:
-		expressions := make([]ast.Expr, 0)
-		if declaration, ok := statement.Decl.(*ast.GenDecl); ok {
-			for _, spec := range declaration.Specs {
-				if value, ok := spec.(*ast.ValueSpec); ok {
-					expressions = append(expressions, value.Values...)
-				}
-			}
-		}
-		return linear(expressions...)
+		return linear(declarationExpressions(statement)...)
 	case *ast.GoStmt:
 		return linear(statement.Call)
 	case *ast.DeferStmt:
@@ -108,6 +62,79 @@ func buildStatement(b *analysisContext, input ast.Stmt) []*facts.Statement {
 	default:
 		return []*facts.Statement{{Kind: facts.StmtLinear, Location: location(b, input)}}
 	}
+}
+
+func buildIfStatement(b *analysisContext, statement *ast.IfStmt) []*facts.Statement {
+	result := buildOptionalStatement(b, statement.Init)
+	normalized := &facts.Statement{Kind: facts.StmtIf, Location: location(b, statement), Condition: buildExpression(b, statement.Cond), Body: buildStatements(b, statement.Body.List)}
+	if statement.Else != nil {
+		normalized.Else = buildStatement(b, statement.Else)
+	}
+	return append(result, normalized)
+}
+
+func buildForStatement(b *analysisContext, statement *ast.ForStmt) []*facts.Statement {
+	result := buildOptionalStatement(b, statement.Init)
+	body := buildStatements(b, statement.Body.List)
+	body = append(body, buildOptionalStatement(b, statement.Post)...)
+	return append(result, &facts.Statement{Kind: facts.StmtLoop, Location: location(b, statement), Condition: buildExpression(b, statement.Cond), Body: body})
+}
+
+func buildSwitchStatement(b *analysisContext, statement *ast.SwitchStmt) []*facts.Statement {
+	result := buildOptionalStatement(b, statement.Init)
+	return append(result, &facts.Statement{Kind: facts.StmtSwitch, Location: location(b, statement), Condition: buildExpression(b, statement.Tag), Cases: buildCases(b, statement.Body.List)})
+}
+
+func buildTypeSwitchStatement(b *analysisContext, statement *ast.TypeSwitchStmt) []*facts.Statement {
+	result := buildOptionalStatement(b, statement.Init)
+	result = append(result, buildOptionalStatement(b, statement.Assign)...)
+	return append(result, &facts.Statement{Kind: facts.StmtSwitch, Location: location(b, statement), Cases: buildCases(b, statement.Body.List)})
+}
+
+func buildOptionalStatement(b *analysisContext, statement ast.Stmt) []*facts.Statement {
+	if statement == nil {
+		return nil
+	}
+	return buildStatement(b, statement)
+}
+
+func buildBranchStatement(b *analysisContext, statement *ast.BranchStmt) []*facts.Statement {
+	kind := facts.StmtLinear
+	switch statement.Tok {
+	case token.BREAK:
+		kind = facts.StmtBreak
+	case token.CONTINUE:
+		kind = facts.StmtContinue
+	case token.GOTO:
+		kind = facts.StmtGoto
+	}
+	return []*facts.Statement{{Kind: kind, Location: location(b, statement), Labeled: statement.Label != nil}}
+}
+
+func buildPanicStatement(b *analysisContext, statement *ast.ExprStmt) []*facts.Statement {
+	call, ok := statement.X.(*ast.CallExpr)
+	if !ok {
+		return nil
+	}
+	name, ok := call.Fun.(*ast.Ident)
+	if !ok || name.Name != "panic" {
+		return nil
+	}
+	return []*facts.Statement{{Kind: facts.StmtPanic, Location: location(b, statement), Expressions: buildExpressions(b, call.Args)}}
+}
+
+func declarationExpressions(statement *ast.DeclStmt) []ast.Expr {
+	declaration, ok := statement.Decl.(*ast.GenDecl)
+	if !ok {
+		return nil
+	}
+	var expressions []ast.Expr
+	for _, spec := range declaration.Specs {
+		if value, ok := spec.(*ast.ValueSpec); ok {
+			expressions = append(expressions, value.Values...)
+		}
+	}
+	return expressions
 }
 
 func buildCases(b *analysisContext, statements []ast.Stmt) []facts.Case {

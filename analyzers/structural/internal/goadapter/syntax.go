@@ -110,44 +110,64 @@ func signatureShape(expression ast.Expr) *facts.TypeShape {
 		children = append(children, signatureTypes(value.Results)...)
 	case *ast.StructType:
 		shape.Kind = "record"
-		for _, field := range value.Fields.List {
-			if len(field.Names) == 0 {
-				children = append(children, signatureShape(field.Type))
-				continue
-			}
-			for _, name := range field.Names {
-				if ast.IsExported(name.Name) {
-					shape.ExposedMembers = append(shape.ExposedMembers, name.Name)
-				}
-				children = append(children, signatureShape(field.Type))
-			}
-		}
+		children, shape.ExposedMembers = recordSignature(value)
 	case *ast.InterfaceType:
 		shape.Kind = "interface"
-		for range value.Methods.List {
-			children = append(children, &facts.TypeShape{Kind: "method", StableID: "method", Complexity: 1})
-		}
+		children = interfaceSignature(value)
 	case *ast.IndexExpr:
 		shape.Kind, children = "generic", []*facts.TypeShape{signatureShape(value.X), signatureShape(value.Index)}
 	case *ast.IndexListExpr:
 		shape.Kind = "generic"
-		children = append(children, signatureShape(value.X))
-		for _, index := range value.Indices {
-			children = append(children, signatureShape(index))
-		}
+		children = genericSignature(value)
 	case *ast.ParenExpr:
 		return signatureShape(value.X)
 	}
 	shape.Children = children
-	shape.Complexity = 1
-	for _, child := range children {
-		shape.Complexity += child.Complexity
-	}
-	if shape.Complexity > 32 {
-		shape.Complexity = 32
-	}
+	shape.Complexity = shapeComplexity(children)
 	shape.StableID = shapeFingerprint(shape)
 	return shape
+}
+
+func recordSignature(value *ast.StructType) ([]*facts.TypeShape, []string) {
+	var children []*facts.TypeShape
+	var exposed []string
+	for _, field := range value.Fields.List {
+		if len(field.Names) == 0 {
+			children = append(children, signatureShape(field.Type))
+			continue
+		}
+		for _, name := range field.Names {
+			if ast.IsExported(name.Name) {
+				exposed = append(exposed, name.Name)
+			}
+			children = append(children, signatureShape(field.Type))
+		}
+	}
+	return children, exposed
+}
+
+func interfaceSignature(value *ast.InterfaceType) []*facts.TypeShape {
+	children := make([]*facts.TypeShape, 0, len(value.Methods.List))
+	for range value.Methods.List {
+		children = append(children, &facts.TypeShape{Kind: "method", StableID: "method", Complexity: 1})
+	}
+	return children
+}
+
+func genericSignature(value *ast.IndexListExpr) []*facts.TypeShape {
+	children := []*facts.TypeShape{signatureShape(value.X)}
+	for _, index := range value.Indices {
+		children = append(children, signatureShape(index))
+	}
+	return children
+}
+
+func shapeComplexity(children []*facts.TypeShape) int {
+	complexity := 1
+	for _, child := range children {
+		complexity += child.Complexity
+	}
+	return min(complexity, 32)
 }
 
 func shapeFingerprint(shape *facts.TypeShape) string {

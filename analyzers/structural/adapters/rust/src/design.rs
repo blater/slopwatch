@@ -248,77 +248,122 @@ pub fn collect_functions(
     include_tests: bool,
 ) {
     for item in items {
-        match item {
-            Item::Fn(value) if !excluded_test(&value.attrs, include_tests) => {
-                functions.push(Function {
-                    name: value.sig.ident.to_string(),
-                    location: location(path, value.span()),
-                    body: statements(&value.block, path),
-                    ..Function::default()
-                })
-            }
-            Item::Impl(value) if !excluded_test(&value.attrs, include_tests) => {
-                let Some(receiver) = receiver_name(&value.self_ty) else {
-                    continue;
-                };
-                for member in &value.items {
-                    let ImplItem::Method(method) = member else {
-                        continue;
-                    };
-                    if excluded_test(&method.attrs, include_tests) {
-                        continue;
-                    }
-                    let function = method_function(
-                        &method.sig.ident.to_string(),
-                        &receiver,
-                        method.span(),
-                        &method.block,
-                        path,
-                    );
-                    if let Some(indexed_owner) = type_owners.owners.get(&receiver) {
-                        let owner = &mut types[indexed_owner.index];
-                        let (fields, foreign) = method_fields(&method.block, &indexed_owner.fields);
-                        owner
-                            .method_fields
-                            .insert(method.sig.ident.to_string(), fields);
-                        owner.foreign_fields.extend(foreign);
-                        owner
-                            .foreign_types
-                            .extend(signature_types(&method.sig, &receiver));
-                        owner.method_locations.push(function.location.clone());
-                    }
-                    functions.push(function);
-                }
-            }
-            Item::Trait(value) if !excluded_test(&value.attrs, include_tests) => {
-                for member in &value.items {
-                    let TraitItem::Method(method) = member else {
-                        continue;
-                    };
-                    let Some(block) = &method.default else {
-                        continue;
-                    };
-                    let function = method_function(
-                        &method.sig.ident.to_string(),
-                        &value.ident.to_string(),
-                        method.span(),
-                        block,
-                        path,
-                    );
-                    if let Some(indexed_owner) = type_owners.owners.get(&value.ident.to_string()) {
-                        let owner = &mut types[indexed_owner.index];
-                        owner.method_locations.push(function.location.clone());
-                    }
-                    functions.push(function);
-                }
-            }
-            Item::Mod(module) if !excluded_test(&module.attrs, include_tests) => {
-                if let Some((_, nested)) = &module.content {
-                    collect_functions(nested, path, types, type_owners, functions, include_tests);
-                }
-            }
-            _ => {}
+        collect_item(item, path, types, type_owners, functions, include_tests);
+    }
+}
+
+fn collect_item(
+    item: &Item,
+    path: &str,
+    types: &mut Vec<TypeFact>,
+    type_owners: &TypeOwnerIndex,
+    functions: &mut Vec<Function>,
+    include_tests: bool,
+) {
+    match item {
+        Item::Fn(value) if !excluded_test(&value.attrs, include_tests) => {
+            functions.push(Function {
+                name: value.sig.ident.to_string(),
+                location: location(path, value.span()),
+                body: statements(&value.block, path),
+                ..Function::default()
+            })
         }
+        Item::Impl(value) if !excluded_test(&value.attrs, include_tests) => {
+            collect_impl_functions(value, path, types, type_owners, functions, include_tests)
+        }
+        Item::Trait(value) if !excluded_test(&value.attrs, include_tests) => {
+            collect_trait_functions(value, path, types, type_owners, functions)
+        }
+        Item::Mod(module) if !excluded_test(&module.attrs, include_tests) => {
+            if let Some((_, nested)) = &module.content {
+                collect_functions(nested, path, types, type_owners, functions, include_tests);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_impl_functions(
+    value: &syn::ItemImpl,
+    path: &str,
+    types: &mut [TypeFact],
+    type_owners: &TypeOwnerIndex,
+    functions: &mut Vec<Function>,
+    include_tests: bool,
+) {
+    let Some(receiver) = receiver_name(&value.self_ty) else {
+        return;
+    };
+    for member in &value.items {
+        let ImplItem::Method(method) = member else {
+            continue;
+        };
+        if excluded_test(&method.attrs, include_tests) {
+            continue;
+        }
+        let function = method_function(
+            &method.sig.ident.to_string(),
+            &receiver,
+            method.span(),
+            &method.block,
+            path,
+        );
+        attach_impl_function(method, &receiver, &function, types, type_owners);
+        functions.push(function);
+    }
+}
+
+fn attach_impl_function(
+    method: &syn::ImplItemMethod,
+    receiver: &str,
+    function: &Function,
+    types: &mut [TypeFact],
+    type_owners: &TypeOwnerIndex,
+) {
+    let Some(indexed_owner) = type_owners.owners.get(receiver) else {
+        return;
+    };
+    let owner = &mut types[indexed_owner.index];
+    let (fields, foreign) = method_fields(&method.block, &indexed_owner.fields);
+    owner
+        .method_fields
+        .insert(method.sig.ident.to_string(), fields);
+    owner.foreign_fields.extend(foreign);
+    owner
+        .foreign_types
+        .extend(signature_types(&method.sig, receiver));
+    owner.method_locations.push(function.location.clone());
+}
+
+fn collect_trait_functions(
+    value: &syn::ItemTrait,
+    path: &str,
+    types: &mut [TypeFact],
+    type_owners: &TypeOwnerIndex,
+    functions: &mut Vec<Function>,
+) {
+    for member in &value.items {
+        let TraitItem::Method(method) = member else {
+            continue;
+        };
+        let Some(block) = &method.default else {
+            continue;
+        };
+        let owner_name = value.ident.to_string();
+        let function = method_function(
+            &method.sig.ident.to_string(),
+            &owner_name,
+            method.span(),
+            block,
+            path,
+        );
+        if let Some(indexed_owner) = type_owners.owners.get(&owner_name) {
+            types[indexed_owner.index]
+                .method_locations
+                .push(function.location.clone());
+        }
+        functions.push(function);
     }
 }
 

@@ -20,14 +20,7 @@ import (
 )
 
 func TestAdapterExtractsJavaFactsAndExcludesTestPackages(t *testing.T) {
-	java, javaErr := exec.LookPath("java")
-	javac, javacErr := exec.LookPath("javac")
-	jar, jarErr := exec.LookPath("jar")
-	if javaErr != nil || javacErr != nil || jarErr != nil {
-		t.Skip("JDK tools are unavailable")
-	}
-	root := t.TempDir()
-	helper := buildHelper(t, root, javac, jar)
+	root, adapter := javaTestAdapter(t)
 	writeSource(t, root, "src/main/java/example/Service.java", `
 package example;
 public class Service {
@@ -44,11 +37,34 @@ final class ServiceTest { void testIt() { if (true) { return; } } }`)
 		"src/main/java/example/Service.java",
 		"src/test/java/example/test/ServiceTest.java",
 	}
-	adapter := Adapter{JavaExecutable: java, HelperJar: helper}
 	program, err := adapter.Analyze(root, paths, map[string]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertBasicJavaFacts(t, program)
+	withTests, err := adapter.Analyze(root, paths, map[string]any{"include_tests": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(withTests.Types) != 2 {
+		t.Fatalf("include_tests returned %d types, want 2", len(withTests.Types))
+	}
+}
+
+func javaTestAdapter(t *testing.T) (string, Adapter) {
+	t.Helper()
+	java, javaErr := exec.LookPath("java")
+	javac, javacErr := exec.LookPath("javac")
+	jar, jarErr := exec.LookPath("jar")
+	if javaErr != nil || javacErr != nil || jarErr != nil {
+		t.Skip("JDK tools are unavailable")
+	}
+	root := t.TempDir()
+	return root, Adapter{JavaExecutable: java, HelperJar: buildHelper(t, root, javac, jar)}
+}
+
+func assertBasicJavaFacts(t *testing.T, program *facts.Program) {
+	t.Helper()
 	if len(program.Functions) != 1 || program.Functions[0].Name != "calculate" {
 		t.Fatalf("unexpected functions: %#v", program.Functions)
 	}
@@ -61,24 +77,10 @@ final class ServiceTest { void testIt() { if (true) { return; } } }`)
 	if got := program.Types[0].MethodFields["calculate#0"]; len(got) != 1 || got[0] != "total" {
 		t.Fatalf("unexpected method fields: %#v", program.Types[0].MethodFields)
 	}
-	withTests, err := adapter.Analyze(root, paths, map[string]any{"include_tests": true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(withTests.Types) != 2 {
-		t.Fatalf("include_tests returned %d types, want 2", len(withTests.Types))
-	}
 }
 
 func TestAdapterCollectsMethodBodyFactsInOnePass(t *testing.T) {
-	java, javaErr := exec.LookPath("java")
-	javac, javacErr := exec.LookPath("javac")
-	jar, jarErr := exec.LookPath("jar")
-	if javaErr != nil || javacErr != nil || jarErr != nil {
-		t.Skip("JDK tools are unavailable")
-	}
-	root := t.TempDir()
-	helper := buildHelper(t, root, javac, jar)
+	root, adapter := javaTestAdapter(t)
 	writeSource(t, root, "src/main/java/example/BodyFacts.java", `
 package example;
 final class BodyFacts {
@@ -97,12 +99,17 @@ final class BodyFacts {
     return total;
   }
 }`)
-	program, err := (Adapter{JavaExecutable: java, HelperJar: helper}).Analyze(
+	program, err := adapter.Analyze(
 		root, []string{"src/main/java/example/BodyFacts.java"}, map[string]any{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertMethodBodyFacts(t, program)
+}
+
+func assertMethodBodyFacts(t *testing.T, program *facts.Program) {
+	t.Helper()
 	if len(program.Types) != 1 {
 		t.Fatalf("types = %d, want 1", len(program.Types))
 	}
@@ -126,14 +133,7 @@ final class BodyFacts {
 }
 
 func TestAdapterPreservesNestedLocalAndAnonymousClassDiscovery(t *testing.T) {
-	java, javaErr := exec.LookPath("java")
-	javac, javacErr := exec.LookPath("javac")
-	jar, jarErr := exec.LookPath("jar")
-	if javaErr != nil || javacErr != nil || jarErr != nil {
-		t.Skip("JDK tools are unavailable")
-	}
-	root := t.TempDir()
-	helper := buildHelper(t, root, javac, jar)
+	root, adapter := javaTestAdapter(t)
 	writeSource(t, root, "src/main/java/example/NestedFacts.java", `
 package example;
 final class NestedFacts {
@@ -147,12 +147,17 @@ final class NestedFacts {
     Runnable callback = () -> { class InLambda { public int lambda; } };
   }
 }`)
-	program, err := (Adapter{JavaExecutable: java, HelperJar: helper}).Analyze(
+	program, err := adapter.Analyze(
 		root, []string{"src/main/java/example/NestedFacts.java"}, map[string]any{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertNestedJavaFacts(t, program)
+}
+
+func assertNestedJavaFacts(t *testing.T, program *facts.Program) {
+	t.Helper()
 	var typeNames []string
 	for _, item := range program.Types {
 		typeNames = append(typeNames, item.Name)
@@ -250,6 +255,12 @@ func TestAnalyzePathsMergesParallelBatchesExactlyAndInHelperOrder(t *testing.T) 
 		t.Fatal(err)
 	}
 	want := orderedTestProgram(paths)
+	assertMergedJavaProgram(t, got, want)
+	assertExactJavaBatches(t, paths, batches)
+}
+
+func assertMergedJavaProgram(t *testing.T, got, want *facts.Program) {
+	t.Helper()
 	if err := got.LinkTypeMethods(); err != nil {
 		t.Fatal(err)
 	}
@@ -259,6 +270,10 @@ func TestAnalyzePathsMergesParallelBatchesExactlyAndInHelperOrder(t *testing.T) 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal("parallel helper facts differ from one-helper facts")
 	}
+}
+
+func assertExactJavaBatches(t *testing.T, paths []string, batches [][]string) {
+	t.Helper()
 	if want := javaBatchCount(len(paths)); len(batches) != want || want < 2 {
 		t.Fatalf("helper batches = %d, want %d (at least 2)", len(batches), want)
 	}
@@ -349,7 +364,9 @@ func buildHelper(t *testing.T, root, javac, jar string) string {
 	sourceRoot := filepath.Join("..", "..", "adapters", "java", "src", "dev", "slopslap", "structural")
 	sources := []string{
 		"Facts.java", "Protocol.java", "JavaAnalyzer.java", "JavaParser.java",
-		"JavaStatements.java", "JavaExpressions.java", "JavaTypeShapes.java", "Main.java",
+		"JavaClassFacts.java", "JavaControlStatements.java", "JavaMethodBodyFacts.java",
+		"JavaNestedClasses.java", "JavaStatements.java", "JavaExpressions.java",
+		"JavaTypeNames.java", "JavaTypeShapes.java", "Main.java",
 	}
 	arguments := []string{"--release", "17", "-d", classes}
 	for _, source := range sources {

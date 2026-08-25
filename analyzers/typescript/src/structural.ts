@@ -145,33 +145,39 @@ function cyclomatic(fact: FunctionFact): number {
   const top = fact.node;
   const visit = (node: ts.Node): void => {
     if (node !== top && isFunctionNode(node)) return;
-
-    if (ts.isIfStatement(node)) {
-      value += 1 + booleanExpressionComplexity(node.expression);
-    } else if (ts.isWhileStatement(node) || ts.isDoStatement(node)) {
-      value += 1 + booleanExpressionComplexity(node.expression);
-    } else if (ts.isForStatement(node)) {
-      value += 1 + booleanExpressionComplexity(node.condition);
-    } else if (ts.isForInStatement(node) || ts.isForOfStatement(node)) {
-      value += 1;
-    } else if (ts.isCatchClause(node)) {
-      value += 1;
-    } else if (ts.isConditionalExpression(node)) {
-      value += 1 + booleanExpressionComplexity(node.condition);
-    } else if (
-      ts.isThrowStatement(node) ||
-      ts.isBreakStatement(node) ||
-      ts.isContinueStatement(node)
-    ) {
-      value += 1;
-    } else if (ts.isSwitchStatement(node)) {
-      value += booleanExpressionComplexity(node.expression);
-      value += node.caseBlock.clauses.filter(ts.isCaseClause).length;
-    }
+	value += cyclomaticIncrement(node);
     ts.forEachChild(node, visit);
   };
   if (fact.node.body !== undefined) visit(fact.node.body);
   return value;
+}
+
+function cyclomaticIncrement(node: ts.Node): number {
+	if (ts.isIfStatement(node))
+		return 1 + booleanExpressionComplexity(node.expression);
+	if (ts.isWhileStatement(node) || ts.isDoStatement(node))
+		return 1 + booleanExpressionComplexity(node.expression);
+	if (ts.isForStatement(node))
+		return 1 + booleanExpressionComplexity(node.condition);
+	if (ts.isConditionalExpression(node))
+		return 1 + booleanExpressionComplexity(node.condition);
+	if (ts.isSwitchStatement(node))
+		return (
+			booleanExpressionComplexity(node.expression) +
+			node.caseBlock.clauses.filter(ts.isCaseClause).length
+		);
+	return isSimpleCyclomaticDecision(node) ? 1 : 0;
+}
+
+function isSimpleCyclomaticDecision(node: ts.Node): boolean {
+	return (
+		ts.isForInStatement(node) ||
+		ts.isForOfStatement(node) ||
+		ts.isCatchClause(node) ||
+		ts.isThrowStatement(node) ||
+		ts.isBreakStatement(node) ||
+		ts.isContinueStatement(node)
+	);
 }
 
 /* interface CognitiveState {
@@ -292,39 +298,48 @@ function expressionPaths(
     };
   }
   if (ts.isBinaryExpression(expression) && isLogical(expression)) {
-    const left = expressionPaths(expression.left, incoming);
-    if (
-      expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
-    ) {
-      const right = expressionPaths(expression.right, left.whenTrue);
-      return {
-        end: left.whenFalse + right.end,
-        whenTrue: right.whenTrue,
-        whenFalse: left.whenFalse + right.whenFalse,
-      };
-    }
-    const right = expressionPaths(expression.right, left.whenFalse);
-    return {
-      end: left.whenTrue + right.end,
-      whenTrue: left.whenTrue + right.whenTrue,
-      whenFalse: right.whenFalse,
-    };
+	return logicalExpressionPaths(expression, incoming);
   }
   if (ts.isConditionalExpression(expression)) {
-    const condition = expressionPaths(expression.condition, incoming);
-    const whenTrue = expressionPaths(expression.whenTrue, condition.whenTrue);
-    const whenFalse = expressionPaths(
-      expression.whenFalse,
-      condition.whenFalse,
-    );
-    return {
-      end: whenTrue.end + whenFalse.end,
-      whenTrue: whenTrue.whenTrue + whenFalse.whenTrue,
-      whenFalse: whenTrue.whenFalse + whenFalse.whenFalse,
-    };
+	return conditionalExpressionPaths(expression, incoming);
   }
   // Optional chaining and ?? have no Java equivalent and are deliberately linear in pmd-v1.
   return { end: incoming, whenTrue: incoming, whenFalse: incoming };
+}
+
+function logicalExpressionPaths(
+	expression: ts.BinaryExpression,
+	incoming: number,
+): ConditionPaths {
+	const left = expressionPaths(expression.left, incoming);
+	if (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+		const right = expressionPaths(expression.right, left.whenTrue);
+		return {
+			end: left.whenFalse + right.end,
+			whenTrue: right.whenTrue,
+			whenFalse: left.whenFalse + right.whenFalse,
+		};
+	}
+	const right = expressionPaths(expression.right, left.whenFalse);
+	return {
+		end: left.whenTrue + right.end,
+		whenTrue: left.whenTrue + right.whenTrue,
+		whenFalse: right.whenFalse,
+	};
+}
+
+function conditionalExpressionPaths(
+	expression: ts.ConditionalExpression,
+	incoming: number,
+): ConditionPaths {
+	const condition = expressionPaths(expression.condition, incoming);
+	const whenTrue = expressionPaths(expression.whenTrue, condition.whenTrue);
+	const whenFalse = expressionPaths(expression.whenFalse, condition.whenFalse);
+	return {
+		end: whenTrue.end + whenFalse.end,
+		whenTrue: whenTrue.whenTrue + whenFalse.whenTrue,
+		whenFalse: whenTrue.whenFalse + whenFalse.whenFalse,
+	};
 }
 
 function sequence(statements: readonly ts.Statement[], incoming: number): Flow {
@@ -463,17 +478,32 @@ function statementFlow(statement: ts.Statement, incoming: number): Flow {
   if (incoming === 0) return emptyFlow(0);
   if (ts.isBlock(statement)) return sequence(statement.statements, incoming);
   if (ts.isIfStatement(statement)) return branchFlow(statement, incoming);
-  if (
-    ts.isReturnStatement(statement) ||
-    ts.isThrowStatement(statement) ||
-    ts.isBreakStatement(statement) ||
-    ts.isContinueStatement(statement)
-  )
-    return terminalFlow(statement, incoming);
-  if (ts.isExpressionStatement(statement))
-    return emptyFlow(expressionPaths(statement.expression, incoming).end);
-  if (ts.isVariableStatement(statement))
-    return variableFlow(statement, incoming);
+	const simple = simpleStatementFlow(statement, incoming);
+	if (simple !== undefined) return simple;
+	return compoundStatementFlow(statement, incoming);
+}
+
+function simpleStatementFlow(
+	statement: ts.Statement,
+	incoming: number,
+): Flow | undefined {
+	if (
+		ts.isReturnStatement(statement) ||
+		ts.isThrowStatement(statement) ||
+		ts.isBreakStatement(statement) ||
+		ts.isContinueStatement(statement)
+	)
+		return terminalFlow(statement, incoming);
+	if (ts.isExpressionStatement(statement))
+		return emptyFlow(expressionPaths(statement.expression, incoming).end);
+	if (ts.isVariableStatement(statement)) return variableFlow(statement, incoming);
+	return undefined;
+}
+
+function compoundStatementFlow(
+	statement: ts.Statement,
+	incoming: number,
+): Flow {
   if (ts.isWhileStatement(statement) || ts.isForStatement(statement))
     return loopFlow(statement, incoming);
   if (ts.isForInStatement(statement) || ts.isForOfStatement(statement))

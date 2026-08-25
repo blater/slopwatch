@@ -294,14 +294,12 @@ func view(model Model) string {
 	if model.sourceView {
 		return model.overlay(base, model.sourceViewView())
 	}
+	return modalView(model, base)
+}
+
+func modalView(model Model, base string) string {
 	if model.infoOpen {
-		underlay := base
-		if model.weightsOpen {
-			underlay = model.overlay(base, model.weightsView())
-		} else if model.help {
-			underlay = model.overlayBelowTitle(base, model.helpView())
-		}
-		return model.overlay(underlay, model.infoView())
+		return model.overlay(infoUnderlay(model, base), model.infoView())
 	}
 	if model.help {
 		return model.overlayBelowTitle(base, model.helpView())
@@ -317,6 +315,16 @@ func view(model Model) string {
 	}
 	if model.settings {
 		return model.overlay(base, model.settingsView())
+	}
+	return base
+}
+
+func infoUnderlay(model Model, base string) string {
+	if model.weightsOpen {
+		return model.overlay(base, model.weightsView())
+	}
+	if model.help {
+		return model.overlayBelowTitle(base, model.helpView())
 	}
 	return base
 }
