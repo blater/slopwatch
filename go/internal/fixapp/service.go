@@ -306,6 +306,16 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 		return FixDraft{}, fmt.Errorf("unsupported change scope %q", resolved.Fix.ChangeScope)
 	}
 	probe := strategy.Probe(ctx, profile)
+	model, effort, delegation := resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation
+	if request.Overrides.Profile != nil || model == "" {
+		model = compatibleOption(probe.Capabilities.Models, model)
+	}
+	if request.Overrides.Profile != nil || effort == "" {
+		effort = compatibleOption(probe.Capabilities.Efforts, effort)
+	}
+	if request.Overrides.Profile != nil || delegation == "" {
+		delegation = compatibleOption(probe.Capabilities.Delegation, delegation)
+	}
 	draftID, err := fix.NewDraftID()
 	if err != nil {
 		return FixDraft{}, err
@@ -335,7 +345,7 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 		ID: draftID, Revision: 1, Workspace: request.Workspace,
 		Targets: append([]fix.RepoPath(nil), request.Targets...), Baseline: baseline,
 		Preferences: resolved, Profile: cloneProfile(profile), Probe: cloneProbe(probe),
-		Model: resolved.Fix.Model, Effort: resolved.Fix.Effort, Delegation: resolved.Fix.Delegation,
+		Model: model, Effort: effort, Delegation: delegation,
 		TargetScore: resolved.Fix.TargetScore,
 		Focus:       append([]fix.MetricGoal(nil), baseline.Contract.Goal.Focus...), ChangeScope: resolved.Fix.ChangeScope,
 		AllowedPaths:              append([]fix.RepoPath(nil), allowedPaths...),
@@ -349,6 +359,18 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 	manager.prepared[draft.ID] = preparedDraft{draft: cloneSubmit(SubmitRequest{Draft: draft}).Draft, hash: immutableDraftFingerprint(draft)}
 	manager.draftMu.Unlock()
 	return draft, nil
+}
+
+func compatibleOption[T ~string](options []agent.Option[T], selected T) T {
+	if containsOption(options, selected) || len(options) == 0 {
+		return selected
+	}
+	for _, option := range options {
+		if option.Default {
+			return option.ID
+		}
+	}
+	return options[0].ID
 }
 
 func (manager *Manager) Reconfigure(ctx context.Context, limits RuntimeLimits) error {

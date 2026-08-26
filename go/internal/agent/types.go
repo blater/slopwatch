@@ -33,15 +33,18 @@ const (
 )
 
 type RuntimeIsolation struct {
-	Writes                WriteConfinement
-	SensitiveReadsDenied  bool
-	TransportAuthIsolated bool
-	CrashContainment      bool
+	Writes                      WriteConfinement
+	SensitiveReadsDenied        bool
+	TransportAuthIsolated       bool
+	CrashContainment            bool
+	ProviderManagedCancellation bool
 }
 
 func (value RuntimeIsolation) EligibleForMutation() bool {
-	return value.Writes == CandidateTreeAndGitMetadataProtected &&
-		value.SensitiveReadsDenied && value.TransportAuthIsolated && value.CrashContainment
+	hostManaged := value.Writes == CandidateTreeAndGitMetadataProtected &&
+		value.SensitiveReadsDenied && value.CrashContainment
+	providerManaged := value.Writes >= CandidateTreeEnforced && value.ProviderManagedCancellation
+	return providerManaged || (value.TransportAuthIsolated && hostManaged)
 }
 
 type NetworkCapability struct {
@@ -80,15 +83,16 @@ type Profile struct {
 }
 
 type ProfileField struct {
-	Key         string
-	OptionKey   string
-	Label       string
-	Description string
-	Kind        ProfileFieldKind
-	Required    bool
-	Default     string
-	Choices     []string
-	Pattern     string
+	Key             string
+	OptionKey       string
+	Label           string
+	Description     string
+	Kind            ProfileFieldKind
+	Required        bool
+	Default         string
+	Choices         []string
+	Pattern         string
+	PreferencesOnly bool
 }
 
 type ProfileFieldKind string
@@ -127,11 +131,20 @@ const (
 )
 
 type ProbeResult struct {
-	Runtime      RuntimeKind
-	Version      string
-	State        ProbeState
-	Diagnostic   string
-	Capabilities Capabilities
+	Runtime        RuntimeKind
+	Version        string
+	State          ProbeState
+	Diagnostic     string
+	Authentication Authentication
+	Capabilities   Capabilities
+}
+
+// Authentication is sanitized provider account metadata. Adapters must never
+// place credentials or refresh material here; it exists so the UI can state
+// which deliberately selected auth/billing route is active.
+type Authentication struct {
+	Method string
+	Label  string
 }
 
 type WritePolicy struct {

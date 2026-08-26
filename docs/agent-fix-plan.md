@@ -1,14 +1,49 @@
 # Agent-assisted fix plan
 
-Status: implemented integration candidate; final senior review and empirical
-runtime release gates are recorded below. This plan refines the initial
+Status: implemented integration candidate; final senior review and runtime
+compatibility evidence are recorded below. This plan refines the initial
 `x`-to-fix feature and records the architectural constraints agreed during
 adversarial review.
+
+## OpenAI authentication and default-provider decision
+
+Slopwatch supports two deliberately separate OpenAI routes:
+
+- **Codex — managed sign-in** is the recommended built-in profile and the
+  default for new installations. Authentication is owned by the installed
+  Codex runtime (`codex login`); Slopwatch neither asks for nor stores an API
+  key or ChatGPT token. The readiness probe reports the actual sign-in method
+  returned by Codex so the UI can say `Signed in with ChatGPT` or identify an
+  API-key-backed Codex login truthfully.
+- **OpenAI Responses API — API key** remains an explicit alternative. It uses
+  an `env:VARIABLE` reference (default `env:OPENAI_API_KEY`) and makes clear
+  that API usage is billed separately from ChatGPT. The installed resolver
+  accepts only environment references; the UI does not offer credential-store
+  kinds this build cannot resolve.
+
+Profile selection is exact. Missing authentication, access failure, or rate
+limiting never causes Slopwatch to run another adapter or billing route. The
+Agents settings surface marks the default and lets the user change it
+explicitly; existing user-selected profiles are not rewritten merely because
+the built-in default changes. The built-in model is intentionally `runtime
+default`: preparation pins the selected adapter's advertised default model,
+and a visible profile change replaces an incompatible model/effort with that
+adapter's advertised default rather than carrying an invalid cross-provider
+choice forward.
+
+The t3code Codex integration is the reference for Slopwatch's Codex path.
+Slopwatch launches `codex app-server` over local stdio JSONL, performs the
+`initialize` handshake, reads `account/read` and the live paginated
+`model/list`, starts an ephemeral thread in the candidate worktree, streams
+turn/item/usage notifications, and cancels through `turn/interrupt`. One owned
+App Server process per attempt keeps concurrent jobs and cancellation
+independent. JSON-RPC, Codex authentication state and event shapes remain
+inside the adapter and never leak through the cohesive `agent.Strategy` port.
 
 ## Implementation and release-gate record
 
 The initial implementation includes the provider-neutral runtime registry,
-Codex CLI and controlled OpenAI Responses strategies, isolated candidate
+Codex App Server and controlled OpenAI Responses strategies, isolated candidate
 worktrees, fresh scoring verification,
 durable concurrent job controller, retained candidate review, journaled Git
 publication saga, GitHub CLI PR publisher with draft/ready policy, Fix form, Agents dashboard,
@@ -16,15 +51,16 @@ per-job actions, and the associated settings surfaces. The analysis cache and
 preferences document are supplied through typed application ports; runtime
 adapters do not access either directly.
 
-The Codex CLI `0.149.1` protocol probes on the current macOS development host
-confirmed non-interactive authentication and model discovery, but the exact
-tool sandbox did not deny every outside-workspace write and Git metadata read.
-The process-group supervisor also cannot prove containment of a descendant
-that escapes into a new session. The adapter therefore reports `degraded` and
-cannot mutate on this host. This is the intended fail-closed result of the
-release gate, not a user-overridable warning. The adapter and its fake-runtime
-contract tests remain available for a platform confinement implementation
-that can prove all gates. The runnable GPT path is instead a complete Responses
+The installed Codex CLI `0.149.1` App Server handshake was verified on the
+current macOS development host with provider-owned ChatGPT authentication and
+live model discovery. Codex is runnable natively without Docker. Its mutation
+boundary is the disposable candidate worktree plus Codex's `workspaceWrite`
+sandbox; cancellation uses `turn/interrupt`, after which Slopwatch closes and,
+if necessary, stops only that attempt's owned App Server process. This is the
+same practical lifecycle model used by t3code. Slopwatch does not claim that a
+Unix process group proves containment of a malicious detached descendant, and
+it does not use that impossible proof as a Codex readiness prerequisite. The
+portable direct-API path is a complete Responses
 API agent loop whose only effects are four trusted Go tools: bounded candidate
 listing and reading, plus atomic whole-file write and delete. The model has no
 process, shell, Git, cache, preferences or ambient filesystem access. Because
@@ -44,9 +80,10 @@ Candidate-only review remains usable wherever an agent runtime passes its
 gate. Pull-request publication requires a configured validation plan to pass
 only when the visible PR validation policy is set to require it.
 
-### Native macOS confinement finding and minimum supported backend
+### Validation confinement and native Codex lifecycle
 
-The macOS gate is not satisfiable by composing the primitives available to an
+The stronger crash-containment gate used by the optional command validator is
+not satisfiable on macOS by composing the primitives available to an
 ordinary Slopwatch process. `sandbox-exec`/Seatbelt policy is inherited by
 descendants, but the public interface is deprecated and it does not give the
 owner a race-free way to terminate and reap a descendant which creates a new
@@ -56,10 +93,15 @@ process-group ID; that does not cover a `setsid(2)` escape. Darwin's kqueue
 remaining coalition/Endpoint Security facilities are private, privileged or
 entitlement-gated. Process enumeration is not an equivalent substitute: a
 fork can race the enumeration and an escaped child can be reparented before it
-is identified. Native macOS therefore remains fail-closed. A Seatbelt sentinel
-pass must never be relabelled as `CrashContainment=true`.
+is identified. Native command validation therefore remains fail-closed without
+a configured backend that meets that validator contract. This does not gate
+Codex App Server fix execution: Codex owns its workspace sandbox and protocol
+lifecycle, while Slopwatch owns a disposable candidate and one App Server
+child per attempt. A process-group helper must never be relabelled as
+`CrashContainment=true`.
 
-The minimum viable supported environment is a Linux container or VM backend
+The minimum viable supported environment for that stronger command-validation
+contract is a Linux container or VM backend
 with a kernel-enforced PID namespace and cgroup, plus a trusted Slopwatch PID 1
 watchdog. Availability of a `docker` executable is not proof of conformance.
 The backend is eligible only when all of the following are true for the exact
@@ -188,7 +230,8 @@ The recommended initial decisions are:
   captured when the job starts.
 - Cached reports and evidence may be used to construct the baseline task, but
   the agent layer never reads the analysis cache.
-- The initial runtime integrations are Codex CLI and a non-interactive OpenAI
+- The initial runtime integrations are Codex App Server (the default account-authenticated
+  route) and a non-interactive OpenAI
   Responses coding-agent loop. A raw model client is never registered directly:
   the Responses strategy owns bounded orchestration, trusted tools, progress,
   cancellation, usage, capability discovery and result normalization.
@@ -199,8 +242,9 @@ The recommended initial decisions are:
   into a misleading lowest-common-denominator configuration.
 - All operational constraints are configuration, not hidden adapter constants:
   adapter-owned schemas expose their effective turn/tool/token/file/context
-  budgets in Settings with units, origins and consequences. Responses defaults
-  to no Slopwatch turn/tool/token ceiling; cancellation remains explicit.
+  budgets through the preferences file with documented units and consequences.
+  Responses defaults to no Slopwatch turn/tool/token ceiling; cancellation
+  remains explicit.
 - A fix has one initial attempt and unlimited explicit retries. Slopwatch does
   not stop an active agent merely because wall-clock time elapsed.
 - No shell command template is used as the common provider abstraction.
@@ -209,13 +253,15 @@ The recommended initial decisions are:
 - V1 requires a completely clean Git repository, rejects follow-symlink fix
   targets and unsupported submodule/filter layouts, and creates detached
   candidates at a pinned commit.
-- V1 defaults are target score `100`, `targets-and-tests` change scope, two
+- V1 defaults are the Codex managed-sign-in profile (with ChatGPT sign-in
+  recommended), target score `100`,
+  `targets-and-tests` change scope, two
   concurrent agents, one verifier, cancel-all-and-quit, and no automatic
   candidate/worktree deletion.
-- Codex CLI is usable only where its exact implementation proves the common
-  confinement contract. GPT via Responses is the initial portable runnable
-  runtime because the model can act only through Slopwatch-controlled tools.
-  No adapter is grandfathered around the common eligibility requirements.
+- Codex App Server is usable wherever the installed Codex runtime supports the
+  stable handshake, account/model discovery, `workspaceWrite`, streamed turn
+  events and `turn/interrupt`. Responses is the portable direct-API runtime
+  because the model can act only through Slopwatch-controlled tools.
 - The initial publisher is GitHub CLI and creates draft or ready-for-review PRs
   according to user settings. Publication is a later phase and is never
   performed by the agent runtime.
@@ -232,7 +278,7 @@ fix coordinator -----> scoring verifier
     v
 agent Runtime interface
     |
-    +----> Codex CLI strategy
+    +----> Codex App Server strategy
     +----> OpenAI Responses strategy ----> controlled candidate tool gateway
     +----> future Claude/Grok/AG-UI strategies
 
@@ -325,8 +371,9 @@ authentication-readiness and capability discovery. `Execute` is blocking and
 represents exactly one mutating attempt. It owns provider-specific invocation,
 stdin or protocol encoding, event parsing, model and effort mapping,
 cancellation, resume support, and result normalization. Cancellation is driven
-by the context and must terminate the child process group before `Execute`
-returns.
+by the context. Managed runtimes receive their provider cancellation request
+first (`turn/interrupt` for Codex); the adapter then closes or stops only the
+owned per-attempt process before `Execute` returns.
 
 The registry is keyed by stable runtime kinds such as `codex-cli` and
 `claude-cli`. Each strategy advertises typed options:
@@ -976,8 +1023,8 @@ uses these stable sections:
 1. **Goal**: immutable targets/baseline, target SCORE and multi-select focus
    metrics limited to measurements available for those targets.
 2. **Execution**: agent profile, capability-derived model, effort, delegation,
-   and resolved confinement/network summary. Provider-specific budgets live in
-   the adapter-schema-driven profile Settings, not as hidden per-job limits.
+   and resolved confinement/network summary. Provider-specific budgets live
+   only in the preferences file, not in this dialog or as hidden per-job limits.
 3. **Changes**: allowed `targets-and-tests` scope and validation policy.
 4. **Delivery**: candidate/local-branch/PR mode and an editable proposed branch
    name when relevant. Its default is rendered from the configured convention;
@@ -1661,21 +1708,18 @@ the preferences application API:
   commit and PR templates, draft/ready state, validation requirement and
   publisher readiness.
 
-Every operational constraint row displays a human label, effective value and
-origin, plus a concise consequence when selected. Adapter-specific constraints
-come from `ProfileDescriptor` and render generically in **Agents**. A zero value
-must be labelled unambiguously as unlimited, provider default, disabled, or
-invalid; there are no compiled product ceilings above the displayed settings.
+User-facing constraint rows display a human label, effective value and origin,
+plus a concise consequence when selected. Low-level adapter properties such as
+the executable, readiness timeout and cancellation grace remain available only
+in the preferences file; they do not add noise to **Agents**.
 
-Agents first shows a table of stable profile name, runtime kind, transport
-(`CLI` or managed API/tool-loop), readiness, detected version
-and default marker. Add/Edit opens an adapter-schema-driven form. Common
-fields are profile name, runtime kind, authentication reference and defaults.
-Process adapters add an executable selected from a resolved path or explicit
-trusted absolute path; API adapters do not acquire a fictitious executable
-field. Adapter-specific options render only from that adapter's typed schema;
-users never author a shell command line. Changing runtime kind discards
-incompatible adapter fields and repopulates safe descriptor defaults.
+Agents first shows each stable profile name, authentication identity,
+readiness, detected version and default marker. Add chooses an adapter by its
+human-facing provider label; the stored runtime kind is not presented as a
+transport detail the user must understand. Edit shows profile identity and the
+adapter's user-facing authentication choice. `ProfileDescriptor` still owns
+the complete typed profile schema, but fields marked preferences-only are not
+rendered in this dialog. Users never author a shell command line.
 
 **Test connection** runs the read-only probe and shows version, auth status,
 capabilities, confinement guarantee and actionable diagnostics. It cannot run
@@ -1715,8 +1759,8 @@ authority provide enforcement; prompt wording alone does not.
 A Git worktree is isolation from other working files, not a security sandbox:
 its `.git` indirection refers to shared repository metadata, repository files
 can contain adversarial instructions, and an autonomous CLI may invoke tools
-or use the network. A runtime is eligible to mutate a candidate only when its
-probe and launcher can establish all of these properties:
+or use the network. A host-confined runtime is eligible to mutate a candidate
+only when its probe and launcher can establish all of these properties:
 
 - non-interactive execution with no approval or privilege-escalation path;
 - writes confined to the candidate tree, with explicit writable/read-only/
@@ -1739,10 +1783,11 @@ The capability model represents the guarantee honestly:
 type WriteConfinement uint8
 
 type RuntimeIsolation struct {
-    Writes               WriteConfinement
-    SensitiveReadsDenied bool
-    TransportAuthIsolated bool
-    CrashContainment     bool
+    Writes                      WriteConfinement
+    SensitiveReadsDenied        bool
+    TransportAuthIsolated       bool
+    CrashContainment            bool
+    ProviderManagedCancellation bool
 }
 
 const (
@@ -1752,23 +1797,28 @@ const (
 )
 ```
 
-V1 mutating execution requires
-`CandidateTreeAndGitMetadataProtected` and all three isolation booleans. A
-prompt request or CLI flag with only advisory behavior is insufficient. If the
-Codex CLI spike cannot prove this on a supported platform, the adapter may
-remain probe/demo-only and Phase 2 has no real mutating runtime on that
-platform. This is a release gate, not a warning the user can click through.
+V1 mutating execution requires one of two explicit boundaries: the original
+fully measured host boundary (candidate and Git-metadata protection,
+sensitive-read denial, isolated transport authentication and crash
+containment), or an enforced candidate-tree boundary with a provider-managed
+lifecycle owned by the adapter. Capabilities remain factual:
+Codex App Server advertises `workspaceWrite` plus provider-managed
+`turn/interrupt`; it does not claim sensitive-read denial or OS-level crash
+containment. The candidate worktree is disposable and canceled attempts are
+never published automatically. A prompt request with only advisory behavior
+is insufficient.
 
-The process launcher builds an environment from a small platform-specific
-allowlist, passes prompts through stdin/private files, and starts the runtime
-in an OS containment mechanism. Provider transport may access only its
-provider endpoint and narrowly brokered authentication; repository-controlled
-tool subprocesses cannot inherit or read that authentication. A CLI/runtime is
-ineligible when it cannot separate transport authority from its tool sandbox.
-An OS parent-death facility or persistent supervisor must terminate and reap
-all descendants after Slopwatch crashes and back that ownership with an
-unforgeable job lease. Merely saving a PID or refusing recovery later is not
-sufficient.
+Following t3code, the Codex launcher runs plain `codex app-server` with the
+normal process environment and passes prompts as App Server turn input. The
+worktree path and `workspaceWrite` policy are sent through typed protocol
+fields. Slopwatch adds no separate publisher credential to that process; as in
+t3code, the inherited ambient environment remains part of the Codex trust
+boundary. Slopwatch does not claim that provider-managed Codex isolates all
+ambient host state. Normal cancellation is protocol-first; closing the per-attempt App
+Server and terminating its process group are cleanup fallbacks, not evidence
+of impossible detached-descendant containment. Stronger host-owned process
+guarantees remain requirements for adapters that claim
+`CrashContainment=true` and for the command validator.
 
 Validation executes under the equivalent read/write/denied roots, sanitized
 environment, bounded output/time/process tree, default-deny network policy and
@@ -1891,9 +1941,8 @@ fakeable; tests do not need a real CLI, Git host or account.
 - Define the deep runtime interface, typed capabilities and strategy registry.
 - Define the validation port, trusted check representation and common
   confinement/process contract shared with runtime tools.
-- Spike Codex CLI non-interactive protocol, OS-enforced candidate/Git-metadata
-  confinement, sanitized environment and process-tree cancellation on every
-  intended platform. Record evidence; do not relax the release gate on failure.
+- Spike Codex App Server authentication, model discovery, workspace sandbox,
+  streamed events and `turn/interrupt` lifecycle on every intended platform.
 - Specify the durable journal record/checkpoint formats and crash matrix.
 - Resolve or retire the currently parsed-but-unused `--config` and `--backend`
   flags so they do not conflict with the new configuration story.
@@ -1921,8 +1970,8 @@ fakeable; tests do not need a real CLI, Git host or account.
 
 - Add canonical Git discovery, cross-process repository lease and private
   detached worktree ownership/cleanup; create no branch yet.
-- Add Codex CLI only on platforms where the Phase 0 confinement/protocol spike
-  passed, using the shared adapter contract suite and fake executable.
+- Add Codex App Server behind the shared adapter contract, using one owned
+  process per attempt and a fake App Server protocol harness.
 - Add structured progress parsing, bounded private logs, sanitized environment
   and process-tree cancellation.
 - Add the confined executable-plus-argv validator and its fake-executable,
@@ -2009,11 +2058,8 @@ No product choice from the senior review remains an implementation blocker:
   detached HEAD is allowed for candidate-only work. PR mode uses the
   user-selected literal base and proves its exact presence on the pinned remote
   at publication time, not before agent work.
-- Initial runnable runtime is GPT through the controlled OpenAI Responses
-  strategy. Codex CLI remains available for profiles and probing, but mutation
-  is enabled only where its exact protocol/confinement spike meets the common
-  contract. Failure blocks that adapter/platform rather than weakening the
-  boundary.
+- Initial runnable runtimes are Codex App Server through provider-owned login
+  (the default) and GPT through the controlled OpenAI Responses strategy.
 - Initial publisher is GitHub CLI; draft is the default and ready-for-review is
   a user-selectable setting.
 - Default capacity is two concurrently running agents and one verifier, configurable in
@@ -2027,27 +2073,26 @@ No product choice from the senior review remains an implementation blocker:
   transcripts have no time-based auto-deletion in v1; only explicit Discard or
   later reconciled cleanup removes proven job-owned artifacts.
 
-Runtime eligibility remains empirical rather than declarative. The
-preferences adapter satisfies the resolver/store seam and atomic save
-requirement. Each process-backed OS/runtime pair must still prove write
-confinement and process control. A failed gate yields an actionable unsupported
-capability; it never authorizes a direct cache/property dependency or
-advisory-only mutating runtime.
+Runtime capabilities remain empirical rather than inferred from a profile
+label. The preferences adapter satisfies the resolver/store seam and atomic
+save requirement. A failed App Server handshake, missing authentication,
+unsupported workspace sandbox or unavailable model yields an actionable
+capability result; it never authorizes a direct cache/property dependency or
+advisory-only mutation.
 
 ### Current implementation gate evidence (2026-08-25)
 
-The Codex CLI adapter and executable conformance sentinel are implemented, but
-mutating Codex execution is intentionally unavailable on the audited macOS
-host. With Codex CLI 0.149.1, the exact generated permission profile denied the
-configured authentication/sensitive root, but the sentinel could still read
-the linked-worktree Git metadata and write outside the candidate (including
-the platform temporary roots). The self-reexec supervisor proved cancellation,
-timeout, normal descendant cleanup and parent-crash cleanup for one process
-group, but a process group is not confinement against a child creating a new
-session. Production therefore reports failed measured gates and keeps
-`CrashContainment=false`; `Submit` rejects that adapter.
+The Codex adapter now follows the t3code integration model. On the audited
+macOS host, Codex CLI 0.149.1 successfully completed the App Server
+`initialize`, `account/read` and paginated `model/list` flow using the existing
+ChatGPT login. Contract tests cover the full stdio JSONL handshake, ephemeral
+`thread/start`, `workspaceWrite` turn policy, streamed command/file/message and
+usage events, and cancellation through `turn/interrupt`. The adapter reports
+provider-managed cancellation and does not claim `CrashContainment` or
+sensitive-read denial. Docker is not involved in Codex startup, probing or fix
+execution.
 
-The OpenAI Responses strategy is the runnable GPT path. It resolves only a
+The OpenAI Responses strategy is the portable direct API-key path. It resolves only a
 secret reference, uses a composition-owned endpoint, follows no redirect, puts
 no credential in provider-visible context, and exposes no shell or process.
 All file effects are bounded rooted tools with an exact frozen write policy;

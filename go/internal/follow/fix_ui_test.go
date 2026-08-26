@@ -120,6 +120,18 @@ func TestFixDialogResponsiveSurfacesAndContractSafeSubmit(t *testing.T) {
 	}
 }
 
+func TestFixDialogShowsTheProbedAuthenticationMethod(t *testing.T) {
+	draft := readyFixDraft("a.go")
+	draft.Profile.Label = "Codex — managed sign-in (ChatGPT recommended)"
+	draft.Probe.Authentication = agent.Authentication{Method: "api-key", Label: "Signed in with an API key"}
+	model := Model{fixDialog: fixDialogState{hasDraft: true, draft: draft}}
+
+	text := ansi.Strip(strings.Join(model.fixFieldRows(120), "\n"))
+	if !strings.Contains(text, "Codex — managed sign-in (ChatGPT recommended) · Signed in with an API key") {
+		t.Fatalf("Fix dialog omitted the adapter-reported authentication method: %q", text)
+	}
+}
+
 func TestFixPrepareErrorStaysNonBlockingAndActionable(t *testing.T) {
 	service := &fakeFixService{prepareErr: errors.New("Codex authentication is missing")}
 	model := fixTestModel(service, 60, 16)

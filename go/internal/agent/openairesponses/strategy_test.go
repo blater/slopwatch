@@ -297,7 +297,7 @@ func TestMalformedProviderProtocolFailsClosed(t *testing.T) {
 
 func TestAuthenticationSecretNeverAppearsInResultsOrEvents(t *testing.T) {
 	root := canonicalTempDir(t)
-	profile := agent.Profile{ID: "gpt", Runtime: RuntimeKind, AuthenticationRef: "vault:openai"}
+	profile := agent.Profile{ID: "gpt", Runtime: RuntimeKind, AuthenticationRef: "env:OPENAI_API_KEY"}
 	strategy, err := New(Config{
 		Models:  []agent.Option[agent.ModelID]{{ID: "gpt-test", Label: "GPT Test"}},
 		Efforts: []agent.Option[agent.EffortID]{{ID: "high", Label: "High"}},
@@ -327,6 +327,47 @@ func TestAuthenticationSecretNeverAppearsInResultsOrEvents(t *testing.T) {
 	result = strategy.Execute(t.Context(), testProfile(), testRequest(t, root), nil)
 	if strings.Contains(result.Diagnostic, testSecret) || result.Failure != agent.FailureUnauthenticated {
 		t.Fatalf("provider authentication failure leaked: %#v", result)
+	}
+}
+
+func TestProfileRejectsAuthenticationReferencesTheInstalledResolverCannotUse(t *testing.T) {
+	t.Parallel()
+	strategy := newTestStrategy(t, &scriptedProvider{t: t}, Config{})
+	for _, reference := range []string{"keychain:openai", "vault:openai", "sk-literal"} {
+		profile := testProfile()
+		profile.AuthenticationRef = reference
+		if err := strategy.ValidateProfile(profile); err == nil || !strings.Contains(err.Error(), "env:VARIABLE") {
+			t.Fatalf("ValidateProfile(%q) error = %v", reference, err)
+		}
+	}
+}
+
+func TestExecutionDistinguishesAccessAndRateLimitFailures(t *testing.T) {
+	t.Parallel()
+	root := canonicalTempDir(t)
+	for _, test := range []struct {
+		name       string
+		status     int
+		retryAfter string
+		want       string
+	}{
+		{name: "account access", status: http.StatusForbidden, want: "request was forbidden"},
+		{name: "rate limit", status: http.StatusTooManyRequests, retryAfter: "90", want: "retry after 1m30s"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			transport := roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				response := testHTTPResponse(request, test.status, `{}`)
+				if test.retryAfter != "" {
+					response.Header.Set("Retry-After", test.retryAfter)
+				}
+				return response, nil
+			})
+			strategy := newTestStrategy(t, transport, Config{})
+			result := strategy.Execute(t.Context(), testProfile(), testRequest(t, root), nil)
+			if result.Failure != agent.FailureProvider || !strings.Contains(result.Diagnostic, test.want) {
+				t.Fatalf("Execute() = %#v", result)
+			}
+		})
 	}
 }
 
@@ -406,14 +447,14 @@ func TestProfileCapabilitiesAndProbeAreProviderOwned(t *testing.T) {
 	if descriptor.Runtime != RuntimeKind || len(descriptor.Fields) != 1+len(profileLimitFields) || descriptor.Fields[0].Kind != agent.ProfileFieldAuthReference {
 		t.Fatalf("descriptor=%#v", descriptor)
 	}
-	visibleLimits := make(map[string]agent.ProfileField, len(descriptor.Fields)-1)
+	preferenceLimits := make(map[string]agent.ProfileField, len(descriptor.Fields)-1)
 	for _, field := range descriptor.Fields[1:] {
-		visibleLimits[field.OptionKey] = field
+		preferenceLimits[field.OptionKey] = field
 	}
 	for _, definition := range profileLimitFields {
-		field, ok := visibleLimits[definition.key]
-		if !ok || field.Key != "options."+definition.key || field.Kind != agent.ProfileFieldText || field.Pattern != `^[0-9]+$` {
-			t.Fatalf("descriptor omitted or malformed visible limit %q: %#v", definition.key, field)
+		field, ok := preferenceLimits[definition.key]
+		if !ok || field.Key != "options."+definition.key || field.Kind != agent.ProfileFieldText || field.Pattern != `^[0-9]+$` || !field.PreferencesOnly {
+			t.Fatalf("descriptor omitted, exposed, or malformed preference-only limit %q: %#v", definition.key, field)
 		}
 	}
 	profile := testProfile()

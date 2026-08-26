@@ -59,4 +59,14 @@ func TestRuntimeIsolationEligibility(t *testing.T) {
 	if value.EligibleForMutation() {
 		t.Fatal("missing crash containment was eligible")
 	}
+	value.CrashContainment = true
+	value.SensitiveReadsDenied = false
+	if value.EligibleForMutation() {
+		t.Fatal("incomplete host-managed isolation was eligible")
+	}
+	value.Writes = CandidateTreeEnforced
+	value.ProviderManagedCancellation = true
+	if !value.EligibleForMutation() {
+		t.Fatal("provider-managed workspace lifecycle was not eligible")
+	}
 }

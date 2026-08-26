@@ -60,18 +60,22 @@ command-line precedence rules.
 
 ### Agent-assisted fixes
 
-Set `OPENAI_API_KEY` in the environment that launches Slopwatch, highlight a
-file, and press `x`. The Fix form lets you choose the score target, one or more
-focus metrics, change scope, agent profile, model, effort, delegation mode,
+Install the Codex CLI, run `codex login`, then highlight a file and press `x`.
+Codex sign-in supports ChatGPT accounts and is the built-in default; it does
+not require an OpenAI API key. The Fix form lets you choose the score target,
+one or more focus metrics, change scope, agent profile, model, effort,
+delegation mode,
 validation plan, delivery workflow and branch name. Advanced mode replaces the
 editable task body while retaining Slopwatch's locked scoring and write-scope
 envelope.
 
-The built-in GPT profile uses the OpenAI Responses API as a controlled coding
-agent. It has no shell, process, Git or ambient filesystem access: candidate
-reads and writes pass through Slopwatch-controlled tools. A Codex CLI profile
-is also included, but it remains visibly **NOT RUNNABLE** on platforms where
-its exact filesystem and process-containment probes do not pass.
+The alternative `OpenAI Responses API — API key` profile uses
+`env:OPENAI_API_KEY`; API usage is billed separately from ChatGPT. That adapter
+has no shell, process, Git or ambient filesystem access: candidate reads and
+writes pass through Slopwatch-controlled tools. Slopwatch never silently falls
+back between the Codex/ChatGPT and direct API-key routes. Codex uses its local
+App Server with a workspace-write sandbox, streamed activity and per-job
+`turn/interrupt` cancellation; it works natively without Docker.
 
 Fix jobs use detached Git worktrees, so multiple non-overlapping jobs can run
 at once and new jobs can be submitted while others are active. Press `Tab` to

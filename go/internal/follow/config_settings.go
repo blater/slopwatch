@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
 	"sort"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
@@ -54,6 +56,7 @@ type configSettingsState struct {
 	profileEditing bool
 	profileCursor  int
 	deletePending  agent.ProfileID
+	defaultChanged bool
 }
 
 type configResolvedMsg struct {
@@ -73,6 +76,7 @@ type configSavedMsg struct {
 type configProbeMsg struct {
 	generation uint64
 	profile    agent.ProfileID
+	definition agent.Profile
 	result     agent.ProbeResult
 }
 
@@ -112,6 +116,8 @@ func (model *Model) handleConfigResolved(message configResolvedMsg) tea.Cmd {
 	}
 	state.resolved = cloneConfigResolved(message.resolved)
 	state.working = cloneConfigResolved(message.resolved)
+	state.probes = map[agent.ProfileID]agent.ProbeResult{}
+	state.defaultChanged = false
 	state.cursor = min(state.cursor, max(0, model.configSettingsRows()-1))
 	state.status = ""
 	if len(message.diagnostics) > 0 {
@@ -130,7 +136,7 @@ func (model *Model) probeProfilesCommand() tea.Cmd {
 		profile := cloneConfigProfile(value)
 		prober := model.profileProber
 		commands = append(commands, func() tea.Msg {
-			return configProbeMsg{generation: generation, profile: profile.ID, result: prober.Probe(context.Background(), profile)}
+			return configProbeMsg{generation: generation, profile: profile.ID, definition: profile, result: prober.Probe(context.Background(), profile)}
 		})
 	}
 	return tea.Batch(commands...)
@@ -153,6 +159,7 @@ func (model *Model) handleConfigSaved(message configSavedMsg) tea.Cmd {
 	state.resolved = cloneConfigResolved(message.saved.Resolved)
 	state.working = cloneConfigResolved(message.saved.Resolved)
 	state.dirty = false
+	state.defaultChanged = false
 	state.status = "Saved"
 	if message.restartRequired {
 		state.status = "Saved for next start · restart Slopwatch before preparing another Fix"
@@ -243,6 +250,10 @@ func (model *Model) handleConfigSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 	case "d":
 		if state.kind == configAgents {
 			model.deleteSelectedProfile()
+		}
+	case "D":
+		if state.kind == configAgents {
+			model.setSelectedAgentDefault()
 		}
 	case "t":
 		if state.kind == configAgents {
@@ -361,6 +372,10 @@ func (model *Model) saveConfigSettings() tea.Cmd {
 		return nil
 	}
 	patch := configSettingsPatch(state.kind, state.working)
+	if state.kind == configAgents && state.defaultChanged {
+		fixDefaults := cloneConfigFix(state.working.Fix)
+		patch.Fix = &fixDefaults
+	}
 	state.saving = true
 	state.status = "Saving…"
 	generation, revision, kind := state.generation, state.resolved.Revision, state.kind
@@ -535,20 +550,25 @@ func adjustFixSetting(value *appconfig.Resolved, cursor, direction int, probes m
 			profiles = append(profiles, profile.ID)
 		}
 		value.Fix.Profile = cycleTyped(value.Fix.Profile, profiles, direction)
+		probe, ready := readyAgentProbe(probes, value.Fix.Profile)
+		reconcileFixAgentOptions(&value.Fix, probe, ready)
 	case 3:
-		options := modelIDs(probes[value.Fix.Profile])
+		probe, _ := readyAgentProbe(probes, value.Fix.Profile)
+		options := modelIDs(probe)
 		if len(options) == 0 {
 			return false
 		}
 		value.Fix.Model = cycleTyped(value.Fix.Model, options, direction)
 	case 4:
-		options := effortIDs(probes[value.Fix.Profile])
+		probe, _ := readyAgentProbe(probes, value.Fix.Profile)
+		options := effortIDs(probe)
 		if len(options) == 0 {
 			return false
 		}
 		value.Fix.Effort = cycleTyped(value.Fix.Effort, options, direction)
 	case 5:
-		options := delegationIDs(probes[value.Fix.Profile])
+		probe, _ := readyAgentProbe(probes, value.Fix.Profile)
+		options := delegationIDs(probe)
 		value.Fix.Delegation = cycleTyped(value.Fix.Delegation, options, direction)
 	case 6:
 		// The generated prompt compiler and locked envelope are the only v1
@@ -854,7 +874,7 @@ func (model *Model) addDefaultAgentProfile() {
 		descriptor, descriptorErr = model.profileCatalog.Descriptor(selected)
 	}
 	if model.profileCatalog == nil || descriptorErr != nil {
-		descriptor = agent.ProfileDescriptor{Runtime: "codex-cli", Label: "Codex CLI", Fields: []agent.ProfileField{
+		descriptor = agent.ProfileDescriptor{Runtime: "codex-cli", Label: "Codex", Fields: []agent.ProfileField{
 			{Key: "executable", Default: "codex"}, {Key: "authentication_ref", Default: "provider-owned"},
 		}}
 		selected = "codex-cli"
@@ -917,7 +937,7 @@ func (model Model) profileFieldCount() int {
 	if state.cursor < 0 || state.cursor >= len(state.working.Profiles) {
 		return 0
 	}
-	return 3 + len(model.profileEditorFields(state.working.Profiles[state.cursor]))
+	return 2 + len(model.profileEditorFields(state.working.Profiles[state.cursor]))
 }
 
 func (model Model) profileEditorFields(profile agent.Profile) []agent.ProfileField {
@@ -925,11 +945,14 @@ func (model Model) profileEditorFields(profile agent.Profile) []agent.ProfileFie
 	if err != nil {
 		return nil
 	}
-	fields := append([]agent.ProfileField(nil), descriptor.Fields...)
-	known := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
+	fields := make([]agent.ProfileField, 0, len(descriptor.Fields))
+	known := make(map[string]struct{}, len(descriptor.Fields))
+	for _, field := range descriptor.Fields {
 		if field.OptionKey != "" {
 			known[field.OptionKey] = struct{}{}
+		}
+		if !field.PreferencesOnly {
+			fields = append(fields, field)
 		}
 	}
 	unknown := make([]string, 0)
@@ -1013,42 +1036,18 @@ func (model *Model) adjustProfileChoice(direction int) bool {
 		return false
 	}
 	profile := &state.working.Profiles[state.cursor]
-	if state.profileCursor == 2 && model.profileCatalog != nil {
-		kinds := model.profileCatalog.Kinds()
-		if len(kinds) == 0 {
-			return false
-		}
-		sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
-		next := cycleTyped(profile.Runtime, kinds, direction)
-		if next == profile.Runtime {
-			return true
-		}
-		descriptor, err := model.profileCatalog.Descriptor(next)
-		if err != nil {
-			state.status = err.Error()
-			return true
-		}
-		profile.Runtime = next
-		profile.Executable = ""
-		profile.RuntimeProfile = ""
-		profile.AuthenticationRef = ""
-		profile.Options = map[string]string{}
-		applyProfileDefaults(profile, descriptor)
-		state.dirty = true
-		state.status = "Runtime changed; adapter fields reset · s save"
-		return true
-	}
-	if state.profileCursor < 3 {
+	if state.profileCursor < 2 {
 		return false
 	}
 	fields := model.profileEditorFields(*profile)
-	index := state.profileCursor - 3
+	index := state.profileCursor - 2
 	if index < 0 || index >= len(fields) || fields[index].Kind != agent.ProfileFieldChoice {
 		return false
 	}
 	field := fields[index]
 	value := cycleString(profileFieldValue(*profile, field), field.Choices, direction)
 	setProfileFieldValue(profile, field, value)
+	delete(state.probes, profile.ID)
 	state.dirty = true
 	state.status = "Modified · s save · r reload"
 	return true
@@ -1063,8 +1062,19 @@ func (model Model) testSelectedProfileCommand() tea.Cmd {
 	generation := state.generation
 	prober := model.profileProber
 	return func() tea.Msg {
-		return configProbeMsg{generation: generation, profile: profile.ID, result: prober.Probe(context.Background(), profile)}
+		return configProbeMsg{generation: generation, profile: profile.ID, definition: profile, result: prober.Probe(context.Background(), profile)}
 	}
+}
+
+func probeDefinitionCurrent(profiles []agent.Profile, definition agent.Profile) bool {
+	for _, profile := range profiles {
+		if profile.ID == definition.ID {
+			return profile.Runtime == definition.Runtime && profile.Executable == definition.Executable &&
+				profile.RuntimeProfile == definition.RuntimeProfile && profile.AuthenticationRef == definition.AuthenticationRef &&
+				maps.Equal(profile.Options, definition.Options)
+		}
+	}
+	return false
 }
 
 func (model *Model) deleteSelectedProfile() {
@@ -1095,6 +1105,59 @@ func (model *Model) deleteSelectedProfile() {
 	state.status = fmt.Sprintf("Removed %s from draft · s save", removed)
 }
 
+func (model *Model) setSelectedAgentDefault() {
+	state := &model.configSettings
+	if state.cursor < 0 || state.cursor >= len(state.working.Profiles) {
+		return
+	}
+	selected := state.working.Profiles[state.cursor].ID
+	if state.working.Fix.Profile == selected {
+		state.status = fmt.Sprintf("%s is already the default Fix profile", selected)
+		return
+	}
+	state.working.Fix.Profile = selected
+	probe, ready := readyAgentProbe(state.probes, selected)
+	reconcileFixAgentOptions(&state.working.Fix, probe, ready)
+	state.defaultChanged = true
+	state.dirty = true
+	state.status = fmt.Sprintf("%s is now default · %s / %s · s save", selected,
+		nonemptySetting(string(state.working.Fix.Model), "runtime model"), nonemptySetting(string(state.working.Fix.Effort), "runtime effort"))
+}
+
+func selectedAgentOption[T ~string](options []agent.Option[T], selected T) T {
+	if len(options) == 0 {
+		return ""
+	}
+	for _, option := range options {
+		if option.ID == selected {
+			return selected
+		}
+	}
+	for _, option := range options {
+		if option.Default {
+			return option.ID
+		}
+	}
+	return options[0].ID
+}
+
+func readyAgentProbe(probes map[agent.ProfileID]agent.ProbeResult, profile agent.ProfileID) (agent.ProbeResult, bool) {
+	probe, ok := probes[profile]
+	return probe, ok && probe.State == agent.ProbeReady
+}
+
+func reconcileFixAgentOptions(value *appconfig.FixDefaults, probe agent.ProbeResult, ready bool) {
+	if !ready {
+		probe = agent.ProbeResult{}
+	}
+	value.Model = selectedAgentOption(probe.Capabilities.Models, value.Model)
+	value.Effort = selectedAgentOption(probe.Capabilities.Efforts, value.Effort)
+	value.Delegation = selectedAgentOption(probe.Capabilities.Delegation, value.Delegation)
+	if value.Delegation == "" {
+		value.Delegation = agent.DelegationSingle
+	}
+}
+
 func (model *Model) configTextEditable() bool {
 	cursor := model.configSettings.cursor
 	if model.configSettings.profileEditing || model.configSettings.kind == configDelivery && (cursor >= 1 && cursor <= 3 || cursor >= 7 && cursor <= 11) {
@@ -1117,15 +1180,13 @@ func (model *Model) beginConfigText() {
 			value = string(profile.ID)
 		case 1:
 			value = profile.Label
-		case 2:
-			value = string(profile.Runtime)
 		default:
 			fields := model.profileEditorFields(profile)
-			if state.profileCursor-3 >= len(fields) {
+			if state.profileCursor-2 >= len(fields) {
 				state.status = "agent profile schema is unavailable"
 				return
 			}
-			value = profileFieldValue(profile, fields[state.profileCursor-3])
+			value = profileFieldValue(profile, fields[state.profileCursor-2])
 		}
 		state.editField = state.profileCursor
 	} else if state.kind == configValidation {
@@ -1180,7 +1241,7 @@ func (model *Model) commitConfigText() error {
 	if state.profileEditing {
 		profile := &state.working.Profiles[state.cursor]
 		oldID := profile.ID
-		if state.editField < 3 && value == "" {
+		if state.editField < 2 && value == "" {
 			return errors.New("this value cannot be empty")
 		}
 		switch state.editField {
@@ -1188,14 +1249,12 @@ func (model *Model) commitConfigText() error {
 			profile.ID = agent.ProfileID(value)
 		case 1:
 			profile.Label = value
-		case 2:
-			profile.Runtime = agent.RuntimeKind(value)
 		default:
 			fields := model.profileEditorFields(*profile)
-			if state.editField-3 >= len(fields) {
+			if state.editField-2 >= len(fields) {
 				return errors.New("agent profile schema is unavailable")
 			}
-			field := fields[state.editField-3]
+			field := fields[state.editField-2]
 			if err := validateProfileFieldValue(field, value); err != nil {
 				return err
 			}
@@ -1203,11 +1262,16 @@ func (model *Model) commitConfigText() error {
 		}
 		if oldID != profile.ID && state.working.Fix.Profile == oldID {
 			state.working.Fix.Profile = profile.ID
+			state.defaultChanged = true
 		}
 		if model.profileCatalog != nil {
 			if err := model.profileCatalog.ValidateProfile(*profile); err != nil {
 				return err
 			}
+		}
+		if state.editField != 1 {
+			delete(state.probes, oldID)
+			delete(state.probes, profile.ID)
 		}
 	} else if state.kind == configValidation {
 		rows := validationSettingsRows(state.working.Validation)
@@ -1308,15 +1372,11 @@ func (model Model) configSettingsView() string {
 	if state.loading {
 		return style.Popup(style.Heading(title), []string{"Loading configuration…"}, "Esc back", width)
 	}
-	lines := model.configSettingsLines(width - 4)
+	lines, selectedStart, selectedEnd := model.configSettingsContent(width - 4)
 	if len(lines) == 0 {
 		lines = []string{"No configured items."}
 	}
-	scrollCursor := state.cursor
-	if state.profileEditing {
-		scrollCursor = state.profileCursor
-	}
-	lines = scrollModalLines(lines, scrollCursor, max(1, model.modalBodyHeight()-2))
+	lines = scrollModalLineRange(lines, selectedStart, selectedEnd, max(1, model.modalBodyHeight()-2))
 	lines = append(lines, style.DisabledOption(truncate(model.configSettingsStatusLine(), width), width))
 	footer := model.configSettingsFooter()
 	if state.editing {
@@ -1336,16 +1396,12 @@ func (model Model) configSettingsFullScreen() string {
 	if state.loading {
 		lines = append(lines, fixSurfaceLine("Loading configuration…", model.width, style.SurfaceModal, style.TextMuted))
 	} else {
-		body := model.configSettingsLines(model.width)
-		scrollCursor := state.cursor
-		if state.profileEditing {
-			scrollCursor = state.profileCursor
-		}
+		body, selectedStart, selectedEnd := model.configSettingsContent(model.width)
 		reserved := 3 // header, status, footer
 		if state.editing {
 			reserved++ // active editor row
 		}
-		body = scrollModalLines(body, scrollCursor, max(1, model.height-reserved))
+		body = scrollModalLineRange(body, selectedStart, selectedEnd, max(1, model.height-reserved))
 		for _, line := range body {
 			lines = append(lines, fixSurfaceLineANSI(line, model.width, style.SurfaceModal))
 		}
@@ -1395,12 +1451,12 @@ func (model Model) configSettingsFooter() string {
 	}
 	if state.kind == configAgents {
 		if compact {
-			return "↑/↓ · a add · d remove · s save · Esc"
+			return "↑/↓ · a add · D default · d remove · s save · Esc"
 		}
 		if state.profileEditing {
 			return "↑/↓ fields · Enter edit · t test · Esc profiles"
 		}
-		return "↑/↓ profiles · Enter edit · t test · a add agent · d remove · s save · Esc"
+		return "↑/↓ profiles · Enter edit · t test · a add agent · D set default · d remove · s save · Esc"
 	}
 	readonly := false
 	edit := false
@@ -1509,6 +1565,125 @@ func agentProbeReadiness(result agent.ProbeResult) string {
 	return "NOT RUNNABLE · " + state
 }
 
+func (model Model) configSettingsContent(width int) ([]string, int, int) {
+	if model.configSettings.kind == configAgents {
+		return model.agentSettingsLines(width)
+	}
+	lines := model.configSettingsLines(width)
+	selected := min(max(0, model.configSettings.cursor), max(0, len(lines)-1))
+	return lines, selected, selected
+}
+
+func scrollModalLineRange(lines []string, selectedStart, selectedEnd, limit int) []string {
+	if len(lines) <= limit {
+		return lines
+	}
+	limit = max(1, limit)
+	selectedStart = min(len(lines)-1, max(0, selectedStart))
+	selectedEnd = min(len(lines)-1, max(selectedStart, selectedEnd))
+	if selectedEnd-selectedStart+1 >= limit {
+		return lines[selectedStart : selectedStart+limit]
+	}
+	start := max(0, selectedEnd-limit+1)
+	if start > selectedStart {
+		start = selectedStart
+	}
+	if start+limit > len(lines) {
+		start = max(0, len(lines)-limit)
+	}
+	return lines[start : start+limit]
+}
+
+func wrappedDisabledConfigLines(value string, width int) []string {
+	value = cleanAgentText(value)
+	wrapped := wrapText(value, max(1, width), "", "")
+	lines := make([]string, 0, len(wrapped))
+	for _, logicalLine := range wrapped {
+		for _, line := range strings.Split(ansi.Hardwrap(logicalLine, max(1, width), false), "\n") {
+			lines = append(lines, style.DisabledOption(line, width))
+		}
+	}
+	return lines
+}
+
+func (model Model) agentSettingsLines(width int) ([]string, int, int) {
+	state := model.configSettings
+	if state.profileEditing && state.cursor >= 0 && state.cursor < len(state.working.Profiles) {
+		profile := state.working.Profiles[state.cursor]
+		rows := []struct{ label, value string }{{"Profile ID", string(profile.ID)}, {"Label", profile.Label}}
+		fields := model.profileEditorFields(profile)
+		for _, field := range fields {
+			value := profileFieldValue(profile, field)
+			if value == "" && field.Default != "" {
+				value = field.Default + " · adapter default"
+			}
+			rows = append(rows, struct{ label, value string }{field.Label, value})
+		}
+		lines := make([]string, 0, len(rows)+4)
+		selectedStart, selectedEnd := 0, 0
+		for i, row := range rows {
+			if origin := state.working.Origins[profileEditorOriginKey(profile, fields, i)]; origin != "" && origin != appconfig.OriginBuiltIn {
+				row.value += " · " + configOriginLabel(origin)
+			}
+			if i == state.profileCursor {
+				selectedStart = len(lines)
+			}
+			lines = append(lines, style.ModalOption(truncate(fmt.Sprintf("%-22s %s", row.label, row.value), width), i == state.profileCursor, width))
+			if i != state.profileCursor {
+				continue
+			}
+			if i >= 2 && i-2 < len(fields) && fields[i-2].Description != "" {
+				lines = append(lines, wrappedDisabledConfigLines("Info: "+fields[i-2].Description, width)...)
+			}
+			if probe, ok := state.probes[profile.ID]; ok {
+				diagnostic := cleanAgentText(probe.Diagnostic)
+				if diagnostic == "" {
+					diagnostic = nonemptySetting(probe.Authentication.Label, "probe completed")
+				}
+				lines = append(lines, wrappedDisabledConfigLines("Test: "+agentProbeReadiness(probe)+" · "+diagnostic, width)...)
+			}
+			selectedEnd = len(lines) - 1
+		}
+		return lines, selectedStart, selectedEnd
+	}
+
+	lines := make([]string, 0, len(state.working.Profiles)+3)
+	selectedStart, selectedEnd := 0, 0
+	for index, profile := range state.working.Profiles {
+		readiness := "NOT TESTED"
+		var probe agent.ProbeResult
+		probed := false
+		if result, ok := state.probes[profile.ID]; ok {
+			probe, probed = result, true
+			readiness = agentProbeReadiness(result)
+			if result.Version != "" {
+				readiness += " " + result.Version
+			}
+		}
+		label := agentProfileChoiceLabel(profile)
+		if profile.ID == state.working.Fix.Profile {
+			label += " · DEFAULT"
+		}
+		authentication := nonemptySetting(profile.AuthenticationRef, "provider-owned")
+		if probed && probe.Authentication.Label != "" {
+			authentication = probe.Authentication.Label
+		}
+		if index == state.cursor {
+			selectedStart = len(lines)
+		}
+		value := fmt.Sprintf("%s · %s", readiness, authentication)
+		lines = append(lines, style.ModalOption(truncate(fmt.Sprintf("%-22s %s", label, value), width), index == state.cursor, width))
+		if index == state.cursor && probed {
+			diagnostic := nonemptySetting(cleanAgentText(probe.Diagnostic), nonemptySetting(probe.Authentication.Label, "probe completed"))
+			lines = append(lines, wrappedDisabledConfigLines("Test: "+agentProbeReadiness(probe)+" · "+diagnostic, width)...)
+		}
+		if index == state.cursor {
+			selectedEnd = len(lines) - 1
+		}
+	}
+	return lines, selectedStart, selectedEnd
+}
+
 func (model Model) configSettingsLines(width int) []string {
 	state := model.configSettings
 	disabled := func(value string) string { return style.DisabledOption(truncate(value, width), width) }
@@ -1522,59 +1697,16 @@ func (model Model) configSettingsLines(width int) []string {
 	}
 	switch state.kind {
 	case configAgents:
-		if state.profileEditing && state.cursor >= 0 && state.cursor < len(state.working.Profiles) {
-			profile := state.working.Profiles[state.cursor]
-			rows := []struct{ label, value string }{{"Profile ID", string(profile.ID)}, {"Label", profile.Label}, {"Runtime", string(profile.Runtime)}}
-			fields := model.profileEditorFields(profile)
-			for _, field := range fields {
-				value := profileFieldValue(profile, field)
-				if value == "" && field.Default != "" {
-					value = field.Default + " · adapter default"
-				}
-				rows = append(rows, struct{ label, value string }{field.Label, value})
-			}
-			lines := make([]string, 0, len(rows)+2)
-			for i, row := range rows {
-				if origin := state.working.Origins[profileEditorOriginKey(profile, fields, i)]; origin != "" && origin != appconfig.OriginBuiltIn {
-					row.value += " · " + configOriginLabel(origin)
-				}
-				lines = append(lines, style.ModalOption(truncate(fmt.Sprintf("%-22s %s", row.label, row.value), width), i == state.profileCursor, width))
-			}
-			if state.profileCursor >= 3 && state.profileCursor-3 < len(fields) && fields[state.profileCursor-3].Description != "" {
-				lines = append(lines, disabled(fields[state.profileCursor-3].Description))
-			}
-			if probe, ok := state.probes[profile.ID]; ok {
-				diagnostic := cleanAgentText(probe.Diagnostic)
-				if diagnostic == "" {
-					diagnostic = "probe completed"
-				}
-				lines = append(lines, disabled("Test: "+agentProbeReadiness(probe)+" · "+diagnostic))
-			}
-			return lines
-		}
-		lines := make([]string, 0, len(state.working.Profiles))
-		for index, profile := range state.working.Profiles {
-			readiness := "NOT TESTED"
-			diagnostic := ""
-			if result, ok := state.probes[profile.ID]; ok {
-				readiness = agentProbeReadiness(result)
-				if result.Version != "" {
-					readiness += " " + result.Version
-				}
-				if result.Diagnostic != "" {
-					diagnostic = cleanAgentText(result.Diagnostic)
-				}
-			}
-			label := fmt.Sprintf("%s · %s", profile.Label, profile.Runtime)
-			value := fmt.Sprintf("%s · auth %s", readiness, nonemptySetting(profile.AuthenticationRef, "provider-owned"))
-			lines = append(lines, option(index, label, value))
-			if index == state.cursor && diagnostic != "" {
-				lines = append(lines, disabled("Remediation: "+diagnostic))
-			}
-		}
+		lines, _, _ := model.agentSettingsLines(width)
 		return lines
 	case configFix:
 		profile := nonemptySetting(string(state.working.Fix.Profile), "not selected")
+		for _, configured := range state.working.Profiles {
+			if configured.ID == state.working.Fix.Profile {
+				profile = agentProfileChoiceLabel(configured) + " [" + string(configured.ID) + "]"
+				break
+			}
+		}
 		modelName := nonemptySetting(string(state.working.Fix.Model), "runtime default")
 		effort := nonemptySetting(string(state.working.Fix.Effort), "runtime default")
 		lines := []string{
@@ -1749,6 +1881,20 @@ func (model Model) configSettingsLines(width int) []string {
 	return nil
 }
 
+func agentProfileChoiceLabel(profile agent.Profile) string {
+	switch profile.Runtime {
+	case "codex-cli":
+		if profile.ID == "codex-default" {
+			return "Codex — managed sign-in (ChatGPT recommended)"
+		}
+		return "Codex — managed sign-in"
+	case "openai-responses":
+		return "OpenAI Responses API — API key (billed separately)"
+	default:
+		return fmt.Sprintf("%s · %s", profile.Label, profile.Runtime)
+	}
+}
+
 func profileEditorOriginKey(profile agent.Profile, fields []agent.ProfileField, index int) string {
 	prefix := "agents." + string(profile.ID)
 	switch index {
@@ -1756,10 +1902,8 @@ func profileEditorOriginKey(profile agent.Profile, fields []agent.ProfileField, 
 		return prefix
 	case 1:
 		return prefix + ".label"
-	case 2:
-		return prefix + ".runtime"
 	default:
-		fieldIndex := index - 3
+		fieldIndex := index - 2
 		if fieldIndex >= 0 && fieldIndex < len(fields) {
 			return prefix + "." + fields[fieldIndex].Key
 		}

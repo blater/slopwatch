@@ -366,6 +366,9 @@ func (model *Model) handleFixPrepared(message fixPreparedMsg) {
 		model.fixDialog.focus[goal.Metric] = true
 	}
 	if old.hasDraft {
+		if old.draft.Model != message.draft.Model || old.draft.Effort != message.draft.Effort || old.draft.Delegation != message.draft.Delegation {
+			model.fixDialog.statusText = fmt.Sprintf("Profile changed · using %s / %s / %s", message.draft.Model, message.draft.Effort, message.draft.Delegation)
+		}
 		edits := old.fixDraftEdits()
 		if revised, err := fixapp.ReviseDraft(message.draft, edits); err == nil {
 			model.fixDialog.draft = revised
