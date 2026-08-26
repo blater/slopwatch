@@ -136,18 +136,25 @@ func TestReconfigureTrimsExistingTranscriptsImmediately(t *testing.T) {
 	waitStarted(t, runtime, id)
 	var before LogPage
 	deadline := time.Now().Add(time.Second)
-	for len(before.Entries) < 6 && time.Now().Before(deadline) {
+	burstComplete := false
+	for !burstComplete && time.Now().Before(deadline) {
 		var err error
 		before, err = manager.Transcript(context.Background(), id, 0, 100)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(before.Entries) < 6 {
+		for _, entry := range before.Entries {
+			if entry.Summary == "Burst event 19" {
+				burstComplete = true
+				break
+			}
+		}
+		if !burstComplete {
 			time.Sleep(time.Millisecond)
 		}
 	}
-	if len(before.Entries) < 6 {
-		t.Fatalf("transcript entries=%d, want enough history to trim", len(before.Entries))
+	if !burstComplete || len(before.Entries) < 6 {
+		t.Fatalf("transcript entries=%d, final burst event visible=%t", len(before.Entries), burstComplete)
 	}
 	want := append([]LogEntry(nil), before.Entries[len(before.Entries)-5:]...)
 	budget := transcriptBytes(want)
