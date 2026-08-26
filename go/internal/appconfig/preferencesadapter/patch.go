@@ -86,7 +86,7 @@ func (adapter *Adapter) applyRepository(resolved *appconfig.Resolved, value pref
 		}
 		resolved.Fix = converted
 		resolved.Origins["fix"] = appconfig.OriginRepository
-		setOrigins(resolved.Origins, appconfig.OriginRepository, "fix.target_score", "fix.focus", "fix.change_scope", "fix.profile", "fix.model", "fix.effort", "fix.delegation", "fix.max_attempts", "fix.attempt_timeout", "fix.prompt_template", "fix.branch_template", "fix.validation_plan")
+		setOrigins(resolved.Origins, appconfig.OriginRepository, "fix.target_score", "fix.focus", "fix.change_scope", "fix.profile", "fix.model", "fix.effort", "fix.delegation", "fix.prompt_template", "fix.validation_plan")
 		markFixListOrigins(resolved.Origins, preferences.Fix{}, *value.Fix, appconfig.OriginRepository)
 	}
 	if value.Concurrency != nil {

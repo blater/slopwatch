@@ -120,7 +120,7 @@ type Model struct {
 	fixRevision          fixapp.GlobalRevision
 	fixGeneration        uint64
 	fixDialog            fixDialogState
-	jobActions           jobActionsState
+	jobCommand           jobCommandState
 	cancelConfirmation   cancelConfirmation
 	jobMonitor           jobMonitorState
 	jobReader            jobReaderState
@@ -128,6 +128,8 @@ type Model struct {
 	fixNotice            string
 	fixUpdatesStale      bool
 	fixRetryGeneration   uint64
+	fixTargetDesired     float64
+	fixTargetSaving      bool
 	configStore          ConfigStore
 	configWorkspace      fix.WorkspaceIdentity
 	profileProber        ProfileProber

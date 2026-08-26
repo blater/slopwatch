@@ -14,17 +14,24 @@ import (
 
 const Version = "slopwatch-fix/v1"
 
-const envelope = `You are operating inside a Slopwatch-owned candidate workspace.
-Modify only the admitted scope. Do not create branches, commits, pushes, pull requests, waivers, suppressions, scoring configuration changes, or dead code intended to game metrics.
-Preserve observable behavior and public APIs unless the objective explicitly requires a compatible change. Slopwatch independently verifies the result; your claim of success is not verification.`
+const DefaultTemplate = `Refactor {targets} until every file has a score of {target_score} or lower.
+Focus on: {focus_metrics}.
+You may edit: {allowed_paths}.
+Current measurements:
+{baseline_scores}
+Keep observable behaviour and public APIs unchanged unless the task requires a compatible change.`
+
+const envelope = `Work only inside the workspace and files named in this task.
+Do not create branches, commits, pushes, pull requests, waivers, suppressions, scoring configuration changes, or dead code intended to game scores.
+Slopwatch will measure the changed files and handle Git after you finish.`
 
 type Input struct {
 	Contract       fix.ScoringContract
 	AllowedScope   string
 	AllowedPaths   []fix.RepoPath
 	ValidationPlan string
-	Guidance       string
-	DetachedBody   string
+	BranchName     string
+	Template       string
 }
 
 func Compile(input Input) (agent.InstructionDocument, error) {
@@ -60,10 +67,7 @@ func Compile(input Input) (agent.InstructionDocument, error) {
 	default:
 		return agent.InstructionDocument{}, fmt.Errorf("compile fix prompt: unsupported change scope %q", input.AllowedScope)
 	}
-	objective := fmt.Sprintf(
-		"Refactor the following target files so every target has SCORE <= %s: %s.\nAllowed change scope: %s.",
-		number(input.Contract.Goal.MaximumScore), strings.Join(paths, ", "), input.AllowedScope,
-	)
+	allowedText := "the entire repository"
 	if input.AllowedScope != "repository" {
 		allowed := append([]fix.RepoPath(nil), input.AllowedPaths...)
 		sort.Slice(allowed, func(i, j int) bool { return allowed[i] < allowed[j] })
@@ -71,8 +75,9 @@ func Compile(input Input) (agent.InstructionDocument, error) {
 		for i, path := range allowed {
 			values[i] = path.String()
 		}
-		objective += "\nExact admitted paths (targets plus planned supporting tests): " + strings.Join(values, ", ") + "."
+		allowedText = strings.Join(values, ", ")
 	}
+	focusText := "overall score"
 	if len(input.Contract.Goal.Focus) > 0 {
 		focus := append([]fix.MetricGoal(nil), input.Contract.Goal.Focus...)
 		sort.Slice(focus, func(i, j int) bool { return focus[i].Metric < focus[j].Metric })
@@ -80,15 +85,29 @@ func Compile(input Input) (agent.InstructionDocument, error) {
 		for index, goal := range focus {
 			values[index] = fmt.Sprintf("%s <= %s", goal.Metric, number(goal.Maximum))
 		}
-		objective += "\nFocus requirements: " + strings.Join(values, ", ") + "."
+		focusText = strings.Join(values, ", ")
 	}
-	if input.ValidationPlan != "" {
-		objective += "\nRequired validation plan: " + input.ValidationPlan + "."
+	validationPlan := input.ValidationPlan
+	if validationPlan == "" {
+		validationPlan = "none"
 	}
 	evidence := evidenceText(targets)
+	template := input.Template
+	if strings.TrimSpace(template) == "" {
+		template = DefaultTemplate
+	}
+	objective := strings.NewReplacer(
+		"{targets}", strings.Join(paths, ", "),
+		"{target_score}", number(input.Contract.Goal.MaximumScore),
+		"{focus_metrics}", focusText,
+		"{change_scope}", input.AllowedScope,
+		"{allowed_paths}", allowedText,
+		"{baseline_scores}", strings.TrimPrefix(evidence, "Baseline evidence:\n"),
+		"{validation_plan}", validationPlan,
+		"{branch}", input.BranchName,
+	).Replace(template)
 	return agent.InstructionDocument{
-		Version: Version, Envelope: envelope, Objective: objective, Evidence: evidence,
-		UserGuidance: strings.TrimSpace(input.Guidance), DetachedBody: strings.TrimSpace(input.DetachedBody),
+		Version: Version, Envelope: envelope, Objective: strings.TrimSpace(objective),
 	}, nil
 }
 

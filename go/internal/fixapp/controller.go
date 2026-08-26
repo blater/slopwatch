@@ -52,8 +52,8 @@ func validateInitialJournal(records []jobstore.Record) error {
 		if ordinal < 0 {
 			return fmt.Errorf("fix journal job %s contains invalid attempt counters", stored.JobID)
 		}
-		if len(envelope.RetryEvidence) > 504 || strings.ContainsRune(envelope.RetryEvidence, '\x00') {
-			return fmt.Errorf("fix journal job %s contains invalid retry evidence", stored.JobID)
+		if len(envelope.NextAttemptNotes) > 504 || strings.ContainsRune(envelope.NextAttemptNotes, '\x00') {
+			return fmt.Errorf("fix journal job %s contains invalid next-attempt notes", stored.JobID)
 		}
 		if envelope.Transcript != nil {
 			if transcriptBytes(envelope.Transcript.Entries) == math.MaxInt64 && len(envelope.Transcript.Entries) > 0 {
@@ -107,7 +107,7 @@ func (manager *Manager) run() {
 		jobs: map[fix.JobID]*jobRecord{}, reservations: map[string]fix.JobID{},
 	}
 	manager.restore(state)
-	if err := manager.pruneDiscarded(state); err != nil {
+	if err := manager.pruneFinished(state, false); err != nil {
 		manager.journalFailed = true
 	}
 	manager.publish(state)
@@ -199,8 +199,13 @@ func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
 		call.response <- submitResponse{err: err}
 		return
 	}
-	if err := manager.pruneDiscarded(state); err != nil {
-		call.response <- submitResponse{err: fmt.Errorf("prune discarded fix jobs: %w", err)}
+	draft := call.request.Draft
+	if err := validateDraft(draft); err != nil {
+		call.response <- submitResponse{err: err}
+		return
+	}
+	if err := manager.pruneFinished(state, true); err != nil {
+		call.response <- submitResponse{err: fmt.Errorf("prune finished fix jobs: %w", err)}
 		return
 	}
 	retained := 0
@@ -210,12 +215,7 @@ func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
 		}
 	}
 	if retained >= manager.options.MaxRetainedJobs {
-		call.response <- submitResponse{err: fmt.Errorf("fix retained-job limit %d reached; discard or clean up a retained job", manager.options.MaxRetainedJobs)}
-		return
-	}
-	draft := call.request.Draft
-	if err := validateDraft(draft); err != nil {
-		call.response <- submitResponse{err: err}
+		call.response <- submitResponse{err: fmt.Errorf("fix job retention limit %d reached while every retained job is still active or owns a worktree", manager.options.MaxRetainedJobs)}
 		return
 	}
 	for _, target := range draft.Targets {
@@ -236,7 +236,7 @@ func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
 		ProfileLabel: draft.Profile.Label, ProfileID: string(draft.Profile.ID), ModelLabel: string(draft.Model), EffortLabel: string(draft.Effort),
 		Goal: goalLabel(draft), Targets: baselineTargets(draft.Baseline.Contract), CurrentAction: "Waiting for an agent slot",
 		AttemptOrdinal: 1,
-		CreatedAt:      now, UpdatedAt: now, Compliance: fix.ComplianceUnknown,
+		CreatedAt:      now, UpdatedAt: now, TargetStatus: fix.ScorePending,
 		Validation: fix.ValidationNotRun, Scope: fix.ScopeUnknown, Delivery: fix.DeliveryNone,
 		DeliveryMode: draft.DeliveryMode, BranchName: draft.BranchName,
 	}
@@ -255,14 +255,21 @@ func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
 	call.response <- submitResponse{id: id}
 }
 
-func (manager *Manager) pruneDiscarded(state *controllerState) error {
+func (manager *Manager) pruneFinished(state *controllerState, reserveAdmissionSlot bool) error {
 	kept := make([]fix.JobID, 0, len(state.order))
 	removed := make(map[fix.JobID]*jobRecord)
+	needed := len(state.jobs) - manager.options.MaxRetainedJobs
+	if reserveAdmissionSlot {
+		needed++
+	}
 	for _, id := range state.order {
 		record := state.jobs[id]
-		if record != nil && record.presentation.Phase == fix.PhaseDiscarded {
+		terminal := record != nil && record.candidate == nil &&
+			(record.presentation.Phase == fix.PhaseCompleted || record.presentation.Phase == fix.PhaseCanceled || record.presentation.Phase == fix.PhaseFailed)
+		if record != nil && (record.presentation.Phase == fix.PhaseDiscarded || needed > 0 && terminal) {
 			removed[id] = record
 			delete(state.jobs, id)
+			needed--
 			continue
 		}
 		kept = append(kept, id)
@@ -286,7 +293,7 @@ func validateDraft(draft FixDraft) error {
 	if draft.ID == "" || draft.Workspace.RepositoryRoot == "" || len(draft.Targets) == 0 {
 		return errors.New("submit fix: draft is incomplete")
 	}
-	if !draft.Preflight.Clean || !draft.Preflight.Supported {
+	if !draft.Preflight.Ready || !draft.Preflight.Supported {
 		return fmt.Errorf("submit fix: workspace preflight failed: %s", draft.Preflight.Diagnostic)
 	}
 	if draft.DeliveryMode == fix.DeliveryModePullRequest && strings.TrimSpace(draft.Preferences.Delivery.BaseBranch) == "" {
@@ -376,7 +383,7 @@ func (manager *Manager) schedule(state *controllerState) {
 			cancel()
 			continue
 		}
-		go manager.runAgent(ctx, record.draft, record.retryEvidence, record.presentation.ID, attempt, *record.candidate)
+		go manager.runAgent(ctx, record.draft, record.nextAttemptNotes, record.presentation.ID, attempt, *record.candidate)
 	}
 	for state.verifiersRunning < manager.options.MaxVerifiers {
 		record := firstInPhase(state, fix.PhaseWaitingVerifier)
@@ -400,7 +407,8 @@ func (manager *Manager) schedule(state *controllerState) {
 
 func (manager *Manager) runCandidatePrepare(ctx context.Context, draft FixDraft, job fix.JobID, attempt fix.AttemptID) {
 	identity, err := manager.deps.Candidates.Prepare(ctx, candidate.PrepareRequest{Job: job, Workspace: draft.Workspace,
-		Targets: draft.Targets, AllowedScope: draft.ChangeScope, AllowedPaths: draft.AllowedPaths, CommandOutputBytes: draft.Preferences.Delivery.CommandOutputBytes})
+		Targets: draft.Targets, AllowedScope: draft.ChangeScope, AllowedPaths: draft.AllowedPaths, CommandOutputBytes: draft.Preferences.Delivery.CommandOutputBytes,
+		MaxSeedFileBytes: draft.Preferences.ValidationWorkspace.MaxFileBytes, MaxSeedTotalBytes: draft.Preferences.ValidationWorkspace.MaxTotalBytes})
 	if err != nil {
 		err = fmt.Errorf("prepare candidate: %w", err)
 	}
@@ -423,7 +431,7 @@ func firstInPhase(state *controllerState, phase fix.Phase) *jobRecord {
 	return nil
 }
 
-func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, retryEvidence string, job fix.JobID, attempt fix.AttemptID, identity fix.CandidateIdentity) {
+func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, nextAttemptNotes string, job fix.JobID, attempt fix.AttemptID, identity fix.CandidateIdentity) {
 	select {
 	case manager.events <- agentUpdate{event: agent.Event{JobID: job, AttemptID: attempt, At: manager.options.Clock(), Kind: agent.EventActivity, Summary: "Candidate ready; starting agent"}}:
 	case <-manager.done:
@@ -435,14 +443,13 @@ func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, retryEvide
 		return
 	}
 	instructions := draft.Instructions
-	instructions.RetryEvidence = retryEvidence
+	instructions.NextAttemptNotes = nextAttemptNotes
 	request := agent.Request{
 		JobID: job, AttemptID: attempt, Workspace: identity, Model: draft.Model, Effort: draft.Effort, Delegation: draft.Delegation,
 		Task: agent.RemediationTask{Targets: cloneContract(draft.Baseline.Contract).Targets, Goal: draft.Baseline.Contract.Goal,
 			Instructions: instructions, Validation: agent.ValidationContract{PlanID: draft.ValidationPlanID, Required: draft.ValidationPlanID != ""}},
-		Write: agent.WritePolicy{Allowed: append([]fix.RepoPath(nil), draft.AllowedPaths...), Scope: draft.ChangeScope},
-		Limits: agent.Limits{MaxOutputBytes: draft.Preferences.Concurrency.MaxTranscriptBytes,
-			MaxActors: draft.Preferences.Concurrency.MaxActorsPerJob},
+		Write:  agent.WritePolicy{Allowed: append([]fix.RepoPath(nil), draft.AllowedPaths...), Scope: draft.ChangeScope},
+		Limits: agent.Limits{MaxActors: draft.Preferences.Concurrency.MaxActorsPerJob},
 	}
 	result := strategy.Execute(ctx, draft.Profile, request, agent.EventSinkFunc(func(event agent.Event) error {
 		if event.JobID != job || event.AttemptID != attempt {
@@ -612,6 +619,8 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 		state.verifiersRunning--
 	case workerDiscard:
 		state.otherRunning--
+	case workerCleanup:
+		state.otherRunning--
 	case workerPublish:
 		state.otherRunning--
 	}
@@ -632,36 +641,82 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 		manager.handlePublicationResult(state, record, result)
 		return
 	}
-	if result.kind == workerDiscard {
+	if result.kind == workerCleanup {
+		if record.presentation.Phase == fix.PhaseCanceling {
+			manager.finishCancellation(state, record)
+			return
+		}
+		if errors.Is(result.err, context.Canceled) && record.presentation.Issue != nil && record.presentation.Issue.Code == "interrupted" {
+			record.presentation.Phase = fix.PhaseFailed
+			record.presentation.Attention = fix.AttentionInfo
+			record.presentation.CurrentAction = "Stopped during worktree cleanup"
+			record.presentation.Issue = &fix.JobIssue{Code: "cleanup_interrupted", Summary: "Worktree cleanup stopped during shutdown"}
+			manager.releaseReservations(state, record)
+			manager.bump(state, record, "worktree_cleanup_interrupted", nil)
+			return
+		}
+		record.presentation.Phase = fix.PhaseCompleted
+		record.presentation.FinishedAt = manager.options.Clock()
+		manager.releaseReservations(state, record)
 		if result.err == nil {
 			record.candidate = nil
-			record.diffHash, record.diffPaths, record.conflicts = "", nil, nil
+			record.diffHash, record.diffPaths = "", nil
+			record.presentation.Attention = fix.AttentionNone
+			record.presentation.CurrentAction = "Done"
+			record.presentation.Issue = nil
+			manager.bump(state, record, "worktree_removed", nil)
+			return
+		}
+		record.presentation.Attention = fix.AttentionInfo
+		record.presentation.CurrentAction = "Done; worktree cleanup failed"
+		record.presentation.Issue = &fix.JobIssue{Code: "cleanup_failed", Summary: sanitizeSummary(result.err.Error())}
+		manager.bump(state, record, "worktree_cleanup_failed", nil)
+		return
+	}
+	if record.presentation.Phase == fix.PhaseCanceling && result.kind != workerDiscard {
+		manager.finishCancellation(state, record)
+		return
+	}
+	if result.kind == workerDiscard {
+		if result.err == nil {
+			wasCanceled := record.presentation.Issue != nil && record.presentation.Issue.Code == "canceled"
+			record.candidate = nil
+			record.diffHash, record.diffPaths = "", nil
 			record.presentation.Phase = fix.PhaseDiscarded
 			record.presentation.Attention = fix.AttentionNone
 			record.presentation.CurrentAction = "Candidate discarded"
+			kind := "discarded"
+			if wasCanceled {
+				record.presentation.Phase = fix.PhaseCanceled
+				record.presentation.CurrentAction = "Canceled"
+				kind = "canceled"
+			}
 			record.presentation.FinishedAt = manager.options.Clock()
 			manager.releaseReservations(state, record)
 			manager.reconcileConflicts(state)
-			manager.bump(state, record, "discarded", nil)
+			manager.bump(state, record, kind, nil)
+			return
+		}
+		if record.presentation.Issue != nil && record.presentation.Issue.Code == "canceled" {
+			record.presentation.Phase = fix.PhaseCanceled
+			record.presentation.Attention = fix.AttentionInfo
+			record.presentation.CurrentAction = "Canceled; cleanup can be retried"
+			record.presentation.Issue = &fix.JobIssue{Code: "cancel_cleanup", Summary: sanitizeSummary(result.err.Error())}
+			record.presentation.FinishedAt = manager.options.Clock()
+			manager.releaseReservations(state, record)
+			manager.reconcileConflicts(state)
+			manager.bump(state, record, "cancel_cleanup_failed", nil)
 			return
 		}
 		if errors.Is(result.err, context.Canceled) {
-			record.presentation.Phase = fix.PhaseAwaitingAction
-			record.presentation.Attention = fix.AttentionRequired
+			record.presentation.Phase = fix.PhaseFailed
+			record.presentation.Attention = fix.AttentionError
 			record.presentation.CurrentAction = "Discard interrupted; candidate state will be reconciled"
 			record.presentation.Issue = &fix.JobIssue{Code: "discard_interrupted", Summary: "Candidate discard was interrupted"}
 			manager.bump(state, record, "discard_interrupted", nil)
 			return
 		}
 		manager.failRecord(state, record, "discard_failed", result.err)
-		return
-	}
-	if record.presentation.Phase == fix.PhaseCanceling {
-		record.presentation.Phase = fix.PhaseAwaitingAction
-		record.presentation.Attention = fix.AttentionRequired
-		record.presentation.CurrentAction = "Canceled; candidate retained for review"
-		record.presentation.Issue = &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}
-		manager.bump(state, record, "canceled", nil)
 		return
 	}
 	if result.err != nil {
@@ -684,8 +739,79 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 	case workerVerifier:
 		manager.applyVerification(record, result)
 		manager.reconcileConflicts(state)
-		manager.bump(state, record, "verification_completed", nil)
+		if record.presentation.Scope == fix.ScopeViolated {
+			manager.failRecord(state, record, "scope_violated", errors.New("agent changed files outside the allowed scope"))
+			return
+		}
+		if record.presentation.TargetStatus != fix.TargetMet || record.presentation.Validation == fix.ValidationFailed {
+			record.presentation.AttemptOrdinal++
+			record.presentation.Phase = fix.PhaseQueued
+			record.presentation.Attention = fix.AttentionNone
+			record.presentation.CurrentAction = "Continuing refactor toward the target"
+			record.presentation.Issue = nil
+			record.presentation.TargetStatus = fix.ScorePending
+			record.presentation.Validation = fix.ValidationNotRun
+			manager.bump(state, record, "verification_continuing", nil)
+			return
+		}
+		record.presentation.Phase = fix.PhasePublishing
+		record.presentation.Attention = fix.AttentionNone
+		record.presentation.CurrentAction = "Committing verified changes"
+		record.presentation.Issue = nil
+		if manager.bump(state, record, "verification_completed", nil) {
+			manager.startNextPublication(state, record)
+		}
 	}
+}
+
+func (manager *Manager) finishCancellation(state *controllerState, record *jobRecord) {
+	record.presentation.Issue = &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}
+	record.presentation.Attention = fix.AttentionNone
+	manager.releaseReservations(state, record)
+	if record.candidate == nil {
+		record.presentation.Phase = fix.PhaseCanceled
+		record.presentation.CurrentAction = "Canceled"
+		record.presentation.FinishedAt = manager.options.Clock()
+		manager.reconcileConflicts(state)
+		manager.bump(state, record, "canceled", nil)
+		return
+	}
+	record.presentation.Phase = fix.PhaseDiscarding
+	record.presentation.CurrentAction = "Canceling; removing isolated worktree"
+	if !manager.bump(state, record, "cancel_cleanup_started", nil) {
+		return
+	}
+	manager.startCandidateDiscard(state, record, *record.candidate)
+}
+
+func (manager *Manager) startCandidateDiscard(state *controllerState, record *jobRecord, identity fix.CandidateIdentity) {
+	if manager.deps.Candidates == nil {
+		record.presentation.Phase = fix.PhaseCanceled
+		record.presentation.Attention = fix.AttentionInfo
+		record.presentation.CurrentAction = "Canceled; isolated worktree cleanup unavailable"
+		record.presentation.FinishedAt = manager.options.Clock()
+		manager.releaseReservations(state, record)
+		manager.reconcileConflicts(state)
+		manager.bump(state, record, "cancel_cleanup_unavailable", nil)
+		return
+	}
+	state.otherRunning++
+	discardCtx, discardCancel := context.WithCancel(context.Background())
+	record.cancel = discardCancel
+	go func(job fix.JobID, attempt fix.AttemptID) {
+		err := manager.deps.Candidates.Discard(discardCtx, identity)
+		manager.results <- workerResult{kind: workerDiscard, job: job, attempt: attempt, err: err}
+	}(record.presentation.ID, record.attempt)
+}
+
+func (manager *Manager) startCandidateCleanup(state *controllerState, record *jobRecord, identity fix.CandidateIdentity) {
+	state.otherRunning++
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	record.cancel = cleanupCancel
+	go func(job fix.JobID, attempt fix.AttemptID) {
+		err := manager.deps.Candidates.Discard(cleanupCtx, identity)
+		manager.results <- workerResult{kind: workerCleanup, job: job, attempt: attempt, err: err}
+	}(record.presentation.ID, record.attempt)
 }
 
 // handleCandidatePrepared is the durable boundary between trusted candidate
@@ -696,11 +822,7 @@ func (manager *Manager) handleCandidatePrepared(state *controllerState, record *
 	if result.err != nil {
 		state.agentsRunning--
 		if record.presentation.Phase == fix.PhaseCanceling && errors.Is(result.err, context.Canceled) {
-			record.presentation.Phase = fix.PhaseAwaitingAction
-			record.presentation.Attention = fix.AttentionRequired
-			record.presentation.CurrentAction = "Canceled before candidate creation"
-			record.presentation.Issue = &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}
-			manager.bump(state, record, "canceled", nil)
+			manager.finishCancellation(state, record)
 			return
 		}
 		manager.failRecord(state, record, "candidate_prepare", result.err)
@@ -718,13 +840,18 @@ func (manager *Manager) handleCandidatePrepared(state *controllerState, record *
 		state.agentsRunning--
 		return
 	}
-	if record.presentation.Phase == fix.PhaseCanceling || state.shuttingDown {
+	if record.presentation.Phase == fix.PhaseCanceling {
 		state.agentsRunning--
-		record.presentation.Phase = fix.PhaseAwaitingAction
-		record.presentation.Attention = fix.AttentionRequired
-		record.presentation.CurrentAction = "Canceled; candidate retained for review"
-		record.presentation.Issue = &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}
-		manager.bump(state, record, "canceled", nil)
+		manager.finishCancellation(state, record)
+		return
+	}
+	if state.shuttingDown {
+		state.agentsRunning--
+		record.presentation.Phase = fix.PhaseFailed
+		record.presentation.Attention = fix.AttentionError
+		record.presentation.CurrentAction = "Interrupted during shutdown; candidate retained for recovery"
+		record.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "Job was interrupted"}
+		manager.bump(state, record, "interrupted", nil)
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -736,7 +863,7 @@ func (manager *Manager) handleCandidatePrepared(state *controllerState, record *
 		cancel()
 		return
 	}
-	go manager.runAgent(ctx, record.draft, record.retryEvidence, record.presentation.ID, record.attempt, identity)
+	go manager.runAgent(ctx, record.draft, record.nextAttemptNotes, record.presentation.ID, record.attempt, identity)
 }
 
 func workerPhaseMatches(kind workerKind, phase fix.Phase) bool {
@@ -752,6 +879,8 @@ func workerPhaseMatches(kind workerKind, phase fix.Phase) bool {
 		return phase == fix.PhaseVerifying
 	case workerDiscard:
 		return phase == fix.PhaseDiscarding
+	case workerCleanup:
+		return phase == fix.PhasePublishing
 	case workerPublish:
 		return phase == fix.PhasePublishing || phase == fix.PhaseReconciling
 	}
@@ -817,6 +946,7 @@ func (manager *Manager) applyDiffInventory(record *jobRecord, diff candidate.Dif
 
 func (manager *Manager) handlePublicationResult(state *controllerState, record *jobRecord, result workerResult) {
 	record.cancel = nil
+	record.publicationStep = ""
 	record.delivery = result.delivery
 	record.published = result.published
 	if result.delivery.Ambiguous || result.published.Ambiguous {
@@ -829,18 +959,29 @@ func (manager *Manager) handlePublicationResult(state *controllerState, record *
 		record.presentation.Delivery = fix.DeliveryCommitted
 	}
 	if record.presentation.Phase == fix.PhaseCanceling {
-		record.presentation.Phase = fix.PhaseAwaitingAction
-		record.presentation.Attention = fix.AttentionRequired
-		record.presentation.CurrentAction = "Publication canceled; known external state retained"
-		record.presentation.Issue = &fix.JobIssue{Code: "publication_canceled", Summary: "Publication canceled and can be reconciled"}
-		manager.bump(state, record, "publication_canceled", publicationPayload(record, result.step))
+		if result.delivery.Ambiguous || result.published.Ambiguous {
+			record.presentation.Phase = fix.PhaseReconciling
+			record.presentation.Attention = fix.AttentionNone
+			record.presentation.CurrentAction = "Checking canceled delivery"
+			record.presentation.Issue = &fix.JobIssue{Code: "publication_canceled", Summary: "Cancellation stopped publication after an external change may have occurred"}
+			if manager.bump(state, record, "publication_canceled", publicationPayload(record, result.step)) {
+				manager.startNextPublication(state, record)
+			}
+			return
+		}
+		// Persist every known local and remote side effect before the isolated
+		// workspace is eligible for cleanup.
+		if !manager.bump(state, record, "publication_canceled", publicationPayload(record, result.step)) {
+			return
+		}
+		manager.finishCancellation(state, record)
 		return
 	}
 	if result.err != nil {
 		if result.delivery.Ambiguous || result.published.Ambiguous {
 			record.presentation.Attention = fix.AttentionBlocking
 			record.presentation.Issue = &fix.JobIssue{Code: "publication_ambiguous", Summary: "Publication state is ambiguous", Detail: result.err.Error()}
-			record.presentation.Phase = fix.PhaseAwaitingAction
+			record.presentation.Phase = fix.PhaseFailed
 			record.presentation.CurrentAction = "Publication requires reconciliation"
 			manager.bump(state, record, "publication_ambiguous", publicationPayload(record, result.step))
 			return
@@ -862,7 +1003,7 @@ func publicationPayload(record *jobRecord, step publicationStep) json.RawMessage
 
 func (manager *Manager) applyVerification(record *jobRecord, result workerResult) {
 	manager.applyDiffInventory(record, result.diff)
-	if result.diff.Scope == fix.ScopeViolated || result.diff.Scope == fix.ScopeConflicted {
+	if result.diff.Scope == fix.ScopeViolated {
 		record.presentation.Attention = fix.AttentionBlocking
 	}
 	for index := range record.presentation.Targets {
@@ -876,11 +1017,11 @@ func (manager *Manager) applyVerification(record *jobRecord, result workerResult
 			record.presentation.Targets[index].VerifiedMetrics = metricValues(verified.Metrics)
 		}
 	}
-	if result.verify.Complete && result.verify.Compliant && result.verify.Stable() {
-		record.presentation.Compliance = fix.ComplianceCompliant
+	if result.verify.Complete && result.verify.TargetMet && result.verify.Stable() {
+		record.presentation.TargetStatus = fix.TargetMet
 	} else {
-		record.presentation.Compliance = fix.ComplianceNoncompliant
-		record.presentation.Attention = fix.AttentionRequired
+		record.presentation.TargetStatus = fix.TargetNotMet
+		record.presentation.Attention = fix.AttentionError
 	}
 	if record.draft.ValidationPlanID == "" {
 		record.presentation.Validation = fix.ValidationNotConfigured
@@ -888,22 +1029,20 @@ func (manager *Manager) applyVerification(record *jobRecord, result workerResult
 		record.presentation.Validation = fix.ValidationPassed
 	} else {
 		record.presentation.Validation = fix.ValidationFailed
-		record.presentation.Attention = fix.AttentionRequired
+		record.presentation.Attention = fix.AttentionError
 	}
-	record.presentation.Phase = fix.PhaseAwaitingReview
-	record.presentation.CurrentAction = "Candidate ready for review"
-	if record.presentation.Compliance == fix.ComplianceNoncompliant || record.presentation.Validation == fix.ValidationFailed {
-		record.retryEvidence = verificationRetryEvidence(record, result)
+	if record.presentation.TargetStatus == fix.TargetNotMet || record.presentation.Validation == fix.ValidationFailed {
+		record.nextAttemptNotes = nextAttemptNotes(record, result)
 	} else {
-		record.retryEvidence = ""
+		record.nextAttemptNotes = ""
 	}
 }
 
-func verificationRetryEvidence(record *jobRecord, result workerResult) string {
+func nextAttemptNotes(record *jobRecord, result workerResult) string {
 	parts := []string{fmt.Sprintf("attempt %d", record.presentation.AttemptOrdinal)}
 	diagnostics := make([]string, 0, 2)
-	if record.presentation.Compliance == fix.ComplianceNoncompliant {
-		parts = append(parts, "scoring noncompliant")
+	if record.presentation.TargetStatus == fix.TargetNotMet {
+		parts = append(parts, "target score not met")
 		if diagnostic := boundedRetryDiagnostic(result.verify.Diagnostic); diagnostic != "" {
 			diagnostics = append(diagnostics, diagnostic)
 		}
@@ -914,13 +1053,54 @@ func verificationRetryEvidence(record *jobRecord, result workerResult) string {
 			diagnostics = append(diagnostics, diagnostic)
 		}
 	}
-	for _, target := range record.presentation.Targets {
-		if target.VerifiedScore != nil && *target.VerifiedScore > record.draft.TargetScore {
-			parts = append(parts, fmt.Sprintf("%s score %.1f exceeds target %.1f", target.Path, *target.VerifiedScore, record.draft.TargetScore))
+	for _, verified := range result.verify.Files {
+		measurements := []string{fmt.Sprintf("SCORE %.1f/%.1f", verified.Score, record.draft.TargetScore)}
+		seen := map[fix.MetricID]bool{}
+		for _, focus := range record.draft.Focus {
+			if metric, ok := verified.Metrics[focus.Metric]; ok {
+				measurements = append(measurements, fmt.Sprintf("%s %.1f/%.1f", metricLabel(metric, focus.Metric), metric.Value, focus.Maximum))
+				seen[focus.Metric] = true
+			}
 		}
+		regressionIDs := make([]fix.MetricID, 0, len(record.draft.Baseline.Contract.Goal.AllowedRegression))
+		for metric := range record.draft.Baseline.Contract.Goal.AllowedRegression {
+			if !seen[metric] {
+				regressionIDs = append(regressionIDs, metric)
+			}
+		}
+		sort.Slice(regressionIDs, func(i, j int) bool { return regressionIDs[i] < regressionIDs[j] })
+		for _, id := range regressionIDs {
+			metric, ok := verified.Metrics[id]
+			if !ok {
+				continue
+			}
+			limit := regressionLimit(record.draft.Baseline.Contract, verified.Path, id)
+			measurements = append(measurements, fmt.Sprintf("%s %.1f/%.1f", metricLabel(metric, id), metric.Value, limit))
+		}
+		line := fmt.Sprintf("%s: %s", verified.Path, strings.Join(measurements, ", "))
+		if diagnostic := boundedRetryDiagnostic(verified.Diagnostic); diagnostic != "" {
+			line += " (" + diagnostic + ")"
+		}
+		parts = append(parts, line)
 	}
 	parts = append(parts, diagnostics...)
 	return sanitizeSummary(strings.Join(parts, "; "))
+}
+
+func metricLabel(metric fix.MetricValue, id fix.MetricID) string {
+	if strings.TrimSpace(metric.Label) != "" {
+		return metric.Label
+	}
+	return string(id)
+}
+
+func regressionLimit(contract fix.ScoringContract, path fix.RepoPath, metric fix.MetricID) float64 {
+	for _, target := range contract.Targets {
+		if target.Path == path {
+			return target.Metrics[metric].Value + contract.Goal.AllowedRegression[metric]
+		}
+	}
+	return contract.Goal.AllowedRegression[metric]
 }
 
 func boundedRetryDiagnostic(value string) string {
@@ -1108,28 +1288,6 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 		call.response <- commandResponse{err: ErrStaleRevision}
 		return
 	}
-	if candidateSensitiveAction(call.command.Action) && record.candidate != nil {
-		diff, err := manager.deps.Candidates.Diff(call.ctx, *record.candidate)
-		if err != nil {
-			call.response <- commandResponse{err: fmt.Errorf("refresh candidate inventory: %w", err)}
-			return
-		}
-		if call.command.DiffHash == "" || call.command.DiffHash != diff.Fingerprint || record.diffHash != diff.Fingerprint {
-			manager.applyDiffInventory(record, diff)
-			clearVerifiedPresentation(record)
-			record.presentation.Compliance = fix.ComplianceUnknown
-			record.presentation.Validation = fix.ValidationNotRun
-			record.presentation.Phase = fix.PhaseWaitingVerifier
-			record.presentation.Attention = fix.AttentionRequired
-			record.presentation.CurrentAction = "Candidate changed after review; waiting for fresh verification"
-			record.presentation.Issue = &fix.JobIssue{Code: "candidate_changed", Summary: "Candidate changed after verification", Detail: "Review and validation results were invalidated"}
-			manager.reconcileConflicts(state)
-			manager.bump(state, record, "candidate_changed_before_command", mustJSON(map[string]any{"action": call.command.Action, "fingerprint": diff.Fingerprint}))
-			call.response <- commandResponse{err: ErrStaleCandidate}
-			return
-		}
-		manager.applyDiffInventory(record, diff)
-	}
 	if !hasAction(record.presentation.AllowedActions, call.command.Action) {
 		call.response <- commandResponse{err: ErrActionNotAllowed}
 		return
@@ -1139,132 +1297,59 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 		return
 	}
 	previousPresentation := clonePresentation(record.presentation)
-	previousDiffHash, previousBaseScope := record.diffHash, record.baseScope
-	previousAcknowledged := cloneAcknowledgements(record.acknowledged)
-	previousConflicts := cloneAcknowledgements(record.conflicts)
-	previousDiffPaths := make(map[fix.RepoPath]bool, len(record.diffPaths))
-	for path := range record.diffPaths {
-		previousDiffPaths[path] = true
-	}
+	previousCanceled := record.canceled
 	var cancelWorker context.CancelFunc
 	var discardIdentity *fix.CandidateIdentity
-	startPublication := false
-	releaseTargets := false
+	reconcileCanceled := false
 	switch call.command.Action {
 	case fix.ActionCancel:
-		record.presentation.Phase = fix.PhaseCanceling
-		record.presentation.CurrentAction = "Canceling"
+		record.canceled = true
+		record.presentation.Issue = &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}
 		if record.cancel != nil {
+			record.presentation.Phase = fix.PhaseCanceling
+			record.presentation.CurrentAction = "Canceling"
 			cancelWorker = record.cancel
-		} else {
-			record.presentation.Phase = fix.PhaseAwaitingAction
-			record.presentation.Attention = fix.AttentionRequired
-			record.presentation.Issue = &fix.JobIssue{Code: "canceled", Summary: "Job canceled before execution"}
-		}
-	case fix.ActionRetry, fix.ActionResume:
-		if record.delivery.Commit != "" {
-			record.presentation.Phase = fix.PhasePublishing
-			record.presentation.CurrentAction = "Resuming publication from journaled state"
-			startPublication = true
-		} else {
-			if call.command.Action == fix.ActionRetry {
-				record.presentation.AttemptOrdinal++
-			}
-			record.presentation.Phase = fix.PhaseQueued
-			record.presentation.CurrentAction = "Waiting for an agent slot"
-			record.presentation.Compliance = fix.ComplianceUnknown
-			record.presentation.Validation = fix.ValidationNotRun
-			record.presentation.Scope = fix.ScopeUnknown
-			record.diffHash = ""
-			record.presentation.DiffFingerprint = ""
-			record.diffPaths = nil
-			record.baseScope = fix.ScopeUnknown
-			for index := range record.presentation.Targets {
-				record.presentation.Targets[index].VerifiedScore = nil
-				record.presentation.Targets[index].VerifiedMetrics = nil
-				record.presentation.Targets[index].Verification = ""
-			}
-		}
-		record.presentation.Attention = fix.AttentionNone
-		record.presentation.Issue = nil
-	case fix.ActionKeep:
-		record.presentation.Phase = fix.PhaseCompleted
-		record.presentation.CurrentAction = "Candidate retained"
-		record.presentation.FinishedAt = manager.options.Clock()
-		releaseTargets = true
-	case fix.ActionArchive:
-		record.presentation.Phase = fix.PhaseArchived
-		record.presentation.CurrentAction = "Archived"
-		releaseTargets = true
-	case fix.ActionDiscard, fix.ActionCleanup:
-		if record.candidate == nil {
-			record.presentation.Phase = fix.PhaseDiscarded
-			record.presentation.CurrentAction = "No candidate to discard"
-			releaseTargets = true
-		} else {
+		} else if record.delivery.Ambiguous || record.published.Ambiguous {
+			record.presentation.Phase = fix.PhaseReconciling
+			record.presentation.CurrentAction = "Checking canceled delivery"
+			reconcileCanceled = true
+		} else if record.candidate != nil {
 			record.presentation.Phase = fix.PhaseDiscarding
-			record.presentation.CurrentAction = "Discarding candidate"
+			record.presentation.CurrentAction = "Canceling; removing isolated worktree"
 			identity := *record.candidate
 			discardIdentity = &identity
+		} else {
+			record.presentation.Phase = fix.PhaseCanceled
+			record.presentation.Attention = fix.AttentionNone
+			record.presentation.CurrentAction = "Canceled"
+			record.presentation.FinishedAt = manager.options.Clock()
 		}
-	case fix.ActionPublish:
-		record.presentation.Phase = fix.PhasePublishing
-		record.presentation.CurrentAction = "Starting journaled publication"
-		startPublication = true
-	case fix.ActionAcknowledgeConflict:
-		if record.acknowledged == nil {
-			record.acknowledged = map[fix.JobID]string{}
-		}
-		for other, fingerprintPair := range record.conflicts {
-			record.acknowledged[other] = fingerprintPair
-		}
-		record.presentation.Attention = fix.AttentionInfo
-		record.presentation.CurrentAction = "Current overlapping candidate manifests acknowledged"
 	}
 	record.presentation.Revision++
 	record.presentation.UpdatedAt = manager.options.Clock()
 	manager.refreshActions(record)
 	if err := manager.appendRecord(call.ctx, record, "command_applied", mustJSON(call.command)); err != nil {
 		record.presentation = previousPresentation
-		record.diffHash, record.baseScope, record.diffPaths = previousDiffHash, previousBaseScope, previousDiffPaths
-		record.acknowledged = previousAcknowledged
-		record.conflicts = previousConflicts
+		record.canceled = previousCanceled
 		manager.changed(state)
 		call.response <- commandResponse{err: fmt.Errorf("persist applied job command: %w", err)}
 		return
 	}
 	receipt := CommandReceipt{RequestID: call.command.RequestID, JobID: call.command.JobID, Accepted: true, Revision: record.presentation.Revision}
 	record.commands[call.command.RequestID] = receipt
-	if releaseTargets {
-		manager.releaseReservations(state, record)
-		manager.reconcileConflicts(state)
-	}
+	manager.releaseReservations(state, record)
+	manager.reconcileConflicts(state)
 	manager.changed(state)
 	if cancelWorker != nil {
 		cancelWorker()
 	}
 	if discardIdentity != nil {
-		state.otherRunning++
-		identity := *discardIdentity
-		discardCtx, discardCancel := context.WithCancel(context.Background())
-		record.cancel = discardCancel
-		go func(job fix.JobID, attempt fix.AttemptID) {
-			err := manager.deps.Candidates.Discard(discardCtx, identity)
-			manager.results <- workerResult{kind: workerDiscard, job: job, attempt: attempt, err: err}
-		}(record.presentation.ID, record.attempt)
+		manager.startCandidateDiscard(state, record, *discardIdentity)
 	}
-	if startPublication {
+	if reconcileCanceled {
 		manager.startNextPublication(state, record)
 	}
 	call.response <- commandResponse{receipt: receipt}
-}
-
-func clearVerifiedPresentation(record *jobRecord) {
-	for index := range record.presentation.Targets {
-		record.presentation.Targets[index].VerifiedScore = nil
-		record.presentation.Targets[index].VerifiedMetrics = nil
-		record.presentation.Targets[index].Verification = ""
-	}
 }
 
 func (manager *Manager) handleShutdown(state *controllerState, call shutdownCall) {
@@ -1275,12 +1360,15 @@ func (manager *Manager) handleShutdown(state *controllerState, call shutdownCall
 	state.shuttingDown = true
 	for _, record := range state.jobs {
 		if record.cancel != nil {
-			record.presentation.Phase = fix.PhaseCanceling
-			record.presentation.CurrentAction = "Canceling for shutdown"
+			// Shutdown interrupts work; it is not a user cancellation. Keep the
+			// current phase so the returned worker result is journaled normally and
+			// any candidate or publication state remains recoverable on restart.
+			record.presentation.CurrentAction = "Stopping for shutdown"
+			record.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "Job was interrupted by shutdown"}
 			record.cancel()
 		} else if record.presentation.Phase == fix.PhaseQueued || record.presentation.Phase == fix.PhaseWaitingVerifier {
-			record.presentation.Phase = fix.PhaseAwaitingAction
-			record.presentation.Attention = fix.AttentionRequired
+			record.presentation.Phase = fix.PhaseFailed
+			record.presentation.Attention = fix.AttentionError
 			record.presentation.CurrentAction = "Stopped before shutdown"
 		}
 	}
@@ -1292,51 +1380,77 @@ func (manager *Manager) startNextPublication(state *controllerState, record *job
 		manager.failRecord(state, record, "publication_unavailable", errors.New("publication service or candidate is unavailable"))
 		return
 	}
-	if policy := record.draft.Preferences.Delivery.CommitPolicy; policy != "" && policy != "on-publish" {
+	if policy := record.draft.Preferences.Delivery.CommitPolicy; policy != "" && policy != "automatic" {
 		manager.failRecord(state, record, "publication_policy", fmt.Errorf("unsupported commit policy %q", policy))
 		return
 	}
-	if policy := record.draft.Preferences.Delivery.CleanupPolicy; policy != "" && policy != "retain" {
+	if policy := record.draft.Preferences.Delivery.CleanupPolicy; policy != "" && policy != "remove-worktree" {
 		manager.failRecord(state, record, "publication_policy", fmt.Errorf("unsupported cleanup policy %q", policy))
 		return
 	}
 	var step publicationStep
-	switch {
-	case record.delivery.Ambiguous:
-		step = publicationReconcile
-		record.presentation.Phase = fix.PhaseReconciling
-		record.presentation.CurrentAction = "Reconciling exact remote ref"
-	case record.delivery.Commit == "":
-		step = publicationCommit
-		record.presentation.Phase = fix.PhasePublishing
-		record.presentation.CurrentAction = "Creating candidate commit"
-	case record.delivery.LocalRef == "":
-		step = publicationLocalRef
-		record.presentation.Phase = fix.PhasePublishing
-		record.presentation.CurrentAction = "Creating absent local branch"
-	case !record.delivery.Pushed:
-		step = publicationRemoteRef
-		record.presentation.Phase = fix.PhasePublishing
-		record.presentation.CurrentAction = "Creating and verifying absent remote branch"
-	case record.draft.DeliveryMode == fix.DeliveryModePullRequest && record.published.Ambiguous:
-		step = publicationPRReconcile
-		record.presentation.Phase = fix.PhaseReconciling
-		record.presentation.CurrentAction = "Reconciling exact pull request identity"
-	case record.draft.DeliveryMode == fix.DeliveryModePullRequest && record.published.URL == "":
-		step = publicationPullRequest
-		record.presentation.Phase = fix.PhasePublishing
-		record.presentation.CurrentAction = "Creating or reconciling draft pull request"
-	default:
-		record.presentation.Phase = fix.PhaseCompleted
-		record.presentation.Attention = fix.AttentionNone
-		record.presentation.CurrentAction = "Publication completed"
-		record.presentation.FinishedAt = manager.options.Clock()
-		manager.releaseReservations(state, record)
-		manager.bump(state, record, "publication_completed", publicationPayload(record, step))
-		return
+	if record.canceled {
+		switch {
+		case record.delivery.Ambiguous:
+			step = publicationReconcile
+			record.presentation.Phase = fix.PhaseReconciling
+			record.presentation.CurrentAction = "Checking canceled branch delivery"
+		case record.published.Ambiguous:
+			step = publicationPRReconcile
+			record.presentation.Phase = fix.PhaseReconciling
+			record.presentation.CurrentAction = "Checking canceled pull request delivery"
+		default:
+			manager.finishCancellation(state, record)
+			return
+		}
+	} else {
+		switch {
+		case record.delivery.Ambiguous:
+			step = publicationReconcile
+			record.presentation.Phase = fix.PhaseReconciling
+			record.presentation.CurrentAction = "Reconciling exact remote ref"
+		case record.delivery.Commit == "":
+			step = publicationCommit
+			record.presentation.Phase = fix.PhasePublishing
+			record.presentation.CurrentAction = "Creating candidate commit"
+		case record.delivery.LocalRef == "":
+			step = publicationLocalRef
+			record.presentation.Phase = fix.PhasePublishing
+			record.presentation.CurrentAction = "Creating absent local branch"
+		case !record.delivery.Pushed:
+			step = publicationRemoteRef
+			record.presentation.Phase = fix.PhasePublishing
+			record.presentation.CurrentAction = "Creating and verifying absent remote branch"
+		case record.draft.DeliveryMode == fix.DeliveryModePullRequest && record.published.Ambiguous:
+			step = publicationPRReconcile
+			record.presentation.Phase = fix.PhaseReconciling
+			record.presentation.CurrentAction = "Reconciling exact pull request identity"
+		case record.draft.DeliveryMode == fix.DeliveryModePullRequest && record.published.URL == "":
+			step = publicationPullRequest
+			record.presentation.Phase = fix.PhasePublishing
+			record.presentation.CurrentAction = "Creating or reconciling draft pull request"
+		default:
+			if manager.deps.Candidates == nil {
+				record.presentation.Phase = fix.PhaseCompleted
+				record.presentation.Attention = fix.AttentionNone
+				record.presentation.CurrentAction = "Done"
+				record.presentation.FinishedAt = manager.options.Clock()
+				manager.releaseReservations(state, record)
+				manager.bump(state, record, "delivery_completed", publicationPayload(record, step))
+				return
+			}
+			record.presentation.Phase = fix.PhasePublishing
+			record.presentation.Attention = fix.AttentionNone
+			record.presentation.CurrentAction = "Removing worktree"
+			if manager.bump(state, record, "delivery_completed", publicationPayload(record, step)) {
+				manager.startCandidateCleanup(state, record, *record.candidate)
+			}
+			return
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	record.cancel = cancel
+	record.publicationStep = step
 	state.otherRunning++
 	if !manager.bump(state, record, "publication_step_started", mustJSON(map[string]any{"step": step})) {
 		state.otherRunning--
@@ -1351,10 +1465,11 @@ func (manager *Manager) startNextPublication(state *controllerState, record *job
 }
 
 func (manager *Manager) failRecord(state *controllerState, record *jobRecord, code string, err error) {
-	record.presentation.Phase = fix.PhaseAwaitingAction
-	record.presentation.Attention = fix.AttentionRequired
-	record.presentation.CurrentAction = "Action required"
+	record.presentation.Phase = fix.PhaseFailed
+	record.presentation.Attention = fix.AttentionError
+	record.presentation.CurrentAction = "Failed"
 	record.presentation.Issue = &fix.JobIssue{Code: code, Summary: sanitizeSummary(err.Error())}
+	manager.releaseReservations(state, record)
 	manager.bump(state, record, code, mustJSON(map[string]string{"error": sanitizeSummary(err.Error())}))
 }
 
@@ -1366,7 +1481,7 @@ func (manager *Manager) bump(state *controllerState, record *jobRecord, kind str
 		if record.cancel != nil {
 			record.cancel()
 		}
-		record.presentation.Phase = fix.PhaseAwaitingAction
+		record.presentation.Phase = fix.PhaseFailed
 		record.presentation.Attention = fix.AttentionBlocking
 		record.presentation.Issue = &fix.JobIssue{Code: "journal_failed", Summary: "Job journal failed", Detail: err.Error()}
 		manager.changed(state)
@@ -1393,7 +1508,7 @@ func (manager *Manager) changed(state *controllerState) {
 					record.cancel()
 				}
 				if !isQuiescent(record.presentation.Phase) {
-					record.presentation.Phase = fix.PhaseAwaitingAction
+					record.presentation.Phase = fix.PhaseFailed
 					record.presentation.Attention = fix.AttentionBlocking
 					record.presentation.CurrentAction = "Paused because durable checkpoint failed"
 					record.presentation.Issue = &fix.JobIssue{Code: "journal_failed", Summary: "Job journal checkpoint failed", Detail: sanitizeSummary(err.Error())}
@@ -1448,8 +1563,8 @@ func (manager *Manager) journalEnvelope(record *jobRecord, kind string, data jso
 	sort.Slice(diffPaths, func(i, j int) bool { return diffPaths[i] < diffPaths[j] })
 	envelope := journalEnvelope{Payload: data, Presentation: clonePresentation(record.presentation), Draft: cloneSubmit(SubmitRequest{Draft: record.draft}).Draft,
 		Candidate: record.candidate, DiffHash: record.diffHash, DiffPaths: diffPaths, BaseScope: record.baseScope,
-		Acknowledged: cloneAcknowledgements(record.acknowledged), Delivery: record.delivery, Published: record.published,
-		Attempt: record.attempt, RetryEvidence: record.retryEvidence, Commands: cloneReceipts(record.commands)}
+		Delivery: record.delivery, Published: record.published, Canceled: record.canceled,
+		PublicationStep: record.publicationStep, Attempt: record.attempt, NextAttemptNotes: record.nextAttemptNotes, Commands: cloneReceipts(record.commands)}
 	if kind != "agent_event" {
 		envelope.Transcript = &transcriptCheckpoint{Entries: append([]LogEntry(nil), record.logs...), Truncated: record.truncated}
 	}
@@ -1479,20 +1594,21 @@ func (manager *Manager) compact(state *controllerState) error {
 }
 
 type journalEnvelope struct {
-	Payload       json.RawMessage                  `json:"payload,omitempty"`
-	Presentation  fix.JobPresentation              `json:"presentation"`
-	Draft         FixDraft                         `json:"draft"`
-	Candidate     *fix.CandidateIdentity           `json:"candidate,omitempty"`
-	DiffHash      string                           `json:"diff_hash,omitempty"`
-	DiffPaths     []fix.RepoPath                   `json:"diff_paths,omitempty"`
-	BaseScope     fix.ScopeState                   `json:"base_scope,omitempty"`
-	Acknowledged  map[fix.JobID]string             `json:"acknowledged,omitempty"`
-	Delivery      delivery.Result                  `json:"delivery,omitempty"`
-	Published     publisher.Result                 `json:"published,omitempty"`
-	Attempt       fix.AttemptID                    `json:"attempt,omitempty"`
-	RetryEvidence string                           `json:"retry_evidence,omitempty"`
-	Commands      map[fix.CommandID]CommandReceipt `json:"commands,omitempty"`
-	Transcript    *transcriptCheckpoint            `json:"transcript,omitempty"`
+	Payload          json.RawMessage                  `json:"payload,omitempty"`
+	Presentation     fix.JobPresentation              `json:"presentation"`
+	Draft            FixDraft                         `json:"draft"`
+	Candidate        *fix.CandidateIdentity           `json:"candidate,omitempty"`
+	DiffHash         string                           `json:"diff_hash,omitempty"`
+	DiffPaths        []fix.RepoPath                   `json:"diff_paths,omitempty"`
+	BaseScope        fix.ScopeState                   `json:"base_scope,omitempty"`
+	Delivery         delivery.Result                  `json:"delivery,omitempty"`
+	Published        publisher.Result                 `json:"published,omitempty"`
+	Canceled         bool                             `json:"canceled,omitempty"`
+	PublicationStep  publicationStep                  `json:"publication_step,omitempty"`
+	Attempt          fix.AttemptID                    `json:"attempt,omitempty"`
+	NextAttemptNotes string                           `json:"next_attempt_notes,omitempty"`
+	Commands         map[fix.CommandID]CommandReceipt `json:"commands,omitempty"`
+	Transcript       *transcriptCheckpoint            `json:"transcript,omitempty"`
 }
 
 type transcriptCheckpoint struct {
@@ -1512,6 +1628,7 @@ func cloneReceipts(source map[fix.CommandID]CommandReceipt) map[fix.CommandID]Co
 }
 
 func (manager *Manager) restore(state *controllerState) {
+	var resumeDelivery []*jobRecord
 	for _, stored := range manager.initial {
 		var envelope journalEnvelope
 		if json.Unmarshal(stored.Data, &envelope) != nil || envelope.Presentation.ID == "" {
@@ -1526,7 +1643,7 @@ func (manager *Manager) restore(state *controllerState) {
 		record.presentation = clonePresentation(envelope.Presentation)
 		record.draft = cloneSubmit(SubmitRequest{Draft: envelope.Draft}).Draft
 		record.attempt = envelope.Attempt
-		record.retryEvidence = envelope.RetryEvidence
+		record.nextAttemptNotes = envelope.NextAttemptNotes
 		if record.presentation.AttemptOrdinal <= 0 {
 			record.presentation.AttemptOrdinal = 1
 		}
@@ -1540,12 +1657,10 @@ func (manager *Manager) restore(state *controllerState) {
 		for _, path := range envelope.DiffPaths {
 			record.diffPaths[path] = true
 		}
-		record.acknowledged = make(map[fix.JobID]string, len(envelope.Acknowledged))
-		for other, pair := range envelope.Acknowledged {
-			record.acknowledged[other] = pair
-		}
 		record.delivery = envelope.Delivery
 		record.published = envelope.Published
+		record.canceled = envelope.Canceled
+		record.publicationStep = envelope.PublicationStep
 		if envelope.Commands != nil {
 			record.commands = cloneReceipts(envelope.Commands)
 		}
@@ -1573,27 +1688,116 @@ func (manager *Manager) restore(state *controllerState) {
 		}
 	}
 	for _, record := range state.jobs {
+		resumeAfterRestart := record.presentation.Phase == fix.PhasePublishing ||
+			record.presentation.Phase == fix.PhaseReconciling ||
+			(record.presentation.Phase == fix.PhaseFailed && (record.delivery.Ambiguous || record.published.Ambiguous))
+		cancelRecovery := record.presentation.Issue != nil &&
+			(record.presentation.Issue.Code == "canceled" &&
+				(record.presentation.Phase == fix.PhaseCanceling || record.presentation.Phase == fix.PhaseDiscarding) ||
+				record.presentation.Issue.Code == "cancel_cleanup" && record.presentation.Phase == fix.PhaseCanceled)
+		if record.canceled {
+			switch record.publicationStep {
+			case publicationLocalRef, publicationRemoteRef, publicationReconcile:
+				record.delivery.Ambiguous = true
+				resumeAfterRestart = true
+				cancelRecovery = false
+			case publicationPullRequest, publicationPRReconcile:
+				record.published.Ambiguous = true
+				resumeAfterRestart = true
+				cancelRecovery = false
+			}
+		}
 		if record.candidate == nil && record.presentation.Phase != fix.PhaseDiscarded {
 			request := candidate.PrepareRequest{Job: record.presentation.ID, Workspace: record.draft.Workspace, Targets: record.draft.Targets,
-				AllowedScope: record.draft.ChangeScope, AllowedPaths: record.draft.AllowedPaths, CommandOutputBytes: record.draft.Preferences.Delivery.CommandOutputBytes}
+				AllowedScope: record.draft.ChangeScope, AllowedPaths: record.draft.AllowedPaths, CommandOutputBytes: record.draft.Preferences.Delivery.CommandOutputBytes,
+				MaxSeedFileBytes: record.draft.Preferences.ValidationWorkspace.MaxFileBytes, MaxSeedTotalBytes: record.draft.Preferences.ValidationWorkspace.MaxTotalBytes}
 			identity, found, err := manager.deps.Candidates.DiscoverPrepared(context.Background(), request)
 			if err != nil {
-				record.presentation.Phase = fix.PhaseAwaitingAction
-				record.presentation.Attention = fix.AttentionBlocking
-				record.presentation.CurrentAction = "Prepared candidate discovery failed"
-				record.presentation.Issue = &fix.JobIssue{Code: "candidate_discovery", Summary: sanitizeSummary(err.Error())}
+				if cancelRecovery {
+					record.presentation.Attention = fix.AttentionInfo
+					record.presentation.CurrentAction = "Canceled; isolated worktree cleanup could not be checked"
+					record.presentation.Issue = &fix.JobIssue{Code: "cancel_cleanup", Summary: sanitizeSummary(err.Error())}
+				} else {
+					record.presentation.Phase = fix.PhaseFailed
+					record.presentation.Attention = fix.AttentionBlocking
+					record.presentation.CurrentAction = "Prepared candidate discovery failed"
+					record.presentation.Issue = &fix.JobIssue{Code: "candidate_discovery", Summary: sanitizeSummary(err.Error())}
+				}
 			} else if found {
 				record.candidate = &identity
 				record.presentation.Revision++
 				record.presentation.UpdatedAt = manager.options.Clock()
 				if err := manager.appendRecord(context.Background(), record, "candidate_prepared_recovered", nil); err != nil {
 					manager.journalFailed = true
-					record.presentation.Phase = fix.PhaseAwaitingAction
+					record.presentation.Phase = fix.PhaseFailed
 					record.presentation.Attention = fix.AttentionBlocking
 					record.presentation.CurrentAction = "Recovered candidate could not be journaled"
 					record.presentation.Issue = &fix.JobIssue{Code: "journal_failed", Summary: "Candidate recovery was not durably recorded", Detail: sanitizeSummary(err.Error())}
 				}
 			}
+		}
+		if cancelRecovery {
+			record.presentation.Phase = fix.PhaseCanceled
+			record.presentation.Attention = fix.AttentionNone
+			record.presentation.CurrentAction = "Canceled"
+			if record.candidate != nil {
+				if err := manager.deps.Candidates.ReconcileDiscard(context.Background(), *record.candidate); err == nil {
+					record.candidate = nil
+					record.diffHash, record.diffPaths = "", nil
+				} else {
+					record.presentation.Attention = fix.AttentionInfo
+					record.presentation.CurrentAction = "Canceled; isolated worktree cleanup will retry on startup"
+					record.presentation.Issue = &fix.JobIssue{Code: "cancel_cleanup", Summary: sanitizeSummary(err.Error())}
+				}
+			}
+			if record.presentation.FinishedAt.IsZero() {
+				record.presentation.FinishedAt = manager.options.Clock()
+			}
+			record.presentation.Revision++
+			record.presentation.UpdatedAt = manager.options.Clock()
+			manager.refreshActions(record)
+			if err := manager.appendRecord(context.Background(), record, "cancel_recovered", nil); err != nil {
+				manager.journalFailed = true
+			}
+			if state.globalRevision < GlobalRevision(record.presentation.Revision) {
+				state.globalRevision = GlobalRevision(record.presentation.Revision)
+			}
+			continue
+		}
+		cleanupRecovery := record.presentation.Issue != nil &&
+			(record.presentation.Issue.Code == "cleanup_failed" || record.presentation.Issue.Code == "cleanup_interrupted")
+		if cleanupRecovery {
+			var err error
+			if record.candidate != nil {
+				err = manager.deps.Candidates.ReconcileDiscard(context.Background(), *record.candidate)
+			}
+			record.presentation.Phase = fix.PhaseCompleted
+			if record.presentation.FinishedAt.IsZero() {
+				record.presentation.FinishedAt = manager.options.Clock()
+			}
+			kind := "worktree_cleanup_recovered"
+			if err == nil {
+				record.candidate = nil
+				record.diffHash, record.diffPaths = "", nil
+				record.presentation.Attention = fix.AttentionNone
+				record.presentation.CurrentAction = "Done"
+				record.presentation.Issue = nil
+			} else {
+				kind = "worktree_cleanup_failed"
+				record.presentation.Attention = fix.AttentionInfo
+				record.presentation.CurrentAction = "Done; worktree cleanup failed"
+				record.presentation.Issue = &fix.JobIssue{Code: "cleanup_failed", Summary: sanitizeSummary(err.Error())}
+			}
+			record.presentation.Revision++
+			record.presentation.UpdatedAt = manager.options.Clock()
+			manager.refreshActions(record)
+			if err := manager.appendRecord(context.Background(), record, kind, nil); err != nil {
+				manager.journalFailed = true
+			}
+			if state.globalRevision < GlobalRevision(record.presentation.Revision) {
+				state.globalRevision = GlobalRevision(record.presentation.Revision)
+			}
+			continue
 		}
 		if record.candidate != nil {
 			if record.presentation.Phase == fix.PhaseDiscarding {
@@ -1607,18 +1811,18 @@ func (manager *Manager) restore(state *controllerState) {
 					record.presentation.FinishedAt = manager.options.Clock()
 					record.presentation.Revision++
 				} else {
-					record.presentation.Phase = fix.PhaseAwaitingAction
+					record.presentation.Phase = fix.PhaseFailed
 					record.presentation.Attention = fix.AttentionBlocking
 					record.presentation.CurrentAction = "Candidate discard recovery failed"
 					record.presentation.Issue = &fix.JobIssue{Code: "discard_recovery", Summary: sanitizeSummary(err.Error())}
 				}
 			} else if err := manager.deps.Candidates.Recover(context.Background(), *record.candidate, record.draft.Targets, record.draft.ChangeScope, record.draft.AllowedPaths); err != nil {
-				record.presentation.Phase = fix.PhaseAwaitingAction
-				record.presentation.Attention = fix.AttentionRequired
+				record.presentation.Phase = fix.PhaseFailed
+				record.presentation.Attention = fix.AttentionError
 				record.presentation.CurrentAction = "Candidate recovery failed"
 				record.presentation.Issue = &fix.JobIssue{Code: "candidate_recovery", Summary: err.Error()}
 			} else if diff, err := manager.deps.Candidates.Diff(context.Background(), *record.candidate); err != nil {
-				record.presentation.Phase = fix.PhaseAwaitingAction
+				record.presentation.Phase = fix.PhaseFailed
 				record.presentation.Attention = fix.AttentionBlocking
 				record.presentation.CurrentAction = "Candidate inventory recovery failed"
 				record.presentation.Issue = &fix.JobIssue{Code: "candidate_inventory", Summary: sanitizeSummary(err.Error())}
@@ -1627,17 +1831,17 @@ func (manager *Manager) restore(state *controllerState) {
 			}
 		}
 		if !isQuiescent(record.presentation.Phase) {
-			record.presentation.Phase = fix.PhaseAwaitingAction
-			record.presentation.Attention = fix.AttentionRequired
+			record.presentation.Phase = fix.PhaseFailed
+			record.presentation.Attention = fix.AttentionError
 			record.presentation.CurrentAction = "Interrupted by previous shutdown"
-			record.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "Job was interrupted and may be retried"}
+			record.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "Job stopped during the previous shutdown"}
 			record.presentation.Revision++
 		}
 		manager.refreshActions(record)
 		if record.presentation.Issue != nil && (record.presentation.Issue.Code == "candidate_recovery" || record.presentation.Issue.Code == "candidate_inventory" || record.presentation.Issue.Code == "candidate_discovery" || record.presentation.Issue.Code == "discard_recovery" || record.presentation.Issue.Code == "journal_failed") {
-			record.presentation.AllowedActions = []fix.JobAction{fix.ActionArchive}
+			record.presentation.AllowedActions = nil
 		}
-		if record.presentation.Phase != fix.PhaseCompleted && record.presentation.Phase != fix.PhaseArchived && record.presentation.Phase != fix.PhaseDiscarded {
+		if record.presentation.Phase != fix.PhaseFailed && record.presentation.Phase != fix.PhaseCompleted && record.presentation.Phase != fix.PhaseCanceled && record.presentation.Phase != fix.PhaseDiscarded {
 			for _, target := range record.draft.Targets {
 				state.reservations[reservationKey(record.draft.Workspace, target)] = record.presentation.ID
 			}
@@ -1645,65 +1849,24 @@ func (manager *Manager) restore(state *controllerState) {
 		if state.globalRevision < GlobalRevision(record.presentation.Revision) {
 			state.globalRevision = GlobalRevision(record.presentation.Revision)
 		}
+		if resumeAfterRestart && record.candidate != nil &&
+			(record.presentation.Issue == nil || record.presentation.Issue.Code == "interrupted" ||
+				record.presentation.Issue.Code == "publication_ambiguous" || record.presentation.Issue.Code == "publication_canceled") {
+			record.presentation.Attention = fix.AttentionNone
+			record.presentation.Issue = nil
+			resumeDelivery = append(resumeDelivery, record)
+		}
 	}
 	manager.reconcileConflicts(state)
+	for _, record := range resumeDelivery {
+		manager.startNextPublication(state, record)
+	}
 	manager.initial = nil
 }
 
 func (manager *Manager) reconcileConflicts(state *controllerState) {
-	var retained []*jobRecord
-	for _, record := range state.jobs {
-		if record.candidate == nil || len(record.diffPaths) == 0 || record.presentation.Phase == fix.PhaseDiscarded {
-			continue
-		}
-		beforeScope, beforeCount := record.presentation.Scope, record.presentation.ConflictCount
-		record.presentation.Scope = record.baseScope
-		record.presentation.ConflictCount = 0
-		record.conflicts = map[fix.JobID]string{}
-		if record.presentation.Issue != nil && record.presentation.Issue.Code == "candidate_overlap" {
-			record.presentation.Issue = nil
-			if record.presentation.Compliance == fix.ComplianceNoncompliant || record.presentation.Validation == fix.ValidationFailed {
-				record.presentation.Attention = fix.AttentionRequired
-			} else {
-				record.presentation.Attention = fix.AttentionNone
-			}
-		}
-		if beforeScope != record.presentation.Scope || beforeCount != 0 {
-			record.presentation.Revision++
-		}
-		manager.refreshActions(record)
-		retained = append(retained, record)
-	}
-	for left := 0; left < len(retained); left++ {
-		for right := left + 1; right < len(retained); right++ {
-			if !pathsIntersect(retained[left].diffPaths, retained[right].diffPaths) {
-				continue
-			}
-			leftRecord, rightRecord := retained[left], retained[right]
-			leftRecord.conflicts[rightRecord.presentation.ID] = leftRecord.diffHash + "\x00" + rightRecord.diffHash
-			rightRecord.conflicts[leftRecord.presentation.ID] = rightRecord.diffHash + "\x00" + leftRecord.diffHash
-			for _, record := range []*jobRecord{leftRecord, rightRecord} {
-				record.presentation.Scope = fix.ScopeConflicted
-				record.presentation.ConflictCount++
-				record.presentation.Attention = fix.AttentionBlocking
-				record.presentation.Issue = &fix.JobIssue{Code: "candidate_overlap", Summary: "Candidate overlaps another retained fix job"}
-				record.presentation.Revision++
-				manager.refreshActions(record)
-			}
-		}
-	}
-}
-
-func pathsIntersect(left, right map[fix.RepoPath]bool) bool {
-	if len(left) > len(right) {
-		left, right = right, left
-	}
-	for path := range left {
-		if right[path] {
-			return true
-		}
-	}
-	return false
+	// Jobs run in independent worktrees and deliver to independent branches.
+	// Overlapping files are therefore not a user-action state.
 }
 
 func (manager *Manager) releaseReservations(state *controllerState, record *jobRecord) {
@@ -1732,15 +1895,6 @@ func baselineTargets(contract fix.ScoringContract) []fix.FilePresentation {
 	return result
 }
 
-func candidateSensitiveAction(action fix.JobAction) bool {
-	switch action {
-	case fix.ActionPublish, fix.ActionDiscard, fix.ActionCleanup, fix.ActionAcknowledgeConflict:
-		return true
-	default:
-		return false
-	}
-}
-
 func metricValues(values map[fix.MetricID]fix.MetricValue) []fix.MetricValue {
 	result := make([]fix.MetricValue, 0, len(values))
 	for _, value := range values {
@@ -1757,57 +1911,18 @@ func allowedActions(value fix.JobPresentation) []fix.JobAction {
 	switch value.Phase {
 	case fix.PhaseQueued, fix.PhasePreflight, fix.PhasePreparing, fix.PhaseRunning, fix.PhaseWaitingVerifier, fix.PhaseVerifying, fix.PhasePublishing, fix.PhaseReconciling:
 		return []fix.JobAction{fix.ActionCancel}
-	case fix.PhaseAwaitingAction:
-		return []fix.JobAction{fix.ActionRetry, fix.ActionArchive, fix.ActionDiscard}
-	case fix.PhaseAwaitingReview:
-		return []fix.JobAction{fix.ActionRetry, fix.ActionKeep, fix.ActionArchive, fix.ActionDiscard}
-	case fix.PhaseCompleted:
-		return []fix.JobAction{fix.ActionArchive, fix.ActionDiscard}
-	case fix.PhaseArchived:
-		return []fix.JobAction{fix.ActionCleanup}
+	case fix.PhaseFailed:
+		return []fix.JobAction{fix.ActionCancel}
 	}
 	return nil
 }
 
 func (manager *Manager) refreshActions(record *jobRecord) {
 	actions := allowedActions(record.presentation)
-	if record.presentation.Phase == fix.PhaseAwaitingReview && record.presentation.Scope == fix.ScopeConflicted && !allConflictsAcknowledged(record) {
-		actions = append([]fix.JobAction{fix.ActionAcknowledgeConflict}, actions...)
-	}
-	publisherReady := record.draft.DeliveryMode != fix.DeliveryModePullRequest || manager.deps.Publisher != nil
-	validationReady := record.draft.DeliveryMode != fix.DeliveryModePullRequest ||
-		!record.draft.Preferences.Delivery.RequireValidation && record.presentation.Validation == fix.ValidationNotConfigured ||
-		record.presentation.Validation == fix.ValidationPassed
-	if record.presentation.Phase == fix.PhaseAwaitingReview && manager.deps.Delivery != nil && publisherReady && validationReady && record.candidate != nil &&
-		record.draft.DeliveryMode != "" && record.draft.DeliveryMode != fix.DeliveryModeCandidate &&
-		record.presentation.Compliance == fix.ComplianceCompliant && (record.presentation.Scope == fix.ScopeClean || record.presentation.Scope == fix.ScopeConflicted && allConflictsAcknowledged(record)) &&
-		(record.presentation.Validation == fix.ValidationPassed || record.presentation.Validation == fix.ValidationNotConfigured) {
-		actions = append([]fix.JobAction{fix.ActionPublish}, actions...)
+	if record.presentation.Phase == fix.PhaseCanceled && record.candidate != nil {
+		actions = append(actions, fix.ActionCancel)
 	}
 	record.presentation.AllowedActions = actions
-}
-
-func cloneAcknowledgements(source map[fix.JobID]string) map[fix.JobID]string {
-	if source == nil {
-		return nil
-	}
-	result := make(map[fix.JobID]string, len(source))
-	for job, fingerprint := range source {
-		result[job] = fingerprint
-	}
-	return result
-}
-
-func allConflictsAcknowledged(record *jobRecord) bool {
-	if len(record.conflicts) == 0 {
-		return true
-	}
-	for other, pair := range record.conflicts {
-		if record.acknowledged[other] != pair {
-			return false
-		}
-	}
-	return true
 }
 
 func hasAction(values []fix.JobAction, action fix.JobAction) bool {

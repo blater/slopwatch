@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -49,6 +50,9 @@ type configSettingsState struct {
 	probes          map[agent.ProfileID]agent.ProbeResult
 	status          string
 	input           textinput.Model
+	prompt          textarea.Model
+	promptOriginal  string
+	promptError     string
 	editing         bool
 	editField       int
 	dirtyCursor     int
@@ -111,10 +115,11 @@ type configProbeMsg struct {
 func (model *Model) openConfigSettings(kind configSettingsKind) tea.Cmd {
 	input := textinput.New()
 	input.Prompt = ""
+	prompt := textarea.New()
 	model.configSettings = configSettingsState{
 		open: true, kind: kind, generation: model.configSettings.generation + 1,
 		loading: true, probes: map[agent.ProfileID]agent.ProbeResult{}, probing: map[agent.ProfileID]bool{},
-		probeAttempts: map[agent.ProfileID]uint64{}, input: input,
+		probeAttempts: map[agent.ProfileID]uint64{}, input: input, prompt: prompt,
 	}
 	if model.configStore == nil {
 		model.configSettings.loading = false
@@ -145,6 +150,9 @@ func (model *Model) handleConfigResolved(message configResolvedMsg) tea.Cmd {
 	}
 	state.resolved = cloneConfigResolved(message.resolved)
 	state.working = cloneConfigResolved(message.resolved)
+	state.prompt = textarea.New()
+	state.prompt.SetValue(state.working.Fix.PromptTemplate)
+	state.promptOriginal = state.working.Fix.PromptTemplate
 	state.probes = map[agent.ProfileID]agent.ProbeResult{}
 	state.probing = map[agent.ProfileID]bool{}
 	state.probeAttempts = map[agent.ProfileID]uint64{}
@@ -326,7 +334,13 @@ func (model *Model) handleConfigSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 	case "right", "l", "+", "=", " ":
 		model.adjustConfigSetting(1)
 	case "enter":
-		if state.kind == configAgents && len(state.working.Profiles) > 0 {
+		if state.kind == configFix && state.cursor == 6 {
+			state.prompt.SetValue(state.working.Fix.PromptTemplate)
+			state.promptOriginal = state.working.Fix.PromptTemplate
+			state.promptError = ""
+			state.prompt.Focus()
+			model.overlays.Push(OverlayPromptEditor, OverlayCaller{MainView: model.mainView, Overlay: OverlayConfigSettings, Selected: model.mainSelection()})
+		} else if state.kind == configAgents && len(state.working.Profiles) > 0 {
 			state.profileEditing = true
 			state.profileCursor = 0
 		} else if model.configTextEditable() {
@@ -340,6 +354,37 @@ func (model *Model) handleConfigSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 		return model, model.saveConfigSettings()
 	}
 	return model, nil
+}
+
+func (model *Model) handleMasterPromptKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	state := &model.configSettings
+	switch key.String() {
+	case "ctrl+s":
+		value := strings.TrimSpace(state.prompt.Value())
+		if value == "" {
+			state.promptError = "Agent prompt cannot be empty"
+			return model, nil
+		}
+		state.promptError = ""
+		state.working.Fix.PromptTemplate = value
+		state.promptOriginal = value
+		state.prompt.Blur()
+		state.dirty = true
+		state.status = "Modified"
+		model.overlays.Pop()
+		return model, nil
+	case "esc", "escape":
+		state.prompt.SetValue(state.promptOriginal)
+		state.promptError = ""
+		state.prompt.Blur()
+		model.overlays.Pop()
+		return model, nil
+	default:
+		updated, command := state.prompt.Update(key)
+		state.prompt = updated
+		state.promptError = ""
+		return model, command
+	}
 }
 
 func (model *Model) handleAgentSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -645,10 +690,10 @@ func validateConfigSettingsWithCatalog(kind configSettingsKind, value appconfig.
 		if value.Delivery.DefaultMode == "" || value.Delivery.Remote == "" || value.Delivery.BranchTemplate == "" || value.Delivery.Publisher == "" {
 			return errors.New("delivery mode, remote, branch template, and publisher are required")
 		}
-		if value.Delivery.CommitPolicy != "" && value.Delivery.CommitPolicy != "on-publish" {
+		if value.Delivery.CommitPolicy != "" && value.Delivery.CommitPolicy != "automatic" {
 			return errors.New("unsupported commit policy")
 		}
-		if value.Delivery.CleanupPolicy != "" && value.Delivery.CleanupPolicy != "retain" {
+		if value.Delivery.CleanupPolicy != "" && value.Delivery.CleanupPolicy != "remove-worktree" {
 			return errors.New("unsupported cleanup policy")
 		}
 		if value.Delivery.DefaultMode == fix.DeliveryModePullRequest && strings.TrimSpace(value.Delivery.BaseBranch) == "" {
@@ -725,13 +770,14 @@ func adjustFixSetting(value *appconfig.Resolved, cursor, direction int, probes m
 		options := delegationIDs(probe)
 		value.Fix.Delegation = cycleTyped(value.Fix.Delegation, options, direction)
 	case 6:
-		// The generated prompt compiler and locked envelope are the only v1
-		// prompt strategy. Keep the constraint visible without pretending this
-		// row can be changed.
+		// Edited in the multiline master-prompt editor.
+		return false
+	case 7:
+		// SCORE is the goal for every fix; component metrics add emphasis.
 		return false
 	default:
 		metrics := scoring.Metrics()
-		index := cursor - 7
+		index := cursor - 8
 		if index < 0 || index >= len(metrics) {
 			return false
 		}
@@ -872,39 +918,6 @@ func validationWorkspaceText(value appconfig.ValidationWorkspace, kind validatio
 	}
 }
 
-func validationWorkspaceConsequence(kind validationRowKind) string {
-	var consequence string
-	switch kind {
-	case validationRowWorkspaceFiles, validationRowWorkspaceDirectories, validationRowWorkspacePathBytes, validationRowWorkspaceFileBytes, validationRowWorkspaceTotalBytes:
-		consequence = "Shared by candidate copy and before/after fingerprinting; exceeding it fails validation with this effective value."
-	case validationRowContainerPIDs:
-		consequence = "Maximum processes in each validation container; finite confinement is mandatory and exceeding it fails the check."
-	case validationRowContainerMemoryBytes:
-		consequence = "Container memory ceiling; workspace and /tmp tmpfs usage is charged to this budget."
-	case validationRowContainerCPUMillis:
-		consequence = "Validation CPU allocation in thousandths: 1000 is one CPU, 2500 is 2.5 CPUs."
-	case validationRowContainerTemporaryBytes:
-		consequence = "Maximum /tmp tmpfs size inside validation containers; it also consumes container memory."
-	case validationRowContainerWorkspaceBytes:
-		consequence = "Writable candidate-copy tmpfs size; it must exceed admitted total bytes and also consumes container memory."
-	case validationRowContainerNofileLimit:
-		consequence = "Maximum open files per validation process; this finite confinement control cannot be disabled."
-	case validationRowContainerGeneratedFileBytes:
-		consequence = "Maximum file a validation process may generate; it must cover the admitted per-file limit."
-	case validationRowContainerStopTimeout:
-		consequence = "Grace allowed for a canceled container to stop before stronger cleanup; it never times active work."
-	case validationRowContainerControlTimeout:
-		consequence = "Deadline for Docker lifecycle commands such as create, inspect, stop and remove; must exceed stop timeout."
-	case validationRowContainerSentinelTimeout:
-		consequence = "Deadline for the pre-run filesystem/network safety sentinel; it never times the validation check itself."
-	case validationRowContainerCrashProbeTimeout:
-		consequence = "Deadline for the startup crash-containment proof; it affects readiness, not an active fix job."
-	default:
-		consequence = "Validation constraint."
-	}
-	return "Next start only; restart Slopwatch. " + consequence
-}
-
 func setValidationWorkspaceDuration(value *appconfig.ValidationWorkspace, kind validationRowKind, duration time.Duration) {
 	switch kind {
 	case validationRowContainerStopTimeout:
@@ -992,12 +1005,10 @@ func validationInvocation(check validation.Check) string {
 func adjustDeliverySetting(value *appconfig.Delivery, cursor, direction int) bool {
 	switch cursor {
 	case 0:
-		value.DefaultMode = cycleTyped(value.DefaultMode, []fix.DeliveryMode{fix.DeliveryModeCandidate, fix.DeliveryModeBranch, fix.DeliveryModePullRequest}, direction)
+		value.DefaultMode = cycleTyped(value.DefaultMode, []fix.DeliveryMode{fix.DeliveryModeBranch, fix.DeliveryModePullRequest}, direction)
 	case 4:
-		return false
-	case 5:
 		value.DraftPullRequests = !value.DraftPullRequests
-	case 6:
+	case 5:
 		value.RequireValidation = !value.RequireValidation
 	default:
 		return false
@@ -1304,7 +1315,7 @@ func reconcileFixAgentOptions(value *appconfig.FixDefaults, probe agent.ProbeRes
 
 func (model *Model) configTextEditable() bool {
 	cursor := model.configSettings.cursor
-	if model.configSettings.profileEditing || model.configSettings.kind == configDelivery && (cursor >= 1 && cursor <= 3 || cursor >= 7 && cursor <= 11) {
+	if model.configSettings.profileEditing || model.configSettings.kind == configDelivery && (cursor >= 1 && cursor <= 3 || cursor >= 6 && cursor <= 10) {
 		return true
 	}
 	if model.configSettings.kind == configValidation {
@@ -1353,16 +1364,16 @@ func (model *Model) beginConfigText() {
 		case 2:
 			value = state.working.Delivery.BaseBranch
 		case 3:
-			value, _ = configEffectiveBranchTemplate(state.working)
-		case 7:
+			value = state.working.Delivery.BranchTemplate
+		case 6:
 			value = strconv.FormatInt(state.working.Delivery.CommandOutputBytes, 10)
-		case 8:
+		case 7:
 			value = state.working.Delivery.CommitTitleTemplate
-		case 9:
+		case 8:
 			value = state.working.Delivery.CommitBodyTemplate
-		case 10:
+		case 9:
 			value = state.working.Delivery.PullRequestTitleTemplate
-		case 11:
+		case 10:
 			value = state.working.Delivery.PullRequestBodyTemplate
 		}
 		state.editField = state.cursor
@@ -1455,19 +1466,19 @@ func (model *Model) commitConfigText() error {
 			state.working.Delivery.BaseBranch = value
 		case 3:
 			state.working.Delivery.BranchTemplate = value
-		case 7:
+		case 6:
 			maximum, err := strconv.ParseInt(value, 10, 64)
 			if err != nil || maximum <= 0 {
 				return errors.New("Git and publisher output bytes must be a positive integer")
 			}
 			state.working.Delivery.CommandOutputBytes = maximum
-		case 8:
+		case 7:
 			state.working.Delivery.CommitTitleTemplate = value
-		case 9:
+		case 8:
 			state.working.Delivery.CommitBodyTemplate = value
-		case 10:
+		case 9:
 			state.working.Delivery.PullRequestTitleTemplate = value
-		case 11:
+		case 10:
 			state.working.Delivery.PullRequestBodyTemplate = value
 		}
 	}
@@ -1482,13 +1493,13 @@ func (model Model) configSettingsRows() int {
 	case configAgents:
 		return len(agentProviderChoices)
 	case configFix:
-		return 7 + len(scoring.Metrics())
+		return 8 + len(scoring.Metrics())
 	case configConcurrency:
 		return 7
 	case configValidation:
 		return len(validationSettingsRows(state.working.Validation))
 	case configDelivery:
-		return 14
+		return 11
 	default:
 		return 0
 	}
@@ -1562,32 +1573,6 @@ func (model Model) configSettingsTitle() string {
 	}[state.kind]
 }
 
-func configSettingsOrigin(kind configSettingsKind, value appconfig.Resolved) appconfig.Origin {
-	key := map[configSettingsKind]string{
-		configAgents: "agents", configFix: "fix", configConcurrency: "concurrency",
-		configValidation: "validation", configDelivery: "delivery",
-	}[kind]
-	if origin := value.Origins[key]; origin != "" {
-		return origin
-	}
-	return appconfig.OriginBuiltIn
-}
-
-func configOriginLabel(origin appconfig.Origin) string {
-	switch origin {
-	case appconfig.OriginUser:
-		return "user preferences"
-	case appconfig.OriginRepository:
-		return "repository preferences"
-	case appconfig.OriginCLI:
-		return "command-line override"
-	case appconfig.OriginSession:
-		return "current session override"
-	default:
-		return "built-in default"
-	}
-}
-
 func (model Model) configSettingsFooter() string {
 	state := model.configSettings
 	compact := responsiveTier(model.width, model.height) == ResponsiveCompact
@@ -1607,7 +1592,7 @@ func (model Model) configSettingsFooter() string {
 	edit := false
 	switch state.kind {
 	case configFix:
-		readonly = state.cursor == 6
+		edit = state.cursor == 6
 	case configValidation:
 		rows := validationSettingsRows(state.working.Validation)
 		if state.cursor >= 0 && state.cursor < len(rows) {
@@ -1624,76 +1609,38 @@ func (model Model) configSettingsFooter() string {
 			}
 		}
 	case configDelivery:
-		readonly = state.cursor == 4 || state.cursor == 12 || state.cursor == 13
-		edit = state.cursor >= 1 && state.cursor <= 3 || state.cursor >= 7 && state.cursor <= 11
+		edit = state.cursor >= 1 && state.cursor <= 3 || state.cursor >= 6 && state.cursor <= 10
 	}
 	if compact {
 		switch {
 		case readonly:
-			return "read-only · ↑/↓ · s save · Esc"
+			return "read-only · s save · Esc"
 		case edit:
-			return "Enter edit · ↑/↓ · s save · Esc"
+			return "Enter edit · s save · Esc"
 		default:
-			return "↑/↓ · ←/→ change · s save · Esc"
+			return "←/→ change · s save · Esc"
 		}
 	}
 	switch {
 	case readonly:
-		return "Read-only in this release · ↑/↓ fields · s save · r reload · Esc back"
+		return "Read-only in this release · s save · r reload · Esc back"
 	case edit:
-		return "Enter edit · ↑/↓ fields · s save · r reload · Esc back"
+		return "Enter edit · s save · r reload · Esc back"
 	default:
-		return "↑/↓ fields · ←/→ change · s save · r reload · Esc back"
+		return "←/→ change · s save · r reload · Esc back"
 	}
 }
 
 func (model Model) configSettingsStatusLine() string {
-	source := model.configFocusedSourceNote()
-	if model.configSettings.status == "" {
-		return source
-	}
-	return model.configSettings.status + " · " + source
+	return model.configSettings.status
 }
 
-func (model Model) configFocusedSourceNote() string {
-	state := model.configSettings
-	origin := configSettingsOrigin(state.kind, state.resolved)
-	key := model.configFieldOriginKey(state.cursor)
-	if state.kind == configAgents && state.profileEditing && state.cursor >= 0 && state.cursor < len(state.working.Profiles) {
-		profile := state.working.Profiles[state.cursor]
-		key = profileEditorOriginKey(profile, model.profileEditorFields(profile), state.profileCursor)
+func firstPromptLine(value string) string {
+	value = strings.TrimSpace(value)
+	if index := strings.IndexByte(value, '\n'); index >= 0 {
+		value = value[:index]
 	}
-	if key != "" {
-		if exact, ok := configOriginForKey(state.working.Origins, key); ok {
-			origin = exact
-		}
-	}
-	switch origin {
-	case appconfig.OriginRepository:
-		return "Repo override · saves user default only"
-	case appconfig.OriginCLI:
-		return "CLI override · saves user default only"
-	case appconfig.OriginSession:
-		return "Session override · saves user default only"
-	case appconfig.OriginUser:
-		return "Source: user preferences"
-	default:
-		return "Built-in default · save creates user default"
-	}
-}
-
-func configOriginForKey(origins map[string]appconfig.Origin, key string) (appconfig.Origin, bool) {
-	for candidate := key; candidate != ""; {
-		if origin, ok := origins[candidate]; ok {
-			return origin, true
-		}
-		index := strings.LastIndex(candidate, ".")
-		if index < 0 {
-			break
-		}
-		candidate = candidate[:index]
-	}
-	return "", false
+	return value
 }
 
 func agentProbeReadiness(result agent.ProbeResult) string {
@@ -1906,13 +1853,7 @@ func agentConnectionErrorLines(value string, width int) []string {
 
 func (model Model) configSettingsLines(width int) []string {
 	state := model.configSettings
-	disabled := func(value string) string { return style.DisabledOption(truncate(value, width), width) }
 	option := func(index int, label, value string) string {
-		if key := model.configFieldOriginKey(index); key != "" {
-			if origin := state.working.Origins[key]; origin != "" && origin != appconfig.OriginBuiltIn {
-				value += " · " + configOriginLabel(origin)
-			}
-		}
 		return style.ModalOption(truncate(fmt.Sprintf("%-22s %s", label, value), width), index == state.cursor, width)
 	}
 	switch state.kind {
@@ -1934,30 +1875,15 @@ func (model Model) configSettingsLines(width int) []string {
 			option(1, "Change scope", state.working.Fix.ChangeScope), option(2, "Agent profile", profile),
 			option(3, "Model", modelName), option(4, "Effort", effort),
 			option(5, "Delegation", string(state.working.Fix.Delegation)),
-			option(6, "Prompt strategy", nonemptySetting(state.working.Fix.PromptTemplate, "default")+" · fixed v1 · locked envelope"),
+			option(6, "Agent prompt", firstPromptLine(state.working.Fix.PromptTemplate)),
+			option(7, "Focus metric", "[x] SCORE"),
 		}
 		for index, metric := range scoring.Metrics() {
 			mark := " "
 			if hasMetric(state.working.Fix.Focus, fix.MetricID(metric.ID)) {
 				mark = "x"
 			}
-			lines = append(lines, option(index+7, "Focus metric", fmt.Sprintf("[%s] %s", mark, strings.ToUpper(string(metric.ID)))))
-		}
-		descriptions := []string{
-			"Seeds each new Fix form; the form may override it for one job.",
-			"Bounds candidate writes; scope violations remain visible and block publication.",
-			"Default adapter profile for newly prepared jobs.",
-			"Default model for newly prepared jobs; available values come from the selected adapter.",
-			"Default effort for newly prepared jobs; available values come from the selected adapter.",
-			"Controls whether the adapter may delegate when it reports that capability.",
-			"The v1 compiler is fixed: generated objectives remain inside a non-editable safety envelope.",
-		}
-		if state.cursor >= 0 {
-			if state.cursor < len(descriptions) {
-				lines = append(lines, disabled(descriptions[state.cursor]))
-			} else {
-				lines = append(lines, disabled("Selected metrics become explicit scoring goals for newly prepared jobs."))
-			}
+			lines = append(lines, option(index+8, "Focus metric", fmt.Sprintf("[%s] %s", mark, strings.ToUpper(string(metric.ID)))))
 		}
 		return lines
 	case configConcurrency:
@@ -1969,18 +1895,6 @@ func (model Model) configSettingsLines(width int) []string {
 			option(4, "Actors per job", fmt.Sprint(state.working.Concurrency.MaxActorsPerJob)),
 			option(5, "Candidate preview bytes", fmt.Sprint(state.working.Concurrency.MaxCandidatePreviewBytes)),
 			option(6, "Candidate preview lines", fmt.Sprint(state.working.Concurrency.MaxCandidatePreviewLines)),
-		}
-		descriptions := []string{
-			"Maximum fix jobs actively using an agent; lowering it never cancels running jobs and queues later work.",
-			"Maximum independent verification runs; lowering it never cancels a running verifier.",
-			"Admission cap for retained jobs; lowering it never deletes jobs and blocks admission until below the cap.",
-			"Pinned at Prepare for agent output; saved value exactly bounds JSON transcript-entry bytes per job.",
-			"Pinned at Prepare; limits distinct primary or delegated actors represented in a job transcript.",
-			"Pinned at Prepare; maximum candidate-file bytes loaded for the source preview. Truncation is labelled.",
-			"Pinned at Prepare; maximum candidate-file lines rendered in the source preview. Truncation is labelled.",
-		}
-		if state.cursor >= 0 && state.cursor < len(descriptions) {
-			lines = append(lines, disabled(descriptions[state.cursor]))
 		}
 		return lines
 	case configValidation:
@@ -2030,71 +1944,24 @@ func (model Model) configSettingsLines(width int) []string {
 				lines = append(lines, option(index, prefix+" output bytes", strconv.FormatInt(check.MaxOutputBytes, 10)))
 			}
 		}
-		if state.cursor >= 0 && state.cursor < len(rows) {
-			row := rows[state.cursor]
-			if validationWorkspaceRow(row.kind) {
-				lines = append(lines, disabled(validationWorkspaceConsequence(row.kind)))
-			} else if row.kind == validationRowPlan {
-				lines = append(lines, disabled("Selects the default plan; PR publication only requires it when Git & PR › PR validation says so."))
-			} else if row.kind == validationRowCommand || row.kind == validationRowWorkingDirectory {
-				lines = append(lines, disabled("Trusted command identity is read-only here; edit installation preferences, then press r to reload."))
-			} else {
-				lines = append(lines, disabled("This check policy is user-configurable and applies to newly started validation runs."))
-			}
-		}
 		if len(state.working.Validation) == 0 {
-			lines = append([]string{disabled("No trusted validation plans are configured."), disabled("Add one in preferences, then press r to reload.")}, lines...)
+			lines = append([]string{style.DisabledOption("No validation plans configured", width)}, lines...)
 		}
 		return lines
 	case configDelivery:
-		branchTemplate, legacyBranchTemplate := configEffectiveBranchTemplate(state.working)
+		branchTemplate := strings.TrimSpace(state.working.Delivery.BranchTemplate)
 		branchValue := branchTemplate + " → " + appconfig.PreviewBranchTemplate(branchTemplate)
-		if legacyBranchTemplate {
-			branchValue += " · legacy Fix override"
-		}
 		lines := []string{
 			option(0, "Default mode", string(state.working.Delivery.DefaultMode)), option(1, "Remote", state.working.Delivery.Remote),
 			option(2, "Base branch", nonemptySetting(state.working.Delivery.BaseBranch, "not set")),
-			option(3, "Branch template", branchValue), option(4, "Publisher", state.working.Delivery.Publisher+" · only supported v1 adapter"),
-			option(5, "Initial PR state", map[bool]string{true: "Draft", false: "Ready for review"}[state.working.Delivery.DraftPullRequests]),
-			option(6, "PR validation", map[bool]string{true: "Require passing plan", false: "Optional"}[state.working.Delivery.RequireValidation]),
-			option(7, "Command output bytes", strconv.FormatInt(state.working.Delivery.CommandOutputBytes, 10)),
-			option(8, "Commit title", nonemptySetting(state.working.Delivery.CommitTitleTemplate, "built-in default")),
-			option(9, "Commit body", nonemptySetting(state.working.Delivery.CommitBodyTemplate, "built-in default")),
-			option(10, "PR title", nonemptySetting(state.working.Delivery.PullRequestTitleTemplate, "commit title")),
-			option(11, "PR body", nonemptySetting(state.working.Delivery.PullRequestBodyTemplate, "commit body")),
-			option(12, "Cleanup policy", nonemptySetting(state.working.Delivery.CleanupPolicy, "retain")+" · fixed v1"),
-			option(13, "Commit policy", nonemptySetting(state.working.Delivery.CommitPolicy, "on-publish")+" · fixed v1"),
-		}
-		switch state.cursor {
-		case 0:
-			lines = append(lines, disabled("Seeds each Fix form; changing mode in a form triggers an authoritative delivery recheck."))
-		case 1:
-			lines = append(lines, disabled("Resolved and identity-checked for branch or pull-request delivery; candidate-only jobs do not publish."))
-		case 2:
-			lines = append(lines, disabled("Checked on the selected remote when publishing; it does not block the refactor."))
-		case 3:
-			if legacyBranchTemplate {
-				lines = append(lines, disabled("Effective value comes from legacy Fix preferences; edit and save this row to migrate it. Branch collisions are reported."))
-			} else {
-				lines = append(lines, disabled("{job-short-id} is optional; an existing branch is reported as a collision."))
-			}
-		case 4:
-			lines = append(lines, disabled("GitHub CLI is the only publisher adapter in v1; authorization is checked before admission and publish."))
-		case 5:
-			lines = append(lines, disabled("Controls whether a new pull request starts as a draft or ready for review."))
-		case 6:
-			lines = append(lines, disabled("When required, Publish stays unavailable until the selected plan passes."))
-		case 7:
-			lines = append(lines, disabled("Bounds captured candidate, delivery and publisher command output; commands have no wall-clock timeout and remain cancelable."))
-		case 8, 10:
-			lines = append(lines, disabled("Single-line title template rendered only during explicit publication; agent runtimes never receive publication authority."))
-		case 9, 11:
-			lines = append(lines, disabled("Single-line body template in v1; line breaks and control characters are rejected. Rendered only during explicit publication."))
-		case 12:
-			lines = append(lines, disabled("Fixed v1: worktrees, branches, and transcripts remain until explicit Discard or Cleanup."))
-		case 13:
-			lines = append(lines, disabled("Fixed v1: commit, push, and PR creation occur only after explicit Publish from Review."))
+			option(3, "Branch template", branchValue),
+			option(4, "Initial PR state", map[bool]string{true: "Draft", false: "Ready for review"}[state.working.Delivery.DraftPullRequests]),
+			option(5, "PR validation", map[bool]string{true: "Require passing plan", false: "Optional"}[state.working.Delivery.RequireValidation]),
+			option(6, "Command output bytes", strconv.FormatInt(state.working.Delivery.CommandOutputBytes, 10)),
+			option(7, "Commit title", nonemptySetting(state.working.Delivery.CommitTitleTemplate, "default")),
+			option(8, "Commit body", nonemptySetting(state.working.Delivery.CommitBodyTemplate, "default")),
+			option(9, "PR title", nonemptySetting(state.working.Delivery.PullRequestTitleTemplate, "commit title")),
+			option(10, "PR body", nonemptySetting(state.working.Delivery.PullRequestBodyTemplate, "commit body")),
 		}
 		return lines
 	}
@@ -2104,107 +1971,12 @@ func (model Model) configSettingsLines(width int) []string {
 func agentProfileChoiceLabel(profile agent.Profile) string {
 	switch profile.Runtime {
 	case "codex-cli":
-		if profile.ID == "codex-default" {
-			return "Codex — managed sign-in (ChatGPT recommended)"
-		}
-		return "Codex — managed sign-in"
+		return "Codex"
 	case "openai-responses":
-		return "OpenAI Responses API — API key (billed separately)"
+		return "OpenAI API"
 	default:
 		return fmt.Sprintf("%s · %s", profile.Label, profile.Runtime)
 	}
-}
-
-func profileEditorOriginKey(profile agent.Profile, fields []agent.ProfileField, index int) string {
-	prefix := "agents." + string(profile.ID)
-	if index >= 0 && index < len(fields) {
-		return prefix + "." + fields[index].Key
-	}
-	return ""
-}
-
-func (model Model) configFieldOriginKey(index int) string {
-	state := model.configSettings
-	switch state.kind {
-	case configAgents:
-		if index >= 0 && index < len(state.working.Profiles) {
-			return "agents." + string(state.working.Profiles[index].ID) + ".runtime"
-		}
-	case configFix:
-		keys := []string{"fix.target_score", "fix.change_scope", "fix.profile", "fix.model", "fix.effort", "fix.delegation", "fix.prompt_template"}
-		if index < len(keys) {
-			return keys[index]
-		}
-		metrics := scoring.Metrics()
-		metricIndex := index - len(keys)
-		if metricIndex >= 0 && metricIndex < len(metrics) {
-			return "fix.focus." + string(metrics[metricIndex].ID)
-		}
-	case configConcurrency:
-		keys := []string{"concurrency.max_agents", "concurrency.max_verifiers", "concurrency.max_retained_jobs", "concurrency.max_transcript_bytes", "concurrency.max_actors_per_job", "concurrency.max_candidate_preview_bytes", "concurrency.max_candidate_preview_lines"}
-		if index < len(keys) {
-			return keys[index]
-		}
-	case configDelivery:
-		if index == 3 {
-			if _, legacy := configEffectiveBranchTemplate(state.working); legacy {
-				return "fix.branch_template"
-			}
-		}
-		keys := []string{"delivery.default_mode", "delivery.remote", "delivery.base_branch", "delivery.branch_template", "delivery.publisher", "delivery.draft_pull_requests", "delivery.require_validation", "delivery.command_output_bytes", "delivery.commit_title_template", "delivery.commit_body_template", "delivery.pull_request_title_template", "delivery.pull_request_body_template", "delivery.cleanup_policy", "delivery.commit_policy"}
-		if index < len(keys) {
-			return keys[index]
-		}
-	case configValidation:
-		rows := validationSettingsRows(state.working.Validation)
-		if index >= 0 && index < len(rows) {
-			row := rows[index]
-			if validationWorkspaceRow(row.kind) {
-				keys := map[validationRowKind]string{
-					validationRowWorkspaceFiles:              "validation_workspace.max_files",
-					validationRowWorkspaceDirectories:        "validation_workspace.max_directories",
-					validationRowWorkspacePathBytes:          "validation_workspace.max_path_bytes",
-					validationRowWorkspaceFileBytes:          "validation_workspace.max_file_bytes",
-					validationRowWorkspaceTotalBytes:         "validation_workspace.max_total_bytes",
-					validationRowContainerPIDs:               "validation_workspace.container_pids",
-					validationRowContainerMemoryBytes:        "validation_workspace.container_memory_bytes",
-					validationRowContainerCPUMillis:          "validation_workspace.container_cpu_millis",
-					validationRowContainerTemporaryBytes:     "validation_workspace.container_temporary_bytes",
-					validationRowContainerWorkspaceBytes:     "validation_workspace.container_workspace_bytes",
-					validationRowContainerNofileLimit:        "validation_workspace.container_nofile_limit",
-					validationRowContainerGeneratedFileBytes: "validation_workspace.container_generated_file_bytes",
-					validationRowContainerStopTimeout:        "validation_workspace.container_stop_timeout",
-					validationRowContainerControlTimeout:     "validation_workspace.container_control_timeout",
-					validationRowContainerSentinelTimeout:    "validation_workspace.container_sentinel_timeout",
-					validationRowContainerCrashProbeTimeout:  "validation_workspace.container_crash_probe_timeout",
-				}
-				return keys[row.kind]
-			}
-			if row.kind == validationRowPlan {
-				return "fix.validation_plan"
-			}
-			key := "validation." + state.working.Validation[row.plan].ID
-			if row.check >= 0 {
-				key += ".checks." + string(state.working.Validation[row.plan].Checks[row.check].ID)
-			}
-			return key
-		}
-	}
-	return ""
-}
-
-func configEffectiveBranchTemplate(value appconfig.Resolved) (string, bool) {
-	deliveryTemplate := strings.TrimSpace(value.Delivery.BranchTemplate)
-	legacyTemplate := strings.TrimSpace(value.Fix.BranchTemplate)
-	if deliveryTemplate == "" {
-		return legacyTemplate, legacyTemplate != ""
-	}
-	legacyOrigin := value.Origins["fix.branch_template"]
-	if value.Origins["delivery.branch_template"] == appconfig.OriginBuiltIn &&
-		legacyOrigin != "" && legacyOrigin != appconfig.OriginBuiltIn && legacyTemplate != "" {
-		return legacyTemplate, true
-	}
-	return deliveryTemplate, false
 }
 
 func cloneConfigResolved(value appconfig.Resolved) appconfig.Resolved {

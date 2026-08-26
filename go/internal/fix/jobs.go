@@ -12,46 +12,43 @@ const (
 	PhaseRunning         Phase = "running"
 	PhaseWaitingVerifier Phase = "waiting_verifier"
 	PhaseVerifying       Phase = "verifying"
-	PhaseAwaitingReview  Phase = "awaiting_review"
+	PhaseFailed          Phase = "failed"
 	PhasePublishing      Phase = "publishing"
 	PhaseReconciling     Phase = "reconciling"
 	PhaseDiscarding      Phase = "discarding"
 	PhaseCanceling       Phase = "canceling"
-	PhaseAwaitingAction  Phase = "awaiting_action"
 	PhaseCompleted       Phase = "completed"
-	PhaseArchived        Phase = "archived"
+	PhaseCanceled        Phase = "canceled"
 	PhaseDiscarded       Phase = "discarded"
 )
 
-type Compliance string
+type TargetStatus string
 
 const (
-	ComplianceUnknown      Compliance = "unknown"
-	ComplianceCompliant    Compliance = "compliant"
-	ComplianceNoncompliant Compliance = "noncompliant"
+	ScorePending TargetStatus = "score_pending"
+	TargetMet    TargetStatus = "met"
+	TargetNotMet TargetStatus = "not_met"
 )
 
 type ScopeState string
 
 const (
-	ScopeUnknown    ScopeState = "unknown"
-	ScopeClean      ScopeState = "clean"
-	ScopeViolated   ScopeState = "violated"
-	ScopeConflicted ScopeState = "conflicted"
+	ScopeUnknown  ScopeState = "unknown"
+	ScopeClean    ScopeState = "clean"
+	ScopeViolated ScopeState = "violated"
 )
 
 type DeliveryState string
 type DeliveryMode string
 
 const (
-	DeliveryModeCandidate   DeliveryMode = "candidate"
 	DeliveryModeBranch      DeliveryMode = "branch"
 	DeliveryModePullRequest DeliveryMode = "pull-request"
 )
 
 func (mode DeliveryMode) Valid() bool {
 	switch mode {
-	case DeliveryModeCandidate, DeliveryModeBranch, DeliveryModePullRequest:
+	case DeliveryModeBranch, DeliveryModePullRequest:
 		return true
 	default:
 		return false
@@ -60,7 +57,6 @@ func (mode DeliveryMode) Valid() bool {
 
 const (
 	DeliveryNone        DeliveryState = "none"
-	DeliveryCandidate   DeliveryState = "candidate"
 	DeliveryCommitted   DeliveryState = "committed"
 	DeliveryPushed      DeliveryState = "pushed"
 	DeliveryPullRequest DeliveryState = "pull_request"
@@ -72,22 +68,14 @@ type Attention string
 const (
 	AttentionNone     Attention = "none"
 	AttentionInfo     Attention = "information"
-	AttentionRequired Attention = "action_required"
+	AttentionError    Attention = "error"
 	AttentionBlocking Attention = "blocking"
 )
 
 type JobAction string
 
 const (
-	ActionCancel              JobAction = "cancel"
-	ActionRetry               JobAction = "retry"
-	ActionResume              JobAction = "resume"
-	ActionPublish             JobAction = "publish"
-	ActionKeep                JobAction = "keep"
-	ActionArchive             JobAction = "archive"
-	ActionDiscard             JobAction = "discard"
-	ActionAcknowledgeConflict JobAction = "acknowledge_conflict"
-	ActionCleanup             JobAction = "cleanup"
+	ActionCancel JobAction = "cancel"
 )
 
 type JobIssue struct {
@@ -139,12 +127,11 @@ type JobPresentation struct {
 	Usage           UsagePresentation
 	UsageReported   bool
 	WarningCount    int
-	ConflictCount   int
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	FinishedAt      time.Time
 	AllowedActions  []JobAction
-	Compliance      Compliance
+	TargetStatus    TargetStatus
 	Validation      ValidationState
 	Scope           ScopeState
 	Delivery        DeliveryState

@@ -193,7 +193,7 @@ func (service *Service) Verify(ctx context.Context, request fixanalysis.Verifica
 	}
 	result.Files = make([]fixanalysis.FileResult, len(request.Contract.Targets))
 	result.Complete = true
-	result.Compliant = true
+	result.TargetMet = true
 	for index, baseline := range request.Contract.Targets {
 		fileResult, convertErr := verifyFile(baseline, files[baseline.Path], request.Contract.Goal, request.Contract.RequireComplete)
 		if convertErr != nil {
@@ -201,11 +201,11 @@ func (service *Service) Verify(ctx context.Context, request fixanalysis.Verifica
 		}
 		result.Files[index] = fileResult
 		result.Complete = result.Complete && fileResult.Complete
-		result.Compliant = result.Compliant && fileResult.Compliant
+		result.TargetMet = result.TargetMet && fileResult.TargetMet
 	}
 	if before.aggregate != after.aggregate {
 		result.Complete = false
-		result.Compliant = false
+		result.TargetMet = false
 		result.Diagnostic = "candidate targets changed during analysis"
 	}
 	return cloneVerification(result), nil

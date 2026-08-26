@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -60,6 +61,43 @@ func TestGitServiceCreatesExactAbsentLocalAndRemoteRefs(t *testing.T) {
 	if _, err := service.PublishCommit(context.Background(), Request{Job: "job-other", Candidate: fix.CandidateIdentity{Job: "job-other", RepositoryRoot: repository, GitCommonDir: common},
 		DiffHash: fingerprint, Branch: "slopwatch/fix/main-test", Remote: "origin", CommitTitle: "Again", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}); err == nil {
 		t.Fatal("reused existing branch")
+	}
+}
+
+func TestCanceledLocalRefCreationIsReconciledExactly(t *testing.T) {
+	repository, remote := deliveryRepository(t)
+	common := strings.TrimSpace(gitResult(t, repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+	base := strings.TrimSpace(gitResult(t, repository, "rev-parse", "HEAD"))
+	if err := os.WriteFile(filepath.Join(repository, "main.go"), []byte("package main\n// changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	normal, _ := NewGitService(testExecutor{})
+	fingerprint, err := normal.diffFingerprint(withCommandOutput(t.Context(), testDeliveryOutputBytes), repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, _ := remoteIdentity(remote)
+	request := Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)},
+		DiffHash: fingerprint, Branch: "slopwatch/fix/canceled-local", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}
+	committed, err := normal.CreateCommit(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canceledRunner := executorFunc(func(ctx context.Context, run isolation.Request) (isolation.Result, error) {
+		result, err := (testExecutor{}).Run(ctx, run)
+		if slices.Contains(run.Arguments, "update-ref") && err == nil && result.ExitCode == 0 {
+			result.Canceled = true
+		}
+		return result, err
+	})
+	canceling, _ := NewGitService(canceledRunner)
+	ambiguous, err := canceling.CreateLocalRef(t.Context(), request, committed)
+	if err == nil || !ambiguous.Ambiguous || ambiguous.LocalRef != "" {
+		t.Fatalf("canceled local ref result = %+v, %v", ambiguous, err)
+	}
+	reconciled, err := normal.Reconcile(t.Context(), request, ambiguous)
+	if err != nil || reconciled.Ambiguous || reconciled.LocalRef != "refs/heads/slopwatch/fix/canceled-local" {
+		t.Fatalf("local ref reconciliation = %+v, %v", reconciled, err)
 	}
 }
 

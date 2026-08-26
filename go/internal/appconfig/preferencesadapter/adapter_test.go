@@ -281,7 +281,7 @@ func TestRepositoryNarrowingIsApplied(t *testing.T) {
 		MaxAgents: 3, MaxVerifiers: 2, MaxRetainedJobs: 200, MaxTranscriptBytes: 2 << 20, MaxActorsPerJob: 16, MaxCandidatePreviewBytes: 2 << 20, MaxCandidatePreviewLines: 2000,
 	}
 	repositoryDelivery := userDelivery
-	repositoryDelivery.DefaultMode = fix.DeliveryModeCandidate
+	repositoryDelivery.DefaultMode = fix.DeliveryModeBranch
 	saved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeRepository, appconfig.Patch{
 		Fix: &repositoryFix, Concurrency: &repositoryConcurrency, Delivery: &repositoryDelivery,
 	}, userSaved.Revision)
@@ -290,7 +290,7 @@ func TestRepositoryNarrowingIsApplied(t *testing.T) {
 	}
 	if saved.Resolved.Fix.TargetScore != 80 || saved.Resolved.Fix.ChangeScope != "targets-only" ||
 		saved.Resolved.Concurrency != repositoryConcurrency ||
-		saved.Resolved.Delivery.DefaultMode != fix.DeliveryModeCandidate {
+		saved.Resolved.Delivery.DefaultMode != fix.DeliveryModeBranch {
 		t.Fatalf("repository narrowing was not applied: %#v", saved.Resolved)
 	}
 	for _, key := range []string{"fix", "concurrency", "delivery"} {
@@ -341,14 +341,13 @@ func TestRepositoryBroadeningAllowlist(t *testing.T) {
 		{"effort", "user-owned fix effort", fixOverride(func(value *appconfig.FixDefaults) { value.Effort = "repository-effort" })},
 		{"delegation", "user-owned fix delegation", fixOverride(func(value *appconfig.FixDefaults) { value.Delegation = "team" })},
 		{"prompt", "user-owned fix prompt", fixOverride(func(value *appconfig.FixDefaults) { value.PromptTemplate = "repository-prompt" })},
-		{"legacy branch template", "user-owned fix branch template", fixOverride(func(value *appconfig.FixDefaults) { value.BranchTemplate = "repo/{job-short-id}" })},
 		{"validation removal", "remove inherited fix validation", fixOverride(func(value *appconfig.FixDefaults) { value.ValidationPlan = "" })},
 		{"agent slots", "concurrency max agents", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxAgents++ })},
 		{"verifier slots", "concurrency max verifiers", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxVerifiers++ })},
 		{"retained jobs", "concurrency retained jobs", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxRetainedJobs++ })},
 		{"transcript bytes", "concurrency transcript bytes", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxTranscriptBytes++ })},
 		{"actors per job", "concurrency actors per job", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxActorsPerJob++ })},
-		{"delivery mode", "delivery mode", deliveryOverride(func(value *appconfig.Delivery) { value.DefaultMode = fix.DeliveryModeBranch })},
+		{"delivery mode", "delivery mode", deliveryOverride(func(value *appconfig.Delivery) { value.DefaultMode = fix.DeliveryModePullRequest })},
 		{"delivery remote", "user-owned delivery remote", deliveryOverride(func(value *appconfig.Delivery) { value.Remote = "upstream" })},
 		{"delivery base", "user-owned delivery base", deliveryOverride(func(value *appconfig.Delivery) { value.BaseBranch = "develop" })},
 		{"delivery branch template", "user-owned delivery branch template", deliveryOverride(func(value *appconfig.Delivery) { value.BranchTemplate = "repo/{job-short-id}" })},
@@ -578,7 +577,7 @@ func (*apiProfileCatalog) ValidateProfile(profile agent.Profile) error {
 }
 func (*strictProfileCatalog) ValidateProfile(profile agent.Profile) error {
 	for key := range profile.Options {
-		if key != "denied_read_roots" {
+		if key != "region" {
 			return fmt.Errorf("unsupported option %s", key)
 		}
 	}

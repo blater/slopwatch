@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/blater/slopwatch/internal/fixprompt"
 	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -78,7 +79,6 @@ type Fix struct {
 	Effort         string   `toml:"effort"`
 	Delegation     string   `toml:"delegation"`
 	PromptTemplate string   `toml:"prompt_template"`
-	BranchTemplate string   `toml:"branch_template"`
 	ValidationPlan string   `toml:"validation_plan"`
 }
 
@@ -182,8 +182,7 @@ func DefaultDocument() Document {
 		Scoring:     Scoring{WeightStep: 0.5, MaximumWeight: 20, Components: components},
 		Fix: Fix{
 			TargetScore: 100, ChangeScope: "targets-and-tests", Delegation: "single",
-			PromptTemplate: "default",
-			BranchTemplate: "slopwatch/fix/{target-stem}-{job-short-id}",
+			PromptTemplate: fixprompt.DefaultTemplate,
 		},
 		Concurrency: Concurrency{
 			MaxAgents: 2, MaxVerifiers: 1, MaxRetainedJobs: 100,
@@ -201,14 +200,14 @@ func DefaultDocument() Document {
 			ContainerStopTimeout: "3s", ContainerControlTimeout: "30s", ContainerSentinelTimeout: "10s", ContainerCrashProbeTimeout: "15s",
 		},
 		Delivery: Delivery{
-			DefaultMode: "candidate", Remote: "origin", BaseBranch: "main",
+			DefaultMode: "branch", Remote: "origin", BaseBranch: "main",
 			BranchTemplate: "slopwatch/fix/{target-stem}-{job-short-id}", Publisher: "github-cli",
 			DraftPullRequests:  true,
 			RequireValidation:  false,
 			CommandOutputBytes: 4 * 1024 * 1024,
-			CommitPolicy:       "on-publish", CommitTitleTemplate: "Refactor {targets} with Slopwatch",
+			CommitPolicy:       "automatic", CommitTitleTemplate: "Refactor {targets} with Slopwatch",
 			CommitBodyTemplate: "Automated remediation for {goal}.", PullRequestTitleTemplate: "Refactor {targets} with Slopwatch",
-			PullRequestBodyTemplate: "Automated remediation for {goal}.", CleanupPolicy: "retain",
+			PullRequestBodyTemplate: "Automated remediation for {goal}.", CleanupPolicy: "remove-worktree",
 		},
 	}
 }

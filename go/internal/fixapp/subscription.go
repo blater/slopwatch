@@ -16,9 +16,9 @@ type subscription struct {
 func (value *subscription) Wait(ctx context.Context, after GlobalRevision) (GlobalRevision, error) {
 	for {
 		if value.manager.closed.Load() {
-			return value.manager.Jobs(JobFilter{IncludeArchived: true}).Revision, ErrClosed
+			return value.manager.Jobs(JobFilter{IncludeFinished: true}).Revision, ErrClosed
 		}
-		current := value.manager.Jobs(JobFilter{IncludeArchived: true}).Revision
+		current := value.manager.Jobs(JobFilter{IncludeFinished: true}).Revision
 		if current > after {
 			return current, nil
 		}

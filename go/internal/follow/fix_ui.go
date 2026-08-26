@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -48,35 +47,27 @@ const (
 	fixFieldValidation
 	fixFieldDelivery
 	fixFieldBranch
-	fixFieldAdvanced
-	fixFieldRun
 	fixFieldCount
 )
 
 type fixDialogState struct {
-	generation         uint64
-	target             fix.RepoPath
-	draft              fixapp.FixDraft
-	hasDraft           bool
-	loading            bool
-	submitting         bool
-	cursor             int
-	metricCursor       int
-	focus              map[fix.MetricID]bool
-	metrics            []fix.MetricID
-	branch             textinput.Model
-	prompt             textarea.Model
-	branchOriginal     string
-	promptOriginal     string
-	detached           bool
-	promptPreview      bool
-	promptResetPending bool
-	promptDirtyCursor  int
-	branchEditing      bool
-	deliveryStale      bool
-	submitBlocked      bool
-	errorText          string
-	statusText         string
+	generation     uint64
+	target         fix.RepoPath
+	draft          fixapp.FixDraft
+	hasDraft       bool
+	loading        bool
+	submitting     bool
+	cursor         int
+	metricCursor   int
+	focus          map[fix.MetricID]bool
+	metrics        []fix.MetricID
+	branch         textinput.Model
+	branchOriginal string
+	branchEditing  bool
+	deliveryStale  bool
+	submitBlocked  bool
+	errorText      string
+	statusText     string
 }
 
 type cancelConfirmation struct {
@@ -91,13 +82,11 @@ type cancelConfirmation struct {
 	errorText    string
 }
 
-type jobActionsState struct {
-	jobID     fix.JobID
-	revision  uint64
-	actions   []fix.JobAction
-	cursor    int
-	pending   bool
-	errorText string
+type jobCommandState struct {
+	jobID    fix.JobID
+	revision uint64
+	action   fix.JobAction
+	pending  bool
 }
 
 type jobMonitorState struct {
@@ -142,6 +131,12 @@ type fixSubmittedMsg struct {
 	generation uint64
 	jobID      fix.JobID
 	err        error
+}
+
+type fixTargetPreferenceSavedMsg struct {
+	score float64
+	saved appconfig.Saved
+	err   error
 }
 
 type fixJobsMsg struct {
@@ -201,10 +196,8 @@ func (model *Model) openFixForSelected() tea.Cmd {
 	model.fixGeneration++
 	branch := textinput.New()
 	branch.Prompt = ""
-	prompt := textarea.New()
-	prompt.Placeholder = "Additional guidance for the agent"
 	model.fixDialog = fixDialogState{
-		generation: model.fixGeneration, target: path, loading: true, focus: map[fix.MetricID]bool{}, branch: branch, prompt: prompt,
+		generation: model.fixGeneration, target: path, loading: true, focus: map[fix.MetricID]bool{}, branch: branch,
 		statusText: "Preparing baseline and checking agent readiness…",
 	}
 	model.overlays.Push(OverlayFixForm, OverlayCaller{MainView: MainViewFiles, Selected: model.selected})
@@ -233,7 +226,10 @@ func (model Model) selectedRepoPath(value string) (fix.RepoPath, error) {
 func (model Model) existingFixForTarget(path fix.RepoPath) (fix.JobPresentation, bool) {
 	candidates := make([]fix.JobPresentation, 0, 2)
 	for _, job := range model.agents.Jobs {
-		if job.Phase == fix.PhaseCompleted || job.Phase == fix.PhaseArchived || job.Phase == fix.PhaseDiscarded {
+		if job.Phase == fix.PhaseCompleted || job.Phase == fix.PhaseCanceled || job.Phase == fix.PhaseDiscarded {
+			continue
+		}
+		if job.Issue != nil && job.Issue.Code == "canceled" && (job.Phase == fix.PhaseCanceling || job.Phase == fix.PhaseDiscarding) {
 			continue
 		}
 		for _, target := range job.Targets {
@@ -256,7 +252,7 @@ func (model Model) existingFixForTarget(path fix.RepoPath) (fix.JobPresentation,
 	return candidates[0], true
 }
 
-func (model Model) fixCodeForPath(path string) string {
+func (model Model) fixMarkerForPath(path string) string {
 	if len(model.agents.Jobs) == 0 {
 		return ""
 	}
@@ -280,44 +276,35 @@ func (model Model) fixCodeForPath(path string) string {
 	if !found {
 		return ""
 	}
-	if selected.Phase == fix.PhaseAwaitingAction {
+	if selected.Phase == fix.PhaseFailed {
 		if selected.Issue != nil && strings.EqualFold(selected.Issue.Code, "canceled") {
-			return "CAN"
+			return "×"
 		}
-		if selected.Scope == fix.ScopeConflicted || selected.ConflictCount > 0 {
-			return "CNF"
-		}
-		return "ERR"
+		return "!"
 	}
 	switch selected.Phase {
-	case fix.PhaseAdmitted, fix.PhaseQueued:
-		return "QUE"
-	case fix.PhasePreflight:
-		return "PFL"
-	case fix.PhasePreparing:
-		return "PRE"
+	case fix.PhaseAdmitted, fix.PhaseQueued, fix.PhasePreflight, fix.PhasePreparing:
+		return "…"
 	case fix.PhaseRunning:
-		return "RUN"
+		return "▶"
 	case fix.PhaseWaitingVerifier:
-		return "WTG"
+		return "◷"
 	case fix.PhaseVerifying:
-		return "VER"
-	case fix.PhaseAwaitingReview:
-		return "REV"
+		return "◆"
+	case fix.PhaseFailed:
+		return "!"
 	case fix.PhasePublishing:
-		return "PUB"
+		return "↑"
 	case fix.PhaseCanceling:
-		return "CNL"
+		return "×"
+	case fix.PhaseCanceled:
+		return "×"
 	case fix.PhaseReconciling:
-		return "REC"
+		return "↻"
 	case fix.PhaseCompleted:
-		return "DON"
-	case fix.PhaseArchived:
-		return "ARC"
-	case fix.PhaseDiscarding:
-		return "DSC"
-	case fix.PhaseDiscarded:
-		return "DIS"
+		return "✓"
+	case fix.PhaseDiscarding, fix.PhaseDiscarded:
+		return "×"
 	default:
 		return ""
 	}
@@ -361,7 +348,7 @@ func (model *Model) handleFixPrepared(message fixPreparedMsg) {
 	model.fixDialog.errorText = ""
 	model.fixDialog.statusText = "Ready"
 	model.fixDialog.metrics = availableFixMetrics(message.draft)
-	model.fixDialog.focus = map[fix.MetricID]bool{}
+	model.fixDialog.focus = map[fix.MetricID]bool{"score": true}
 	for _, goal := range message.draft.Focus {
 		model.fixDialog.focus[goal.Metric] = true
 	}
@@ -374,25 +361,18 @@ func (model *Model) handleFixPrepared(message fixPreparedMsg) {
 			model.fixDialog.draft = revised
 		}
 		model.fixDialog.focus = old.focus
-		model.fixDialog.prompt.SetValue(old.prompt.Value())
 		model.fixDialog.branch.SetValue(old.branch.Value())
-		model.fixDialog.promptOriginal = old.promptOriginal
 		model.fixDialog.branchOriginal = old.branchOriginal
-		model.fixDialog.detached = old.detached
 	} else {
-		body := generatedFixBody(message.draft)
-		if message.draft.Instructions.DetachedBody != "" {
-			body = message.draft.Instructions.DetachedBody
-			model.fixDialog.detached = true
-		}
-		model.fixDialog.prompt.SetValue(body)
 		model.fixDialog.branch.SetValue(message.draft.BranchName)
-		model.fixDialog.promptOriginal = body
 		model.fixDialog.branchOriginal = message.draft.BranchName
 	}
 	if fixValidationNeedsRepair(model.fixDialog.draft) {
-		model.fixDialog.cursor = fixFieldValidation
+		if len(model.fixDialog.draft.Preferences.Validation) > 0 {
+			model.fixDialog.cursor = fixFieldValidation
+		}
 	}
+	model.ensureFixCursorVisible()
 }
 
 func availableFixMetrics(draft fixapp.FixDraft) []fix.MetricID {
@@ -404,18 +384,21 @@ func availableFixMetrics(draft fixapp.FixDraft) []fix.MetricID {
 			}
 		}
 	}
-	result := make([]fix.MetricID, 0, len(seen))
+	result := make([]fix.MetricID, 0, len(seen)+1)
 	for id := range seen {
 		result = append(result, id)
 	}
 	sort.Slice(result, func(left, right int) bool { return result[left] < result[right] })
-	return result
+	return append([]fix.MetricID{"score"}, result...)
 }
 
 func (state fixDialogState) fixDraftEdits() fixapp.DraftEdits {
 	goals := make([]fix.MetricGoal, 0, len(state.focus))
 	for _, id := range state.metrics {
 		if !state.focus[id] {
+			continue
+		}
+		if id == "score" {
 			continue
 		}
 		maximum := 0.0
@@ -433,13 +416,7 @@ func (state fixDialogState) fixDraftEdits() fixapp.DraftEdits {
 		TargetScore: state.draft.TargetScore,
 		Focus:       goals, ChangeScope: state.draft.ChangeScope,
 		ValidationPlanID: state.draft.ValidationPlanID, DeliveryMode: state.draft.DeliveryMode,
-		BranchName: state.branch.Value(), Guidance: state.draft.Instructions.UserGuidance,
-		DetachedBody: func() string {
-			if state.detached {
-				return state.prompt.Value()
-			}
-			return ""
-		}(),
+		BranchName: state.branch.Value(),
 	}
 }
 
@@ -489,7 +466,7 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	if state.loading || state.submitting || !state.hasDraft {
-		if name == "r" && !state.loading && !state.submitting {
+		if name == "R" && !state.loading && !state.submitting {
 			model.fixGeneration++
 			state.generation = model.fixGeneration
 			state.loading = true
@@ -504,6 +481,8 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch name {
 	case "r":
+		return model.submitFix()
+	case "R":
 		model.fixGeneration++
 		state.generation = model.fixGeneration
 		state.loading = true
@@ -514,14 +493,10 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, model.prepareFixCommand(state.target, &profile, state.generation)
 	case "s":
 		return model, model.openFixRemediationSettings()
-	case "P":
-		state.promptPreview = true
-		state.prompt.Blur()
-		model.overlays.Push(OverlayPromptEditor, OverlayCaller{MainView: MainViewFiles, Overlay: OverlayFixForm, Selected: state.target.String()})
 	case "up", "k":
-		state.cursor = max(0, state.cursor-1)
+		model.moveFixCursor(-1)
 	case "down", "j":
-		state.cursor = min(fixFieldCount-1, state.cursor+1)
+		model.moveFixCursor(1)
 	case "left":
 		return model.adjustFixField(-1)
 	case "right":
@@ -529,23 +504,25 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case " ":
 		if state.cursor == fixFieldFocus && len(state.metrics) > 0 {
 			id := state.metrics[state.metricCursor]
-			state.focus[id] = !state.focus[id]
-			model.syncFixDraft()
+			if id != "score" {
+				state.focus[id] = !state.focus[id]
+				model.syncFixDraft()
+			}
 		}
 	case "enter":
+		if state.cursor == fixFieldFocus && len(state.metrics) > 0 {
+			id := state.metrics[state.metricCursor]
+			if id != "score" {
+				state.focus[id] = !state.focus[id]
+				model.syncFixDraft()
+			}
+			return model, nil
+		}
 		switch state.cursor {
 		case fixFieldBranch:
 			state.branchOriginal = state.branch.Value()
 			state.branchEditing = true
 			state.branch.Focus()
-		case fixFieldAdvanced:
-			state.promptPreview = false
-			state.prompt.Focus()
-			state.prompt.SetWidth(max(20, model.width-4))
-			state.prompt.SetHeight(max(3, model.height-6))
-			model.overlays.Push(OverlayPromptEditor, OverlayCaller{MainView: MainViewFiles, Overlay: OverlayFixForm, Selected: state.target.String()})
-		case fixFieldRun:
-			return model.submitFix()
 		}
 	}
 	return model, nil
@@ -556,7 +533,12 @@ func (model *Model) adjustFixField(direction int) (tea.Model, tea.Cmd) {
 	switch state.cursor {
 	case fixFieldTargetScore:
 		state.draft.TargetScore = max(0, state.draft.TargetScore+float64(direction*10))
-		model.syncFixDraft()
+		if model.syncFixDraft() {
+			model.fixTargetDesired = state.draft.TargetScore
+			if !model.fixTargetSaving {
+				return model, model.saveFixTargetPreference(state.draft.Preferences)
+			}
+		}
 	case fixFieldFocus:
 		if len(state.metrics) > 0 {
 			state.metricCursor = fixCycleIndex(state.metricCursor, direction, len(state.metrics))
@@ -584,7 +566,7 @@ func (model *Model) adjustFixField(direction int) (tea.Model, tea.Cmd) {
 	case fixFieldDelegation:
 		state.draft.Delegation = cycleAgentOption(state.draft.Probe.Capabilities.Delegation, state.draft.Delegation, direction)
 	case fixFieldScope:
-		state.draft.ChangeScope = fixCycleString([]string{"targets-only", "targets-and-tests"}, state.draft.ChangeScope, direction)
+		state.draft.ChangeScope = fixCycleString([]string{"targets-only", "targets-and-tests", "repository"}, state.draft.ChangeScope, direction)
 		model.syncFixDraft()
 	case fixFieldValidation:
 		options := []string{""}
@@ -595,13 +577,80 @@ func (model *Model) adjustFixField(direction int) (tea.Model, tea.Cmd) {
 		model.syncFixDraft()
 	case fixFieldDelivery:
 		previous := state.draft.DeliveryMode
-		state.draft.DeliveryMode = fix.DeliveryMode(fixCycleString(fixUniqueStrings(string(state.draft.DeliveryMode), "candidate", "branch", "pull-request"), string(state.draft.DeliveryMode), direction))
+		state.draft.DeliveryMode = fix.DeliveryMode(fixCycleString([]string{"branch", "pull-request"}, string(state.draft.DeliveryMode), direction))
 		model.syncFixDraft()
 		if state.draft.DeliveryMode != previous {
 			model.markFixDeliveryStale()
+			model.ensureFixCursorVisible()
 		}
 	}
 	return model, nil
+}
+
+func (model *Model) saveFixTargetPreference(preferences appconfig.Resolved) tea.Cmd {
+	if model.configStore == nil {
+		return nil
+	}
+	model.fixTargetSaving = true
+	store, workspace := model.configStore, model.configWorkspace
+	score, revision := model.fixTargetDesired, preferences.Revision
+	defaults := cloneConfigFix(preferences.Fix)
+	defaults.TargetScore = score
+	return func() tea.Msg {
+		saved, err := store.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Fix: &defaults}, revision)
+		if errors.Is(err, appconfig.ErrRevisionConflict) {
+			resolved, resolveErr := store.Resolve(context.Background(), workspace, appconfig.SessionOverrides{})
+			if resolveErr != nil {
+				err = resolveErr
+			} else {
+				defaults = cloneConfigFix(resolved.Fix)
+				defaults.TargetScore = score
+				saved, err = store.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Fix: &defaults}, resolved.Revision)
+			}
+		}
+		return fixTargetPreferenceSavedMsg{score: score, saved: saved, err: err}
+	}
+}
+
+func (model *Model) handleFixTargetPreferenceSaved(message fixTargetPreferenceSavedMsg) tea.Cmd {
+	model.fixTargetSaving = false
+	if message.err != nil {
+		model.fixNotice = "Target score preference was not saved: " + cleanAgentText(message.err.Error())
+	} else {
+		model.fixDialog.draft.Preferences = message.saved.Resolved
+	}
+	if model.fixTargetDesired != message.score {
+		preferences := model.fixDialog.draft.Preferences
+		if message.err == nil {
+			preferences = message.saved.Resolved
+		}
+		return model.saveFixTargetPreference(preferences)
+	}
+	return nil
+}
+
+func (model *Model) moveFixCursor(direction int) {
+	fields := model.fixVisibleFields()
+	if len(fields) == 0 {
+		return
+	}
+	position := fixFieldPosition(fields, model.fixDialog.cursor)
+	position = min(max(0, position+direction), len(fields)-1)
+	model.fixDialog.cursor = fields[position]
+}
+
+func (model *Model) ensureFixCursorVisible() {
+	fields := model.fixVisibleFields()
+	if len(fields) == 0 {
+		model.fixDialog.cursor = fixFieldTargetScore
+		return
+	}
+	for _, field := range fields {
+		if field == model.fixDialog.cursor {
+			return
+		}
+	}
+	model.fixDialog.cursor = fields[min(fixFieldPosition(fields, model.fixDialog.cursor), len(fields)-1)]
 }
 
 func cycleAgentOption[T ~string](options []agent.Option[T], current T, direction int) T {
@@ -637,139 +686,9 @@ func fixCycleIndex(current, direction, length int) int {
 	return (current + direction%length + length) % length
 }
 
-func fixUniqueStrings(values ...string) []string {
-	result := make([]string, 0, len(values))
-	seen := map[string]bool{}
-	for _, value := range values {
-		if value != "" && !seen[value] {
-			seen[value] = true
-			result = append(result, value)
-		}
-	}
-	return result
-}
-
-func (model *Model) handlePromptEditorKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if model.fixDialog.promptPreview {
-		switch key.String() {
-		case "esc", "q":
-			model.overlays.Pop()
-		case "e", "enter":
-			model.fixDialog.promptPreview = false
-			model.fixDialog.prompt.Focus()
-		}
-		return model, nil
-	}
-	if key.String() != "R" {
-		model.fixDialog.promptResetPending = false
-	}
-	switch key.String() {
-	case "R":
-		if !model.fixDialog.detached {
-			return model, nil
-		}
-		if !model.fixDialog.promptResetPending {
-			model.fixDialog.promptResetPending = true
-			return model, nil
-		}
-		model.resetPromptFromControls()
-		return model, nil
-	case "ctrl+s":
-		if !model.fixDialog.detached && model.fixDialog.prompt.Value() != model.fixDialog.promptOriginal {
-			model.overlays.Push(OverlayPromptDetach, OverlayCaller{MainView: MainViewFiles, Overlay: OverlayPromptEditor, Selected: model.fixDialog.target.String()})
-			return model, nil
-		}
-		model.applyPromptEdits()
-		return model, nil
-	case "esc":
-		if model.fixDialog.prompt.Value() != model.fixDialog.promptOriginal {
-			model.fixDialog.promptDirtyCursor = 0
-			model.overlays.Push(OverlayPromptDirty, OverlayCaller{MainView: MainViewFiles, Overlay: OverlayPromptEditor, Selected: model.fixDialog.target.String()})
-		} else {
-			model.fixDialog.prompt.Blur()
-			model.overlays.Pop()
-		}
-		return model, nil
-	default:
-		updated, command := model.fixDialog.prompt.Update(key)
-		model.fixDialog.prompt = updated
-		return model, command
-	}
-}
-
-func (model *Model) applyPromptEdits() {
-	model.fixDialog.prompt.Blur()
-	model.fixDialog.detached = true
-	model.syncFixDraft()
-	model.fixDialog.promptOriginal = model.fixDialog.prompt.Value()
-	model.fixDialog.promptResetPending = false
-	model.overlays.Pop()
-}
-
-func (model *Model) resetPromptFromControls() {
-	body := generatedFixBody(model.fixDialog.draft)
-	model.fixDialog.prompt.SetValue(body)
-	model.fixDialog.detached = false
-	model.fixDialog.promptResetPending = false
-	model.syncFixDraft()
-	model.fixDialog.promptOriginal = body
-}
-
-func (model *Model) handlePromptDetachKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
-	case "esc", "q":
-		model.overlays.Pop()
-	case "enter":
-		model.overlays.Pop()
-		model.applyPromptEdits()
-	}
-	return model, nil
-}
-
-func (model *Model) handlePromptDirtyKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
-	case "up", "k":
-		model.fixDialog.promptDirtyCursor = max(0, model.fixDialog.promptDirtyCursor-1)
-	case "down", "j":
-		model.fixDialog.promptDirtyCursor = min(2, model.fixDialog.promptDirtyCursor+1)
-	case "esc", "q":
-		model.overlays.Pop()
-	case "enter":
-		switch model.fixDialog.promptDirtyCursor {
-		case 0:
-			model.overlays.Pop()
-			if !model.fixDialog.detached {
-				model.overlays.Push(OverlayPromptDetach, OverlayCaller{MainView: MainViewFiles, Overlay: OverlayPromptEditor, Selected: model.fixDialog.target.String()})
-			} else {
-				model.applyPromptEdits()
-			}
-		case 1:
-			model.fixDialog.prompt.SetValue(model.fixDialog.promptOriginal)
-			model.fixDialog.prompt.Blur()
-			model.overlays.Pop()
-			model.overlays.Pop()
-		case 2:
-			model.overlays.Pop()
-			model.fixDialog.prompt.Focus()
-		}
-	}
-	return model, nil
-}
-
-func generatedFixBody(draft fixapp.FixDraft) string {
-	body := draft.Instructions.Objective
-	if draft.Instructions.Evidence != "" {
-		body += "\n\n" + draft.Instructions.Evidence
-	}
-	if draft.Instructions.UserGuidance != "" {
-		body += "\n\nAdditional guidance:\n" + draft.Instructions.UserGuidance
-	}
-	return strings.TrimSpace(body)
-}
-
 func (model *Model) submitFix() (tea.Model, tea.Cmd) {
 	if model.fixDialog.submitBlocked {
-		model.fixDialog.errorText = "Submission readiness is stale · press r to recheck before retrying"
+		model.fixDialog.errorText = "Submission readiness is stale · press R to recheck before retrying"
 		return model, nil
 	}
 	if !model.syncFixDraft() {
@@ -796,12 +715,12 @@ func (model *Model) handleFixSubmitted(message fixSubmittedMsg) {
 	model.fixDialog.submitting = false
 	if message.err != nil {
 		model.fixDialog.errorText = message.err.Error()
-		model.fixDialog.statusText = "Submission blocked · r recheck readiness before retrying"
+		model.fixDialog.statusText = "Submission blocked · R recheck readiness before retrying"
 		model.fixDialog.submitBlocked = true
 		return
 	}
 	model.overlays.Pop()
-	model.status = fmt.Sprintf("Fix %s admitted", message.jobID)
+	model.status = ""
 	model.switchMainView(MainViewAgents)
 	model.agents.FindQuery = ""
 	model.agents.Selected = AgentRowID{JobID: message.jobID}
@@ -813,13 +732,13 @@ func (model Model) fixDialogRunnable() bool {
 
 func (model *Model) markFixDeliveryStale() {
 	model.fixDialog.deliveryStale = true
-	model.fixDialog.statusText = "Delivery changed · press r to recheck readiness"
+	model.fixDialog.statusText = "Result changed · press R to recheck readiness"
 }
 
 func (model *Model) openFixRemediationSettings() tea.Cmd {
 	kind, ok := model.fixRemediationSettingsKind()
 	if !ok {
-		model.fixDialog.statusText = "No settings remediation is available · resolve the diagnostic, then press r to recheck"
+		model.fixDialog.statusText = "No settings remediation is available · resolve the diagnostic, then press R to recheck"
 		return nil
 	}
 	diagnostic := model.fixDialog.errorText
@@ -853,7 +772,7 @@ func (model Model) fixRemediationSettingsKind() (configSettingsKind, bool) {
 		if !fixValidationRunnable(draft) {
 			return configValidation, true
 		}
-		if draft.DeliveryMode != fix.DeliveryModeCandidate && strings.TrimSpace(draft.BranchName) == "" {
+		if strings.TrimSpace(draft.BranchName) == "" {
 			return configDelivery, true
 		}
 	}
@@ -884,7 +803,7 @@ func (model Model) hasOverlay(kind OverlayKind) bool {
 
 func initialFixJobsCommand(service FixService) tea.Cmd {
 	return func() tea.Msg {
-		snapshot := service.Jobs(fixapp.JobFilter{IncludeArchived: true})
+		snapshot := service.Jobs(fixapp.JobFilter{IncludeFinished: true})
 		return fixJobsMsg{revision: snapshot.Revision, jobs: snapshot.Jobs}
 	}
 }
@@ -895,7 +814,7 @@ func waitFixJobsCommand(service FixService, subscription fixapp.Subscription, af
 		if err != nil {
 			return fixJobsMsg{revision: revision, err: err}
 		}
-		snapshot := service.Jobs(fixapp.JobFilter{IncludeArchived: true})
+		snapshot := service.Jobs(fixapp.JobFilter{IncludeFinished: true})
 		return fixJobsMsg{revision: snapshot.Revision, jobs: snapshot.Jobs}
 	}
 }
@@ -941,7 +860,7 @@ func (model *Model) retryFixSubscription(message fixRetrySubscriptionMsg) tea.Cm
 		_ = model.fixSubscription.Close()
 	}
 	model.fixSubscription = model.fixService.Subscribe()
-	snapshot := model.fixService.Jobs(fixapp.JobFilter{IncludeArchived: true})
+	snapshot := model.fixService.Jobs(fixapp.JobFilter{IncludeFinished: true})
 	model.fixRevision = snapshot.Revision
 	model.setAgentPresentations(snapshot.Jobs)
 	model.fixUpdatesStale = false
@@ -951,7 +870,7 @@ func (model *Model) retryFixSubscription(message fixRetrySubscriptionMsg) tea.Cm
 
 func (model *Model) openJobMonitor(jobID fix.JobID, focus fix.RepoPath) tea.Cmd {
 	if jobID == "" || model.fixService == nil {
-		model.fixNotice = "Select a fix job to monitor"
+		model.fixNotice = "Select a fix job to inspect"
 		return nil
 	}
 	model.fixGeneration++
@@ -990,11 +909,7 @@ func (model Model) loadJobMonitorCommandWithService(service FixService, jobID fi
 		if !found {
 			return jobMonitorMsg{generation: generation, found: false}
 		}
-		activity, err := loadRetainedTranscript(context.Background(), service, jobID)
-		if errors.Is(err, fixapp.ErrJobNotFound) {
-			err = nil
-		}
-		return jobMonitorMsg{generation: generation, job: job, activity: activity, found: true, err: err}
+		return jobMonitorMsg{generation: generation, job: job, found: true}
 	}
 }
 
@@ -1013,8 +928,6 @@ func (model *Model) handleJobMonitor(message jobMonitorMsg) tea.Cmd {
 	}
 	if message.found {
 		model.jobMonitor.job = message.job
-		model.jobMonitor.activity = append([]fixapp.LogEntry(nil), message.activity.Entries...)
-		model.jobMonitor.activityTruncated = message.activity.Truncated
 	}
 	model.jobMonitor.offset = min(model.jobMonitor.offset, model.jobMonitorMaxOffset())
 	if model.jobMonitor.pending {
@@ -1053,18 +966,12 @@ func (model *Model) handleJobMonitorKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		index = fixCycleIndex(index, delta, len(jobs))
 		return model, model.openJobMonitor(jobs[index].ID, "")
-	case "enter", " ":
-		model.agents.Selected = AgentRowID{JobID: model.jobMonitor.jobID}
-		model.openJobActions()
 	case "l":
 		return model, model.openJobLog(model.jobMonitor.jobID)
 	case "d":
 		return model, model.openJobDiff(model.jobMonitor.jobID, model.jobMonitor.focusPath)
 	case "C":
-		model.agents.Selected = AgentRowID{JobID: model.jobMonitor.jobID}
-		model.openCancelConfirmation()
-	case "r":
-		return model, model.openJobMonitor(model.jobMonitor.jobID, model.jobMonitor.focusPath)
+		return model.activateJobAction(model.jobMonitor.jobID, fix.ActionCancel)
 	}
 	return model, nil
 }
@@ -1267,88 +1174,42 @@ func (model *Model) handleShutdownComplete(message shutdownCompleteMsg) tea.Cmd 
 }
 
 func (model *Model) openCancelConfirmation() {
-	if !model.agents.Selected.IsJob() {
+	jobID := model.agents.Selected.JobID
+	if jobID == "" {
 		model.fixNotice = "Select a job row to cancel it"
 		return
 	}
-	job, ok := model.selectedAgentJob()
-	if !ok || !containsFixAction(job.AllowedActions, fix.ActionCancel) {
-		model.fixNotice = "Cancel is unavailable for the selected job"
-		return
-	}
-	model.cancelConfirmation = cancelConfirmation{jobID: job.ID, revision: job.Revision, action: fix.ActionCancel, deliveryMode: job.DeliveryMode, branchName: job.BranchName, diffHash: job.DiffFingerprint, allowed: true}
-	model.overlays.Push(OverlayConfirmation, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: job.ID}.String()})
+	_, _ = model.activateJobAction(jobID, fix.ActionCancel)
 }
 
-func (model *Model) openJobActions() {
-	if !model.agents.Selected.IsJob() {
-		model.fixNotice = "Select a job row to open Actions"
-		return
-	}
-	job, ok := model.selectedAgentJob()
+func (model *Model) activateJobAction(jobID fix.JobID, choices ...fix.JobAction) (tea.Model, tea.Cmd) {
+	job, ok := model.agentJobByID(jobID)
 	if !ok {
 		model.fixNotice = "Selected job is no longer available"
-		return
-	}
-	model.jobActions = jobActionsState{
-		jobID: job.ID, revision: job.Revision, actions: supportedJobActions(job.AllowedActions),
-	}
-	model.overlays.Push(OverlayJobActions, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: job.ID}.String()})
-}
-
-func supportedJobActions(values []fix.JobAction) []fix.JobAction {
-	supported := map[fix.JobAction]bool{
-		fix.ActionCancel: true, fix.ActionRetry: true, fix.ActionResume: true, fix.ActionPublish: true,
-		fix.ActionKeep: true, fix.ActionArchive: true, fix.ActionDiscard: true, fix.ActionCleanup: true,
-		fix.ActionAcknowledgeConflict: true,
-	}
-	result := make([]fix.JobAction, 0, len(values))
-	for _, value := range values {
-		if supported[value] {
-			result = append(result, value)
-		}
-	}
-	return result
-}
-
-func (model *Model) handleJobActionsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	state := &model.jobActions
-	switch key.String() {
-	case "esc", "q":
-		if !state.pending {
-			model.overlays.Pop()
-		}
 		return model, nil
-	case "up", "k":
-		if !state.pending && len(state.actions) > 0 {
-			state.cursor = max(0, state.cursor-1)
-		}
-	case "down", "j":
-		if !state.pending && len(state.actions) > 0 {
-			state.cursor = min(len(state.actions)-1, state.cursor+1)
-		}
-	case "home", "g":
-		state.cursor = 0
-	case "end", "G":
-		state.cursor = max(0, len(state.actions)-1)
-	case "enter":
-		if state.pending || len(state.actions) == 0 {
-			return model, nil
-		}
-		action := state.actions[state.cursor]
-		if jobActionRequiresConfirmation(action) {
-			job, _ := model.agentJobByID(state.jobID)
-			model.cancelConfirmation = cancelConfirmation{
-				jobID: state.jobID, revision: state.revision, action: action,
-				deliveryMode: job.DeliveryMode, branchName: job.BranchName, allowed: true,
-				diffHash: job.DiffFingerprint,
-			}
-			model.overlays.Push(OverlayConfirmation, OverlayCaller{MainView: MainViewAgents, Overlay: OverlayJobActions, Selected: AgentRowID{JobID: state.jobID}.String()})
-			return model, nil
-		}
-		return model.executeSelectedJobAction(state.jobID, state.revision, action, false)
 	}
-	return model, nil
+	action := fix.JobAction("")
+	for _, choice := range choices {
+		if containsFixAction(job.AllowedActions, choice) {
+			action = choice
+			break
+		}
+	}
+	if action == "" {
+		model.fixNotice = jobActionLabel(choices[0]) + " is unavailable for this job"
+		return model, nil
+	}
+	if jobActionRequiresConfirmation(action) {
+		model.cancelConfirmation = cancelConfirmation{
+			jobID: job.ID, revision: job.Revision, action: action,
+			deliveryMode: job.DeliveryMode, branchName: job.BranchName,
+			diffHash: job.DiffFingerprint, allowed: true,
+		}
+		model.overlays.Push(OverlayConfirmation, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: job.ID}.String()})
+		return model, nil
+	}
+	model.jobCommand = jobCommandState{jobID: job.ID, revision: job.Revision, action: action, pending: true}
+	return model.executeSelectedJobAction(job.ID, job.Revision, action, false)
 }
 
 func (model Model) agentJobByID(id fix.JobID) (fix.JobPresentation, bool) {
@@ -1361,12 +1222,7 @@ func (model Model) agentJobByID(id fix.JobID) (fix.JobPresentation, bool) {
 }
 
 func jobActionRequiresConfirmation(action fix.JobAction) bool {
-	switch action {
-	case fix.ActionPublish, fix.ActionDiscard, fix.ActionCleanup, fix.ActionCancel:
-		return true
-	default:
-		return false
-	}
+	return action == fix.ActionCancel
 }
 
 func (model Model) selectedAgentJob() (fix.JobPresentation, bool) {
@@ -1404,14 +1260,14 @@ func (model *Model) executeSelectedJobAction(jobID fix.JobID, revision uint64, a
 		if confirmation {
 			model.cancelConfirmation.errorText = err.Error()
 		} else {
-			model.jobActions.errorText = err.Error()
+			model.fixNotice = "Could not create job command: " + err.Error()
 		}
 		return model, nil
 	}
 	if confirmation {
 		model.cancelConfirmation.pending = true
 	} else {
-		model.jobActions.pending = true
+		model.jobCommand.pending = true
 	}
 	service := model.fixService
 	diffHash := ""
@@ -1429,14 +1285,14 @@ func (model *Model) executeSelectedJobAction(jobID fix.JobID, revision uint64, a
 
 func (model *Model) handleFixCommand(message fixCommandMsg) {
 	confirmation := model.hasOverlay(OverlayConfirmation) && message.jobID == model.cancelConfirmation.jobID && message.action == model.cancelConfirmation.action
-	actionSheet := model.hasOverlay(OverlayJobActions) && message.jobID == model.jobActions.jobID
-	if !confirmation && !actionSheet {
+	direct := !confirmation && model.jobCommand.pending && message.jobID == model.jobCommand.jobID && message.action == model.jobCommand.action
+	if !confirmation && !direct {
 		return
 	}
 	if confirmation {
 		model.cancelConfirmation.pending = false
 	} else {
-		model.jobActions.pending = false
+		model.jobCommand.pending = false
 	}
 	if message.err != nil {
 		model.refreshActionAfterError(message, confirmation)
@@ -1446,14 +1302,27 @@ func (model *Model) handleFixCommand(message fixCommandMsg) {
 		if confirmation {
 			model.cancelConfirmation.errorText = message.receipt.Message
 		} else {
-			model.jobActions.errorText = message.receipt.Message
+			model.fixNotice = message.receipt.Message
 		}
 		return
 	}
-	model.overlays.Pop()
 	if confirmation {
-		if caller, ok := model.overlays.Top(); ok && caller.Kind == OverlayJobActions {
-			model.overlays.Pop()
+		model.overlays.Pop()
+	}
+	if message.action == fix.ActionCancel {
+		for index := range model.agents.Jobs {
+			if model.agents.Jobs[index].ID != message.jobID {
+				continue
+			}
+			model.agents.Jobs[index].Phase = fix.PhaseCanceling
+			model.agents.Jobs[index].Attention = fix.AttentionNone
+			model.agents.Jobs[index].CurrentAction = "Canceling"
+			model.agents.Jobs[index].AllowedActions = nil
+			model.agents.Jobs[index].Issue = &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}
+			if message.receipt.Revision > 0 {
+				model.agents.Jobs[index].Revision = message.receipt.Revision
+			}
+			break
 		}
 	}
 	model.fixNotice = jobActionPastTense(message.action) + " requested for " + string(message.jobID)
@@ -1461,7 +1330,7 @@ func (model *Model) handleFixCommand(message fixCommandMsg) {
 
 func (model *Model) refreshActionAfterError(message fixCommandMsg, confirmation bool) {
 	errorText := message.err.Error()
-	snapshot := model.fixService.Jobs(fixapp.JobFilter{IncludeArchived: true})
+	snapshot := model.fixService.Jobs(fixapp.JobFilter{IncludeFinished: true})
 	model.setAgentPresentations(snapshot.Jobs)
 	for _, job := range snapshot.Jobs {
 		if job.ID != message.jobID {
@@ -1473,48 +1342,31 @@ func (model *Model) refreshActionAfterError(message fixCommandMsg, confirmation 
 			model.cancelConfirmation.branchName = job.BranchName
 			model.cancelConfirmation.diffHash = job.DiffFingerprint
 			model.cancelConfirmation.allowed = containsFixAction(job.AllowedActions, message.action)
-			if model.hasOverlay(OverlayJobActions) && model.jobActions.jobID == job.ID {
-				model.jobActions.revision = job.Revision
-				model.jobActions.actions = supportedJobActions(job.AllowedActions)
-				model.jobActions.cursor = min(model.jobActions.cursor, max(0, len(model.jobActions.actions)-1))
-			}
 			if model.cancelConfirmation.allowed {
 				model.cancelConfirmation.errorText = errorText + "; job changed, review and confirm again"
 			} else {
-				model.cancelConfirmation.errorText = errorText + "; this action is no longer allowed"
+				model.cancelConfirmation.errorText = errorText + "; this job can no longer be canceled"
 			}
 		} else {
-			model.jobActions.revision = job.Revision
-			model.jobActions.actions = supportedJobActions(job.AllowedActions)
-			model.jobActions.cursor = min(model.jobActions.cursor, max(0, len(model.jobActions.actions)-1))
-			model.jobActions.errorText = errorText + "; actions refreshed, choose again"
+			model.jobCommand.revision = job.Revision
+			if containsFixAction(job.AllowedActions, message.action) {
+				model.fixNotice = errorText + "; job changed, press the hotkey again"
+			} else {
+				model.fixNotice = errorText + "; " + strings.ToLower(jobActionLabel(message.action)) + " is no longer available"
+			}
 		}
 		return
 	}
 	if confirmation {
 		model.cancelConfirmation.errorText = errorText + "; job is no longer available"
 	} else {
-		model.jobActions.errorText = errorText + "; job is no longer available"
+		model.fixNotice = errorText + "; job is no longer available"
 	}
 }
 
 func jobActionPastTense(action fix.JobAction) string {
-	switch action {
-	case fix.ActionPublish:
-		return "Publish"
-	case fix.ActionDiscard, fix.ActionCleanup:
-		return "Cleanup"
-	case fix.ActionCancel:
+	if action == fix.ActionCancel {
 		return "Cancel"
-	case fix.ActionRetry:
-		return "Retry"
-	case fix.ActionResume:
-		return "Resume"
-	case fix.ActionKeep:
-		return "Keep"
-	case fix.ActionArchive:
-		return "Archive"
-	default:
-		return "Action"
 	}
+	return "Action"
 }

@@ -14,16 +14,15 @@ import (
 	"github.com/blater/slopwatch/internal/validation"
 )
 
-func TestCompactJobMonitorScrollsSummaryActorsAndActivityAsOneSurface(t *testing.T) {
+func TestCompactJobInspectScrollsSummaryAndActorsWithoutLogs(t *testing.T) {
 	job := fix.JobPresentation{
 		ID: "job-compact", Phase: fix.PhaseRunning, Goal: "score <= 100", AttemptOrdinal: 1,
 		Actors: []fix.ActorPresentation{{ID: "primary", CurrentAction: "editing"}, {ID: "reviewer", ParentID: "primary", CurrentAction: "reviewing"}},
 	}
-	model := Model{width: 36, height: 8, jobMonitor: jobMonitorState{
-		job: job, activity: []fixapp.LogEntry{{At: time.Unix(1, 0), Summary: "started"}, {At: time.Unix(2, 0), Summary: "latest activity"}}, activityTruncated: true,
-	}}
+	model := Model{width: 36, height: 8, jobMonitor: jobMonitorState{job: job,
+		activity: []fixapp.LogEntry{{At: time.Unix(1, 0), Summary: "must not render"}}, activityTruncated: true}}
 	initial := ansi.Strip(strings.Join(model.jobMonitorContent(36, 6), "\n"))
-	if !strings.Contains(initial, "Usage: not reported") || strings.Contains(initial, "Usage: in 0") {
+	if !strings.Contains(initial, "Tokens: not reported") || strings.Contains(initial, "Tokens: input 0") {
 		t.Fatalf("unreported usage was not truthful: %q", initial)
 	}
 	for range 20 {
@@ -33,53 +32,23 @@ func TestCompactJobMonitorScrollsSummaryActorsAndActivityAsOneSurface(t *testing
 		t.Fatalf("monitor offset=%d max=%d", model.jobMonitor.offset, model.jobMonitorMaxOffset())
 	}
 	scrolled := ansi.Strip(strings.Join(model.jobMonitorContent(36, 6), "\n"))
-	for _, want := range []string{"reviewer", "ACTIVITY", "latest activity", "Earlier activity omitted"} {
+	for _, want := range []string{"ACTORS", "reviewer"} {
 		if !strings.Contains(scrolled, want) {
-			t.Fatalf("compact unified scroll omitted %q: %q", want, scrolled)
+			t.Fatalf("compact inspect scroll omitted %q: %q", want, scrolled)
 		}
+	}
+	if strings.Contains(scrolled, "ACTIVITY") || strings.Contains(scrolled, "must not render") || strings.Contains(scrolled, "Earlier activity") {
+		t.Fatalf("compact inspect rendered log content: %q", scrolled)
 	}
 
 	model.jobMonitor.job.UsageReported = true
 	model.jobMonitor.offset = 0
-	if reported := ansi.Strip(strings.Join(model.jobMonitorContent(36, 6), "\n")); !strings.Contains(reported, "Usage: in 0") {
+	if reported := ansi.Strip(strings.Join(model.jobMonitorContent(36, 6), "\n")); !strings.Contains(reported, "Tokens: input 0") {
 		t.Fatalf("reported zero usage was hidden: %q", reported)
 	}
 }
 
-func TestEffectivePromptPreviewIncludesEnvelopeAndDetachedPromptCanReset(t *testing.T) {
-	service := &fakeFixService{draft: readyFixDraft("a.go")}
-	model := fixTestModel(service, 60, 16)
-	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
-	model.fixDialog.cursor = fixFieldAdvanced
-	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'P'}})
-	preview := ansi.Strip(model.View())
-	for _, want := range []string{"EFFECTIVE PROMPT PREVIEW", "locked", "old", "baseline"} {
-		if !strings.Contains(preview, want) {
-			t.Fatalf("effective preview omitted %q: %q", want, preview)
-		}
-	}
-	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyEsc})
-
-	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	model.fixDialog.prompt.SetValue("exact detached instructions")
-	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyCtrlS})
-	model.handlePromptDetachKey(tea.KeyMsg{Type: tea.KeyEnter})
-	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}})
-	if !model.fixDialog.detached || !model.fixDialog.promptResetPending {
-		t.Fatal("first reset key did not require confirmation")
-	}
-	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}})
-	if model.fixDialog.detached || model.fixDialog.promptResetPending || model.fixDialog.draft.Instructions.DetachedBody != "" {
-		t.Fatalf("reset did not return to generated controls: %+v", model.fixDialog)
-	}
-	if got, want := model.fixDialog.prompt.Value(), generatedFixBody(model.fixDialog.draft); got != want {
-		t.Fatalf("reset body=%q want generated=%q", got, want)
-	}
-}
-
-func TestFixFormShowsResolvedConfinementAndNetworkAtResponsiveSizes(t *testing.T) {
+func TestFixFormUsesConciseReadyStatusAtResponsiveSizes(t *testing.T) {
 	for _, size := range []struct{ width, height int }{{36, 8}, {60, 16}, {80, 24}} {
 		draft := readyFixDraft("a.go")
 		draft.Probe.Capabilities.Network.TransportRequired = true
@@ -88,13 +57,13 @@ func TestFixFormShowsResolvedConfinementAndNetworkAtResponsiveSizes(t *testing.T
 		prepare := model.openFixForSelected()
 		model.handleFixPrepared(prepare().(fixPreparedMsg))
 		view := ansi.Strip(model.View())
-		if !strings.Contains(view, "Confinement: enforced") || !strings.Contains(view, "Network:") {
-			t.Fatalf("%dx%d form omitted resolved runtime summary: %q", size.width, size.height, view)
+		if !strings.Contains(view, "READY TO FIX") || strings.Contains(view, "Confinement:") || strings.Contains(view, "Network:") {
+			t.Fatalf("%dx%d form did not use the concise ready status: %q", size.width, size.height, view)
 		}
 	}
 }
 
-func TestFixFormDescribesProviderManagedBoundaryWithoutOverclaiming(t *testing.T) {
+func TestFixFormDoesNotExposeProviderBoundaryDetailsWhenReady(t *testing.T) {
 	draft := readyFixDraft("a.go")
 	draft.Probe.Capabilities.Isolation = agent.RuntimeIsolation{
 		Writes: agent.CandidateTreeEnforced, ProviderManagedCancellation: true,
@@ -104,12 +73,9 @@ func TestFixFormDescribesProviderManagedBoundaryWithoutOverclaiming(t *testing.T
 	prepare := model.openFixForSelected()
 	model.handleFixPrepared(prepare().(fixPreparedMsg))
 	view := ansi.Strip(model.View())
-	if !strings.Contains(view, "provider workspace sandbox") || !strings.Contains(view, "per-job") || !strings.Contains(view, "cancellation") {
-		t.Fatalf("provider-managed boundary absent: %q", view)
-	}
-	for _, overclaim := range []string{"candidate/Git", "reads", "child processes"} {
-		if strings.Contains(view, overclaim) {
-			t.Fatalf("provider-managed boundary overclaimed %q: %q", overclaim, view)
+	for _, noise := range []string{"provider workspace sandbox", "per-job", "cancellation", "candidate/Git", "reads", "child processes"} {
+		if strings.Contains(view, noise) {
+			t.Fatalf("ready form exposed provider detail %q: %q", noise, view)
 		}
 	}
 }
@@ -133,18 +99,18 @@ func TestDeliveryAndBranchEditsInvalidateReadinessUntilReprepare(t *testing.T) {
 
 	model.fixDialog.cursor = fixFieldDelivery
 	model.adjustFixField(1)
-	if !model.fixDialog.deliveryStale || model.fixDialogRunnable() || !strings.Contains(ansi.Strip(model.View()), "press r to recheck") {
+	if !model.fixDialog.deliveryStale || model.fixDialogRunnable() || !strings.Contains(ansi.Strip(model.View()), "press R") {
 		t.Fatalf("delivery edit retained stale readiness: %+v", model.fixDialog)
 	}
-	_, reprepare := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	_, reprepare := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}})
 	if reprepare == nil {
 		t.Fatal("delivery readiness could not be rechecked")
 	}
 	model.handleFixPrepared(reprepare().(fixPreparedMsg))
-	if service.prepareRequest.Delivery == nil || service.prepareRequest.Delivery.Mode != fix.DeliveryModeBranch || service.prepareRequest.Delivery.Branch != "slopwatch/fix/a" {
+	if service.prepareRequest.Delivery == nil || service.prepareRequest.Delivery.Mode != fix.DeliveryModePullRequest || service.prepareRequest.Delivery.Branch != "slopwatch/fix/a" {
 		t.Fatalf("recheck did not validate the edited delivery tuple: %+v", service.prepareRequest.Delivery)
 	}
-	if model.fixDialog.deliveryStale || !model.fixDialogRunnable() || model.fixDialog.draft.DeliveryMode != fix.DeliveryModeBranch {
+	if model.fixDialog.deliveryStale || !model.fixDialogRunnable() || model.fixDialog.draft.DeliveryMode != fix.DeliveryModePullRequest {
 		t.Fatalf("reprepare did not restore edited delivery readiness: %+v", model.fixDialog)
 	}
 
@@ -176,7 +142,7 @@ func TestPullRequestWithoutValidationAutofocusesDirectRepair(t *testing.T) {
 	}
 }
 
-func TestMissingValidationPlansExplainInstallationOwnedRemediation(t *testing.T) {
+func TestMissingValidationPlansRemainClearlyUnavailable(t *testing.T) {
 	draft := readyFixDraft("a.go")
 	draft.DeliveryMode = fix.DeliveryModePullRequest
 	draft.Preferences.Delivery.RequireValidation = true
@@ -190,7 +156,7 @@ func TestMissingValidationPlansExplainInstallationOwnedRemediation(t *testing.T)
 	resolved.Validation = nil
 	model := settingsModel(configValidation, resolved, &settingsConfigStore{})
 	view := ansi.Strip(model.configSettingsView())
-	if !strings.Contains(view, "No trusted validation plans") || !strings.Contains(view, "press r to") || !strings.Contains(view, "reload") {
+	if !strings.Contains(view, "No validation plans configured") {
 		t.Fatalf("empty validation settings dead-ended: %q", view)
 	}
 }

@@ -25,13 +25,14 @@ func renderRow(model Model, file report.File, selected bool) string {
 func renderFixedColumns(model Model, file report.File, state rowState, background lipgloss.Color) string {
 	separator := lipgloss.NewStyle().Background(background).Render(" ")
 	marker, markerColour := model.rowMarker(file, state, time.Now())
-	scoreWidth := max(1, 7-lipgloss.Width(marker))
-	score := styleCell(pad(decimalWithin(file.Score, scoreWidth), scoreWidth, true), scoreColour(file.Score), background)
+	fixMarker := model.fixMarkerForPath(file.Path)
+	scoreWidth := max(1, columnDefinitions[0].width-lipgloss.Width(fixMarker)-lipgloss.Width(marker))
+	score := styleCell(fixMarker, style.TextPrimary, background)
 	if marker != "" {
 		score += styleCell(marker, markerColour, background)
 	}
-	fixCode := styleCell(pad(model.fixCodeForPath(file.Path), 3, false), style.TextPrimary, background)
-	parts := []string{score, fixCode}
+	score += styleCell(pad(decimalWithin(file.Score, scoreWidth), scoreWidth, true), scoreColour(file.Score), background)
+	parts := []string{score}
 	activeColumns := model.activeColumns()
 	for _, column := range activeColumns {
 		parts = append(parts, renderMetricCell(file, column, background))

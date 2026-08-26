@@ -13,7 +13,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode"
 
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
@@ -88,7 +87,7 @@ type jobRecord struct {
 	draft                 FixDraft
 	presentation          fix.JobPresentation
 	attempt               fix.AttemptID
-	retryEvidence         string
+	nextAttemptNotes      string
 	candidate             *fix.CandidateIdentity
 	cancel                context.CancelFunc
 	logs                  []LogEntry
@@ -99,10 +98,10 @@ type jobRecord struct {
 	diffHash              string
 	diffPaths             map[fix.RepoPath]bool
 	baseScope             fix.ScopeState
-	conflicts             map[fix.JobID]string
-	acknowledged          map[fix.JobID]string
 	delivery              delivery.Result
 	published             publisher.Result
+	canceled              bool
+	publicationStep       publicationStep
 	eventsSinceCheckpoint int
 }
 
@@ -167,6 +166,7 @@ const (
 	workerAgent
 	workerVerifier
 	workerDiscard
+	workerCleanup
 	workerPublish
 )
 
@@ -256,9 +256,6 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 	if resolved.ValidationWorkspace != manager.options.StartupValidationWorkspace {
 		return FixDraft{}, errors.New("prepare fix: validation workspace or container settings changed after Slopwatch started; restart Slopwatch before preparing another Fix so the saved policy is enforced")
 	}
-	if resolved.Fix.PromptTemplate != "" && resolved.Fix.PromptTemplate != "default" {
-		return FixDraft{}, fmt.Errorf("unsupported fix prompt template %q", resolved.Fix.PromptTemplate)
-	}
 	profile, err := selectedProfile(resolved)
 	if err != nil {
 		return FixDraft{}, err
@@ -336,7 +333,7 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 	}
 	instructions, err := fixprompt.Compile(fixprompt.Input{
 		Contract: baseline.Contract, AllowedScope: resolved.Fix.ChangeScope, AllowedPaths: allowedPaths,
-		ValidationPlan: resolved.Fix.ValidationPlan,
+		ValidationPlan: resolved.Fix.ValidationPlan, BranchName: branchName, Template: resolved.Fix.PromptTemplate,
 	})
 	if err != nil {
 		return FixDraft{}, err
@@ -420,7 +417,7 @@ func ReviseDraft(draft FixDraft, edits DraftEdits) (FixDraft, error) {
 	result.Baseline.Contract.Goal.Focus = append([]fix.MetricGoal(nil), edits.Focus...)
 	instructions, err := fixprompt.Compile(fixprompt.Input{
 		Contract: result.Baseline.Contract, AllowedScope: edits.ChangeScope, AllowedPaths: result.AllowedPaths, ValidationPlan: edits.ValidationPlanID,
-		Guidance: edits.Guidance, DetachedBody: edits.DetachedBody,
+		BranchName: result.BranchName, Template: result.Preferences.Fix.PromptTemplate,
 	})
 	if err != nil {
 		return FixDraft{}, err
@@ -452,20 +449,7 @@ func configuredFocusGoals(ids []fix.MetricID, targets []fix.TargetSnapshot) ([]f
 }
 
 func effectiveBranchTemplate(resolved appconfig.Resolved) string {
-	deliveryTemplate := strings.TrimSpace(resolved.Delivery.BranchTemplate)
-	legacyTemplate := strings.TrimSpace(resolved.Fix.BranchTemplate)
-	if deliveryTemplate == "" {
-		return legacyTemplate
-	}
-	// Preferences written before Delivery.BranchTemplate existed may carry an
-	// explicit legacy Fix.BranchTemplate alongside the built-in delivery value.
-	// Preserve that choice until the user saves the new delivery setting.
-	if resolved.Origins["delivery.branch_template"] == appconfig.OriginBuiltIn &&
-		resolved.Origins["fix.branch_template"] != "" &&
-		resolved.Origins["fix.branch_template"] != appconfig.OriginBuiltIn && legacyTemplate != "" {
-		return legacyTemplate
-	}
-	return deliveryTemplate
+	return strings.TrimSpace(resolved.Delivery.BranchTemplate)
 }
 
 func selectedProfile(resolved appconfig.Resolved) (agent.Profile, error) {
@@ -492,9 +476,6 @@ func renderBranch(template string, targets []fix.RepoPath, id fix.DraftID, focus
 		}
 	}
 	short := strings.TrimPrefix(string(id), "draft-")
-	if len(short) > 8 {
-		short = short[:8]
-	}
 	metrics := make([]string, 0, len(focus))
 	for _, metric := range focus {
 		metrics = append(metrics, sanitizeBranchPart(string(metric)))
@@ -533,9 +514,6 @@ func (manager *Manager) Submit(ctx context.Context, request SubmitRequest) (fix.
 	}
 	request.Draft = reconstructed
 	if err := validateDraft(request.Draft); err != nil {
-		return "", err
-	}
-	if err := validateUserInstructionText(request.Draft.Instructions.UserGuidance, request.Draft.Instructions.DetachedBody); err != nil {
 		return "", err
 	}
 	if manager.deps.SecretAdmission != nil {
@@ -583,20 +561,6 @@ func (manager *Manager) Submit(ctx context.Context, request SubmitRequest) (fix.
 	}
 }
 
-func validateUserInstructionText(values ...string) error {
-	for _, value := range values {
-		for _, character := range value {
-			if character == '\n' || character == '\r' || character == '\t' {
-				continue
-			}
-			if character == '\x1b' || unicode.IsControl(character) {
-				return errors.New("submit fix: advanced instructions contain terminal or non-text controls")
-			}
-		}
-	}
-	return nil
-}
-
 func reconstructPreparedDraft(prepared, submitted FixDraft) (FixDraft, error) {
 	metricIDs := make([]fix.MetricID, 0, len(submitted.Focus))
 	seen := make(map[fix.MetricID]struct{}, len(submitted.Focus))
@@ -618,8 +582,7 @@ func reconstructPreparedDraft(prepared, submitted FixDraft) (FixDraft, error) {
 		TargetScore: submitted.TargetScore,
 		Focus:       canonicalFocus, ChangeScope: submitted.ChangeScope,
 		ValidationPlanID: submitted.ValidationPlanID, DeliveryMode: submitted.DeliveryMode,
-		BranchName: submitted.BranchName, Guidance: submitted.Instructions.UserGuidance,
-		DetachedBody: submitted.Instructions.DetachedBody,
+		BranchName: submitted.BranchName,
 	})
 	if err != nil {
 		return FixDraft{}, fmt.Errorf("submit fix: revise prepared draft: %w", err)
@@ -648,9 +611,6 @@ func reconstructPreparedDraft(prepared, submitted FixDraft) (FixDraft, error) {
 func (manager *Manager) preflightDelivery(ctx context.Context, workspace fix.WorkspaceIdentity, mode fix.DeliveryMode, config appconfig.Delivery, branch string, publication bool) (delivery.PreflightResult, error) {
 	if !mode.Valid() {
 		return delivery.PreflightResult{}, fmt.Errorf("unsupported delivery mode %q", mode)
-	}
-	if mode == fix.DeliveryModeCandidate {
-		return delivery.PreflightResult{}, nil
 	}
 	if config.Remote == "" || branch == "" {
 		return delivery.PreflightResult{}, errors.New("branch delivery requires a remote and proposed branch")
@@ -793,12 +753,12 @@ func (manager *Manager) send(ctx context.Context, request any) error {
 
 func (manager *Manager) Jobs(filter JobFilter) JobListSnapshot {
 	snapshot := cloneJobList(manager.current.Load().(JobListSnapshot))
-	if !filter.ActiveOnly && filter.IncludeArchived {
+	if !filter.ActiveOnly && filter.IncludeFinished {
 		return snapshot
 	}
 	filtered := snapshot.Jobs[:0]
 	for _, job := range snapshot.Jobs {
-		if !filter.IncludeArchived && job.Phase == fix.PhaseArchived {
+		if !filter.IncludeFinished && job.Phase == fix.PhaseCompleted {
 			continue
 		}
 		if filter.ActiveOnly && isQuiescent(job.Phase) {
@@ -811,7 +771,7 @@ func (manager *Manager) Jobs(filter JobFilter) JobListSnapshot {
 }
 
 func (manager *Manager) Job(id fix.JobID) (fix.JobPresentation, bool) {
-	for _, job := range manager.Jobs(JobFilter{IncludeArchived: true}).Jobs {
+	for _, job := range manager.Jobs(JobFilter{IncludeFinished: true}).Jobs {
 		if job.ID == id {
 			return job, true
 		}
@@ -1007,8 +967,7 @@ func cloneStringMap(values map[string]string) map[string]string {
 }
 
 func isQuiescent(phase fix.Phase) bool {
-	return phase == fix.PhaseAwaitingAction || phase == fix.PhaseAwaitingReview ||
-		phase == fix.PhaseCompleted || phase == fix.PhaseArchived || phase == fix.PhaseDiscarded
+	return phase == fix.PhaseFailed || phase == fix.PhaseCompleted || phase == fix.PhaseCanceled || phase == fix.PhaseDiscarded
 }
 
 func admissionPayload(draft FixDraft) json.RawMessage {

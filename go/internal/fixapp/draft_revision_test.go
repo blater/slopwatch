@@ -21,7 +21,7 @@ func TestReviseDraftKeepsVerifierAndInstructionsInSync(t *testing.T) {
 	}
 	revised, err := ReviseDraft(draft, DraftEdits{
 		TargetScore: 80, Focus: []fix.MetricGoal{{Metric: "cog", Maximum: 10}},
-		ChangeScope: "targets-and-tests", ValidationPlanID: "go-test", Guidance: "Keep the API stable",
+		ChangeScope: "targets-and-tests", ValidationPlanID: "go-test",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -29,8 +29,7 @@ func TestReviseDraftKeepsVerifierAndInstructionsInSync(t *testing.T) {
 	if revised.Revision != 4 || revised.TargetScore != 80 || revised.Baseline.Contract.Goal.MaximumScore != 80 {
 		t.Fatalf("revised contract = %+v", revised)
 	}
-	if !strings.Contains(revised.Instructions.Objective, "SCORE <= 80") || !strings.Contains(revised.Instructions.Objective, "cog <= 10") ||
-		!strings.Contains(revised.Instructions.Objective, "go-test") || revised.Instructions.UserGuidance != "Keep the API stable" {
+	if !strings.Contains(revised.Instructions.Objective, "score of 80 or lower") || !strings.Contains(revised.Instructions.Objective, "cog <= 10") {
 		t.Fatalf("revised instructions = %+v", revised.Instructions)
 	}
 	if revised.Instructions.Envelope == "caller supplied unsafe envelope" || revised.Instructions.Envelope == "" {
@@ -41,44 +40,10 @@ func TestReviseDraftKeepsVerifierAndInstructionsInSync(t *testing.T) {
 	}
 }
 
-func TestEffectiveBranchTemplatePrefersDeliveryWithLegacyFallback(t *testing.T) {
-	tests := []struct {
-		name     string
-		resolved appconfig.Resolved
-		want     string
-	}{
-		{
-			name: "delivery setting wins",
-			resolved: appconfig.Resolved{
-				Fix:      appconfig.FixDefaults{BranchTemplate: "legacy/{target-stem}"},
-				Delivery: appconfig.Delivery{BranchTemplate: "delivery/{target-stem}"},
-				Origins:  map[string]appconfig.Origin{"delivery.branch_template": appconfig.OriginUser, "fix.branch_template": appconfig.OriginUser},
-			},
-			want: "delivery/{target-stem}",
-		},
-		{
-			name: "empty delivery setting falls back",
-			resolved: appconfig.Resolved{
-				Fix: appconfig.FixDefaults{BranchTemplate: "legacy/{target-stem}"},
-			},
-			want: "legacy/{target-stem}",
-		},
-		{
-			name: "explicit legacy setting survives built-in delivery default",
-			resolved: appconfig.Resolved{
-				Fix:      appconfig.FixDefaults{BranchTemplate: "legacy/{target-stem}"},
-				Delivery: appconfig.Delivery{BranchTemplate: "built-in/{target-stem}"},
-				Origins:  map[string]appconfig.Origin{"delivery.branch_template": appconfig.OriginBuiltIn, "fix.branch_template": appconfig.OriginRepository},
-			},
-			want: "legacy/{target-stem}",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := effectiveBranchTemplate(test.resolved); got != test.want {
-				t.Fatalf("effectiveBranchTemplate() = %q, want %q", got, test.want)
-			}
-		})
+func TestEffectiveBranchTemplateUsesDeliverySetting(t *testing.T) {
+	resolved := appconfig.Resolved{Delivery: appconfig.Delivery{BranchTemplate: "delivery/{target-stem}"}}
+	if got := effectiveBranchTemplate(resolved); got != "delivery/{target-stem}" {
+		t.Fatalf("effectiveBranchTemplate() = %q", got)
 	}
 }
 

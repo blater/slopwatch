@@ -45,4 +45,8 @@ func TestIDsAreTypedAndUnique(t *testing.T) {
 	if first == second || !strings.HasPrefix(string(first), "job-") {
 		t.Fatalf("unexpected ids %q and %q", first, second)
 	}
+	parts := strings.Split(string(first), "-")
+	if len(parts) != 4 {
+		t.Fatalf("job ID %q does not contain a three-word goname", first)
+	}
 }

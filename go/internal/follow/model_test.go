@@ -1515,7 +1515,7 @@ func TestOverviewOmitsRankAndSeparatesScoreFromMetrics(t *testing.T) {
 		}
 	}
 	row := ansi.Strip(model.renderRow(file, false))
-	if !strings.HasPrefix(row, "     12     3") {
+	if !strings.HasPrefix(row, "      12 3") {
 		t.Fatalf("rank or score/COG spacing is wrong: %q", row)
 	}
 	if !strings.Contains(row, "100  example.go") {

@@ -7,7 +7,7 @@ import (
 	"github.com/blater/slopwatch/internal/fix"
 )
 
-func TestCompileIsDeterministicAndKeepsEnvelopeOutsideDetachedBody(t *testing.T) {
+func TestCompileAppliesTheSavedMasterTemplateDeterministically(t *testing.T) {
 	t.Parallel()
 	a, _ := fix.ParseRepoPath("z.go")
 	b, _ := fix.ParseRepoPath("a.go")
@@ -18,22 +18,20 @@ func TestCompileIsDeterministicAndKeepsEnvelopeOutsideDetachedBody(t *testing.T)
 		},
 		Goal: fix.ScoringGoal{MaximumScore: 100, Focus: []fix.MetricGoal{{Metric: "cog", Maximum: 10}}},
 	}
-	first, err := Compile(Input{Contract: contract, AllowedScope: "targets-and-tests", AllowedPaths: []fix.RepoPath{a, b}, DetachedBody: "Custom body"})
+	template := "Fix {targets} to {target_score}. Focus {focus_metrics}. Files: {allowed_paths}.\n{baseline_scores}\nBranch: {branch}"
+	input := Input{Contract: contract, AllowedScope: "targets-and-tests", AllowedPaths: []fix.RepoPath{a, b}, Template: template, BranchName: "fix/parser"}
+	first, err := Compile(input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, _ := Compile(Input{Contract: contract, AllowedScope: "targets-and-tests", AllowedPaths: []fix.RepoPath{a, b}, DetachedBody: "Custom body"})
+	second, _ := Compile(input)
 	if first.EffectiveBody() != second.EffectiveBody() {
 		t.Fatal("prompt compilation was not deterministic")
 	}
-	if !strings.Contains(first.EffectiveBody(), "Slopwatch-owned") || !strings.Contains(first.EffectiveBody(), "Custom body") {
-		t.Fatalf("effective detached body lost envelope or custom body: %q", first.EffectiveBody())
-	}
-	if !strings.Contains(first.EffectiveBody(), "Exact admitted paths") || !strings.Contains(first.EffectiveBody(), "a.go") {
-		t.Fatalf("effective detached body lost locked scope objective: %q", first.EffectiveBody())
-	}
-	if strings.Contains(first.EffectiveBody(), "Baseline evidence") {
-		t.Fatal("detached body unexpectedly retained generated evidence")
+	for _, wanted := range []string{"a.go, z.go", "Fix a.go, z.go to 100", "cog <= 10", "SCORE 150", "fix/parser", "handle Git"} {
+		if !strings.Contains(first.EffectiveBody(), wanted) {
+			t.Fatalf("compiled prompt omitted %q: %q", wanted, first.EffectiveBody())
+		}
 	}
 }
 

@@ -44,7 +44,7 @@ profile = 'codex-default'
 model = '' # selected adapter default
 effort = 'high'
 delegation = 'single'
-prompt_template = 'default'
+prompt_template = '' # empty selects Slopwatch's built-in master prompt
 branch_template = 'slopwatch/fix/{target-stem}-{job-short-id}'
 validation_plan = ''
 
@@ -102,7 +102,7 @@ max_context_tokens = '0'
 # budgets are configured here when non-default values are needed.
 
 [delivery]
-default_mode = 'candidate'
+default_mode = 'branch'
 remote = 'origin'
 base_branch = 'main'
 branch_template = 'slopwatch/fix/{target-stem}-{job-short-id}'
@@ -110,12 +110,12 @@ publisher = 'github-cli'
 draft_pull_requests = true
 require_validation = false
 command_output_bytes = 4194304
-commit_policy = 'on-publish'
+commit_policy = 'automatic'
 commit_title_template = 'Refactor {targets} with Slopwatch'
 commit_body_template = 'Automated remediation for {goal}.'
 pull_request_title_template = 'Refactor {targets} with Slopwatch'
 pull_request_body_template = 'Automated remediation for {goal}.'
-cleanup_policy = 'retain'
+cleanup_policy = 'remove-worktree'
 
 [scoring]
 weight_step = 0.5
@@ -191,7 +191,8 @@ but are configured only in this preferences file. For the OpenAI Responses
 adapter, `max_turns`, `max_tool_calls`, and token checks use `0` to mean no
 Slopwatch-imposed budget (or provider default for output tokens). Byte and entry
 budgets must be positive. Slopwatch does not impose an attempt count or job
-wall-clock timeout; Retry and per-job Cancel remain explicit actions. The Codex
+wall-clock timeout; iterations are automatic and per-job Cancel remains
+available. The Codex
 App Server adapter's readiness timeout and post-cancellation termination grace
 are also preferences-file-only. Probe timeout governs readiness checks only;
 termination grace starts only after the user or owning context cancels work.
@@ -227,8 +228,9 @@ invariants, not work budgets: once a user has cancelled an operation, they
 bound cleanup before a wedged child/supervisor is killed. They cannot activate
 while an operation is live and are labelled as such in the implementation.
 
-Every constraint shown in Settings includes its effective origin. Repository
-preferences may narrow concurrency, retention, validation and delivery policy,
+Preference precedence is resolved internally without adding source or origin
+hints to Settings rows. Repository preferences may narrow concurrency,
+retention, validation and delivery policy,
 but cannot broaden authority or replace user-owned agents, credentials,
 executables, remotes, prompts or publishers.
 

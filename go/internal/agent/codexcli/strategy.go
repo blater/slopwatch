@@ -20,6 +20,7 @@ import (
 const (
 	defaultProbeTimeout     = 15 * time.Second
 	defaultTerminationGrace = 5 * time.Second
+	defaultReconcileEvery   = time.Second
 	diagnosticCaptureLimit  = 8 << 20
 )
 
@@ -39,12 +40,13 @@ var (
 // contract. Each probe and each fix attempt owns its App Server process, so
 // concurrent jobs and job-scoped cancellation remain naturally isolated.
 type Strategy struct {
-	workingDir func() (string, error)
-	start      func(string, string, []string, int64, func(rpcMessage)) (*appServerClient, error)
+	workingDir     func() (string, error)
+	start          func(string, string, []string, int64, func(rpcMessage)) (*appServerClient, error)
+	reconcileEvery time.Duration
 }
 
 func New() *Strategy {
-	return &Strategy{workingDir: os.Getwd, start: startAppServer}
+	return &Strategy{workingDir: os.Getwd, start: startAppServer, reconcileEvery: defaultReconcileEvery}
 }
 
 func (*Strategy) ProfileDescriptor() agent.ProfileDescriptor {
@@ -119,11 +121,6 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 	result = agent.Result{JobID: request.JobID, AttemptID: request.AttemptID, Status: agent.ResultFailed}
 	if err := ctx.Err(); err != nil {
 		result.Status, result.Failure = agent.ResultCanceled, agent.FailureCancellation
-		return result
-	}
-	if request.Limits.MaxOutputBytes <= 0 {
-		result.Failure = agent.FailureProtocol
-		result.Diagnostic = "Codex execution requires a positive configured output budget"
 		return result
 	}
 	executable, err := resolveExecutable(profile.Executable)
@@ -210,47 +207,135 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 	}
 	run.setTurn(turn.Turn.ID)
 
-	select {
-	case completed := <-run.completed:
-		result.SessionReference = thread.Thread.ID
-		result.Summary, result.Usage = run.snapshot()
-		if emitErr := run.err(); emitErr != nil {
-			return failedExecution(result, ctx, agent.FailureProtocol, emitErr)
-		}
-		switch completed.Status {
-		case "completed":
-			result.Status, result.Failure = agent.ResultCompleted, agent.FailureNone
-		case "interrupted":
-			result.Status, result.Failure = agent.ResultCanceled, agent.FailureCancellation
-		default:
-			result.Failure = agent.FailureProvider
-			result.Diagnostic = sanitizeProviderText(completed.Error.Message)
-			if result.Diagnostic == "" {
-				result.Diagnostic = "Codex turn failed"
-			}
-		}
-		return result
-	case <-ctx.Done():
-		// The grace period starts only after this individual job is canceled.
-		cancelCtx, cancel := context.WithTimeout(context.Background(), policy.terminationGrace)
-		_ = client.Request(cancelCtx, "turn/interrupt", map[string]any{"threadId": thread.Thread.ID, "turnId": turn.Turn.ID}, nil)
-		select {
-		case <-run.completed:
-		case <-cancelCtx.Done():
-		}
-		cancel()
-		result.Status, result.Failure = agent.ResultCanceled, agent.FailureCancellation
-		result.SessionReference = thread.Thread.ID
-		result.Summary, result.Usage = run.snapshot()
-		return result
-	case <-client.done:
-		exitErr := client.protocolExitError()
-		failure := agent.FailureProvider
-		if strings.Contains(exitErr.Error(), "configured") || strings.Contains(exitErr.Error(), "decode Codex App Server") {
-			failure = agent.FailureProtocol
-		}
-		return failedExecution(result, ctx, failure, exitErr)
+	reconcileEvery := strategy.reconcileEvery
+	if reconcileEvery <= 0 {
+		reconcileEvery = defaultReconcileEvery
 	}
+	reconcile := time.NewTicker(reconcileEvery)
+	defer reconcile.Stop()
+	reconcileCtx, stopReconciliation := context.WithCancel(ctx)
+	var reconciliationWorkers sync.WaitGroup
+	defer func() {
+		stopReconciliation()
+		reconciliationWorkers.Wait()
+	}()
+	reconciled := make(chan turnReconciliation, 1)
+	reconciliationInFlight := false
+	for {
+		select {
+		case completed := <-run.completed:
+			return completedExecution(result, ctx, run, thread.Thread.ID, completed)
+		case <-reconcile.C:
+			if !run.hasFinalAnswer() || reconciliationInFlight {
+				continue
+			}
+			reconciliationInFlight = true
+			reconciliationWorkers.Add(1)
+			go func() {
+				defer reconciliationWorkers.Done()
+				completed, terminal, reconcileErr := reconcileCodexTurn(reconcileCtx, client, thread.Thread.ID)
+				reconciled <- turnReconciliation{completed: completed, terminal: terminal, err: reconcileErr}
+			}()
+		case reconciliation := <-reconciled:
+			reconciliationInFlight = false
+			if reconciliation.err != nil {
+				if errors.Is(reconciliation.err, context.Canceled) && reconcileCtx.Err() != nil {
+					continue
+				}
+				run.setError(fmt.Errorf("reconcile Codex completion: %w", reconciliation.err))
+			} else if reconciliation.terminal {
+				run.complete(reconciliation.completed)
+			} else {
+				continue
+			}
+			completed := <-run.completed
+			return completedExecution(result, ctx, run, thread.Thread.ID, completed)
+		case <-ctx.Done():
+			// The grace period starts only after this individual job is canceled.
+			cancelCtx, cancel := context.WithTimeout(context.Background(), policy.terminationGrace)
+			_ = client.Request(cancelCtx, "turn/interrupt", map[string]any{"threadId": thread.Thread.ID, "turnId": turn.Turn.ID}, nil)
+			select {
+			case <-run.completed:
+			case <-cancelCtx.Done():
+			}
+			cancel()
+			result.Status, result.Failure = agent.ResultCanceled, agent.FailureCancellation
+			result.SessionReference = thread.Thread.ID
+			result.Summary, result.Usage = run.snapshot()
+			return result
+		case <-client.done:
+			// The reader publishes owned terminal notifications before closing
+			// done. Prefer that already-buffered completion when both become ready.
+			select {
+			case completed := <-run.completed:
+				return completedExecution(result, ctx, run, thread.Thread.ID, completed)
+			default:
+			}
+			exitErr := client.protocolExitError()
+			failure := agent.FailureProvider
+			if strings.Contains(exitErr.Error(), "configured") || strings.Contains(exitErr.Error(), "decode Codex App Server") {
+				failure = agent.FailureProtocol
+			}
+			return failedExecution(result, ctx, failure, exitErr)
+		}
+	}
+}
+
+type turnReconciliation struct {
+	completed turnCompletion
+	terminal  bool
+	err       error
+}
+
+func reconcileCodexTurn(ctx context.Context, client *appServerClient, threadID string) (turnCompletion, bool, error) {
+	var response struct {
+		Thread struct {
+			ID     string `json:"id"`
+			Status struct {
+				Type string `json:"type"`
+			} `json:"status"`
+		} `json:"thread"`
+	}
+	if err := client.Request(ctx, "thread/read", map[string]any{"threadId": threadID, "includeTurns": false}, &response); err != nil {
+		return turnCompletion{}, false, err
+	}
+	if response.Thread.ID == "" {
+		return turnCompletion{}, false, errors.New("Codex thread/read returned no thread id")
+	}
+	if response.Thread.ID != threadID {
+		return turnCompletion{}, false, fmt.Errorf("Codex thread/read returned foreign thread %q", response.Thread.ID)
+	}
+	switch response.Thread.Status.Type {
+	case "idle":
+		return turnCompletion{Status: "completed"}, true, nil
+	case "systemError":
+		failed := turnCompletion{Status: "failed"}
+		failed.Error.Message = "Codex thread entered system error state"
+		return failed, true, nil
+	default:
+		return turnCompletion{}, false, nil
+	}
+}
+
+func completedExecution(result agent.Result, ctx context.Context, run *appServerRun, threadID string, completed turnCompletion) agent.Result {
+	result.SessionReference = threadID
+	result.Summary, result.Usage = run.snapshot()
+	if emitErr := run.err(); emitErr != nil {
+		return failedExecution(result, ctx, agent.FailureProtocol, emitErr)
+	}
+	switch completed.Status {
+	case "completed":
+		result.Status, result.Failure = agent.ResultCompleted, agent.FailureNone
+	case "interrupted":
+		result.Status, result.Failure = agent.ResultCanceled, agent.FailureCancellation
+	default:
+		result.Failure = agent.FailureProvider
+		result.Diagnostic = sanitizeProviderText(completed.Error.Message)
+		if result.Diagnostic == "" {
+			result.Diagnostic = "Codex turn failed"
+		}
+	}
+	return result
 }
 
 func (strategy *Strategy) appServer(executable, directory string, maximum int64, handler func(rpcMessage)) (*appServerClient, error) {
@@ -472,17 +557,20 @@ type appServerRun struct {
 	sink      agent.EventSink
 	completed chan turnCompletion
 
-	emitMu   sync.Mutex
-	mu       sync.Mutex
-	threadID string
-	turnID   string
-	sequence uint64
-	events   int
-	summary  string
-	usage    agent.Usage
-	emitErr  error
-	terminal bool
-	actors   map[string]struct{}
+	emitMu      sync.Mutex
+	mu          sync.Mutex
+	threadID    string
+	turnID      string
+	sequence    uint64
+	events      int
+	summary     string
+	usage       agent.Usage
+	emitErr     error
+	terminal    bool
+	finalAnswer bool
+	actors      map[string]struct{}
+	pendingTurn []rpcMessage
+	turnReady   bool
 }
 
 func newAppServerRun(request agent.Request, sink agent.EventSink) *appServerRun {
@@ -504,12 +592,34 @@ func (run *appServerRun) setThread(value string) {
 
 func (run *appServerRun) setTurn(value string) {
 	run.mu.Lock()
-	defer run.mu.Unlock()
 	if run.turnID != "" && run.turnID != value {
 		run.setErrorLocked(errors.New("Codex App Server changed the owned turn id"))
+		run.mu.Unlock()
 		return
 	}
 	run.turnID = value
+	run.mu.Unlock()
+	for {
+		run.mu.Lock()
+		pending := append([]rpcMessage(nil), run.pendingTurn...)
+		run.pendingTurn = nil
+		if len(pending) == 0 {
+			run.turnReady = true
+			run.mu.Unlock()
+			return
+		}
+		run.mu.Unlock()
+		for _, message := range pending {
+			if message.Method == "turn/started" {
+				run.handleBound(message)
+			}
+		}
+		for _, message := range pending {
+			if message.Method != "turn/started" {
+				run.handleBound(message)
+			}
+		}
+	}
 }
 
 func (run *appServerRun) handle(message rpcMessage) {
@@ -524,6 +634,28 @@ func (run *appServerRun) handle(message rpcMessage) {
 		run.setError(err)
 		return
 	}
+	if run.bufferUntilTurnBound(message, params) {
+		return
+	}
+	run.handleBoundParams(message, params)
+}
+
+func (run *appServerRun) handleBound(message rpcMessage) {
+	run.mu.Lock()
+	terminal := run.terminal
+	run.mu.Unlock()
+	if terminal {
+		return
+	}
+	var params map[string]any
+	if err := json.Unmarshal(message.Params, &params); err != nil {
+		run.setError(err)
+		return
+	}
+	run.handleBoundParams(message, params)
+}
+
+func (run *appServerRun) handleBoundParams(message rpcMessage, params map[string]any) {
 	switch message.Method {
 	case "turn/started":
 		if !run.matchesOwned(params, true) {
@@ -545,10 +677,9 @@ func (run *appServerRun) handle(message rpcMessage) {
 		usage, _ := params["tokenUsage"].(map[string]any)
 		total, _ := usage["total"].(map[string]any)
 		value := parseAppServerUsage(total)
-		run.mu.Lock()
-		run.usage = value
-		run.mu.Unlock()
-		run.emit(agent.Event{Kind: agent.EventUsage, Summary: "Token usage updated", Usage: &value})
+		run.emitWithUpdate(agent.Event{Kind: agent.EventUsage, Summary: "Token usage updated", Usage: &value}, func() {
+			run.usage = value
+		})
 	case "turn/plan/updated":
 		if !run.matchesOwned(params, false) {
 			return
@@ -571,6 +702,19 @@ func (run *appServerRun) handle(message rpcMessage) {
 		}
 		run.complete(completed)
 	}
+}
+
+func (run *appServerRun) bufferUntilTurnBound(message rpcMessage, params map[string]any) bool {
+	run.mu.Lock()
+	defer run.mu.Unlock()
+	if run.turnReady || run.threadID == "" {
+		return false
+	}
+	if threadID := stringValue(params, "threadId"); threadID != "" && threadID != run.threadID {
+		return false
+	}
+	run.pendingTurn = append(run.pendingTurn, message)
+	return true
 }
 
 func (run *appServerRun) complete(completed turnCompletion) {
@@ -606,9 +750,6 @@ func (run *appServerRun) matchesOwned(params map[string]any, allowTurnStart bool
 	if run.threadID == "" || threadID != run.threadID {
 		return false
 	}
-	if run.turnID == "" && allowTurnStart {
-		run.turnID = turnID
-	}
 	return run.turnID != "" && turnID == run.turnID
 }
 
@@ -624,9 +765,14 @@ func (run *appServerRun) handleItem(method string, item map[string]any) {
 	case "agentMessage":
 		text := stringValue(item, "text")
 		if method == "item/completed" && text != "" {
-			run.mu.Lock()
-			run.summary = text
-			run.mu.Unlock()
+			finalAnswer := stringValue(item, "phase") == "final_answer"
+			run.emitWithUpdate(agent.Event{Kind: agent.EventRuntimeMessage, CommandID: id, Summary: text}, func() {
+				run.summary = text
+				if finalAnswer {
+					run.finalAnswer = true
+				}
+			})
+			return
 		}
 		run.emit(agent.Event{Kind: agent.EventRuntimeMessage, CommandID: id, Summary: text})
 	case "reasoning":
@@ -651,18 +797,24 @@ func (run *appServerRun) handleItem(method string, item map[string]any) {
 }
 
 func (run *appServerRun) emit(event agent.Event) {
+	run.emitWithUpdate(event, nil)
+}
+
+func (run *appServerRun) emitWithUpdate(event agent.Event, update func()) {
 	run.emitMu.Lock()
+	defer run.emitMu.Unlock()
 	run.mu.Lock()
 	if run.emitErr != nil || run.terminal {
 		run.mu.Unlock()
-		run.emitMu.Unlock()
 		return
+	}
+	if update != nil {
+		update()
 	}
 	run.events++
 	if run.request.Limits.MaxEvents > 0 && run.events > run.request.Limits.MaxEvents {
 		run.setErrorLocked(fmt.Errorf("Codex emitted more than %d events", run.request.Limits.MaxEvents))
 		run.mu.Unlock()
-		run.emitMu.Unlock()
 		return
 	}
 	if event.ActorID != "" {
@@ -670,7 +822,6 @@ func (run *appServerRun) emit(event agent.Event) {
 		if run.request.Limits.MaxActors > 0 && len(run.actors) > run.request.Limits.MaxActors {
 			run.setErrorLocked(fmt.Errorf("Codex reported more than %d actors", run.request.Limits.MaxActors))
 			run.mu.Unlock()
-			run.emitMu.Unlock()
 			return
 		}
 	}
@@ -678,9 +829,10 @@ func (run *appServerRun) emit(event agent.Event) {
 	event.JobID, event.AttemptID, event.Sequence, event.At = run.request.JobID, run.request.AttemptID, run.sequence, time.Now()
 	run.mu.Unlock()
 	err := run.sink.Emit(event)
-	run.emitMu.Unlock()
 	if err != nil {
-		run.setError(fmt.Errorf("emit Codex event: %w", err))
+		run.mu.Lock()
+		run.setErrorLocked(fmt.Errorf("emit Codex event: %w", err))
+		run.mu.Unlock()
 	}
 }
 
@@ -707,13 +859,15 @@ func (run *appServerRun) repoPath(value string) (fix.RepoPath, bool) {
 }
 
 func (run *appServerRun) setError(err error) {
+	run.emitMu.Lock()
+	defer run.emitMu.Unlock()
 	run.mu.Lock()
 	defer run.mu.Unlock()
 	run.setErrorLocked(err)
 }
 
 func (run *appServerRun) setErrorLocked(err error) {
-	if run.emitErr == nil {
+	if run.emitErr == nil && !run.terminal {
 		run.emitErr = err
 		run.terminal = true
 		failed := turnCompletion{Status: "failed"}
@@ -726,6 +880,11 @@ func (run *appServerRun) setErrorLocked(err error) {
 }
 
 func (run *appServerRun) err() error { run.mu.Lock(); defer run.mu.Unlock(); return run.emitErr }
+func (run *appServerRun) hasFinalAnswer() bool {
+	run.mu.Lock()
+	defer run.mu.Unlock()
+	return run.finalAnswer
+}
 func (run *appServerRun) snapshot() (string, agent.Usage) {
 	run.mu.Lock()
 	defer run.mu.Unlock()

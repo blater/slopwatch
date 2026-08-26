@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/fix"
@@ -17,19 +18,31 @@ func TestAgentRowsUseAttentionOrderAndActiveAllFilter(t *testing.T) {
 	jobs := []fix.JobPresentation{
 		{ID: "completed", Phase: fix.PhaseCompleted, CreatedAt: now.Add(-7 * time.Minute)},
 		{ID: "running", Phase: fix.PhaseRunning, CreatedAt: now.Add(-6 * time.Minute)},
-		{ID: "review", Phase: fix.PhaseAwaitingReview, CreatedAt: now.Add(-5 * time.Minute)},
+		{ID: "failed-old", Phase: fix.PhaseFailed, CreatedAt: now.Add(-5 * time.Minute)},
 		{ID: "blocked", Phase: fix.PhaseRunning, Attention: fix.AttentionBlocking, CreatedAt: now.Add(-4 * time.Minute)},
-		{ID: "failed", Phase: fix.PhaseAwaitingAction, CreatedAt: now.Add(-3 * time.Minute)},
+		{ID: "failed", Phase: fix.PhaseFailed, CreatedAt: now.Add(-3 * time.Minute)},
 		{ID: "verify", Phase: fix.PhaseVerifying, CreatedAt: now.Add(-2 * time.Minute)},
-		{ID: "archived", Phase: fix.PhaseArchived, CreatedAt: now.Add(-time.Minute)},
+		{ID: "completed-new", Phase: fix.PhaseCompleted, CreatedAt: now.Add(-time.Minute)},
 		{ID: "discarded", Phase: fix.PhaseDiscarded},
 	}
 	model := Model{width: 80, height: 24, agents: AgentsState{Expanded: map[fix.JobID]bool{}}}
 	model.setAgentPresentations(jobs)
-	assertAgentJobOrder(t, model.visibleAgentJobs(), "blocked", "failed", "review", "verify", "running")
+	assertAgentJobOrder(t, model.visibleAgentJobs(), "blocked", "failed", "failed-old", "verify", "running")
 
 	model.toggleAgentFilter()
-	assertAgentJobOrder(t, model.visibleAgentJobs(), "blocked", "failed", "review", "verify", "running", "completed", "archived")
+	assertAgentJobOrder(t, model.visibleAgentJobs(), "blocked", "failed", "failed-old", "verify", "running", "completed", "completed-new")
+}
+
+func TestAgentCountIncludesOnlyRunningActors(t *testing.T) {
+	jobs := []fix.JobPresentation{
+		{Phase: fix.PhasePreparing, ActorCount: 4},
+		{Phase: fix.PhaseRunning, ActorCount: 3},
+		{Phase: fix.PhaseRunning},
+		{Phase: fix.PhaseVerifying, ActorCount: 2},
+	}
+	if got := fixAggregateText(jobs); got != "AGENTS 4" {
+		t.Fatalf("aggregate = %q, want running actors only", got)
+	}
 }
 
 func TestAgentSelectionExpansionAndVisualPositionSurviveUpdates(t *testing.T) {
@@ -46,7 +59,7 @@ func TestAgentSelectionExpansionAndVisualPositionSurviveUpdates(t *testing.T) {
 	before := model.agentRowSpans(rows)[index].start - model.agents.Offset
 
 	updated := []fix.JobPresentation{
-		agentTestJob("urgent", fix.PhaseAwaitingAction, "urgent.go"),
+		agentTestJob("urgent", fix.PhaseFailed, "urgent.go"),
 		jobs[0], jobs[1],
 	}
 	model.setAgentPresentations(updated)
@@ -75,7 +88,7 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 	job.ModelLabel = "gpt-5.6"
 	job.EffortLabel = "high"
 	job.Goal = "SCORE ≤100 · COG,CPL"
-	job.CurrentAction = "Running tests"
+	job.CurrentAction = "Refactoring SQL selection predicates"
 	job.AttemptOrdinal = 2
 	job.ActorCount = 3
 	job.Targets[0].BaselineScore = 142
@@ -85,7 +98,7 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 	job.Targets[1].Classification = "supporting"
 	job.Targets[1].Changed = true
 
-	for _, size := range []struct{ width, height int }{{36, 8}, {60, 16}, {80, 24}, {120, 30}} {
+	for _, size := range []struct{ width, height int }{{36, 8}, {60, 16}, {80, 24}, {96, 24}, {120, 30}} {
 		model := agentTestModel(size.width, size.height, job)
 		model.agents.Expanded[job.ID] = true
 		model.agents.Selected = AgentRowID{JobID: job.ID, Path: job.Targets[0].Path}
@@ -104,22 +117,95 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 			}
 			assertCompactSelectedBlock(t, view, "internal/service.go", "SCORE 142→91✓", size.width)
 		}
-		if size.width >= 60 && size.width < 96 && !strings.Contains(plain, "ATTEMPT") {
+		if size.width >= 60 && size.width < 112 && !strings.Contains(plain, "ATTEMPT") {
 			t.Fatalf("medium Agents header omitted attempt column: %q", plain)
 		}
-		if size.width == 120 && (!strings.Contains(plain, "gpt-5.6") || !strings.Contains(plain, "Running tests")) {
+		if size.width == 120 && (!strings.Contains(plain, "gpt-5.6") || !strings.Contains(plain, "Refactoring SQL selection predicates")) {
 			t.Fatalf("wide view omitted model/activity: %q", plain)
 		}
 	}
 }
 
-func TestJobMonitorRendersAttemptOrdinal(t *testing.T) {
+func TestAgentColumnsAlignAndActivityUsesResponsiveSpace(t *testing.T) {
+	job := agentTestJob("job-1", fix.PhaseRunning, "service.go")
+	job.ProfileLabel = "Codex"
+	job.AttemptOrdinal = 2
+	job.CurrentAction = "Refactoring SQL selection predicates"
+	for _, width := range []int{60, 80, 96, 112, 120} {
+		model := agentTestModel(width, 20, job)
+		lines := strings.Split(ansi.Strip(model.View()), "\n")
+		header, row := lines[1], lines[2]
+		for _, title := range []string{"STATE", "ATTEMPT", "AGENT", "ACTIVITY"} {
+			position := strings.Index(header, title)
+			if position < 0 || strings.TrimSpace(row[position:min(len(row), position+len(title))]) == "" {
+				t.Fatalf("%d-column %s is not aligned with row content:\n%s\n%s", width, title, header, row)
+			}
+		}
+		activityStart := strings.Index(header, "ACTIVITY")
+		timeStart := strings.Index(header, "TIME")
+		if timeStart < 0 || strings.TrimSpace(row[timeStart-2:]) == "" {
+			t.Fatalf("%d-column TIME is not aligned with elapsed content:\n%s\n%s", width, header, row)
+		}
+		activity := strings.TrimSpace(row[activityStart:timeStart])
+		if len(activity) <= 14 {
+			t.Fatalf("%d-column activity remained unusably narrow: %q", width, activity)
+		}
+	}
+}
+
+func TestExpandedAgentFileUsesFilesMetricsAndRightAlignedFilename(t *testing.T) {
+	job := agentTestJob("job-1", fix.PhaseRunning, "internal/service.go")
+	job.Targets[0].BaselineScore = 142
+	job.Targets[0].Metrics = []fix.MetricValue{
+		{ID: "nesting", Value: 7, Complete: true},
+		{ID: "npath", Value: 99, Complete: false},
+		{ID: "coupling", Value: 8, Complete: true},
+		{ID: "cog", Value: 11, Complete: true},
+	}
+	model := agentTestModel(120, 20, job)
+	model.weightEnabled["coupling_between_objects"] = false
+	model.agents.Expanded[job.ID] = true
+	lines := strings.Split(ansi.Strip(model.View()), "\n")
+	var fileRow string
+	for _, line := range lines {
+		if strings.Contains(line, "internal/service.go") {
+			fileRow = strings.TrimRight(line, " ")
+			break
+		}
+	}
+	if fileRow == "" || !strings.HasSuffix(fileRow, "internal/service.go") {
+		t.Fatalf("expanded filename is not on the right: %q", fileRow)
+	}
+	if !strings.Contains(fileRow, "SCORE 142→… · COG 11") {
+		t.Fatalf("expanded row does not use Files metric naming/order: %q", fileRow)
+	}
+	for _, excluded := range []string{"NPATH", "NEST", "CPL"} {
+		if strings.Contains(fileRow, excluded) {
+			t.Fatalf("expanded row included unavailable or disabled %s: %q", excluded, fileRow)
+		}
+	}
+}
+
+func TestExpandedAgentFileHonorsFilesCompactMode(t *testing.T) {
+	job := agentTestJob("job-1", fix.PhaseRunning, "service.go")
+	job.Targets[0].BaselineScore = 142
+	job.Targets[0].Metrics = []fix.MetricValue{{ID: "cog", Value: 11, Complete: true}}
+	model := agentTestModel(80, 20, job)
+	model.options.Compact = true
+	model.agents.Expanded[job.ID] = true
+	view := ansi.Strip(model.View())
+	if !strings.Contains(view, "SCORE 142→…") || !strings.Contains(view, "service.go") || strings.Contains(view, "COG 11") {
+		t.Fatalf("expanded Agent row did not match compact Files metrics: %q", view)
+	}
+}
+
+func TestJobInspectRendersOnlyEssentialAgentIdentity(t *testing.T) {
 	model := Model{jobMonitor: jobMonitorState{job: fix.JobPresentation{
-		ID: "job-1", Phase: fix.PhaseRunning, ProfileLabel: "Codex", AttemptOrdinal: 2,
+		ID: "job-1", Phase: fix.PhaseRunning, ProfileLabel: "Codex recommended account", ModelLabel: "gpt-5.6-sol", EffortLabel: "high", AttemptOrdinal: 2,
 	}}}
 	view := ansi.Strip(strings.Join(model.jobMonitorContent(72, 8), "\n"))
-	if !strings.Contains(view, "attempt 2") {
-		t.Fatalf("job monitor omitted attempt ordinal: %q", view)
+	if !strings.Contains(view, "Agent: codex · gpt-5.6-sol · high") || strings.Contains(view, "recommended") || strings.Contains(view, "attempt") {
+		t.Fatalf("job inspect did not use the concise agent identity: %q", view)
 	}
 }
 
@@ -144,13 +230,13 @@ func TestAgentsEmptyStatesAndStickyParentBreadcrumb(t *testing.T) {
 	model.agents.Selected = AgentRowID{JobID: job.ID, Path: "d.go"}
 	model.ensureAgentVisible()
 	header := strings.Split(ansi.Strip(model.View()), "\n")[1]
-	if !strings.Contains(header, "↑") || !strings.Contains(header, "RUNNING") {
+	if strings.Contains(header, "↑") || !strings.Contains(header, "RUNNING") {
 		t.Fatalf("sticky parent breadcrumb = %q", header)
 	}
 }
 
 func TestAgentsKeysNavigateLogicalRowsAndPreserveFileState(t *testing.T) {
-	longPath := fix.RepoPath(strings.Repeat("long/", 10) + "a.go")
+	longPath := fix.RepoPath("zero/one/two/three/four/five/six/seven/eight/nine/a.go")
 	job := agentTestJob("job-1", fix.PhaseRunning, longPath, "b.go")
 	model := agentTestModel(36, 8, job)
 	model.agents.Selected = AgentRowID{JobID: job.ID}
@@ -165,16 +251,64 @@ func TestAgentsKeysNavigateLogicalRowsAndPreserveFileState(t *testing.T) {
 	if result.agents.Selected != (AgentRowID{JobID: job.ID, Path: longPath}) {
 		t.Fatalf("Down selected %+v", result.agents.Selected)
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyRight})
+	initialRow := agentFileRowContaining(result.View(), "a.go")
+	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyLeft})
 	result = updated.(*Model)
 	if result.agents.HorizontalOffset != pathScrollStep {
-		t.Fatalf("Right horizontal offset = %d", result.agents.HorizontalOffset)
+		t.Fatalf("Left horizontal offset = %d", result.agents.HorizontalOffset)
+	}
+	if shifted := agentFileRowContaining(result.View(), "T"); shifted == initialRow {
+		t.Fatalf("Left did not reveal an earlier part of the right-anchored path: %q", shifted)
+	}
+	for result.agents.HorizontalOffset < result.maximumAgentHorizontalOffset() {
+		updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyLeft})
+		result = updated.(*Model)
+	}
+	if row := agentFileRowContaining(result.View(), "zero/"); !strings.Contains(row, "zero/") {
+		t.Fatalf("path could not reach its beginning: %q", row)
+	}
+	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyRight})
+	result = updated.(*Model)
+	if result.agents.HorizontalOffset >= result.maximumAgentHorizontalOffset() {
+		t.Fatal("Right did not return toward the filename end")
 	}
 	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	result = updated.(*Model)
 	if !result.agents.ShowAll || result.agents.Selected.IsZero() {
 		t.Fatalf("a did not toggle All while retaining selection: %+v", result.agents)
 	}
+}
+
+func TestAgentPathScrollRangeUsesOnlyExactRenderedPathViewport(t *testing.T) {
+	job := agentTestJob("job-1", fix.PhaseRunning, "short.go")
+	job.Targets[0].Metrics = []fix.MetricValue{
+		{ID: "cog", Value: 1, Complete: true}, {ID: "npath", Value: 2, Complete: true},
+		{ID: "cyclo", Value: 3, Complete: true}, {ID: "deep", Value: 4, Complete: true},
+		{ID: "god", Value: 5, Complete: true}, {ID: "coupling", Value: 6, Complete: true},
+	}
+	model := agentTestModel(36, 8, job)
+	model.agents.Expanded[job.ID] = true
+	if maximum := model.maximumAgentHorizontalOffset(); maximum != 0 {
+		t.Fatalf("compact metric line created phantom path scroll range %d", maximum)
+	}
+
+	job.Targets[0].PreviousPath = "old/location/with/a/very/long/name.go"
+	job.Targets[0].Path = "new/location/with/a/very/long/name.go"
+	model = agentTestModel(60, 16, job)
+	model.agents.Expanded[job.ID] = true
+	want := max(0, lipgloss.Width(agentFileDisplayPath(job.Targets[0]))-model.agentFilePathViewport(job.Targets[0], ResponsiveMedium, 60))
+	if got := model.maximumAgentHorizontalOffset(); got != want {
+		t.Fatalf("renamed path scroll maximum = %d, want exact %d", got, want)
+	}
+}
+
+func agentFileRowContaining(view, needle string) string {
+	for _, line := range strings.Split(ansi.Strip(view), "\n") {
+		if strings.Contains(line, needle) && strings.Contains(line, "    T") {
+			return line
+		}
+	}
+	return ""
 }
 
 func TestAgentProjectionStripsTerminalControlSequences(t *testing.T) {
@@ -188,7 +322,11 @@ func TestAgentProjectionStripsTerminalControlSequences(t *testing.T) {
 }
 
 func agentTestModel(width, height int, jobs ...fix.JobPresentation) Model {
-	model := Model{width: width, height: height, mainView: MainViewAgents, agents: AgentsState{Expanded: map[fix.JobID]bool{}}}
+	model := Model{
+		width: width, height: height, mainView: MainViewAgents,
+		agents:  AgentsState{Expanded: map[fix.JobID]bool{}},
+		visible: defaultColumnVisibility(), weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
+	}
 	model.setAgentPresentations(jobs)
 	return model
 }

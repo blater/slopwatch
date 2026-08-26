@@ -70,8 +70,8 @@ func (value *rpcError) Error() string {
 }
 
 func startAppServer(executable, directory string, environment []string, maximum int64, handler func(rpcMessage)) (*appServerClient, error) {
-	if maximum <= 0 || maximum > int64(^uint(0)>>1) {
-		return nil, errors.New("Codex App Server output budget must be a positive supported byte count")
+	if maximum < 0 || maximum > int64(^uint(0)>>1) {
+		return nil, errors.New("Codex App Server output budget is outside the supported byte range")
 	}
 	command := exec.Command(executable, "app-server")
 	command.Dir = directory
@@ -111,14 +111,17 @@ func startAppServer(executable, directory string, environment []string, maximum 
 }
 
 func (client *appServerClient) read(reader io.Reader) {
-	maximum := int(client.maximum)
+	maximum := diagnosticCaptureLimit
+	if client.maximum > 0 {
+		maximum = int(client.maximum)
+	}
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, min(64<<10, maximum)), maximum)
 	var consumed int64
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		consumed += int64(len(line)) + 1
-		if consumed > client.maximum {
+		if client.maximum > 0 && consumed > client.maximum {
 			client.mu.Lock()
 			client.readErr = fmt.Errorf("Codex App Server output exceeded the configured %d-byte budget", client.maximum)
 			client.mu.Unlock()
@@ -166,7 +169,11 @@ func (client *appServerClient) read(reader io.Reader) {
 	}
 	if err := scanner.Err(); err != nil {
 		client.mu.Lock()
-		client.readErr = fmt.Errorf("read Codex App Server output within the configured %d-byte budget: %w", client.maximum, err)
+		if client.maximum > 0 {
+			client.readErr = fmt.Errorf("read Codex App Server output within the configured %d-byte budget: %w", client.maximum, err)
+		} else {
+			client.readErr = fmt.Errorf("read Codex App Server output: %w", err)
+		}
 		client.mu.Unlock()
 	}
 	client.mu.Lock()

@@ -51,15 +51,15 @@ var commandLineHelp = []helpEntry{
 // Main-screen entries are deliberately ordered by action name so this page is
 // predictable even when the footer has to hide shortcuts on a narrow terminal.
 var mainScreenHelp = []helpEntry{
-	{label: "Actions", description: "Space on an Agents job opens only the actions currently allowed for that exact job revision."},
 	{label: "Agents", description: "Tab switches Files/Agents; A jumps directly to Agents. a toggles Active/All, f finds jobs, and o cycles job sorting."},
+	{label: "Cancel", description: "C cancels the selected running fix job."},
 	{label: "Columns", description: "c opens Settings with Columns selected; Enter chooses which metric columns are visible."},
 	{label: "Find", description: "f or / searches file paths. Enter accepts the query and Esc cancels it."},
 	{label: "Fix", description: "x opens Fix for the selected file, or opens its existing reservation-holding job. Space remains reserved for future multi-select."},
 	{label: "Help", description: "h opens this help system."},
 	{label: "Info", description: "i or Enter opens the full analysis for the selected file."},
-	{label: "Job details", description: "In Agents, Enter expands a job and Space opens its actions; i opens the monitor, d opens the candidate diff, l opens sanitized logs, and C cancels that job after confirmation. On an expanded file, v opens candidate source and i focuses its metrics."},
-	{label: "Job status", description: "QUEUED, RUNNING, VERIFYING, REVIEW, CANCELED, FAILED and DONE are textual states. A check is final verification; a diamond is an independent checkpoint."},
+	{label: "Job details", description: "In Agents, Enter expands a job; i inspects it, d opens its diff, l opens sanitized logs, and C cancels it after confirmation. On an expanded file, Enter inspects the job, v opens candidate source, and i focuses its metrics."},
+	{label: "Job status", description: "QUEUED, RUNNING, VERIFYING, COMMITTING, CANCELED, FAILED and DONE are textual states."},
 	{label: "Jump to bottom", description: "G or End selects the final file immediately."},
 	{label: "Jump to top", description: "g or Home selects the first file immediately."},
 	{label: "Move down", description: "Down or j selects the next file."},

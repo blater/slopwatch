@@ -1,6 +1,7 @@
 package preferencesadapter
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -52,7 +53,7 @@ func (adapter *Adapter) validateResolved(value appconfig.Resolved) error {
 	if err := appconfig.ValidateBranchTemplate(value.Delivery.BranchTemplate); err != nil {
 		return fmt.Errorf("delivery %w", err)
 	}
-	if value.Delivery.CommitPolicy != "on-publish" || value.Delivery.CleanupPolicy != "retain" {
+	if value.Delivery.CommitPolicy != "automatic" || value.Delivery.CleanupPolicy != "remove-worktree" {
 		return fmt.Errorf("delivery commit/cleanup policy is unsupported")
 	}
 	for label, text := range map[string]string{"commit title template": value.Delivery.CommitTitleTemplate, "commit body template": value.Delivery.CommitBodyTemplate, "pull request title template": value.Delivery.PullRequestTitleTemplate, "pull request body template": value.Delivery.PullRequestBodyTemplate} {
@@ -148,8 +149,11 @@ func validateFix(value appconfig.FixDefaults) error {
 	if value.Delegation == "" {
 		return fmt.Errorf("fix delegation mode cannot be empty")
 	}
-	if value.PromptTemplate != "default" {
-		return fmt.Errorf("unsupported fix prompt template %q; v1 provides only the locked default template", value.PromptTemplate)
+	if strings.TrimSpace(value.PromptTemplate) == "" {
+		return errors.New("fix prompt template cannot be empty")
+	}
+	if strings.ContainsRune(value.PromptTemplate, '\x00') {
+		return errors.New("fix prompt template contains a NUL character")
 	}
 	seen := make(map[scoring.MetricID]struct{}, len(value.Focus))
 	for _, metric := range value.Focus {
@@ -286,9 +290,6 @@ func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.
 		if candidate.PromptTemplate != inherited.Fix.PromptTemplate {
 			return repositoryOwnedField("fix prompt template")
 		}
-		if candidate.BranchTemplate != inherited.Fix.BranchTemplate {
-			return repositoryOwnedField("fix branch template")
-		}
 		if inherited.Fix.ValidationPlan != "" && candidate.ValidationPlan != inherited.Fix.ValidationPlan {
 			return fmt.Errorf("repository preferences cannot replace or remove inherited fix validation plan %q", inherited.Fix.ValidationPlan)
 		}
@@ -403,14 +404,12 @@ func mutationScopeRank(value string) int {
 
 func deliveryModeRank(value fix.DeliveryMode) int {
 	switch value {
-	case fix.DeliveryModeCandidate:
-		return 0
 	case fix.DeliveryModeBranch:
-		return 1
+		return 0
 	case fix.DeliveryModePullRequest:
-		return 2
+		return 1
 	default:
-		return 3
+		return 2
 	}
 }
 

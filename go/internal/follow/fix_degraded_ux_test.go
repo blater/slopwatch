@@ -23,7 +23,7 @@ func TestDegradedConfinementIsExplicitlyNonRunnableAndNotPresentedAsSettingsRepa
 	model.handleFixPrepared(prepare().(fixPreparedMsg))
 
 	plain := ansi.Strip(model.View())
-	for _, wanted := range []string{"Run disabled", "this build cannot run", "fixes safely", "Settings cannot enable it", "crash containment is not", "proven"} {
+	for _, wanted := range []string{"FIX BLOCKED", "this build cannot run", "fixes safely", "Settings cannot enable it", "crash containment is not", "proven"} {
 		if !strings.Contains(plain, wanted) {
 			t.Fatalf("degraded runtime omitted %q: %q", wanted, plain)
 		}
@@ -68,8 +68,6 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 	model.fixDialog.draft.TargetScore = 70
 	model.fixDialog.focus["cog"] = true
 	model.fixDialog.branch.SetValue("slopwatch/fix/preserved")
-	model.fixDialog.prompt.SetValue("preserved detached task")
-	model.fixDialog.detached = true
 	model.fixDialog.cursor = fixFieldEffort
 	if !model.syncFixDraft() {
 		t.Fatalf("could not establish edited draft: %s", model.fixDialog.errorText)
@@ -87,13 +85,13 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 		t.Fatalf("settings did not return to Fix and reprepare: open=%t overlays=%d command nil=%t", model.configSettings.open, model.overlays.Len(), reprepare == nil)
 	}
 	if !model.fixDialog.loading || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.draft.TargetScore != 70 ||
-		model.fixDialog.branch.Value() != "slopwatch/fix/preserved" || model.fixDialog.prompt.Value() != "preserved detached task" || !model.fixDialog.detached {
+		model.fixDialog.branch.Value() != "slopwatch/fix/preserved" {
 		t.Fatalf("Fix edits changed before reprepare: %+v", model.fixDialog)
 	}
 
 	model.handleFixPrepared(reprepare().(fixPreparedMsg))
 	if model.fixDialog.loading || !model.fixDialogRunnable() || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.draft.TargetScore != 70 ||
-		model.fixDialog.draft.BranchName != "slopwatch/fix/preserved" || model.fixDialog.draft.Instructions.DetachedBody != "preserved detached task" {
+		model.fixDialog.draft.BranchName != "slopwatch/fix/preserved" {
 		t.Fatalf("reprepared Fix lost edits or readiness: %+v", model.fixDialog)
 	}
 }
@@ -120,7 +118,7 @@ func TestUnavailableOrEmptyValidationPlanDisablesRunAndLinksToValidationSettings
 }
 
 func TestValidationConfinementReadinessIsVisibleAndCanBeDisabledInForm(t *testing.T) {
-	readiness := validation.Readiness{Required: true, Ready: false, Diagnostic: "validation commands are disabled until candidate-only confinement is proven"}
+	readiness := validation.Readiness{Required: true, Ready: false, Diagnostic: "validation commands are disabled until workspace confinement is ready"}
 	draft := readyFixDraft("a.go")
 	draft.ValidationPlanID = "ci"
 	draft.Preferences.Validation = []validation.Plan{{ID: "ci", Checks: []validation.Check{{ID: "test"}}}}
@@ -137,7 +135,7 @@ func TestValidationConfinementReadinessIsVisibleAndCanBeDisabledInForm(t *testin
 	if summary := fixPreflightSummary(model.fixDialog.draft); !strings.Contains(summary, "validation plan \"ci\" is NOT RUNNABLE") || !strings.Contains(summary, readiness.Diagnostic) {
 		t.Fatalf("validation readiness diagnostic=%q", summary)
 	}
-	if text := ansi.Strip(model.View()); !strings.Contains(text, "Validation     ci · NOT RUNNABLE") || !strings.Contains(text, "choose a ready") || !strings.Contains(text, "plan or none") {
+	if text := ansi.Strip(model.View()); !strings.Contains(text, "Validation") || !strings.Contains(text, "ci · NOT RUNNABLE") || !strings.Contains(text, "choose a ready") {
 		t.Fatalf("validation readiness was not visible in Fix: %q", text)
 	}
 
@@ -153,18 +151,17 @@ func TestSubmitFailureRequiresAuthoritativeRecheckBeforeRetry(t *testing.T) {
 	model := fixTestModel(service, 80, 24)
 	prepare := model.openFixForSelected()
 	model.handleFixPrepared(prepare().(fixPreparedMsg))
-	model.fixDialog.cursor = fixFieldRun
-	_, submit := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
+	_, submit := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	model.handleFixSubmitted(submit().(fixSubmittedMsg))
 	if !model.fixDialog.submitBlocked || model.fixDialogRunnable() || !strings.Contains(model.fixDialog.statusText, "recheck") {
 		t.Fatalf("submit failure did not invalidate readiness: %+v", model.fixDialog)
 	}
-	if _, retry := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter}); retry != nil || !strings.Contains(model.fixDialog.errorText, "press r") {
+	if _, retry := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}); retry != nil || !strings.Contains(model.fixDialog.errorText, "press R") {
 		t.Fatal("stale submission readiness was retried without a recheck")
 	}
-	_, recheck := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	_, recheck := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}})
 	if recheck == nil || !model.fixDialog.loading || model.fixDialog.submitBlocked {
-		t.Fatal("r did not start a fresh authoritative readiness check")
+		t.Fatal("R did not start a fresh authoritative readiness check")
 	}
 }
 

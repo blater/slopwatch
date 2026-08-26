@@ -16,7 +16,7 @@ import (
 )
 
 func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
-	job := fix.JobPresentation{ID: "job-1", Revision: 2, Phase: fix.PhaseRunning, Goal: "SCORE <= 100", CurrentAction: "Running tests", AttemptOrdinal: 1,
+	job := fix.JobPresentation{ID: "job-1", Revision: 2, Phase: fix.PhaseRunning, ProfileLabel: "Codex", ModelLabel: "gpt-5.6-sol", EffortLabel: "high", Goal: "SCORE <= 100", CurrentAction: "Running tests", AttemptOrdinal: 1,
 		Actors: []fix.ActorPresentation{{ID: "primary", CurrentAction: "Editing a.go"}, {ID: "reviewer", ParentID: "primary", CurrentAction: "Reviewing"}},
 		Usage:  fix.UsagePresentation{InputTokens: 100, CachedTokens: 25, OutputTokens: 30, ReasoningTokens: 10}, UsageReported: true,
 		Targets: []fix.FilePresentation{{Path: "a.go", BaselineScore: 120}}}
@@ -37,9 +37,14 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 	}
 	model.handleJobMonitor(command().(jobMonitorMsg))
 	monitor := ansi.Strip(model.View())
-	for _, want := range []string{"RUNNING", "Running tests", "Read a.go", "Focused file: a.go", "attempt 1", "ACTORS", "primary", "reviewer", "Usage: in 100", "cached 25"} {
+	for _, want := range []string{"INSPECT", "RUNNING", "Running tests", "Focused file: a.go", "Agent: codex · gpt-5.6-sol · high", "ACTORS", "primary", "reviewer", "Tokens: input 100", "cached 25"} {
 		if !strings.Contains(monitor, want) {
 			t.Fatalf("monitor missing %q: %q", want, monitor)
+		}
+	}
+	for _, unwanted := range []string{"ACTIVITY", "Read a.go", "Target status:", "Validation:", "Scope:"} {
+		if strings.Contains(monitor, unwanted) {
+			t.Fatalf("inspect contains unwanted %q: %q", unwanted, monitor)
 		}
 	}
 	service.log.Entries = append(service.log.Entries, fixapp.LogEntry{At: time.Date(2026, 1, 1, 12, 0, 1, 0, time.UTC), Summary: "Edited a.go"})
@@ -51,8 +56,8 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 		t.Fatal("open monitor did not schedule activity refresh on subscription advance")
 	}
 	model.handleJobMonitor(command().(jobMonitorMsg))
-	if text := ansi.Strip(model.View()); !strings.Contains(text, "Editing a.go") || !strings.Contains(text, "Edited a.go") {
-		t.Fatalf("monitor activity stayed frozen after subscription advance: %q", text)
+	if text := ansi.Strip(model.View()); !strings.Contains(text, "Editing a.go") || strings.Contains(text, "Edited a.go") {
+		t.Fatalf("inspect did not refresh state cleanly: %q", text)
 	}
 
 	for _, test := range []struct {
@@ -169,8 +174,8 @@ func TestJobMonitorCoalescesSubscriptionBurstsAndRejectsLateRefresh(t *testing.T
 		t.Fatal("late monitor response replaced the newer requested snapshot")
 	}
 	model.handleJobMonitor(queued().(jobMonitorMsg))
-	if model.jobMonitor.job.CurrentAction != "third" || len(model.jobMonitor.activity) != 1 || model.jobMonitor.activity[0].Summary != "latest" {
-		t.Fatalf("coalesced refresh did not load latest state: %#v %#v", model.jobMonitor.job, model.jobMonitor.activity)
+	if model.jobMonitor.job.CurrentAction != "third" || len(model.jobMonitor.activity) != 0 {
+		t.Fatalf("coalesced inspect refresh did not load latest state without logs: %#v %#v", model.jobMonitor.job, model.jobMonitor.activity)
 	}
 }
 
@@ -197,40 +202,27 @@ func TestQuitWithActiveJobsConfirmsAndJoinsService(t *testing.T) {
 	}
 }
 
-func TestFilesShowAggregateAndPerFileFixCode(t *testing.T) {
+func TestFilesShowAggregateAndPerFileFixMarkerBeforeScoreChange(t *testing.T) {
 	model := fixTestModel(&fakeFixService{}, 100, 12)
+	model.options.TrendWindow = time.Minute
 	model.agents.Jobs = []fix.JobPresentation{{ID: "job-1", Phase: fix.PhaseRunning, Targets: []fix.FilePresentation{{Path: "a.go"}}}}
+	state := model.rows["a.go"]
+	state.scoreChangedAt = time.Now()
+	state.movementDelta = -1
+	model.rows["a.go"] = state
 	text := ansi.Strip(model.View())
-	if !strings.Contains(text, "FIX 1 · 1 RUNNING") || !strings.Contains(text, "FIX") || !strings.Contains(text, "RUN") {
+	if !strings.Contains(text, "AGENTS 1") || !strings.Contains(text, "▶") || strings.Contains(text, "FIX JOB") {
 		t.Fatalf("Files omitted fix observability: %q", text)
 	}
-}
-
-func TestAdvancedEditorProtectsDirtyTextAndConfirmsDetach(t *testing.T) {
-	service := &fakeFixService{draft: readyFixDraft("a.go")}
-	model := fixTestModel(service, 80, 24)
-	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
-	model.fixDialog.cursor = fixFieldAdvanced
-	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	model.fixDialog.prompt.SetValue(model.fixDialog.promptOriginal + "\nchange this")
-	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if !model.hasOverlay(OverlayPromptDirty) {
-		t.Fatal("dirty advanced editor discarded without choice")
-	}
-	model.fixDialog.promptDirtyCursor = 0
-	model.handlePromptDirtyKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if !model.hasOverlay(OverlayPromptDetach) {
-		t.Fatal("first advanced save did not confirm detachment")
-	}
-	model.handlePromptDetachKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if !model.fixDialog.detached || model.hasOverlay(OverlayPromptEditor) {
-		t.Fatal("confirmed detach was not applied and closed")
+	row := ansi.Strip(model.renderRow(model.document.Files[0], false))
+	fixAt, changeAt, scoreAt := strings.Index(row, "▶"), strings.Index(row, "↓"), strings.Index(row, "120")
+	if fixAt < 0 || changeAt != fixAt+len("▶") || scoreAt <= changeAt {
+		t.Fatalf("fix/change markers are not immediately left of SCORE: %q", row)
 	}
 }
 
 func TestCanceledJobUsesCanceledText(t *testing.T) {
-	job := fix.JobPresentation{Phase: fix.PhaseAwaitingAction, Issue: &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}}
+	job := fix.JobPresentation{Phase: fix.PhaseFailed, Issue: &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}}
 	if got := agentPhaseText(job); got != "CANCELED" {
 		t.Fatalf("phase text=%q", got)
 	}
@@ -306,7 +298,7 @@ func TestHelpDocumentsFixAndAgentsWorkflow(t *testing.T) {
 	for _, entry := range mainScreenHelp {
 		text += entry.label + " " + entry.description + "\n"
 	}
-	for _, want := range []string{"Tab switches Files/Agents", "x opens Fix", "cancel-all", "diamond", "Space opens its actions", "v opens candidate source"} {
+	for _, want := range []string{"Tab switches Files/Agents", "x opens Fix", "cancel-all", "C cancels", "v opens candidate source"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("help missing %q", want)
 		}
@@ -346,10 +338,6 @@ func TestMonitorReaderAndDirtyOverlaysRemainOperableAtResponsiveSizes(t *testing
 			func(model *Model) {
 				model.jobReader = jobReaderState{kind: OverlayCandidateSource, jobID: "job-1", path: "a.go", lines: []string{"package sample"}}
 				model.overlays.Push(OverlayCandidateSource, OverlayCaller{MainView: MainViewAgents})
-			},
-			func(model *Model) {
-				model.fixDialog.promptDirtyCursor = 0
-				model.overlays.Push(OverlayPromptDirty, OverlayCaller{MainView: MainViewFiles})
 			},
 			func(model *Model) {
 				model.shutdown = shutdownState{active: 2}

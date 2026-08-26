@@ -104,7 +104,7 @@ func TestReconfigureReductionDoesNotCancelRunningJobsAndGatesNewScheduling(t *te
 	}
 	third := prepareAndSubmit(t, manager, "three.go")
 	runtime.complete(first)
-	waitForPhase(t, manager, first, fix.PhaseAwaitingReview)
+	waitForPhase(t, manager, first, fix.PhaseCompleted)
 	select {
 	case started := <-runtime.started:
 		t.Fatalf("job %s started while one pre-existing job still occupied reduced capacity", started)
@@ -114,7 +114,7 @@ func TestReconfigureReductionDoesNotCancelRunningJobsAndGatesNewScheduling(t *te
 		t.Fatalf("running job was disturbed by capacity reduction: %s", job.Phase)
 	}
 	runtime.complete(second)
-	waitForPhase(t, manager, second, fix.PhaseAwaitingReview)
+	waitForPhase(t, manager, second, fix.PhaseCompleted)
 	select {
 	case started := <-runtime.started:
 		if started != third {
@@ -208,7 +208,7 @@ func TestRestoreTrimsTranscriptToCurrentByteBudget(t *testing.T) {
 		{At: time.Unix(1, 0).UTC(), Summary: "old activity"},
 		{At: time.Unix(2, 0).UTC(), Summary: "new activity"},
 	}
-	presentation := fix.JobPresentation{ID: job, Revision: 1, Phase: fix.PhaseAwaitingReview, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	presentation := fix.JobPresentation{ID: job, Revision: 1, Phase: fix.PhaseFailed, CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	checkpoint, err := json.Marshal(journalEnvelope{Presentation: presentation, Draft: draft, Candidate: &identity,
 		Transcript: &transcriptCheckpoint{Entries: entries}})
 	if err != nil {

@@ -1,95 +1,60 @@
 # Agent-assisted Fix policy decisions
 
-Status: **owner direction incorporated**.
+Status: owner direction incorporated.
 
-This ledger distinguishes non-disableable correctness/security invariants from
-operational product policy. Slopwatch must not silently impose operational
-limits. Every operational constraint has a named Settings control, displays its
-effective value and source, and explains what happens when it is reached.
+## Non-configurable correctness boundaries
 
-## Correctness and security invariants
+- An agent receives targets, measurements and preferences through the typed
+  harness request. It does not read Slopwatch caches or preference files.
+- Every job edits an isolated worktree. The user's checkout remains untouched.
+- Slopwatch measures the result; provider completion text is not a score.
+- Git delivery uses exact, create-only commits and refs. Slopwatch does not
+  force-push, overwrite an existing branch, auto-merge or give Git credentials
+  to an agent.
+- Provider events are associated with the exact job, session and turn before
+  they affect job state.
+- Cancellation is per job and releases target reservations immediately.
 
-These are not settings because disabling one would make the operation
-incorrect or cross an authority boundary:
+## Configurable product policy
 
-- Agent adapters receive a typed request, immutable analysis evidence, and a
-  candidate capability. They never read Slopwatch caches, preference files,
-  Git publication state, credentials, or arbitrary ambient paths.
-- Each mutating job owns an isolated worktree and durable identity. Target
-  reservation is atomic; cancellation is per job.
-- Agent completion is not compliance evidence. Slopwatch independently
-  inventories the diff, re-runs scoring, and labels the result.
-- Provider execution, events, cancellation, and recovery remain behind the
-  cohesive provider-neutral `agent.Strategy` interface. Adapter-only settings
-  come from adapter-owned schemas.
-- Responses API tools have no shell, Git, process, or arbitrary-network access.
-  Candidate file access is rooted and write-scoped. Authentication references
-  are resolved only at execution time.
-- Publication never force-pushes, overwrites an existing ref, runs repository
-  hooks, auto-merges, or silently discards a candidate. Exact remote, commit,
-  branch, and pull-request identity are pinned and revalidated.
-- A checked-out repository cannot introduce commands, credentials, provider
-  identities, publication destinations, or broader authority. It may only
-  select trusted definitions and narrow user-owned policy.
-- Executable paths and confinement backends must satisfy the same capability
-  contract before they may mutate a candidate. This is capability gating, not
-  a preference for one provider or container product.
-- Memory, file, protocol, and transcript operations are bounded by their
-  effective configured values so model/provider output cannot allocate without
-  accounting. There is no hidden product ceiling above those visible values.
-- Fixed wire-envelope and individual display-field shape bounds are protocol
-  invariants, not work budgets: oversized display text is visibly elided and
-  an oversized malformed control envelope is rejected. They do not stop an
-  otherwise active agent based on time, turns, attempts, files, or cost.
+| Area | Behaviour |
+| --- | --- |
+| Authentication | Codex is first and defaults to its provider-owned ChatGPT/API-key login. OpenAI API is a separate explicit choice. There is no silent fallback. |
+| Duration | No Slopwatch attempt timeout and no inactivity disconnect. Readiness timeout and post-cancel grace are preferences-file-only adapter settings. |
+| Iteration | The agent is automatically called again with fresh measurements until the target is met or the job is canceled/fails. There is no attempt cap. |
+| Concurrency | Agent and verifier counts are user-configurable. New jobs may be submitted while others run. |
+| Retention | Retained jobs and transcript bytes are configurable. Finished history rolls over automatically; it is not a lifetime quota. |
+| Models and effort | Values come from the selected adapter's live capabilities. |
+| Delegation | Shown only when the selected adapter offers a real choice. |
+| SCORE and metrics | SCORE is always selected. Only enabled, measured component metrics are offered as additional focus. |
+| Prompt | One global master template is stored in Fix Defaults and supplies every job. There is no per-job detached prompt. |
+| Branch naming | User-configurable; generated job tokens are optional and never an organisation requirement. |
+| Delivery | Branch or pull request. Commit, push and optional PR creation happen automatically after the target is met. |
+| PR base | Chosen by the user and checked for the configured remote. |
+| PR state | Draft or ready for review is a user setting. |
+| Validation | Optional trusted capability. Docker-backed validation is optional and Docker is not a product dependency. |
 
-## Accepted operational policy
+## Job interaction policy
 
-| Area | Accepted behaviour | Settings surface and consequence |
-| --- | --- | --- |
-| OpenAI authentication | Codex with provider-owned sign-in is the recommended built-in default; ChatGPT sign-in is recommended, while Codex also reports API-key-backed sessions truthfully. Direct Responses API access remains a separately selected API-key profile; there is no automatic fallback between routes. | Settings › Agents shows fixed provider choices, availability and `[ACTIVE]`. Enter opens provider-specific connection guidance and automatically checks readiness; a provider becomes active only after success. |
-| Agent duration | No Slopwatch wall-clock timeout for an active fix attempt. Liveness comes from progress/activity events and explicit per-job cancellation. | No misleading timeout control. Provider transport budgets, if an adapter supports them, must be adapter settings and identify exactly what they time. |
-| Attempts and retry | One initial attempt. Retry is an explicit job action that creates a new durable attempt with prior verified evidence. No attempt maximum and no automatic retry. | Job history shows attempt ordinals and each retry remains available in retryable/review states. |
-| Concurrent work | Defaults remain 2 running agents and 1 verifier. Additional jobs are accepted and visibly queued. No compiled hard maximum. | Settings › Concurrency & retention; effective values and queueing consequence are shown. |
-| Retention | Defaults remain 100 retained jobs and an exact 1 MiB per-job JSON-encoded transcript-entry budget. No compiled hard minimum or maximum. | Settings › Concurrency & retention; saving a smaller budget trims oldest entries immediately, and reaching the budget is a visible job outcome, never silent truncation presented as success. |
-| Delegated actors | The maximum distinct actors represented in a job transcript is configurable; default 32. | Settings › Concurrency & retention › Actors per job. Provider delegation modes remain capability-advertised. |
-| Candidate source preview | Preview bytes and rendered lines are positive, user-configured per-job values with defaults of 4 MiB and 5,000 lines. No compiled preview ceiling. | Settings › Concurrency & retention; truncated previews say so explicitly. |
-| Responses work budgets | Model turns, tool calls, output tokens, and input-token checks default to `0`, meaning no Slopwatch-imposed budget/provider default as documented. | Preferences file only. Each adapter-owned field's `0` semantics are documented there. |
-| Responses resource budgets | Response, request, local-context, tool-result, read, write, list, and summary sizes have documented defaults and no hidden maximum. | Preferences file only. Invalid relationships are rejected with the exact fields named. |
-| Validation policy | PR validation is optional by default and may be required by user/installation policy. Selecting a plan means it must be runnable and pass before publication. | Settings › Git & pull requests › PR validation, plus Settings › Validation plan selection. |
-| Validation limits | Check required/optional status, timeout and output bytes are editable; executable and arguments remain part of a trusted plan definition. Candidate file, directory, path-byte, per-file-byte and total-byte ceilings are user-configured and shared by confined copy plus before/after fingerprinting. No compiled product maximum. | Settings › Validation shows every effective constraint, source and failure consequence. |
-| Validation container resources | Process, memory, CPU, `/tmp`, workspace tmpfs, open-file, generated-file, stop, Docker-control, sentinel and crash-probe quantities are finite, positive user-owned policy. Repository config cannot author or widen them. Workspace tmpfs must exceed admitted total bytes; generated-file bytes must cover admitted max-file bytes; control timeout must exceed stop timeout. | Settings › Validation labels active-check policy separately from confinement lifecycle/readiness policy and explains that tmpfs consumes container memory. |
-| PR state | Draft is the default, not a mandate. Ready-for-review creation is supported. | Settings › Git & pull requests › Initial PR state. |
-| PR base | The user chooses the base branch. Its exact remote existence is checked at publication time, so an unavailable base does not prevent the refactor itself. | Settings › Git & pull requests › Base branch explains publication-time validation. |
-| Branch naming | `{job-short-id}` is available in the suggested default but is not mandatory. Organisation-specific templates are accepted. Existing remote/local refs produce an actionable collision error. | Settings › Git & pull requests › Branch template shows a preview and collision behaviour. |
-| Delivery workflow | Candidate-only, branch, and pull-request modes are user-selectable. GitHub CLI is the initial publisher adapter, not a core restriction. | Settings › Git & pull requests; the fix dialog shows the exact selected mode and branch before Run. |
-| Git and publisher command resources | Candidate-worktree Git, delivery Git and publisher commands have no Slopwatch wall-clock timeout; explicit job cancellation remains authoritative. Captured stdout/stderr has one positive user-configured byte budget pinned into each prepared job. | Settings › Git & pull requests › Command output bytes. |
-| Cancellation escalation | Provider cancellation grace is adapter-configurable in the preferences file. Small supervisor/control waits that begin only after cancellation are fixed security invariants: they cannot stop live work and prevent a wedged descendant from blocking cleanup forever. | Preferences file only. Fixed cleanup invariants are named in code and documentation rather than presented as job timeouts. |
-| Workspace admission | A clean source worktree is required for v1 because dirty-state capture/restoration has not yet been implemented safely. | Preflight states this requirement and remediation explicitly. This remains a documented v1 capability gap, not an unexplained timeout/limit. |
-| Change scope | `targets-only`, `targets-and-tests`, and `repository`; default `targets-and-tests`. | Settings › Fix defaults and the per-fix dialog show the selected scope. Repository-wide mutation remains an explicit choice. |
+Cancel is the only job command. There is no manual Retry, Resume, Publish,
+Keep, Archive, Discard, conflict acknowledgement or generic Actions menu.
+Failures use plain FAILED state and release the target so another fix can start.
+Git branches and pull requests provide the review workflow.
 
-## Settings presentation contract
+## Settings presentation policy
 
-Every constraint control shown in the UI must display:
+The Settings list is alphabetical. Primary dialogs show only essential choices.
+Executable paths, runtime internals, probe timeouts and cancellation grace stay
+in preferences. Settings rows do not append source/origin blurbs or selected-row
+help paragraphs. Connection dialogs test automatically and render a clear,
+wrapped result.
 
-1. a human label rather than a storage key;
-2. the effective value, including units;
-3. its origin (`built_in`, `user`, `repository`, CLI, or session);
-4. the operational consequence when reached;
-5. whether `0` means unlimited, provider default, disabled, or is invalid.
+## Deferred
 
-Low-frequency adapter implementation settings are described and validated by
-the adapter but configured only in the preferences file. The single-account
-Agents UI renders only provider availability, the active provider, essential
-connection details, and automatic readiness output. This keeps the agent framework deep and cohesive without turning
-the primary UI into a dump of provider-specific transport controls.
+- Files-view multi-select;
+- multiple accounts for one provider;
+- Claude, Grok and other strategy adapters; and
+- additional pull-request provider adapters.
 
-## Deliberately deferred rather than prohibited
-
-- Multi-file selection in the Files view; domain and job APIs already use
-  target slices.
-- Additional agent and publisher adapters.
-- Provider-native delegation modes where a runtime can prove and report them.
-- Dirty-worktree capture/restoration and automatic cleanup after a PR closes.
-
-These follow-ups must not make the coordinator, cache, preferences, or TUI
-depend on a provider-specific API.
+These additions must preserve the existing deep strategy boundary and may not
+introduce provider-specific dependencies into the coordinator or UI state.

@@ -278,7 +278,8 @@ written a lot, so I think it was quite proud of this one:
  switch between Files and Agents, or `A` to jump to Agents. Expand a job to see
  its targets and compact metric state; `C` cancels only the selected eligible
  job. Agent completion is not treated as success: Slopwatch freshly analyzes
- the candidate and keeps its diff for review.
+ the candidate, continues automatically until the target is met, then commits
+ and pushes the configured branch and optionally creates a pull request.
 
  Settings lists its sections alphabetically. Agents presents one row per
  provider, marks unavailable integrations and highlights the active one.
@@ -292,8 +293,8 @@ written a lot, so I think it was quite proud of this one:
  agent profile; validation time/output limits belong to each trusted check, and
  candidate workspace file/directory/byte ceilings are visible in Validation.
  Model turns, tool calls and token checks default to no Slopwatch-imposed cap,
- active attempts have no wall-clock timeout, and Retry is an explicit unlimited
- job action. The hardened Docker
+ active attempts have no wall-clock timeout or attempt cap, and Cancel is the
+ only job action. The hardened Docker
  validation executor is enabled only when
  `SLOPWATCH_FIX_CONTAINER_IMAGE` names an immutable image digest and
  `SLOPWATCH_FIX_DOCKER_HOST` names an explicit local `unix://` daemon socket;
@@ -304,8 +305,8 @@ written a lot, so I think it was quite proud of this one:
  `{"/usr/bin/go":"/usr/local/go/bin/go"}`). These environment variables are a
  temporary typed installation bridge until the properties-file PR lands;
  adapters and services never read them directly. If any property is absent or
- invalid, validation is safely unavailable without preventing candidate-only
- fixes. Build the installation image with
+ invalid, validation is safely unavailable without adding a Docker dependency
+ to normal fixes. Build the installation image with
  `make build-fix-validation-image FIX_VALIDATION_BASE=name@sha256:...`; its
  immutable base must already contain the absolute executables named by the
  trusted validation plans. The target performs no package installation or

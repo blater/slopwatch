@@ -59,9 +59,6 @@ func (service *GitService) Preflight(ctx context.Context, request PreflightReque
 	if !request.Mode.Valid() {
 		return PreflightResult{}, errors.New("delivery mode is invalid")
 	}
-	if request.Mode == fix.DeliveryModeCandidate {
-		return PreflightResult{}, nil
-	}
 	if request.Workspace.RepositoryRoot == "" || request.Remote == "" || request.Branch == "" {
 		return PreflightResult{}, errors.New("delivery repository, remote, and branch are required")
 	}
@@ -291,6 +288,8 @@ func (service *GitService) CreateLocalRef(ctx context.Context, request Request, 
 		zeros = strings.Repeat("0", 64)
 	}
 	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, "update-ref", ref, string(result.Commit), zeros); err != nil {
+		result.Ambiguous = true
+		result.Diagnostic = err.Error()
 		return result, fmt.Errorf("create local delivery ref: %w", err)
 	}
 	result.LocalRef = ref
@@ -370,6 +369,27 @@ func (service *GitService) Reconcile(ctx context.Context, request Request, previ
 	}
 	if err := verifyExpectedRemote(remoteURL, request.ExpectedRemoteIdentity, request.ExpectedRemoteHost, request.HostRepository); err != nil {
 		return previous, err
+	}
+	if previous.LocalRef == "" {
+		localRef := "refs/heads/" + request.Branch
+		exists, commit, err := service.ref(ctx, request.Candidate.RepositoryRoot, localRef)
+		if err != nil {
+			return previous, err
+		}
+		if !exists {
+			previous.Ambiguous = false
+			previous.Diagnostic = "local ref is absent"
+			return previous, nil
+		}
+		if commit != string(previous.Commit) {
+			previous.Ambiguous = true
+			previous.Diagnostic = "local ref exists at a different commit"
+			return previous, errors.New(previous.Diagnostic)
+		}
+		previous.LocalRef = localRef
+		previous.Ambiguous = false
+		previous.Diagnostic = ""
+		return previous, nil
 	}
 	exists, commit, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
 	if err != nil {

@@ -3,8 +3,6 @@ package native
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/blater/slopwatch/internal/naming"
 )
 
 type requestedComponent struct {
@@ -84,14 +84,7 @@ type protocolPosition struct {
 }
 
 func invocationID() (string, error) {
-	var value [16]byte
-	if _, err := rand.Read(value[:]); err != nil {
-		return "", err
-	}
-	value[6] = (value[6] & 0x0f) | 0x40
-	value[8] = (value[8] & 0x3f) | 0x80
-	text := hex.EncodeToString(value[:])
-	return fmt.Sprintf("%s-%s-%s-%s-%s", text[:8], text[8:12], text[12:16], text[16:20], text[20:]), nil
+	return naming.New("invocation")
 }
 
 func runAnalyzer(ctx context.Context, executable string, request analyzerRequest) (scoreInputs, error) {

@@ -39,7 +39,7 @@ func TestMainViewsSwitchAndRetainIndependentState(t *testing.T) {
 	if result.agents.Selected != (AgentRowID{JobID: "job-2"}) || result.agents.Offset != 2 || result.agents.HorizontalOffset != 7 {
 		t.Fatalf("Agents state changed on entry: %+v", result.agents)
 	}
-	if view := ansi.Strip(result.View()); !strings.Contains(view, "[AGENTS]") || !strings.Contains(view, "No fix jobs yet") {
+	if view := ansi.Strip(result.View()); !strings.Contains(view, "ACTIVITY") || !strings.Contains(view, "No fix jobs yet") {
 		t.Fatalf("Agents shell was not rendered: %q", view)
 	}
 
@@ -172,16 +172,16 @@ func TestResizeScreenGatesInputForEveryHiddenOverlay(t *testing.T) {
 	overlays := []OverlayKind{
 		OverlayFind, OverlayInfo, OverlayHelp, OverlayDetail, OverlaySource, OverlayColumns, OverlaySort,
 		OverlayWeights, OverlayAppearance, OverlaySettings, OverlayConfigSettings, OverlayFixForm,
-		OverlayPromptEditor, OverlayPromptDetach, OverlayPromptDirty, OverlayJobMonitor, OverlayJobActions,
+		OverlayPromptEditor, OverlayJobMonitor,
 		OverlayJobLog, OverlayJobDiff, OverlayCandidateSource, OverlayConfirmation, OverlaySettingsDirty,
 	}
 	for _, kind := range overlays {
 		t.Run(fmt.Sprint(kind), func(t *testing.T) {
 			service := &fakeFixService{draft: readyFixDraft("a.go")}
 			model := fixTestModel(service, 35, 6)
-			model.fixDialog = fixDialogState{hasDraft: true, draft: readyFixDraft("a.go"), cursor: fixFieldRun, detached: false}
-			model.jobActions = jobActionsState{jobID: "job", revision: 1, actions: []fix.JobAction{fix.ActionRetry}}
-			model.cancelConfirmation = cancelConfirmation{jobID: "job", revision: 1, action: fix.ActionDiscard, allowed: true}
+			model.fixDialog = fixDialogState{hasDraft: true, draft: readyFixDraft("a.go"), cursor: fixFieldTargetScore}
+			model.jobCommand = jobCommandState{jobID: "job", revision: 1, action: fix.ActionCancel}
+			model.cancelConfirmation = cancelConfirmation{jobID: "job", revision: 1, action: fix.ActionCancel, allowed: true}
 			model.configSettings = configSettingsState{open: true, dirty: true, dirtyCursor: 1}
 			model.overlays.Push(kind, OverlayCaller{MainView: MainViewFiles, Selected: "a.go"})
 			beforeLen := model.overlays.Len()

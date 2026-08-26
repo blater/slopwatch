@@ -16,7 +16,7 @@ type PreflightRequest struct {
 }
 
 type PreflightResult struct {
-	Clean        bool
+	Ready        bool
 	Supported    bool
 	Diagnostic   string
 	CheckedAt    time.Time
@@ -40,6 +40,8 @@ type PrepareRequest struct {
 	AllowedScope       string
 	AllowedPaths       []fix.RepoPath
 	CommandOutputBytes int64
+	MaxSeedFileBytes   int64
+	MaxSeedTotalBytes  int64
 }
 
 type DiffFile struct {

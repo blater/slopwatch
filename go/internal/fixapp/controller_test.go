@@ -49,7 +49,7 @@ func TestManagerRunsJobsConcurrentlyAndAdmitsMoreWhileRunning(t *testing.T) {
 	}
 
 	runtime.complete(first)
-	waitForPhase(t, manager, first, fix.PhaseAwaitingReview)
+	waitForPhase(t, manager, first, fix.PhaseCompleted)
 	select {
 	case id := <-runtime.started:
 		if id != third {
@@ -60,8 +60,23 @@ func TestManagerRunsJobsConcurrentlyAndAdmitsMoreWhileRunning(t *testing.T) {
 	}
 	runtime.complete(second)
 	runtime.complete(third)
-	waitForPhase(t, manager, second, fix.PhaseAwaitingReview)
-	waitForPhase(t, manager, third, fix.PhaseAwaitingReview)
+	waitForPhase(t, manager, second, fix.PhaseCompleted)
+	waitForPhase(t, manager, third, fix.PhaseCompleted)
+}
+
+func TestTranscriptRetentionDoesNotSetAgentExecutionOutputBudget(t *testing.T) {
+	manager, runtime := newTestManager(t, 1)
+	defer shutdownManager(t, manager)
+	job := prepareAndSubmit(t, manager, "one.go")
+	waitStarted(t, runtime, job)
+	runtime.mu.Lock()
+	request := runtime.requests[job][0]
+	runtime.mu.Unlock()
+	if request.Limits.MaxOutputBytes != 0 {
+		t.Fatalf("transcript retention leaked into execution budget: %d", request.Limits.MaxOutputBytes)
+	}
+	runtime.complete(job)
+	waitForPhase(t, manager, job, fix.PhaseCompleted)
 }
 
 func TestCompatibleOptionUsesSelectedThenAdapterDefaultThenFirst(t *testing.T) {
@@ -100,15 +115,15 @@ func TestCancelAffectsOnlySelectedJobAndCommandIsIdempotent(t *testing.T) {
 	if err != nil || !duplicate.Duplicate {
 		t.Fatalf("duplicate cancel: receipt=%+v err=%v", duplicate, err)
 	}
-	waitForPhase(t, manager, first, fix.PhaseAwaitingAction)
+	waitForPhase(t, manager, first, fix.PhaseCanceled)
 	if secondJob, _ := manager.Job(second); secondJob.Phase != fix.PhaseRunning {
 		t.Fatalf("second phase = %s, want running", secondJob.Phase)
 	}
 	runtime.complete(second)
-	waitForPhase(t, manager, second, fix.PhaseAwaitingReview)
+	waitForPhase(t, manager, second, fix.PhaseCompleted)
 }
 
-func TestTargetReservationIsAtomicAndReleasedOnKeep(t *testing.T) {
+func TestTargetReservationIsReleasedImmediatelyOnCancel(t *testing.T) {
 	manager, runtime := newTestManager(t, 1)
 	defer shutdownManager(t, manager)
 	draft := prepare(t, manager, "one.go")
@@ -121,15 +136,15 @@ func TestTargetReservationIsAtomicAndReleasedOnKeep(t *testing.T) {
 		t.Fatalf("second submit error = %v, want target reserved", err)
 	}
 	waitStarted(t, runtime, first)
-	runtime.complete(first)
-	job := waitForPhase(t, manager, first, fix.PhaseAwaitingReview)
+	waitForPhase(t, manager, first, fix.PhaseRunning)
 	commandID, _ := fix.NewCommandID()
-	if _, err := manager.Execute(context.Background(), fix.JobCommand{RequestID: commandID, JobID: first, ExpectedRevision: job.Revision, Action: fix.ActionKeep}); err != nil {
+	if _, err := manager.Execute(context.Background(), fix.JobCommand{RequestID: commandID, JobID: first, Action: fix.ActionCancel}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := manager.Submit(context.Background(), SubmitRequest{Draft: secondDraft}); err != nil {
-		t.Fatalf("submit after keep: %v", err)
+		t.Fatalf("submit immediately after cancel: %v", err)
 	}
+	waitForPhase(t, manager, first, fix.PhaseCanceled)
 }
 
 func TestSubscriptionIsLevelTriggered(t *testing.T) {
@@ -153,7 +168,7 @@ func TestAgentCompletionCannotOvertakeFinalStreamEvent(t *testing.T) {
 	id := prepareAndSubmit(t, manager, "one.go")
 	waitStarted(t, runtime, id)
 	runtime.complete(id)
-	waitForPhase(t, manager, id, fix.PhaseAwaitingReview)
+	waitForPhase(t, manager, id, fix.PhaseCompleted)
 	page, err := manager.Transcript(context.Background(), id, 0, 20)
 	if err != nil {
 		t.Fatal(err)
@@ -205,7 +220,7 @@ func TestTranscriptBurstUsesBoundedCheckpointsAndPhysicalCompaction(t *testing.T
 	id := prepareAndSubmit(t, manager, "one.go")
 	waitStarted(t, runtime, id)
 	runtime.complete(id)
-	waitForPhase(t, manager, id, fix.PhaseAwaitingReview)
+	waitForPhase(t, manager, id, fix.PhaseCompleted)
 	store.mu.Lock()
 	appends, compactions := store.appends, store.compactions
 	store.mu.Unlock()
@@ -268,7 +283,7 @@ func TestRestoreDiscoversAndJournalsCandidateLostBeforePreparedHandshake(t *test
 		t.Fatalf("recovered candidate was not durably handshaked: %+v, %v", recovered.Candidate, err)
 	}
 	jobView, _ := restarted.Job(job)
-	if jobView.Phase != fix.PhaseAwaitingAction || jobView.Issue == nil || jobView.Issue.Code != "interrupted" {
+	if jobView.Phase != fix.PhaseFailed || jobView.Issue == nil || jobView.Issue.Code != "interrupted" {
 		t.Fatalf("restored job = %+v", jobView)
 	}
 }
@@ -359,13 +374,13 @@ func TestSubmitRejectsUnavailableRequiredValidationBeforeAdmission(t *testing.T)
 	}
 	config := appconfig.NewMemory(appconfig.Resolved{
 		SchemaVersion: 1, Revision: 1, Origins: map[string]appconfig.Origin{},
-		Fix:         appconfig.FixDefaults{TargetScore: 50, Profile: "test-profile", Model: "gpt-test", Effort: "high", Delegation: agent.DelegationSingle, ChangeScope: "targets", BranchTemplate: "fix/{target-stem}-{job-short-id}", ValidationPlan: "unit"},
+		Fix:         appconfig.FixDefaults{TargetScore: 50, Profile: "test-profile", Model: "gpt-test", Effort: "high", Delegation: agent.DelegationSingle, ChangeScope: "targets", ValidationPlan: "unit"},
 		Concurrency: appconfig.Concurrency{MaxTranscriptBytes: 1 << 20, MaxActorsPerJob: 32},
 		Profiles:    []agent.Profile{{ID: "test-profile", Runtime: "test"}},
 		Validation:  []validation.Plan{{ID: "unit", Checks: []validation.Check{{ID: "test", Executable: "/usr/bin/true", Required: true}}}},
-		Delivery:    appconfig.Delivery{DefaultMode: fix.DeliveryModeCandidate, Remote: "origin"},
+		Delivery:    appconfig.Delivery{DefaultMode: fix.DeliveryModeBranch, Remote: "origin", BranchTemplate: "fix/{target-stem}-{job-short-id}"},
 	})
-	manager, err := New(Dependencies{Config: config, Analysis: fakeAnalysis{}, Candidates: fakeCandidates{}, Agents: registry, Store: jobstore.NewMemory()}, Options{MaxAgents: 1, MaxVerifiers: 1, MaxRetainedJobs: 100, MaxTranscriptBytes: 1 << 20})
+	manager, err := New(Dependencies{Config: config, Analysis: fakeAnalysis{}, Candidates: fakeCandidates{}, Agents: registry, Store: jobstore.NewMemory(), Delivery: &fakeDeliverySaga{}}, Options{MaxAgents: 1, MaxVerifiers: 1, MaxRetainedJobs: 100, MaxTranscriptBytes: 1 << 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,14 +419,6 @@ func TestPublicationRunsAsJournalBoundedSagaSteps(t *testing.T) {
 	}
 	waitStarted(t, runtime, id)
 	runtime.complete(id)
-	job := waitForPhase(t, manager, id, fix.PhaseAwaitingReview)
-	if !containsFixActionForTest(job.AllowedActions, fix.ActionPublish) {
-		t.Fatalf("publish action missing: %v", job.AllowedActions)
-	}
-	commandID, _ := fix.NewCommandID()
-	if _, err := manager.Execute(context.Background(), fix.JobCommand{RequestID: commandID, JobID: id, ExpectedRevision: job.Revision, Action: fix.ActionPublish, DiffHash: job.DiffFingerprint}); err != nil {
-		t.Fatal(err)
-	}
 	completed := waitForPhase(t, manager, id, fix.PhaseCompleted)
 	if completed.Delivery != fix.DeliveryPushed {
 		t.Fatalf("delivery = %s, want pushed", completed.Delivery)
@@ -469,12 +476,12 @@ func TestAmbiguousPullRequestUsesDistinctJournaledReconciliationStep(t *testing.
 	}
 }
 
-func TestCanceledPullRequestReconciliationRemainsAmbiguousAndRetriesReconciliation(t *testing.T) {
+func TestCanceledPullRequestReconciliationReleasesJobWithoutHidingAmbiguity(t *testing.T) {
 	job, _ := fix.NewJobID()
 	attempt, _ := fix.NewAttemptID()
 	pullRequests := &recordingPublisher{blockFirstReconcile: true, started: make(chan struct{}, 1),
 		reconcileResult: publisher.Result{ProviderID: "18", URL: "https://github.com/owner/repo/pull/18", Draft: true}}
-	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Delivery: &fakeDeliverySaga{}, Publisher: pullRequests}, options: Options{Clock: time.Now},
+	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Candidates: fakeCandidates{}, Delivery: &fakeDeliverySaga{}, Publisher: pullRequests}, options: Options{Clock: time.Now},
 		results: make(chan workerResult, 4), notify: make(chan struct{})}
 	manager.current.Store(JobListSnapshot{})
 	manager.logs.Store(map[fix.JobID]logSnapshot{})
@@ -486,17 +493,38 @@ func TestCanceledPullRequestReconciliationRemainsAmbiguousAndRetriesReconciliati
 	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}}
 	manager.startNextPublication(state, record)
 	<-pullRequests.started
+	record.canceled = true
 	record.presentation.Phase = fix.PhaseCanceling
 	record.cancel()
 	manager.handleResult(state, <-manager.results)
-	if record.presentation.Phase != fix.PhaseAwaitingAction || !record.published.Ambiguous {
-		t.Fatalf("canceled reconciliation lost ambiguity: %+v", record.presentation)
-	}
-	record.presentation.Phase = fix.PhasePublishing
-	manager.startNextPublication(state, record)
 	manager.handleResult(state, <-manager.results)
-	if record.presentation.Phase != fix.PhaseCompleted || pullRequests.createCount() != 0 || pullRequests.reconcileCount() != 2 {
-		t.Fatalf("retry did not reconcile exact PR: phase=%s creates=%d reconciles=%d", record.presentation.Phase, pullRequests.createCount(), pullRequests.reconcileCount())
+	manager.handleResult(state, <-manager.results)
+	if record.presentation.Phase != fix.PhaseCanceled || record.published.Ambiguous || record.candidate != nil {
+		t.Fatalf("canceled reconciliation did not resolve and clean up: %+v", record.presentation)
+	}
+	if pullRequests.createCount() != 0 || pullRequests.reconcileCount() != 2 {
+		t.Fatalf("cancel performed the wrong delivery calls: creates=%d reconciles=%d", pullRequests.createCount(), pullRequests.reconcileCount())
+	}
+}
+
+func TestCancelDuringAmbiguousLocalRefReconcilesBeforeCleanup(t *testing.T) {
+	job, _ := fix.NewJobID()
+	attempt, _ := fix.NewAttemptID()
+	saga := &resolvingDeliverySaga{}
+	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Candidates: fakeCandidates{}, Delivery: saga}, options: Options{Clock: time.Now},
+		results: make(chan workerResult, 4), notify: make(chan struct{})}
+	manager.current.Store(JobListSnapshot{})
+	manager.logs.Store(map[fix.JobID]logSnapshot{})
+	record := &jobRecord{draft: FixDraft{DeliveryMode: fix.DeliveryModeBranch, BranchName: "slopwatch/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin"}}},
+		presentation: fix.JobPresentation{ID: job, Revision: 1, Phase: fix.PhaseCanceling}, attempt: attempt, canceled: true,
+		candidate: &fix.CandidateIdentity{Job: job, RepositoryRoot: "/candidate"}, commands: map[fix.CommandID]CommandReceipt{}}
+	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, reservations: map[string]fix.JobID{}}
+	manager.handlePublicationResult(state, record, workerResult{kind: workerPublish, step: publicationLocalRef, job: job, attempt: attempt,
+		delivery: delivery.Result{Commit: "abc", Ambiguous: true}, err: context.Canceled})
+	manager.handleResult(state, <-manager.results)
+	manager.handleResult(state, <-manager.results)
+	if record.presentation.Phase != fix.PhaseCanceled || record.candidate != nil || saga.recorded() != "[reconcile]" {
+		t.Fatalf("local ref cancellation did not reconcile before cleanup: phase=%s steps=%s", record.presentation.Phase, saga.recorded())
 	}
 }
 
@@ -511,7 +539,7 @@ func TestRestartedAmbiguousPullRequestReconcilesBeforeCompleting(t *testing.T) {
 	draft.Preferences.Delivery.BaseBranch = "main"
 	job, _ := fix.NewJobID()
 	identity := fix.CandidateIdentity{Job: job, Repository: draft.Workspace.Repository, RepositoryRoot: "/candidate/" + string(job), AnalysisRoot: "/candidate/" + string(job), BaseCommit: draft.Workspace.BaseCommit}
-	presentation := fix.JobPresentation{ID: job, Revision: 4, Phase: fix.PhaseAwaitingAction, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	presentation := fix.JobPresentation{ID: job, Revision: 4, Phase: fix.PhaseFailed, Issue: &fix.JobIssue{Code: "publication_ambiguous", Summary: "Delivery state is ambiguous"}, CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	store := jobstore.NewMemory()
 	checkpoint, _ := json.Marshal(journalEnvelope{Presentation: presentation, Draft: draft, Candidate: &identity,
 		Delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopwatch/fix/test", RemoteRef: "refs/heads/slopwatch/fix/test", Repository: "owner/repo", Pushed: true},
@@ -526,14 +554,167 @@ func TestRestartedAmbiguousPullRequestReconcilesBeforeCompleting(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer shutdownManager(t, restarted)
-	view, _ := restarted.Job(job)
-	commandID, _ := fix.NewCommandID()
-	if _, err := restarted.Execute(t.Context(), fix.JobCommand{RequestID: commandID, JobID: job, ExpectedRevision: view.Revision, Action: fix.ActionRetry}); err != nil {
-		t.Fatal(err)
-	}
 	waitForPhase(t, restarted, job, fix.PhaseCompleted)
 	if pullRequests.createCount() != 0 || pullRequests.reconcileCount() != 1 {
 		t.Fatalf("restart publication calls: creates=%d reconciles=%d", pullRequests.createCount(), pullRequests.reconcileCount())
+	}
+}
+
+func TestRestartPreservesCanceledAmbiguousDeliveryAndOnlyReconciles(t *testing.T) {
+	seed, _ := newTestManager(t, 1)
+	draft := prepare(t, seed, "one.go")
+	dependencies := seed.deps
+	shutdownManager(t, seed)
+	draft.DeliveryMode = fix.DeliveryModePullRequest
+	draft.BranchName = "slopwatch/fix/test"
+	draft.Preferences.Delivery.Remote = "origin"
+	draft.Preferences.Delivery.BaseBranch = "main"
+	job, _ := fix.NewJobID()
+	identity := fix.CandidateIdentity{Job: job, Repository: draft.Workspace.Repository, RepositoryRoot: "/candidate/" + string(job), AnalysisRoot: "/candidate/" + string(job), BaseCommit: draft.Workspace.BaseCommit}
+	presentation := fix.JobPresentation{ID: job, Revision: 4, Phase: fix.PhaseReconciling, Issue: &fix.JobIssue{Code: "publication_canceled", Summary: "Checking canceled delivery"}, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	store := jobstore.NewMemory()
+	checkpoint, _ := json.Marshal(journalEnvelope{Presentation: presentation, Draft: draft, Candidate: &identity, Canceled: true,
+		Delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopwatch/fix/test", RemoteRef: "refs/heads/slopwatch/fix/test", Repository: "owner/repo", Pushed: true},
+		Published: publisher.Result{URL: "https://github.com/owner/repo/pull/99", Ambiguous: true}})
+	if _, err := store.Append(t.Context(), jobstore.Record{JobID: job, Revision: presentation.Revision, Kind: "checkpoint", Data: checkpoint}); err != nil {
+		t.Fatal(err)
+	}
+	pullRequests := &recordingPublisher{reconcileResult: publisher.Result{ProviderID: "19", URL: "https://github.com/owner/repo/pull/19", Draft: true}}
+	dependencies.Store, dependencies.Candidates, dependencies.Delivery, dependencies.Publisher = store, fakeCandidates{}, &fakeDeliverySaga{}, pullRequests
+	restarted, err := New(dependencies, Options{MaxAgents: 1, MaxVerifiers: 1, MaxRetainedJobs: 100, MaxTranscriptBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdownManager(t, restarted)
+	waitForPhase(t, restarted, job, fix.PhaseCanceled)
+	if pullRequests.createCount() != 0 || pullRequests.reconcileCount() != 1 {
+		t.Fatalf("restart cancellation calls: creates=%d reconciles=%d", pullRequests.createCount(), pullRequests.reconcileCount())
+	}
+}
+
+func TestRestartReconcilesCanceledInFlightDeliveryStepBeforeCleanup(t *testing.T) {
+	for _, step := range []publicationStep{publicationLocalRef, publicationRemoteRef, publicationPullRequest} {
+		t.Run(string(step), func(t *testing.T) {
+			seed, _ := newTestManager(t, 1)
+			draft := prepare(t, seed, "one.go")
+			dependencies := seed.deps
+			shutdownManager(t, seed)
+			draft.BranchName = "slopwatch/fix/test"
+			draft.Preferences.Delivery.Remote = "origin"
+			job, _ := fix.NewJobID()
+			identity := fix.CandidateIdentity{Job: job, Repository: draft.Workspace.Repository, RepositoryRoot: "/candidate/" + string(job), AnalysisRoot: "/candidate/" + string(job), BaseCommit: draft.Workspace.BaseCommit}
+			presentation := fix.JobPresentation{ID: job, Revision: 4, Phase: fix.PhaseCanceling, Issue: &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+			delivered := delivery.Result{Commit: "abc"}
+			if step == publicationRemoteRef || step == publicationPullRequest {
+				delivered.LocalRef = "refs/heads/slopwatch/fix/test"
+			}
+			if step == publicationPullRequest {
+				draft.DeliveryMode = fix.DeliveryModePullRequest
+				delivered.RemoteRef, delivered.Pushed, delivered.Repository = delivered.LocalRef, true, "owner/repo"
+			}
+			store := jobstore.NewMemory()
+			checkpoint, _ := json.Marshal(journalEnvelope{Presentation: presentation, Draft: draft, Candidate: &identity, Canceled: true, PublicationStep: step, Delivery: delivered})
+			if _, err := store.Append(t.Context(), jobstore.Record{JobID: job, Revision: presentation.Revision, Kind: "checkpoint", Data: checkpoint}); err != nil {
+				t.Fatal(err)
+			}
+			saga := &resolvingDeliverySaga{}
+			pullRequests := &recordingPublisher{reconcileResult: publisher.Result{ProviderID: "21", URL: "https://github.com/owner/repo/pull/21"}}
+			dependencies.Store, dependencies.Candidates, dependencies.Delivery, dependencies.Publisher = store, fakeCandidates{}, saga, pullRequests
+			restarted, err := New(dependencies, Options{MaxAgents: 1, MaxVerifiers: 1, MaxRetainedJobs: 100, MaxTranscriptBytes: 1 << 20})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer shutdownManager(t, restarted)
+			waitForPhase(t, restarted, job, fix.PhaseCanceled)
+			if step == publicationPullRequest {
+				if pullRequests.createCount() != 0 || pullRequests.reconcileCount() != 1 {
+					t.Fatalf("restart PR calls: creates=%d reconciles=%d", pullRequests.createCount(), pullRequests.reconcileCount())
+				}
+			} else if saga.recorded() != "[reconcile]" {
+				t.Fatalf("restart delivery steps = %s", saga.recorded())
+			}
+		})
+	}
+}
+
+func TestCancelFailedAmbiguousDeliveryReconcilesBeforeCleanup(t *testing.T) {
+	for _, mode := range []fix.DeliveryMode{fix.DeliveryModeBranch, fix.DeliveryModePullRequest} {
+		t.Run(string(mode), func(t *testing.T) {
+			job, _ := fix.NewJobID()
+			attempt, _ := fix.NewAttemptID()
+			saga := &resolvingDeliverySaga{}
+			pullRequests := &recordingPublisher{reconcileResult: publisher.Result{ProviderID: "20", URL: "https://github.com/owner/repo/pull/20"}}
+			manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Candidates: fakeCandidates{}, Delivery: saga, Publisher: pullRequests},
+				options: Options{Clock: time.Now}, results: make(chan workerResult, 4), notify: make(chan struct{})}
+			manager.current.Store(JobListSnapshot{})
+			manager.logs.Store(map[fix.JobID]logSnapshot{})
+			record := &jobRecord{draft: FixDraft{DeliveryMode: mode, BranchName: "slopwatch/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin", BaseBranch: "main"}}},
+				presentation: fix.JobPresentation{ID: job, Revision: 2, Phase: fix.PhaseFailed, AllowedActions: []fix.JobAction{fix.ActionCancel}, Issue: &fix.JobIssue{Code: "publication_ambiguous"}},
+				attempt:      attempt, candidate: &fix.CandidateIdentity{Job: job, RepositoryRoot: "/candidate"}, commands: map[fix.CommandID]CommandReceipt{},
+				delivery: delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopwatch/fix/test", Repository: "owner/repo", Pushed: true}}
+			if mode == fix.DeliveryModeBranch {
+				record.delivery.Ambiguous = true
+			} else {
+				record.delivery.RemoteRef = "refs/heads/slopwatch/fix/test"
+				record.published = publisher.Result{URL: "https://github.com/owner/repo/pull/99", Ambiguous: true}
+			}
+			state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, reservations: map[string]fix.JobID{}}
+			requestID, _ := fix.NewCommandID()
+			response := make(chan commandResponse, 1)
+			manager.handleCommand(state, commandCall{ctx: t.Context(), command: fix.JobCommand{RequestID: requestID, JobID: job, Action: fix.ActionCancel}, response: response})
+			if reply := <-response; reply.err != nil {
+				t.Fatal(reply.err)
+			}
+			manager.handleResult(state, <-manager.results)
+			manager.handleResult(state, <-manager.results)
+			if record.presentation.Phase != fix.PhaseCanceled || record.candidate != nil {
+				t.Fatalf("ambiguous cancellation did not reconcile then clean up: %+v", record.presentation)
+			}
+			if mode == fix.DeliveryModeBranch {
+				if got := saga.recorded(); got != "[reconcile]" {
+					t.Fatalf("branch cancellation delivery steps = %s", got)
+				}
+			} else if pullRequests.createCount() != 0 || pullRequests.reconcileCount() != 1 {
+				t.Fatalf("PR cancellation calls: creates=%d reconciles=%d", pullRequests.createCount(), pullRequests.reconcileCount())
+			}
+		})
+	}
+}
+
+func TestFailedCancelJournalRollsBackCancellationIntent(t *testing.T) {
+	job, _ := fix.NewJobID()
+	record := &jobRecord{presentation: fix.JobPresentation{ID: job, Revision: 2, Phase: fix.PhaseFailed, AllowedActions: []fix.JobAction{fix.ActionCancel}}, commands: map[fix.CommandID]CommandReceipt{}}
+	manager := &Manager{deps: Dependencies{Store: &failAppliedStore{}}, options: Options{Clock: time.Now}, notify: make(chan struct{})}
+	manager.current.Store(JobListSnapshot{})
+	manager.logs.Store(map[fix.JobID]logSnapshot{})
+	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, reservations: map[string]fix.JobID{}}
+	requestID, _ := fix.NewCommandID()
+	response := make(chan commandResponse, 1)
+	manager.handleCommand(state, commandCall{ctx: t.Context(), command: fix.JobCommand{RequestID: requestID, JobID: job, Action: fix.ActionCancel}, response: response})
+	if reply := <-response; reply.err == nil {
+		t.Fatal("cancel unexpectedly succeeded when its durable applied record failed")
+	}
+	if record.canceled || record.presentation.Phase != fix.PhaseFailed {
+		t.Fatalf("failed cancel leaked transient intent: canceled=%t phase=%s", record.canceled, record.presentation.Phase)
+	}
+}
+
+func TestRestartReconcilesFailedCleanupBeforeCandidateRecovery(t *testing.T) {
+	job, _ := fix.NewJobID()
+	identity := fix.CandidateIdentity{Job: job, RepositoryRoot: "/candidate/" + string(job), AnalysisRoot: "/candidate/" + string(job)}
+	presentation := fix.JobPresentation{ID: job, Revision: 3, Phase: fix.PhaseCompleted, Issue: &fix.JobIssue{Code: "cleanup_failed", Summary: "partial cleanup"}}
+	envelope, _ := json.Marshal(journalEnvelope{Presentation: presentation, Candidate: &identity})
+	candidates := &cleanupRecoveryCandidates{}
+	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Candidates: candidates}, options: Options{Clock: time.Now},
+		initial: []jobstore.Record{{JobID: job, Revision: presentation.Revision, Kind: "checkpoint", Data: envelope}}, notify: make(chan struct{})}
+	state := &controllerState{jobs: map[fix.JobID]*jobRecord{}, reservations: map[string]fix.JobID{}}
+	manager.restore(state)
+	record := state.jobs[job]
+	if candidates.reconcileCalls != 1 || candidates.recoverCalls != 0 {
+		t.Fatalf("cleanup restart calls: reconcile=%d recover=%d", candidates.reconcileCalls, candidates.recoverCalls)
+	}
+	if record == nil || record.candidate != nil || record.presentation.Issue != nil || record.presentation.Phase != fix.PhaseCompleted {
+		t.Fatalf("cleanup restart did not finish safely: %+v", record)
 	}
 }
 
@@ -579,124 +760,6 @@ func TestPullRequestSubmitRequiresConfiguredValidationPlan(t *testing.T) {
 	case job := <-runtime.started:
 		t.Fatalf("agent %s started for a pull request without validation", job)
 	default:
-	}
-}
-
-func TestPullRequestPublishRequiresPublisherAndPassingValidation(t *testing.T) {
-	record := &jobRecord{
-		draft:     FixDraft{DeliveryMode: "pull-request", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{RequireValidation: true}}},
-		candidate: &fix.CandidateIdentity{},
-		presentation: fix.JobPresentation{Phase: fix.PhaseAwaitingReview, Compliance: fix.ComplianceCompliant,
-			Scope: fix.ScopeClean, Validation: fix.ValidationNotConfigured},
-	}
-	manager := &Manager{deps: Dependencies{Delivery: &fakeDeliverySaga{}}}
-	manager.refreshActions(record)
-	if containsFixActionForTest(record.presentation.AllowedActions, fix.ActionPublish) {
-		t.Fatal("pull-request publication was allowed without a configured publisher and passing validation")
-	}
-	manager.deps.Publisher = fakePublisher{}
-	manager.refreshActions(record)
-	if containsFixActionForTest(record.presentation.AllowedActions, fix.ActionPublish) {
-		t.Fatal("pull-request publication was allowed without passing validation")
-	}
-	record.presentation.Validation = fix.ValidationPassed
-	manager.refreshActions(record)
-	if !containsFixActionForTest(record.presentation.AllowedActions, fix.ActionPublish) {
-		t.Fatal("pull-request publication was not allowed after its dependencies and release gates passed")
-	}
-
-	record.draft.Preferences.Delivery.RequireValidation = false
-	record.presentation.Validation = fix.ValidationNotConfigured
-	manager.refreshActions(record)
-	if !containsFixActionForTest(record.presentation.AllowedActions, fix.ActionPublish) {
-		t.Fatal("pull-request publication was not allowed when validation is explicitly optional")
-	}
-}
-
-func TestFailedCommandAppliedRecordRollsBackConflictAcknowledgement(t *testing.T) {
-	job := fix.JobID("01JTESTJOB0000000000000000")
-	other := fix.JobID("01JTESTJOB0000000000000001")
-	record := &jobRecord{
-		presentation: fix.JobPresentation{ID: job, Revision: 7, Phase: fix.PhaseAwaitingReview,
-			Scope: fix.ScopeConflicted, AllowedActions: []fix.JobAction{fix.ActionAcknowledgeConflict}},
-		commands:     map[fix.CommandID]CommandReceipt{},
-		conflicts:    map[fix.JobID]string{other: "left\x00right"},
-		acknowledged: nil,
-	}
-	manager := &Manager{deps: Dependencies{Store: &failAppliedStore{}}, options: Options{Clock: time.Now}, notify: make(chan struct{})}
-	manager.current.Store(JobListSnapshot{})
-	manager.logs.Store(map[fix.JobID]logSnapshot{})
-	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}}
-	commandID, _ := fix.NewCommandID()
-	response := make(chan commandResponse, 1)
-	manager.handleCommand(state, commandCall{ctx: context.Background(), command: fix.JobCommand{
-		RequestID: commandID, JobID: job, ExpectedRevision: 7, Action: fix.ActionAcknowledgeConflict,
-	}, response: response})
-	result := <-response
-	if result.err == nil {
-		t.Fatal("command succeeded when its applied record failed")
-	}
-	if len(record.acknowledged) != 0 || record.conflicts[other] != "left\x00right" {
-		t.Fatalf("failed command leaked conflict state: acknowledged=%v conflicts=%v", record.acknowledged, record.conflicts)
-	}
-}
-
-func TestCandidateSensitiveCommandRequiresTheFreshReviewedFingerprint(t *testing.T) {
-	job := fix.JobID("01JTESTJOB0000000000000000")
-	candidates := &changingCandidates{snapshot: candidate.DiffSnapshot{Fingerprint: "new", Scope: fix.ScopeClean, Files: []candidate.DiffFile{{Path: "main.go", Status: "modified"}}}}
-	record := &jobRecord{candidate: &fix.CandidateIdentity{Job: job, RepositoryRoot: "/candidate"}, diffHash: "old", commands: map[fix.CommandID]CommandReceipt{},
-		draft: FixDraft{AllowedPaths: []fix.RepoPath{"main.go"}}, presentation: fix.JobPresentation{ID: job, Revision: 7, Phase: fix.PhaseAwaitingReview, Compliance: fix.ComplianceCompliant, Validation: fix.ValidationPassed, DiffFingerprint: "old", AllowedActions: []fix.JobAction{fix.ActionPublish}}}
-	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Candidates: candidates}, options: Options{Clock: time.Now}, notify: make(chan struct{})}
-	manager.current.Store(JobListSnapshot{})
-	manager.logs.Store(map[fix.JobID]logSnapshot{})
-	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}}
-	commandID, _ := fix.NewCommandID()
-	response := make(chan commandResponse, 1)
-	manager.handleCommand(state, commandCall{ctx: t.Context(), command: fix.JobCommand{RequestID: commandID, JobID: job, ExpectedRevision: 7, Action: fix.ActionPublish, DiffHash: "old"}, response: response})
-	if result := <-response; !errors.Is(result.err, ErrStaleCandidate) {
-		t.Fatalf("command error=%v", result.err)
-	}
-	if record.presentation.DiffFingerprint != "new" || record.presentation.Revision <= 7 || record.presentation.Phase != fix.PhaseWaitingVerifier || record.presentation.Compliance != fix.ComplianceUnknown || record.presentation.Validation != fix.ValidationNotRun || containsFixActionForTest(record.presentation.AllowedActions, fix.ActionPublish) {
-		t.Fatalf("refreshed presentation=%+v", record.presentation)
-	}
-	secondID, _ := fix.NewCommandID()
-	second := make(chan commandResponse, 1)
-	manager.handleCommand(state, commandCall{ctx: t.Context(), command: fix.JobCommand{RequestID: secondID, JobID: job, ExpectedRevision: record.presentation.Revision, Action: fix.ActionPublish, DiffHash: "new"}, response: second})
-	if result := <-second; !errors.Is(result.err, ErrActionNotAllowed) {
-		t.Fatalf("second publish error=%v", result.err)
-	}
-}
-
-func TestAdmissionRejectsSecretsAndTerminalControlsBeforeJournal(t *testing.T) {
-	for _, test := range []struct {
-		name, guidance, detached string
-		guard                    SecretAdmission
-	}{
-		{"known secret guidance", "do not leak secret-token", "", rejectingAdmission{secret: "secret-token"}},
-		{"known secret detached", "", "use secret-token", rejectingAdmission{secret: "secret-token"}},
-		{"escape control", "unsafe\x1b]0;owned\a", "", nil},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			manager, _ := newTestManager(t, 1)
-			defer shutdownManager(t, manager)
-			manager.deps.SecretAdmission = test.guard
-			draft := prepare(t, manager, "one.go")
-			revised, err := ReviseDraft(draft, DraftEdits{TargetScore: draft.TargetScore, Focus: draft.Focus, ChangeScope: draft.ChangeScope, DeliveryMode: draft.DeliveryMode, BranchName: draft.BranchName, Guidance: test.guidance, DetachedBody: test.detached})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := manager.Submit(t.Context(), SubmitRequest{Draft: revised}); err == nil {
-				t.Fatal("unsafe advanced instructions admitted")
-			}
-			records, err := manager.deps.Store.Load(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
-			encoded, _ := json.Marshal(records)
-			if strings.Contains(string(encoded), "secret-token") || strings.ContainsRune(string(encoded), '\x1b') {
-				t.Fatalf("journal contains unsafe input: %s", encoded)
-			}
-		})
 	}
 }
 
@@ -759,10 +822,6 @@ func TestUnchangedDiffRefreshPreservesVerifiedBeforeAfterProjection(t *testing.T
 	target := record.presentation.Targets[0]
 	if target.VerifiedScore == nil || *target.VerifiedScore != 42 || len(target.VerifiedMetrics) != 1 || target.Verification != "verified" {
 		t.Fatalf("verified projection lost: %+v", target)
-	}
-	clearVerifiedPresentation(record)
-	if record.presentation.Targets[0].VerifiedScore != nil || len(record.presentation.Targets[0].VerifiedMetrics) != 0 {
-		t.Fatalf("stale verification not cleared: %+v", record.presentation.Targets[0])
 	}
 }
 
@@ -884,6 +943,22 @@ func (runtime *fakeRuntime) complete(id fix.JobID) {
 
 type fakeCandidates struct{}
 
+type cleanupRecoveryCandidates struct {
+	fakeCandidates
+	reconcileCalls int
+	recoverCalls   int
+}
+
+func (service *cleanupRecoveryCandidates) ReconcileDiscard(context.Context, fix.CandidateIdentity) error {
+	service.reconcileCalls++
+	return nil
+}
+
+func (service *cleanupRecoveryCandidates) Recover(context.Context, fix.CandidateIdentity, []fix.RepoPath, string, []fix.RepoPath) error {
+	service.recoverCalls++
+	return errors.New("partial worktree is gone")
+}
+
 type changingCandidates struct {
 	fakeCandidates
 	snapshot candidate.DiffSnapshot
@@ -906,7 +981,7 @@ func (service discoveringCandidates) DiscoverPrepared(_ context.Context, request
 }
 
 func (fakeCandidates) Preflight(context.Context, candidate.PreflightRequest) (candidate.PreflightResult, error) {
-	return candidate.PreflightResult{Clean: true, Supported: true}, nil
+	return candidate.PreflightResult{Ready: true, Supported: true}, nil
 }
 func (fakeCandidates) Prepare(_ context.Context, request candidate.PrepareRequest) (fix.CandidateIdentity, error) {
 	return fix.CandidateIdentity{Job: request.Job, Repository: request.Workspace.Repository, RepositoryRoot: "/candidate/" + string(request.Job), AnalysisRoot: "/candidate/" + string(request.Job), BaseCommit: request.Workspace.BaseCommit}, nil
@@ -939,9 +1014,9 @@ func (fakeAnalysis) PrepareBaseline(_ context.Context, request fixanalysis.Basel
 func (fakeAnalysis) Verify(_ context.Context, request fixanalysis.VerificationRequest) (fixanalysis.VerificationResult, error) {
 	files := make([]fixanalysis.FileResult, 0, len(request.Contract.Targets))
 	for _, target := range request.Contract.Targets {
-		files = append(files, fixanalysis.FileResult{Path: target.Path, Score: 42, Complete: true, Compliant: true})
+		files = append(files, fixanalysis.FileResult{Path: target.Path, Score: 42, Complete: true, TargetMet: true})
 	}
-	return fixanalysis.VerificationResult{Files: files, FingerprintBefore: "same", FingerprintAfter: "same", Complete: true, Compliant: true}, nil
+	return fixanalysis.VerificationResult{Files: files, FingerprintBefore: "same", FingerprintAfter: "same", Complete: true, TargetMet: true}, nil
 }
 
 func newTestManager(t *testing.T, maxAgents int) (*Manager, *fakeRuntime) {
@@ -956,9 +1031,9 @@ func newTestManagerWithStore(t *testing.T, maxAgents int, store jobstore.Store, 
 		t.Fatal(err)
 	}
 	config := appconfig.NewMemory(appconfig.Resolved{SchemaVersion: 1, Revision: 1, Origins: map[string]appconfig.Origin{},
-		Fix:         appconfig.FixDefaults{TargetScore: 50, Profile: "test-profile", Model: "gpt-test", Effort: "high", Delegation: agent.DelegationSingle, ChangeScope: "targets", BranchTemplate: "fix/{target-stem}-{job-short-id}"},
+		Fix:         appconfig.FixDefaults{TargetScore: 50, Profile: "test-profile", Model: "gpt-test", Effort: "high", Delegation: agent.DelegationSingle, ChangeScope: "targets"},
 		Concurrency: appconfig.Concurrency{MaxTranscriptBytes: 1 << 20, MaxActorsPerJob: 32}, Profiles: []agent.Profile{{ID: "test-profile", Label: "Test", Runtime: "test"}},
-		Delivery:   appconfig.Delivery{DefaultMode: fix.DeliveryModeCandidate, Remote: "origin", Publisher: "github-cli", DraftPullRequests: true},
+		Delivery:   appconfig.Delivery{DefaultMode: fix.DeliveryModeBranch, Remote: "origin", BranchTemplate: "fix/{target-stem}-{job-short-id}", Publisher: "github-cli", DraftPullRequests: true},
 		Validation: []validation.Plan{},
 	})
 	options.MaxAgents = maxAgents
@@ -969,7 +1044,7 @@ func newTestManagerWithStore(t *testing.T, maxAgents int, store jobstore.Store, 
 	if options.MaxTranscriptBytes == 0 {
 		options.MaxTranscriptBytes = 1 << 20
 	}
-	manager, err := New(Dependencies{Config: config, Analysis: fakeAnalysis{}, Candidates: fakeCandidates{}, Agents: registry, Store: store}, options)
+	manager, err := New(Dependencies{Config: config, Analysis: fakeAnalysis{}, Candidates: fakeCandidates{}, Agents: registry, Store: store, Delivery: &fakeDeliverySaga{}}, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1059,6 +1134,26 @@ func shutdownManager(t *testing.T, manager *Manager) {
 type fakeDeliverySaga struct {
 	mu    sync.Mutex
 	steps []string
+}
+
+type resolvingDeliverySaga struct{ fakeDeliverySaga }
+
+func (saga *resolvingDeliverySaga) Reconcile(ctx context.Context, request delivery.Request, result delivery.Result) (delivery.Result, error) {
+	saga.record("reconcile")
+	result.Ambiguous = false
+	if result.LocalRef == "" {
+		result.LocalRef = "refs/heads/" + request.Branch
+	} else {
+		result.RemoteRef = result.LocalRef
+		result.Pushed = true
+	}
+	return result, nil
+}
+
+func (saga *resolvingDeliverySaga) recorded() string {
+	saga.mu.Lock()
+	defer saga.mu.Unlock()
+	return fmt.Sprint(saga.steps)
 }
 
 func (*fakeDeliverySaga) Preflight(context.Context, delivery.PreflightRequest) (delivery.PreflightResult, error) {

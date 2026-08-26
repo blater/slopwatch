@@ -40,6 +40,8 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	case fixSubmittedMsg:
 		model.handleFixSubmitted(message)
 		return model, nil
+	case fixTargetPreferenceSavedMsg:
+		return model, model.handleFixTargetPreferenceSaved(message)
 	case fixJobsMsg:
 		return model, model.handleFixJobs(message)
 	case fixCommandMsg:
@@ -80,8 +82,8 @@ func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.C
 	model.ensureAgentVisible()
 	model.clampAgentHorizontalOffset()
 	if model.hasOverlay(OverlayPromptEditor) {
-		model.fixDialog.prompt.SetWidth(max(1, model.width))
-		model.fixDialog.prompt.SetHeight(max(1, model.height-2))
+		model.configSettings.prompt.SetWidth(max(1, model.width))
+		model.configSettings.prompt.SetHeight(max(1, model.height-2))
 	}
 	model.clampDetailOffset()
 	if model.sourceView {

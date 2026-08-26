@@ -17,10 +17,7 @@ const (
 	OverlayConfigSettings
 	OverlayFixForm
 	OverlayPromptEditor
-	OverlayPromptDetach
-	OverlayPromptDirty
 	OverlayJobMonitor
-	OverlayJobActions
 	OverlayJobLog
 	OverlayJobDiff
 	OverlayCandidateSource

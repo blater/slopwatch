@@ -39,7 +39,7 @@ func TestFixKeyOpensExistingReservationInsteadOfPreparingDuplicate(t *testing.T)
 	service := &fakeFixService{draft: readyFixDraft("a.go")}
 	model := fixTestModel(service, 80, 24)
 	model.agents.Jobs = []fix.JobPresentation{{
-		ID: "existing", Phase: fix.PhaseAwaitingReview, Attention: fix.AttentionRequired,
+		ID: "existing", Phase: fix.PhaseFailed, Attention: fix.AttentionError,
 		Targets: []fix.FilePresentation{{Path: "a.go"}},
 	}}
 	if command := model.openFixForSelected(); command != nil {
@@ -83,7 +83,7 @@ func TestFixDialogResponsiveSurfacesAndContractSafeSubmit(t *testing.T) {
 		model.handleFixPrepared(command().(fixPreparedMsg))
 		assertScreenSize(t, model.View(), size.width, size.height)
 		plain := ansi.Strip(model.View())
-		if !strings.Contains(plain, "FIX FILE") || !strings.Contains(plain, "Target SCORE") {
+		if !strings.Contains(plain, "FIX FILE") || !strings.Contains(plain, "Target score") {
 			t.Fatalf("%dx%d Fix surface omitted controls: %q", size.width, size.height, plain)
 		}
 	}
@@ -95,10 +95,7 @@ func TestFixDialogResponsiveSurfacesAndContractSafeSubmit(t *testing.T) {
 	model.fixDialog.cursor = fixFieldTargetScore
 	model.adjustFixField(-1)
 	model.fixDialog.focus["cog"] = true
-	model.fixDialog.prompt.SetValue("Preserve parser behavior")
-	model.fixDialog.detached = true
-	model.fixDialog.cursor = fixFieldRun
-	_, submit := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
+	_, submit := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if submit == nil {
 		t.Fatalf("Run fix did not submit: %s", model.fixDialog.errorText)
 	}
@@ -110,8 +107,8 @@ func TestFixDialogResponsiveSurfacesAndContractSafeSubmit(t *testing.T) {
 	if message.err != nil || service.submitted.TargetScore != 90 || service.submitted.Baseline.Contract.Goal.MaximumScore != 90 {
 		t.Fatalf("submitted score contract split: draft=%+v message=%+v", service.submitted, message)
 	}
-	if len(service.submitted.Baseline.Contract.Goal.Focus) != 1 || !strings.Contains(service.submitted.Instructions.Objective, "SCORE <= 90") ||
-		service.submitted.Instructions.DetachedBody != "Preserve parser behavior" || !strings.Contains(service.submitted.Instructions.EffectiveBody(), "Slopwatch-owned") {
+	if len(service.submitted.Baseline.Contract.Goal.Focus) != 1 || !strings.Contains(service.submitted.Instructions.Objective, "score of 90 or lower") ||
+		!strings.Contains(service.submitted.Instructions.EffectiveBody(), "handle Git") {
 		t.Fatalf("submitted prompt/goal not synchronized: goal=%+v instructions=%+v", service.submitted.Baseline.Contract.Goal, service.submitted.Instructions)
 	}
 	model.handleFixSubmitted(message)
@@ -120,15 +117,64 @@ func TestFixDialogResponsiveSurfacesAndContractSafeSubmit(t *testing.T) {
 	}
 }
 
-func TestFixDialogShowsTheProbedAuthenticationMethod(t *testing.T) {
+func TestFixDialogUsesTheEssentialAgentNameOnly(t *testing.T) {
 	draft := readyFixDraft("a.go")
 	draft.Profile.Label = "Codex — managed sign-in (ChatGPT recommended)"
 	draft.Probe.Authentication = agent.Authentication{Method: "api-key", Label: "Signed in with an API key"}
 	model := Model{fixDialog: fixDialogState{hasDraft: true, draft: draft}}
 
 	text := ansi.Strip(strings.Join(model.fixFieldRows(120), "\n"))
-	if !strings.Contains(text, "Codex — managed sign-in (ChatGPT recommended) · Signed in with an API key") {
-		t.Fatalf("Fix dialog omitted the adapter-reported authentication method: %q", text)
+	if !strings.Contains(text, "Agent           Codex") || strings.Contains(text, "ChatGPT recommended") || strings.Contains(text, "Signed in") {
+		t.Fatalf("Fix dialog did not reduce the agent profile to its essential name: %q", text)
+	}
+}
+
+func TestTargetScoreAdjustmentsSerializeIntoGlobalPreferences(t *testing.T) {
+	initial := settingsResolved()
+	initial.Revision = 1
+	initial.Fix.TargetScore = 100
+	initial.Fix.Effort = "high"
+	store := appconfig.NewMemory(initial)
+	resolved, err := store.Resolve(t.Context(), fix.WorkspaceIdentity{}, appconfig.SessionOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft := readyFixDraft("a.go")
+	draft.Preferences = resolved
+	service := &fakeFixService{draft: draft}
+	model := fixTestModel(service, 80, 24)
+	model.configStore = store
+	prepare := model.openFixForSelected()
+	model.handleFixPrepared(prepare().(fixPreparedMsg))
+
+	model.fixDialog.cursor = fixFieldTargetScore
+	_, first := model.adjustFixField(-1)
+	if first == nil || !model.fixTargetSaving {
+		t.Fatal("first target-score adjustment did not start a preference save")
+	}
+	_, queued := model.adjustFixField(-1)
+	if queued != nil || model.fixTargetDesired != 80 {
+		t.Fatalf("rapid adjustment was not queued behind the active save: desired=%v command=%v", model.fixTargetDesired, queued)
+	}
+
+	external := cloneConfigFix(resolved.Fix)
+	external.Effort = "medium"
+	if _, err := store.Save(t.Context(), fix.WorkspaceIdentity{}, appconfig.ScopeUser, appconfig.Patch{Fix: &external}, resolved.Revision); err != nil {
+		t.Fatal(err)
+	}
+	next := model.handleFixTargetPreferenceSaved(first().(fixTargetPreferenceSavedMsg))
+	if next == nil {
+		t.Fatal("queued target score was not saved after the first write")
+	}
+	if trailing := model.handleFixTargetPreferenceSaved(next().(fixTargetPreferenceSavedMsg)); trailing != nil || model.fixTargetSaving {
+		t.Fatal("serialized target-score saves did not settle")
+	}
+	saved, err := store.Resolve(t.Context(), fix.WorkspaceIdentity{}, appconfig.SessionOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Fix.TargetScore != 80 || saved.Fix.Effort != "medium" {
+		t.Fatalf("global Fix preferences = %+v; target score or concurrent edit was lost", saved.Fix)
 	}
 }
 
@@ -149,55 +195,11 @@ func TestFixPrepareErrorStaysNonBlockingAndActionable(t *testing.T) {
 	}
 }
 
-func TestAdvancedEditorLocksEnvelopeAndProtectsUnsavedBody(t *testing.T) {
-	service := &fakeFixService{draft: readyFixDraft("a.go")}
-	model := fixTestModel(service, 60, 16)
-	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
-	original := model.fixDialog.prompt.Value()
-	model.fixDialog.cursor = fixFieldAdvanced
-	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if top, ok := model.overlays.Top(); !ok || top.Kind != OverlayPromptEditor {
-		t.Fatal("Advanced did not open the full-screen task-body editor")
-	}
-	model.fixDialog.prompt.SetValue("unsaved replacement")
-	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if !model.hasOverlay(OverlayPromptDirty) {
-		t.Fatal("Esc did not protect unsaved detached-body edits")
-	}
-	model.fixDialog.promptDirtyCursor = 1
-	model.handlePromptDirtyKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if model.fixDialog.prompt.Value() != original || model.fixDialog.detached {
-		t.Fatal("explicit Discard did not restore advanced body")
-	}
-	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	model.fixDialog.prompt.SetValue("saved replacement")
-	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyCtrlS})
-	if !model.hasOverlay(OverlayPromptDetach) {
-		t.Fatal("first save did not confirm detachment")
-	}
-	model.handlePromptDetachKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if !model.fixDialog.detached || model.fixDialog.draft.Instructions.DetachedBody != "saved replacement" ||
-		!strings.HasPrefix(model.fixDialog.draft.Instructions.EffectiveBody(), model.fixDialog.draft.Instructions.Envelope) {
-		t.Fatalf("saved advanced body did not retain envelope: %+v", model.fixDialog.draft.Instructions)
-	}
-}
-
-func TestFixEditorsDoNotSilentlyClipLongInstructionsOrBranchNames(t *testing.T) {
+func TestBranchEditorDoesNotSilentlyClipLongNames(t *testing.T) {
 	service := &fakeFixService{draft: readyFixDraft("a.go")}
 	model := fixTestModel(service, 80, 24)
 	prepare := model.openFixForSelected()
 	model.handleFixPrepared(prepare().(fixPreparedMsg))
-
-	longInstructions := strings.TrimSpace(strings.Repeat("Preserve the parser's externally observable behavior. ", 512))
-	model.fixDialog.cursor = fixFieldAdvanced
-	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	model.fixDialog.prompt.SetValue(longInstructions)
-	if got := model.fixDialog.prompt.Value(); got != longInstructions {
-		t.Fatalf("advanced instructions were clipped to %d of %d bytes", len(got), len(longInstructions))
-	}
-	model.handlePromptEditorKey(tea.KeyMsg{Type: tea.KeyCtrlS})
-	model.handlePromptDetachKey(tea.KeyMsg{Type: tea.KeyEnter})
 
 	longBranch := strings.Repeat("engineering/platform/", 16) + "refactor-parser"
 	model.fixDialog.branch.SetValue(longBranch)
@@ -207,8 +209,8 @@ func TestFixEditorsDoNotSilentlyClipLongInstructionsOrBranchNames(t *testing.T) 
 	if !model.syncFixDraft() {
 		t.Fatalf("long editor values were rejected: %s", model.fixDialog.errorText)
 	}
-	if model.fixDialog.draft.Instructions.DetachedBody != longInstructions || model.fixDialog.draft.BranchName != longBranch {
-		t.Fatalf("long editor values did not survive draft synchronization: branch=%d instructions=%d", len(model.fixDialog.draft.BranchName), len(model.fixDialog.draft.Instructions.DetachedBody))
+	if model.fixDialog.draft.BranchName != longBranch {
+		t.Fatalf("long branch did not survive draft synchronization: %d", len(model.fixDialog.draft.BranchName))
 	}
 }
 
@@ -245,108 +247,6 @@ func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) 
 	result.handleFixCommand(message)
 	if result.hasOverlay(OverlayConfirmation) || !strings.Contains(result.fixNotice, "two") {
 		t.Fatalf("accepted cancel did not close safely: notice=%q", result.fixNotice)
-	}
-}
-
-func TestJobActionsShowsOnlyAllowedActionsAndExecutesStableRetry(t *testing.T) {
-	service := &fakeFixService{}
-	model := fixTestModel(service, 80, 24)
-	model.mainView = MainViewAgents
-	model.agents.Jobs = []fix.JobPresentation{{
-		ID: "job-actions", Revision: 7, Phase: fix.PhaseAwaitingAction,
-		AllowedActions: []fix.JobAction{fix.ActionRetry, fix.ActionArchive},
-	}}
-	model.agents.Selected = AgentRowID{JobID: "job-actions"}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeySpace})
-	result := updated.(*Model)
-	plain := ansi.Strip(result.View())
-	if !result.hasOverlay(OverlayJobActions) || !strings.Contains(plain, "Retry") || !strings.Contains(plain, "Archive") || strings.Contains(plain, "Publish") {
-		t.Fatalf("action sheet was not an AllowedActions projection: %q", plain)
-	}
-	updated, command := result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
-	result = updated.(*Model)
-	if command == nil {
-		t.Fatal("Retry did not execute from the action sheet")
-	}
-	message := command().(fixCommandMsg)
-	if service.executed.Action != fix.ActionRetry || service.executed.JobID != "job-actions" || service.executed.ExpectedRevision != 7 || service.executed.RequestID == "" {
-		t.Fatalf("Retry command = %+v", service.executed)
-	}
-	result.handleFixCommand(message)
-	if result.hasOverlay(OverlayJobActions) {
-		t.Fatal("accepted direct action did not close its sheet")
-	}
-}
-
-func TestPublishAndDiscardConfirmationsAreResponsiveAndExplicit(t *testing.T) {
-	for _, size := range []struct{ width, height int }{{36, 8}, {60, 16}, {80, 24}, {120, 30}} {
-		service := &fakeFixService{}
-		model := fixTestModel(service, size.width, size.height)
-		model.mainView = MainViewAgents
-		model.agents.Jobs = []fix.JobPresentation{{
-			ID: "publish", Revision: 5, Phase: fix.PhaseAwaitingReview,
-			AllowedActions: []fix.JobAction{fix.ActionPublish}, DeliveryMode: "pull-request", BranchName: "slopwatch/fix/parser",
-		}}
-		model.agents.Selected = AgentRowID{JobID: "publish"}
-		if footer := ansi.Strip(strings.Split(model.View(), "\n")[size.height-1]); !strings.Contains(footer, "actions") {
-			t.Fatalf("%dx%d Agents footer omitted Actions: %q", size.width, size.height, footer)
-		}
-		model.openJobActions()
-		assertScreenSize(t, model.View(), size.width, size.height)
-		model.handleJobActionsKey(tea.KeyMsg{Type: tea.KeyEnter})
-		view := model.View()
-		assertScreenSize(t, view, size.width, size.height)
-		plain := ansi.Strip(view)
-		for _, wanted := range []string{"CONFIRM PUBLISH", "pull-request", "slopwatch/fix/parser", "pull request", "Enter confirm"} {
-			if !strings.Contains(plain, wanted) {
-				t.Fatalf("%dx%d publish confirmation omitted %q: %q", size.width, size.height, wanted, plain)
-			}
-		}
-		if strings.Contains(plain, "draft pull request") {
-			t.Fatalf("%dx%d confirmation claimed a PR state not projected by the job: %q", size.width, size.height, plain)
-		}
-	}
-
-	model := fixTestModel(&fakeFixService{}, 80, 24)
-	model.mainView = MainViewAgents
-	model.agents.Jobs = []fix.JobPresentation{{ID: "discard", Revision: 2, AllowedActions: []fix.JobAction{fix.ActionDiscard}}}
-	model.agents.Selected = AgentRowID{JobID: "discard"}
-	model.openJobActions()
-	model.handleJobActionsKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if plain := ansi.Strip(model.View()); !strings.Contains(plain, "Permanently discard") || !strings.Contains(plain, "uncommitted changes") {
-		t.Fatalf("discard confirmation was ambiguous: %q", plain)
-	}
-}
-
-func TestStalePublishRefreshesRevisionAndRequiresReconfirmation(t *testing.T) {
-	service := &fakeFixService{executeErr: fixapp.ErrStaleRevision}
-	service.jobs = fixapp.JobListSnapshot{Revision: 4, Jobs: []fix.JobPresentation{{
-		ID: "publish", Revision: 8, AllowedActions: []fix.JobAction{fix.ActionPublish}, DeliveryMode: "branch", BranchName: "fix/new",
-	}}}
-	model := fixTestModel(service, 80, 24)
-	model.mainView = MainViewAgents
-	model.agents.Jobs = []fix.JobPresentation{{
-		ID: "publish", Revision: 7, AllowedActions: []fix.JobAction{fix.ActionPublish}, DeliveryMode: "branch", BranchName: "fix/old",
-	}}
-	model.agents.Selected = AgentRowID{JobID: "publish"}
-	model.openJobActions()
-	model.handleJobActionsKey(tea.KeyMsg{Type: tea.KeyEnter})
-	_, firstCommand := model.handleCancelConfirmationKey(tea.KeyMsg{Type: tea.KeyEnter})
-	firstMessage := firstCommand().(fixCommandMsg)
-	firstID := service.executed.RequestID
-	model.handleFixCommand(firstMessage)
-	if !model.hasOverlay(OverlayConfirmation) || model.cancelConfirmation.revision != 8 || !strings.Contains(model.cancelConfirmation.errorText, "confirm again") {
-		t.Fatalf("stale publish did not require reconfirmation: %+v", model.cancelConfirmation)
-	}
-	service.executeErr = nil
-	_, secondCommand := model.handleCancelConfirmationKey(tea.KeyMsg{Type: tea.KeyEnter})
-	secondMessage := secondCommand().(fixCommandMsg)
-	if service.executed.ExpectedRevision != 8 || service.executed.RequestID == firstID {
-		t.Fatalf("reconfirmed command did not capture fresh identity: first=%q second=%+v", firstID, service.executed)
-	}
-	model.handleFixCommand(secondMessage)
-	if model.hasOverlay(OverlayConfirmation) || model.hasOverlay(OverlayJobActions) {
-		t.Fatal("accepted reconfirmed publish did not close both overlays")
 	}
 }
 
@@ -456,9 +356,16 @@ func readyFixDraft(path fix.RepoPath) fixapp.FixDraft {
 		}},
 		Model: "gpt-5.6", Effort: "high", Delegation: agent.DelegationSingle,
 		TargetScore: 100,
-		ChangeScope: "targets-and-tests", DeliveryMode: "candidate", BranchName: "slopwatch/fix/a",
+		ChangeScope: "targets-and-tests", DeliveryMode: "branch", BranchName: "slopwatch/fix/a",
 		AllowedPaths: []fix.RepoPath{path},
-		Instructions: agent.InstructionDocument{Version: "test", Envelope: "locked", Objective: "old", Evidence: "baseline"},
-		Preflight:    candidate.PreflightResult{Clean: true, Supported: true, AllowedPaths: []fix.RepoPath{path}},
+		Instructions: agent.InstructionDocument{Version: "test", Envelope: "locked", Objective: "old", NextAttemptNotes: "baseline"},
+		Preflight:    candidate.PreflightResult{Ready: true, Supported: true, AllowedPaths: []fix.RepoPath{path}},
+	}
+}
+
+func TestFixMetricsAlwaysStartWithScore(t *testing.T) {
+	metrics := availableFixMetrics(readyFixDraft("a.go"))
+	if len(metrics) == 0 || metrics[0] != "score" {
+		t.Fatalf("Fix metrics = %v", metrics)
 	}
 }

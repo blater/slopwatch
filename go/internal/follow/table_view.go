@@ -141,7 +141,6 @@ type column struct {
 
 var columnDefinitions = []column{
 	{"score", "SCORE", "overall score", 8, true, true, false, 1},
-	{"fix", "FIX", "fix job state", 4, false, true, false, 0},
 	{"cog", "COG", "cognitive", 6, false, true, true, -1},
 	{"npath", "NPATH", "execution path complexity", 8, false, true, true, -2},
 	{"cyclo", "CYCLO", "cyclomatic complexity", 7, false, true, true, -3},
@@ -195,7 +194,7 @@ func activeColumns(model Model) []column {
 }
 
 func headerColumns(model Model) []column {
-	columns := []column{columnDefinitions[0], columnDefinitions[1]}
+	columns := []column{columnDefinitions[0]}
 	if !model.options.Compact {
 		columns = append(columns, model.activeColumns()...)
 	}

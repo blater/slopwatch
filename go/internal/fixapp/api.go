@@ -22,8 +22,7 @@ var (
 	ErrJobNotFound      = errors.New("fix job not found")
 	ErrTargetReserved   = errors.New("fix target is reserved")
 	ErrStaleRevision    = errors.New("stale job revision")
-	ErrStaleCandidate   = errors.New("candidate changed; review the refreshed diff and confirm again")
-	ErrActionNotAllowed = errors.New("job action not allowed")
+	ErrActionNotAllowed = errors.New("job cannot be canceled in its current state")
 )
 
 type GlobalRevision uint64
@@ -84,12 +83,10 @@ type DraftEdits struct {
 	ValidationPlanID string
 	DeliveryMode     fix.DeliveryMode
 	BranchName       string
-	Guidance         string
-	DetachedBody     string
 }
 
 type JobFilter struct {
-	IncludeArchived bool
+	IncludeFinished bool
 	ActiveOnly      bool
 }
 

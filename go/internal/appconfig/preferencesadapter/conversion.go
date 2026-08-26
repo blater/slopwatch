@@ -93,7 +93,6 @@ func preferenceFixToApp(value preferences.Fix) (appconfig.FixDefaults, error) {
 		Profile: agent.ProfileID(value.Profile), Model: agent.ModelID(value.Model),
 		Effort: agent.EffortID(value.Effort), Delegation: agent.DelegationMode(value.Delegation),
 		PromptTemplate: value.PromptTemplate,
-		BranchTemplate: value.BranchTemplate,
 		ValidationPlan: value.ValidationPlan,
 	}, nil
 }
@@ -190,7 +189,6 @@ func appFixToPreference(value appconfig.FixDefaults) preferences.Fix {
 		TargetScore: value.TargetScore, Focus: focus, ChangeScope: value.ChangeScope,
 		Profile: string(value.Profile), Model: string(value.Model), Effort: string(value.Effort),
 		Delegation: string(value.Delegation), PromptTemplate: value.PromptTemplate,
-		BranchTemplate: value.BranchTemplate,
 		ValidationPlan: value.ValidationPlan,
 	}
 }

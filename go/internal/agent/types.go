@@ -161,37 +161,16 @@ type Limits struct {
 }
 
 type InstructionDocument struct {
-	Version      string
-	Envelope     string
-	Objective    string
-	Evidence     string
-	UserGuidance string
-	DetachedBody string
-	// RetryEvidence is trusted, bounded feedback produced by Slopwatch's
-	// independent verifier. It is request-scoped and never replaces Envelope.
-	RetryEvidence string
+	Version          string
+	Envelope         string
+	Objective        string
+	NextAttemptNotes string
 }
 
 func (document InstructionDocument) EffectiveBody() string {
-	if document.DetachedBody != "" {
-		// Advanced editing may replace generated guidance/evidence, but it cannot
-		// detach the service-owned objective that carries scoring and exact write
-		// scope constraints.
-		result := document.Envelope + "\n\n" + document.Objective + "\n\nAdvanced instructions:\n" + document.DetachedBody
-		if document.RetryEvidence != "" {
-			result += "\n\nTrusted retry evidence from Slopwatch:\n" + document.RetryEvidence
-		}
-		return result
-	}
 	result := document.Envelope + "\n\n" + document.Objective
-	if document.Evidence != "" {
-		result += "\n\n" + document.Evidence
-	}
-	if document.UserGuidance != "" {
-		result += "\n\nAdditional guidance:\n" + document.UserGuidance
-	}
-	if document.RetryEvidence != "" {
-		result += "\n\nTrusted retry evidence from Slopwatch:\n" + document.RetryEvidence
+	if document.NextAttemptNotes != "" {
+		result += "\n\nMeasurements from the previous attempt:\n" + document.NextAttemptNotes
 	}
 	return result
 }

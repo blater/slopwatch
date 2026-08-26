@@ -1,6 +1,8 @@
 package follow
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	name := key.String()
@@ -56,9 +58,9 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			model.moveAgentSelection(1)
 		case "left":
-			model.moveAgentHorizontal(-pathScrollStep)
-		case "right":
 			model.moveAgentHorizontal(pathScrollStep)
+		case "right":
+			model.moveAgentHorizontal(-pathScrollStep)
 		case "ctrl+f", "pgdown":
 			model.pageAgentSelection(1)
 		case "ctrl+b", "pgup":
@@ -96,8 +98,6 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		case "C":
 			model.openCancelConfirmation()
-		case " ":
-			model.openJobActions()
 		}
 		return model, nil
 	}
@@ -186,15 +186,9 @@ func dispatchOverlayKey(model *Model, kind OverlayKind, key tea.KeyMsg) (tea.Mod
 	case OverlayFixForm:
 		return model.handleFixFormKey(key)
 	case OverlayPromptEditor:
-		return model.handlePromptEditorKey(key)
-	case OverlayPromptDetach:
-		return model.handlePromptDetachKey(key)
-	case OverlayPromptDirty:
-		return model.handlePromptDirtyKey(key)
+		return model.handleMasterPromptKey(key)
 	case OverlayJobMonitor:
 		return model.handleJobMonitorKey(key)
-	case OverlayJobActions:
-		return model.handleJobActionsKey(key)
 	case OverlayJobLog, OverlayJobDiff, OverlayCandidateSource:
 		return model.handleJobReaderKey(key)
 	case OverlayConfirmation:

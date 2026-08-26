@@ -5,24 +5,13 @@ import (
 	"testing"
 )
 
-func TestEffectiveBodyAppendsTrustedRetryEvidenceWithoutChangingEnvelope(t *testing.T) {
-	for _, detached := range []string{"", "Keep my exact advanced edit"} {
-		document := InstructionDocument{
-			Envelope:      "LOCKED ENVELOPE",
-			Objective:     "Improve score",
-			Evidence:      "Baseline evidence",
-			DetachedBody:  detached,
-			RetryEvidence: "attempt 1/3; score 72 exceeds target 50",
-		}
-		body := document.EffectiveBody()
-		if !strings.HasPrefix(body, "LOCKED ENVELOPE\n\nImprove score") {
-			t.Fatalf("trusted envelope/objective prefix changed for detached=%q: %q", detached, body)
-		}
-		if !strings.Contains(body, "Trusted retry evidence from Slopwatch:\nattempt 1/3; score 72 exceeds target 50") {
-			t.Fatalf("retry evidence absent for detached=%q: %q", detached, body)
-		}
-		if detached != "" && !strings.Contains(body, "Advanced instructions:\n"+detached) {
-			t.Fatalf("advanced instructions changed: %q", body)
-		}
+func TestEffectiveBodyAddsPreviousMeasurementsAfterTheMasterPrompt(t *testing.T) {
+	document := InstructionDocument{Envelope: "WORKSPACE RULES", Objective: "Improve score", NextAttemptNotes: "score 72 exceeds target 50"}
+	body := document.EffectiveBody()
+	if !strings.HasPrefix(body, "WORKSPACE RULES\n\nImprove score") {
+		t.Fatalf("prompt prefix changed: %q", body)
+	}
+	if !strings.Contains(body, "Measurements from the previous attempt:\nscore 72 exceeds target 50") {
+		t.Fatalf("previous measurements absent: %q", body)
 	}
 }

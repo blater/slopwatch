@@ -49,7 +49,6 @@ type FixDefaults struct {
 	Effort         agent.EffortID
 	Delegation     agent.DelegationMode
 	PromptTemplate string
-	BranchTemplate string
 	ValidationPlan string
 }
 

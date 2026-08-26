@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -16,6 +17,7 @@ import (
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
 	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixprompt"
 	userprefs "github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/style"
 	"github.com/blater/slopwatch/internal/validation"
@@ -81,7 +83,7 @@ func TestLegacyDashboardDefaultsCarryValidFeatureDefaults(t *testing.T) {
 	}
 }
 
-func TestLegacyDashboardSavePreservesFeatureGroups(t *testing.T) {
+func TestDashboardSavePreservesFeatureGroups(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "preferences.toml")
 	value := defaultUserPreferences()
@@ -102,7 +104,7 @@ func TestLegacyDashboardSavePreservesFeatureGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(loaded.Agents.Profiles) != 1 || loaded.Agents.Profiles[0].Options["sandbox"] != "strict" || loaded.Fix.Profile != "codex" {
-		t.Fatalf("legacy save overwrote feature groups: %#v", loaded)
+		t.Fatalf("dashboard save overwrote feature groups: %#v", loaded)
 	}
 }
 
@@ -568,11 +570,11 @@ func TestPreferencesReloadClearsAgentProbeCatalog(t *testing.T) {
 	}
 }
 
-func TestOnlyBuiltInCodexProfileCarriesRecommendation(t *testing.T) {
+func TestAgentProfileChoiceLabelsStayShort(t *testing.T) {
 	t.Parallel()
 	builtIn := agentProfileChoiceLabel(agent.Profile{ID: "codex-default", Runtime: "codex-cli"})
 	custom := agentProfileChoiceLabel(agent.Profile{ID: "work", Runtime: "codex-cli"})
-	if !strings.Contains(builtIn, "recommended") || strings.Contains(custom, "recommended") {
+	if builtIn != "Codex" || custom != "Codex" {
 		t.Fatalf("Codex choice labels: built-in=%q custom=%q", builtIn, custom)
 	}
 }
@@ -743,11 +745,11 @@ func TestCompactSettingsEditorKeepsApplyAndCancelFooterVisible(t *testing.T) {
 	}
 }
 
-func TestSettingsExposeFixedPoliciesTrustedCommandsAndFocusedSources(t *testing.T) {
+func TestSettingsKeepTrustedCommandsAndMasterPromptClear(t *testing.T) {
 	resolved := settingsResolved()
-	resolved.Fix.PromptTemplate = "default"
-	resolved.Delivery.CleanupPolicy = "retain"
-	resolved.Delivery.CommitPolicy = "on-publish"
+	resolved.Fix.PromptTemplate = fixprompt.DefaultTemplate
+	resolved.Delivery.CleanupPolicy = "remove-worktree"
+	resolved.Delivery.CommitPolicy = "automatic"
 	resolved.Validation = []validation.Plan{{ID: "release", Checks: []validation.Check{{
 		ID: "test", Label: "Go test", Executable: "/usr/bin/go", Arguments: []string{"test", "./..."},
 		WorkingDirectory: "module", Required: true, Timeout: 10 * time.Minute, MaxOutputBytes: 4096,
@@ -765,45 +767,57 @@ func TestSettingsExposeFixedPoliciesTrustedCommandsAndFocusedSources(t *testing.
 	if footer := validationModel.configSettingsFooter(); !strings.Contains(footer, "Read-only in this release") {
 		t.Fatalf("trusted command footer implied editing: %q", footer)
 	}
-	if source := validationModel.configFocusedSourceNote(); !strings.Contains(source, "Repo override") || !strings.Contains(source, "saves user default only") {
-		t.Fatalf("repository precedence consequence=%q", source)
-	}
 	validationModel.configSettings.cursor = 20 // timeout row
 	if footer := validationModel.configSettingsFooter(); !strings.Contains(footer, "Enter edit") {
 		t.Fatalf("editable validation limit footer=%q", footer)
 	}
 
 	deliveryModel := settingsModel(configDelivery, resolved, &settingsConfigStore{})
-	for _, cursor := range []int{4, 12, 13} {
-		deliveryModel.configSettings.cursor = cursor
-		before := deliveryModel.configSettings.working.Delivery
-		deliveryModel.adjustConfigSetting(1)
-		if deliveryModel.configSettings.working.Delivery != before || deliveryModel.configSettings.dirty {
-			t.Fatalf("fixed delivery row %d behaved as editable", cursor)
-		}
-		if footer := deliveryModel.configSettingsFooter(); !strings.Contains(footer, "Read-only in this release") {
-			t.Fatalf("fixed delivery row %d footer=%q", cursor, footer)
-		}
-	}
-	deliveryModel.configSettings.cursor = 12
 	deliveryText := ansi.Strip(strings.Join(deliveryModel.configSettingsLines(100), "\n"))
-	for _, wanted := range []string{"only supported v1 adapter", "retain · fixed v1", "on-publish · fixed v1", "until explicit Discard or Cleanup"} {
-		if !strings.Contains(deliveryText, wanted) {
-			t.Fatalf("delivery settings hid %q: %q", wanted, deliveryText)
+	for _, unwanted := range []string{"Publisher", "only supported v1 adapter", "fixed v1", "explicit Discard", "Built-in default", "save creates user default"} {
+		if strings.Contains(deliveryText, unwanted) {
+			t.Fatalf("delivery settings contain obsolete hint %q: %q", unwanted, deliveryText)
 		}
-	}
-	deliveryModel.configSettings.cursor = 9
-	if text := ansi.Strip(strings.Join(deliveryModel.configSettingsLines(100), "\n")); !strings.Contains(text, "Single-line body template") || !strings.Contains(text, "line breaks") {
-		t.Fatalf("delivery body-template constraint was hidden: %q", text)
 	}
 
 	fixModel := settingsModel(configFix, resolved, &settingsConfigStore{})
 	fixModel.configSettings.cursor = 6
-	if text := ansi.Strip(strings.Join(fixModel.configSettingsLines(100), "\n")); !strings.Contains(text, "Prompt strategy") || !strings.Contains(text, "fixed v1") || !strings.Contains(text, "non-editable safety envelope") {
-		t.Fatalf("fixed prompt strategy was unclear: %q", text)
+	if text := ansi.Strip(strings.Join(fixModel.configSettingsLines(100), "\n")); !strings.Contains(text, "Agent prompt") || !strings.Contains(text, "[x] SCORE") {
+		t.Fatalf("master prompt or score metric missing: %q", text)
 	}
-	if footer := fixModel.configSettingsFooter(); !strings.Contains(footer, "Read-only in this release") {
-		t.Fatalf("fixed prompt footer=%q", footer)
+	if text := ansi.Strip(strings.Join(fixModel.configSettingsLines(100), "\n")); strings.Contains(text, "Master template used") || strings.Contains(text, "Built-in default") {
+		t.Fatalf("Fix settings contain an explanatory hint: %q", text)
+	}
+}
+
+func TestFixDefaultsEditTheMasterPrompt(t *testing.T) {
+	model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{})
+	model.configSettings.cursor = 6
+	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if !model.hasOverlay(OverlayPromptEditor) || !strings.Contains(ansi.Strip(model.View()), "MASTER AGENT PROMPT") {
+		t.Fatalf("master prompt editor did not open: %q", ansi.Strip(model.View()))
+	}
+	const prompt = "Refactor {targets} until SCORE is no more than {target_score}."
+	model.configSettings.prompt.SetValue(prompt)
+	model.handleMasterPromptKey(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if model.hasOverlay(OverlayPromptEditor) || model.configSettings.working.Fix.PromptTemplate != prompt || !model.configSettings.dirty {
+		t.Fatalf("master prompt was not applied to Fix Defaults: %+v", model.configSettings)
+	}
+}
+
+func TestMasterPromptEmptyErrorIsVisible(t *testing.T) {
+	for _, size := range []struct{ width, height int }{{36, 6}, {80, 24}} {
+		model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{})
+		model.width, model.height = size.width, size.height
+		model.configSettings.cursor = 6
+		model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
+		model.configSettings.prompt.SetValue("   ")
+		model.handleMasterPromptKey(tea.KeyMsg{Type: tea.KeyCtrlS})
+		plain := ansi.Strip(model.View())
+		if !model.hasOverlay(OverlayPromptEditor) || !strings.Contains(plain, "Agent prompt cannot be empty") {
+			t.Fatalf("%dx%d prompt error was not visible: %q", size.width, size.height, plain)
+		}
+		assertScreenSize(t, model.View(), size.width, size.height)
 	}
 }
 
@@ -829,50 +843,12 @@ func TestDeliverySettingsDoNotSilentlyClipOrganisationBranchTemplate(t *testing.
 	}
 }
 
-func TestSettingsShowAndMigrateEffectiveLegacyBranchTemplate(t *testing.T) {
-	resolved := settingsResolved()
-	resolved.Delivery.BranchTemplate = "slopwatch/fix-{job-short-id}"
-	resolved.Fix.BranchTemplate = "organisation/legacy/{target-stem}-{job-short-id}"
-	resolved.Origins["delivery.branch_template"] = appconfig.OriginBuiltIn
-	resolved.Origins["fix.branch_template"] = appconfig.OriginUser
-	model := settingsModel(configDelivery, resolved, &settingsConfigStore{})
-	model.configSettings.cursor = 3
-
-	text := ansi.Strip(strings.Join(model.configSettingsLines(120), "\n"))
-	for _, wanted := range []string{"organisation/legacy", "legacy Fix preferences", "edit and save this row to migrate"} {
-		if !strings.Contains(text, wanted) {
-			t.Fatalf("legacy effective branch template omitted %q: %q", wanted, text)
-		}
-	}
-	if source := model.configFocusedSourceNote(); source != "Source: user preferences" {
-		t.Fatalf("legacy effective branch source=%q", source)
-	}
-	model.beginConfigText()
-	if got := model.configSettings.input.Value(); got != resolved.Fix.BranchTemplate {
-		t.Fatalf("migration editor started with %q, want effective %q", got, resolved.Fix.BranchTemplate)
-	}
-	if err := model.commitConfigText(); err != nil || model.configSettings.working.Delivery.BranchTemplate != resolved.Fix.BranchTemplate {
-		t.Fatalf("legacy template migration value=%q err=%v", model.configSettings.working.Delivery.BranchTemplate, err)
-	}
-}
-
-func TestValidationPlanSelectorReportsDefaultSelectionSource(t *testing.T) {
-	resolved := settingsResolved()
-	resolved.Origins["fix.validation_plan"] = appconfig.OriginCLI
-	resolved.Origins["validation.go-test"] = appconfig.OriginRepository
-	model := settingsModel(configValidation, resolved, &settingsConfigStore{})
-	model.configSettings.cursor = 16 // first plan, after startup workspace/container constraints.
-	if source := model.configFocusedSourceNote(); !strings.Contains(source, "CLI override") || strings.Contains(source, "Repo override") {
-		t.Fatalf("validation default selector source=%q", source)
-	}
-}
-
-func TestValidationWorkspaceConstraintsAreVisibleEditableAndExplained(t *testing.T) {
+func TestValidationWorkspaceConstraintsAreVisibleAndEditable(t *testing.T) {
 	resolved := settingsResolved()
 	resolved.Origins["validation_workspace.max_files"] = appconfig.OriginUser
 	model := settingsModel(configValidation, resolved, &settingsConfigStore{})
 	text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n"))
-	for _, wanted := range []string{"Workspace files", "100000", "Workspace directories", "Workspace path bytes", "Largest file bytes", "Workspace total bytes", "candidate copy", "fingerprinting", "Container processes", "Container memory bytes", "Container CPU millis", "Container /tmp bytes", "Container workspace bytes", "Container open files", "Generated file bytes", "Container stop timeout", "Docker control timeout", "Safety sentinel timeout", "Crash probe timeout"} {
+	for _, wanted := range []string{"Workspace files", "100000", "Workspace directories", "Workspace path bytes", "Largest file bytes", "Workspace total bytes", "Container processes", "Container memory bytes", "Container CPU millis", "Container /tmp bytes", "Container workspace bytes", "Container open files", "Generated file bytes", "Container stop timeout", "Docker control timeout", "Safety sentinel timeout", "Crash probe timeout"} {
 		if !strings.Contains(text, wanted) {
 			t.Fatalf("validation workspace settings hid %q: %q", wanted, text)
 		}
@@ -897,9 +873,6 @@ func TestValidationWorkspaceConstraintsAreVisibleEditableAndExplained(t *testing
 	model.configSettings.input.SetValue("45s")
 	if err := model.commitConfigText(); err != nil || model.configSettings.working.ValidationWorkspace.ContainerControlTimeout != 45*time.Second {
 		t.Fatalf("control timeout=%s err=%v", model.configSettings.working.ValidationWorkspace.ContainerControlTimeout, err)
-	}
-	if consequence := validationWorkspaceConsequence(validationRowContainerControlTimeout); !strings.Contains(consequence, "lifecycle commands") || !strings.Contains(consequence, "must exceed stop") || !strings.Contains(consequence, "Next start only") || !strings.Contains(consequence, "restart") {
-		t.Fatalf("control timeout consequence=%q", consequence)
 	}
 }
 
@@ -983,33 +956,16 @@ func TestValidationPolicySaveAndReturnLeavesFixBlockedUntilRestart(t *testing.T)
 	}
 }
 
-func TestSettingsExplainLiveLimitConsequencesAndFriendlyOverrideSources(t *testing.T) {
+func TestSettingsDoNotAppendFocusedHints(t *testing.T) {
 	resolved := settingsResolved()
 	resolved.Origins["concurrency.max_agents"] = appconfig.OriginCLI
 	model := settingsModel(configConcurrency, resolved, &settingsConfigStore{})
 	model.configSettings.cursor = 0
 	text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n"))
-	if !strings.Contains(text, "lowering it never cancels running jobs") {
-		t.Fatalf("agent limit consequence=%q", text)
-	}
-	if source := model.configFocusedSourceNote(); !strings.Contains(source, "CLI override") || !strings.Contains(source, "saves user default only") || strings.Contains(source, "built_in") {
-		t.Fatalf("friendly CLI source=%q", source)
-	}
-	model.configSettings.cursor = 2
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n")); !strings.Contains(text, "never deletes jobs") || !strings.Contains(text, "blocks admission") {
-		t.Fatalf("retention consequence=%q", text)
-	}
-	model.configSettings.cursor = 3
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n")); !strings.Contains(text, "Pinned at Prepare") || !strings.Contains(text, "exactly bounds JSON transcript-entry bytes per job") {
-		t.Fatalf("transcript consequence=%q", text)
-	}
-	model.configSettings.cursor = 5
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n")); !strings.Contains(text, "maximum candidate-file bytes") || !strings.Contains(text, "Truncation is") {
-		t.Fatalf("candidate byte preview consequence=%q", text)
-	}
-	model.configSettings.cursor = 6
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n")); !strings.Contains(text, "maximum candidate-file lines") || !strings.Contains(text, "Truncation is") {
-		t.Fatalf("candidate line preview consequence=%q", text)
+	for _, unwanted := range []string{"lowering it", "never deletes", "Pinned at Prepare", "maximum candidate-file"} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("settings contain focused hint %q: %q", unwanted, text)
+		}
 	}
 }
 
@@ -1058,12 +1014,13 @@ func (store *settingsConfigStore) Save(_ context.Context, workspace fix.Workspac
 
 func settingsModel(kind configSettingsKind, resolved appconfig.Resolved, store ConfigStore) *Model {
 	input := textinput.New()
+	prompt := textarea.New()
 	return &Model{
 		width: 80, height: 24, configStore: store,
 		configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"},
 		configSettings: configSettingsState{
 			open: true, kind: kind, generation: 1, resolved: cloneConfigResolved(resolved),
-			working: cloneConfigResolved(resolved), probes: map[agent.ProfileID]agent.ProbeResult{}, probing: map[agent.ProfileID]bool{}, input: input,
+			working: cloneConfigResolved(resolved), probes: map[agent.ProfileID]agent.ProbeResult{}, probing: map[agent.ProfileID]bool{}, input: input, prompt: prompt,
 		},
 	}
 }
@@ -1076,7 +1033,7 @@ func settingsResolved() appconfig.Resolved {
 			"validation": appconfig.OriginUser, "delivery": appconfig.OriginBuiltIn,
 		},
 		Fix: appconfig.FixDefaults{
-			TargetScore: 100, ChangeScope: "targets-and-tests", Profile: "codex", Delegation: "single",
+			TargetScore: 100, ChangeScope: "targets-and-tests", Profile: "codex", Delegation: "single", PromptTemplate: fixprompt.DefaultTemplate,
 		},
 		Concurrency: appconfig.Concurrency{MaxAgents: 2, MaxVerifiers: 1, MaxRetainedJobs: 100, MaxTranscriptBytes: 1024 * 1024, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 4 << 20, MaxCandidatePreviewLines: 5000},
 		ValidationWorkspace: appconfig.ValidationWorkspace{MaxFiles: 100000, MaxDirectories: 20000, MaxPathBytes: 16 << 20, MaxFileBytes: 64 << 20, MaxTotalBytes: 512 << 20,
@@ -1085,7 +1042,7 @@ func settingsResolved() appconfig.Resolved {
 			ContainerSentinelTimeout: 10 * time.Second, ContainerCrashProbeTimeout: 15 * time.Second},
 		Profiles:    []agent.Profile{{ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"}},
 		Validation:  []validation.Plan{{ID: "go-test", Checks: []validation.Check{{ID: "test", Executable: "go"}}}},
-		Delivery:    appconfig.Delivery{DefaultMode: "candidate", Remote: "origin", BranchTemplate: "slopwatch/fix-{job}", Publisher: "github-cli", DraftPullRequests: true},
+		Delivery:    appconfig.Delivery{DefaultMode: "branch", Remote: "origin", BranchTemplate: "slopwatch/fix-{job}", Publisher: "github-cli", DraftPullRequests: true, CommitPolicy: "automatic", CleanupPolicy: "remove-worktree"},
 		TrendWindow: 10 * time.Minute,
 	}
 }

@@ -55,8 +55,11 @@ type candidatePolicy struct {
 }
 
 const (
-	ownershipName   = "owner.json"
-	reservationName = "reservation.json"
+	ownershipName     = "owner.json"
+	reservationName   = "reservation.json"
+	seedManifestName  = "seed-manifest.json"
+	seedCompletedName = "seed-completed.json"
+	maxSeedByteLimit  = int64(^uint64(0) >> 1)
 )
 
 type ownershipRecord struct {
@@ -66,6 +69,32 @@ type ownershipRecord struct {
 	Allowed            []fix.RepoPath        `json:"allowed"`
 	Scope              string                `json:"scope"`
 	CommandOutputBytes int64                 `json:"command_output_bytes"`
+	MaxSeedFileBytes   int64                 `json:"max_seed_file_bytes"`
+	MaxSeedTotalBytes  int64                 `json:"max_seed_total_bytes"`
+}
+
+type seedManifest struct {
+	Version int         `json:"version"`
+	Entries []seedEntry `json:"entries"`
+}
+
+type seedEntry struct {
+	Path    fix.RepoPath `json:"path"`
+	Staged  string       `json:"staged,omitempty"`
+	Deleted bool         `json:"deleted,omitempty"`
+	Mode    uint32       `json:"mode,omitempty"`
+	Size    int64        `json:"size,omitempty"`
+	Hash    string       `json:"sha256,omitempty"`
+}
+
+type seedSpec struct {
+	path          fix.RepoPath
+	forceDeletion bool
+}
+
+type seedCompletion struct {
+	Version      int    `json:"version"`
+	ManifestHash string `json:"manifest_sha256"`
 }
 
 func NewGitWorktreeService(stateRoot string, runner isolation.Executor, config GitWorktreeConfig) (*GitWorktreeService, error) {
@@ -141,12 +170,8 @@ func (service *GitWorktreeService) Preflight(ctx context.Context, request Prefli
 	if request.Workspace.BaseCommit != "" && request.Workspace.BaseCommit != discovered.BaseCommit {
 		return PreflightResult{CheckedAt: checked, Diagnostic: "repository HEAD changed since analysis"}, nil
 	}
-	status, err := service.gitBytes(ctx, discovered.RepositoryRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all")
-	if err != nil {
+	if _, err := service.gitBytes(ctx, discovered.RepositoryRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all"); err != nil {
 		return PreflightResult{CheckedAt: checked, Diagnostic: err.Error()}, err
-	}
-	if len(status) != 0 {
-		return PreflightResult{CheckedAt: checked, Diagnostic: "working tree must be clean before a fix job is admitted"}, nil
 	}
 	for _, state := range []string{"MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer", "index.lock"} {
 		path, pathErr := service.gitText(ctx, discovered.RepositoryRoot, "rev-parse", "--path-format=absolute", "--git-path", state)
@@ -154,7 +179,7 @@ func (service *GitWorktreeService) Preflight(ctx context.Context, request Prefli
 			return PreflightResult{CheckedAt: checked, Diagnostic: pathErr.Error()}, pathErr
 		}
 		if _, statErr := os.Lstat(path); statErr == nil {
-			return PreflightResult{Clean: true, CheckedAt: checked, Diagnostic: "repository has an in-progress Git operation: " + state}, nil
+			return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: "repository has an in-progress Git operation: " + state}, nil
 		} else if !errors.Is(statErr, os.ErrNotExist) {
 			return PreflightResult{CheckedAt: checked, Diagnostic: statErr.Error()}, statErr
 		}
@@ -162,24 +187,24 @@ func (service *GitWorktreeService) Preflight(ctx context.Context, request Prefli
 	if reason, unsupported, err := service.unsupportedRepository(ctx, discovered); err != nil {
 		return PreflightResult{CheckedAt: checked, Diagnostic: err.Error()}, err
 	} else if unsupported {
-		return PreflightResult{Clean: true, CheckedAt: checked, Diagnostic: reason}, nil
+		return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: reason}, nil
 	}
 	blobs := make(map[fix.RepoPath]fix.ObjectID, len(request.Targets))
 	for _, target := range request.Targets {
 		if _, err := fix.ParseRepoPath(target.String()); err != nil {
-			return PreflightResult{Clean: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("invalid target %q", target)}, nil
+			return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("invalid target %q", target)}, nil
 		}
 		mode, err := service.gitText(ctx, discovered.RepositoryRoot, "ls-files", "--stage", "--", target.String())
 		if err != nil || mode == "" || strings.HasPrefix(mode, "120000 ") || strings.HasPrefix(mode, "160000 ") {
-			return PreflightResult{Clean: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("target %s must be a tracked regular file", target)}, nil
+			return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("target %s must be a tracked regular file", target)}, nil
 		}
 		blob, err := service.gitText(ctx, discovered.RepositoryRoot, "rev-parse", "--verify", "HEAD:"+target.String())
 		if err != nil {
-			return PreflightResult{Clean: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("resolve target %s: %v", target, err)}, nil
+			return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("resolve target %s: %v", target, err)}, nil
 		}
 		blobs[target] = fix.ObjectID(blob)
 	}
-	return PreflightResult{Clean: true, Supported: true, CheckedAt: checked, TargetBlobs: blobs}, nil
+	return PreflightResult{Ready: true, Supported: true, CheckedAt: checked, TargetBlobs: blobs}, nil
 }
 
 func (service *GitWorktreeService) unsupportedRepository(ctx context.Context, workspace fix.WorkspaceIdentity) (string, bool, error) {
@@ -299,7 +324,7 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 	if err != nil {
 		return fix.CandidateIdentity{}, err
 	}
-	if !preflight.Clean || !preflight.Supported {
+	if !preflight.Ready || !preflight.Supported {
 		return fix.CandidateIdentity{}, fmt.Errorf("prepare candidate: %s", preflight.Diagnostic)
 	}
 	discovered, err := service.DiscoverWorkspace(ctx, request.Workspace.RepositoryRoot)
@@ -335,6 +360,17 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 	if err := ensureCandidateRecord(jobRoot, reservationName, ownership); err != nil {
 		return fix.CandidateIdentity{}, fmt.Errorf("persist candidate reservation: %w", err)
 	}
+	manifest, err := service.snapshotWorkingChanges(ctx, discovered.RepositoryRoot, ownership.Identity.StagingRoot,
+		request.AllowedScope, request.AllowedPaths, ownership.MaxSeedFileBytes, ownership.MaxSeedTotalBytes)
+	if err != nil {
+		_ = os.RemoveAll(jobRoot)
+		return fix.CandidateIdentity{}, err
+	}
+	manifestHash, err := writeSeedManifest(jobRoot, manifest)
+	if err != nil {
+		_ = os.RemoveAll(jobRoot)
+		return fix.CandidateIdentity{}, fmt.Errorf("persist workspace snapshot: %w", err)
+	}
 	lock, err := acquireRepositoryLock(discovered.GitCommonDir)
 	if err != nil {
 		return fix.CandidateIdentity{}, err
@@ -342,6 +378,12 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 	_, commandErr := service.gitBytes(ctx, discovered.RepositoryRoot, "worktree", "add", "--detach", "--no-checkout", worktree, string(discovered.BaseCommit))
 	if commandErr == nil {
 		_, commandErr = service.gitBytes(ctx, worktree, "checkout", "--detach", string(discovered.BaseCommit), "--")
+	}
+	if commandErr == nil {
+		commandErr = applySeedManifest(ctx, ownership.Identity.StagingRoot, worktree, manifest)
+	}
+	if commandErr == nil {
+		commandErr = writeSeedCompletion(jobRoot, seedCompletion{Version: 1, ManifestHash: manifestHash})
 	}
 	if commandErr != nil {
 		// Cancellation stops the operation that was in flight, but must not also
@@ -386,9 +428,223 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 	return identity, nil
 }
 
+func (service *GitWorktreeService) snapshotWorkingChanges(ctx context.Context, source, staging, scope string, allowed []fix.RepoPath, maxFileBytes, maxTotalBytes int64) (seedManifest, error) {
+	if maxFileBytes <= 0 {
+		maxFileBytes = service.discoveryCommandOutputBytes
+	}
+	if maxTotalBytes <= 0 {
+		maxTotalBytes = service.discoveryCommandOutputBytes
+	}
+	status, err := service.gitBytes(ctx, source, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil {
+		return seedManifest{}, fmt.Errorf("list current workspace changes: %w", err)
+	}
+	allowedSet := make(map[fix.RepoPath]bool, len(allowed))
+	for _, path := range allowed {
+		allowedSet[path] = true
+	}
+	sourceRoot, err := os.OpenRoot(source)
+	if err != nil {
+		return seedManifest{}, fmt.Errorf("open source workspace: %w", err)
+	}
+	defer sourceRoot.Close()
+	stagingRoot, err := os.OpenRoot(staging)
+	if err != nil {
+		return seedManifest{}, fmt.Errorf("open candidate staging area: %w", err)
+	}
+	defer stagingRoot.Close()
+	specs := map[fix.RepoPath]seedSpec{}
+	entries := bytes.Split(status, []byte{0})
+	for index := 0; index < len(entries); index++ {
+		entry := entries[index]
+		if len(entry) < 4 {
+			continue
+		}
+		statusCode := string(entry[:2])
+		path, parseErr := fix.ParseRepoPath(string(entry[3:]))
+		if parseErr != nil {
+			return seedManifest{}, fmt.Errorf("current workspace contains an unsupported changed path: %w", parseErr)
+		}
+		var original fix.RepoPath
+		if strings.ContainsAny(statusCode, "RC") && index+1 < len(entries) {
+			index++
+			original, parseErr = fix.ParseRepoPath(string(entries[index]))
+			if parseErr != nil {
+				return seedManifest{}, fmt.Errorf("current workspace contains an unsupported rename/copy source: %w", parseErr)
+			}
+		}
+		pathAllowed := scope == "repository" || allowedSet[path]
+		originalAllowed := original == "" || scope == "repository" || allowedSet[original]
+		if original != "" && pathAllowed != originalAllowed {
+			return seedManifest{}, fmt.Errorf("current workspace rename/copy crosses the allowed scope: %s and %s", original, path)
+		}
+		if !pathAllowed {
+			continue
+		}
+		specs[path] = seedSpec{path: path}
+		if original != "" {
+			specs[original] = seedSpec{path: original, forceDeletion: strings.Contains(statusCode, "R")}
+		}
+	}
+	paths := make([]fix.RepoPath, 0, len(specs))
+	for path := range specs {
+		paths = append(paths, path)
+	}
+	sort.Slice(paths, func(i, j int) bool { return paths[i] < paths[j] })
+	manifest := seedManifest{Version: 1, Entries: make([]seedEntry, 0, len(paths))}
+	var total int64
+	for index, path := range paths {
+		entry, err := snapshotWorkingFile(ctx, sourceRoot, stagingRoot, specs[path], index, maxFileBytes, maxTotalBytes-total)
+		if err != nil {
+			return seedManifest{}, err
+		}
+		total += entry.Size
+		manifest.Entries = append(manifest.Entries, entry)
+	}
+	return manifest, nil
+}
+
+func snapshotWorkingFile(ctx context.Context, source, staging *os.Root, spec seedSpec, index int, maxFileBytes, remainingBytes int64) (seedEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return seedEntry{}, err
+	}
+	name := spec.path.String()
+	if spec.forceDeletion {
+		return seedEntry{Path: spec.path, Deleted: true}, nil
+	}
+	info, err := source.Lstat(name)
+	if errors.Is(err, os.ErrNotExist) {
+		return seedEntry{Path: spec.path, Deleted: true}, nil
+	}
+	if err != nil {
+		return seedEntry{}, fmt.Errorf("inspect changed workspace file %s: %w", spec.path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return seedEntry{}, fmt.Errorf("changed workspace path %s is not a regular file", spec.path)
+	}
+	if info.Size() > maxFileBytes || info.Size() > remainingBytes {
+		return seedEntry{}, fmt.Errorf("changed workspace file %s exceeds the configured snapshot byte limit", spec.path)
+	}
+	input, err := source.Open(name)
+	if err != nil {
+		return seedEntry{}, fmt.Errorf("open changed workspace file %s: %w", spec.path, err)
+	}
+	defer input.Close()
+	staged := fmt.Sprintf("blob-%06d", index)
+	output, err := staging.OpenFile(staged, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return seedEntry{}, fmt.Errorf("stage changed workspace file %s: %w", spec.path, err)
+	}
+	hash := sha256.New()
+	written, copyErr := io.Copy(io.MultiWriter(output, hash), io.LimitReader(input, min(maxFileBytes, remainingBytes)+1))
+	if written > maxFileBytes || written > remainingBytes {
+		copyErr = errors.Join(copyErr, errors.New("snapshot byte limit exceeded"))
+	}
+	syncErr := output.Sync()
+	closeErr := output.Close()
+	if copyErr != nil || syncErr != nil || closeErr != nil {
+		return seedEntry{}, fmt.Errorf("snapshot changed workspace file %s: %w", spec.path, errors.Join(copyErr, syncErr, closeErr))
+	}
+	return seedEntry{Path: spec.path, Staged: staged, Mode: uint32(info.Mode().Perm()), Size: written, Hash: hex.EncodeToString(hash.Sum(nil))}, ctx.Err()
+}
+
+func applySeedManifest(ctx context.Context, staging, destination string, manifest seedManifest) error {
+	stagingRoot, err := os.OpenRoot(staging)
+	if err != nil {
+		return fmt.Errorf("open candidate staging area: %w", err)
+	}
+	defer stagingRoot.Close()
+	destinationRoot, err := os.OpenRoot(destination)
+	if err != nil {
+		return fmt.Errorf("open isolated worktree: %w", err)
+	}
+	defer destinationRoot.Close()
+	for _, entry := range manifest.Entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		name := entry.Path.String()
+		if entry.Deleted {
+			if err := destinationRoot.RemoveAll(name); err != nil {
+				return fmt.Errorf("apply deleted workspace file %s: %w", entry.Path, err)
+			}
+			continue
+		}
+		parent := filepath.Dir(name)
+		if parent != "." {
+			if err := destinationRoot.MkdirAll(parent, 0o700); err != nil {
+				return fmt.Errorf("create isolated parent for %s: %w", entry.Path, err)
+			}
+		}
+		if existing, statErr := destinationRoot.Lstat(name); statErr == nil && existing.Mode()&os.ModeSymlink != 0 {
+			if err := destinationRoot.Remove(name); err != nil {
+				return fmt.Errorf("replace isolated symlink %s: %w", entry.Path, err)
+			}
+		}
+		input, err := stagingRoot.Open(entry.Staged)
+		if err != nil {
+			return fmt.Errorf("open staged workspace file %s: %w", entry.Path, err)
+		}
+		output, err := destinationRoot.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(entry.Mode))
+		if err != nil {
+			_ = input.Close()
+			return fmt.Errorf("create isolated workspace file %s: %w", entry.Path, err)
+		}
+		written, copyErr := io.Copy(output, io.LimitReader(input, entry.Size+1))
+		if written != entry.Size {
+			copyErr = errors.Join(copyErr, fmt.Errorf("staged size changed from %d to %d", entry.Size, written))
+		}
+		chmodErr := output.Chmod(os.FileMode(entry.Mode))
+		syncErr := output.Sync()
+		closeErr := errors.Join(input.Close(), output.Close())
+		if err := errors.Join(copyErr, chmodErr, syncErr, closeErr); err != nil {
+			return fmt.Errorf("apply workspace snapshot for %s: %w", entry.Path, err)
+		}
+	}
+	if err := syncDirectory(destination); err != nil {
+		return fmt.Errorf("sync isolated workspace snapshot: %w", err)
+	}
+	return verifySeedManifest(destination, manifest)
+}
+
+func verifySeedManifest(destination string, manifest seedManifest) error {
+	root, err := os.OpenRoot(destination)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	for _, entry := range manifest.Entries {
+		info, err := root.Lstat(entry.Path.String())
+		if entry.Deleted {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err == nil {
+				return fmt.Errorf("deleted path %s is still present", entry.Path)
+			}
+			return err
+		}
+		if err != nil || !info.Mode().IsRegular() || uint32(info.Mode().Perm()) != entry.Mode || info.Size() != entry.Size {
+			return fmt.Errorf("workspace snapshot metadata differs for %s", entry.Path)
+		}
+		file, err := root.Open(entry.Path.String())
+		if err != nil {
+			return err
+		}
+		hash := sha256.New()
+		written, copyErr := io.Copy(hash, io.LimitReader(file, entry.Size+1))
+		closeErr := file.Close()
+		if copyErr != nil || closeErr != nil || written != entry.Size || hex.EncodeToString(hash.Sum(nil)) != entry.Hash {
+			return fmt.Errorf("workspace snapshot content differs for %s", entry.Path)
+		}
+	}
+	return nil
+}
+
 // DiscoverPrepared returns only a candidate whose durable ownership marker,
 // repository identity, base commit, targets, and frozen path policy exactly
-// match the request. It never creates or removes a worktree.
+// match the request. It removes only an exact matching reservation proven
+// incomplete; it never adopts a partial worktree.
 func (service *GitWorktreeService) DiscoverPrepared(ctx context.Context, request PrepareRequest) (fix.CandidateIdentity, bool, error) {
 	if !validJobID(request.Job) || request.CommandOutputBytes <= 0 {
 		return fix.CandidateIdentity{}, false, errors.New("discover prepared candidate: invalid job ID")
@@ -411,12 +667,35 @@ func (service *GitWorktreeService) DiscoverPrepared(ctx context.Context, request
 			return fix.CandidateIdentity{}, false, errors.New("candidate state exists without a matching durable reservation")
 		}
 		if _, statErr := os.Lstat(want.Identity.RepositoryRoot); errors.Is(statErr, os.ErrNotExist) {
+			if err := service.discardIncompleteReservation(ctx, request.Workspace.RepositoryRoot, jobRoot, want.Identity); err != nil {
+				return fix.CandidateIdentity{}, false, fmt.Errorf("remove incomplete candidate reservation: %w", err)
+			}
 			return fix.CandidateIdentity{}, false, nil
 		} else if statErr != nil {
 			return fix.CandidateIdentity{}, false, fmt.Errorf("inspect reserved candidate worktree: %w", statErr)
 		}
 		if err := service.verifyReservedWorktree(ctx, want.Identity); err != nil {
 			return fix.CandidateIdentity{}, false, err
+		}
+		manifest, manifestHash, err := readSeedManifest(jobRoot)
+		if err != nil {
+			if cleanupErr := service.discardIncompleteReservation(ctx, request.Workspace.RepositoryRoot, jobRoot, want.Identity); cleanupErr != nil {
+				return fix.CandidateIdentity{}, false, errors.Join(errors.New("candidate reservation has no complete workspace snapshot"), cleanupErr)
+			}
+			return fix.CandidateIdentity{}, false, nil
+		}
+		completion, err := readSeedCompletion(jobRoot)
+		if err != nil || completion.Version != 1 || completion.ManifestHash != manifestHash {
+			if cleanupErr := service.discardIncompleteReservation(ctx, request.Workspace.RepositoryRoot, jobRoot, want.Identity); cleanupErr != nil {
+				return fix.CandidateIdentity{}, false, errors.Join(errors.New("candidate reservation has no durable completion marker"), cleanupErr)
+			}
+			return fix.CandidateIdentity{}, false, nil
+		}
+		if err := verifySeedManifest(want.Identity.RepositoryRoot, manifest); err != nil {
+			if cleanupErr := service.discardIncompleteReservation(ctx, request.Workspace.RepositoryRoot, jobRoot, want.Identity); cleanupErr != nil {
+				return fix.CandidateIdentity{}, false, errors.Join(fmt.Errorf("verify completed candidate snapshot: %w", err), cleanupErr)
+			}
+			return fix.CandidateIdentity{}, false, nil
 		}
 		if err := writeOwnership(jobRoot, want); err != nil {
 			return fix.CandidateIdentity{}, false, fmt.Errorf("promote candidate reservation: %w", err)
@@ -433,6 +712,36 @@ func (service *GitWorktreeService) DiscoverPrepared(ctx context.Context, request
 		return fix.CandidateIdentity{}, false, err
 	}
 	return identity, true, nil
+}
+
+func (service *GitWorktreeService) discardIncompleteReservation(ctx context.Context, repositoryRoot, jobRoot string, identity fix.CandidateIdentity) error {
+	lock, err := acquireRepositoryLock(identity.GitCommonDir)
+	if err != nil {
+		return fmt.Errorf("lock repository for incomplete candidate cleanup: %w", err)
+	}
+	_, cleanupErr := service.gitBytes(ctx, repositoryRoot, "worktree", "remove", "--force", identity.RepositoryRoot)
+	if cleanupErr != nil {
+		listing, listErr := service.gitBytes(ctx, repositoryRoot, "worktree", "list", "--porcelain")
+		if listErr == nil && !worktreeRegistered(listing, identity.RepositoryRoot) {
+			cleanupErr = nil
+		} else {
+			cleanupErr = errors.Join(cleanupErr, listErr)
+		}
+	}
+	lockErr := lock.Close()
+	if cleanupErr == nil && lockErr == nil {
+		cleanupErr = os.RemoveAll(jobRoot)
+	}
+	return errors.Join(cleanupErr, lockErr)
+}
+
+func worktreeRegistered(listing []byte, expected string) bool {
+	for _, line := range bytes.Split(listing, []byte{'\n'}) {
+		if bytes.HasPrefix(line, []byte("worktree ")) && filepath.Clean(string(bytes.TrimPrefix(line, []byte("worktree ")))) == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func (service *GitWorktreeService) expectedOwnership(request PrepareRequest) (ownershipRecord, error) {
@@ -459,7 +768,18 @@ func (service *GitWorktreeService) expectedOwnership(request PrepareRequest) (ow
 	identity := fix.CandidateIdentity{Job: request.Job, Repository: request.Workspace.Repository, RepositoryRoot: worktree,
 		AnalysisRoot: candidateAnalysisRoot, GitCommonDir: request.Workspace.GitCommonDir, BaseCommit: request.Workspace.BaseCommit,
 		StagingRoot: filepath.Join(service.stateRoot, string(request.Job), "staging")}
-	return ownershipRecord{Version: 1, Identity: identity, Targets: targets, Allowed: allowed, Scope: request.AllowedScope, CommandOutputBytes: request.CommandOutputBytes}, nil
+	maxFileBytes, maxTotalBytes := request.MaxSeedFileBytes, request.MaxSeedTotalBytes
+	if maxFileBytes <= 0 {
+		maxFileBytes = service.discoveryCommandOutputBytes
+	}
+	if maxTotalBytes <= 0 {
+		maxTotalBytes = service.discoveryCommandOutputBytes
+	}
+	if maxFileBytes <= 0 || maxTotalBytes <= 0 || maxFileBytes > maxTotalBytes || maxFileBytes >= maxSeedByteLimit || maxTotalBytes >= maxSeedByteLimit {
+		return ownershipRecord{}, errors.New("candidate workspace snapshot byte limits are invalid")
+	}
+	return ownershipRecord{Version: 1, Identity: identity, Targets: targets, Allowed: allowed, Scope: request.AllowedScope,
+		CommandOutputBytes: request.CommandOutputBytes, MaxSeedFileBytes: maxFileBytes, MaxSeedTotalBytes: maxTotalBytes}, nil
 }
 
 func (service *GitWorktreeService) verifyReservedWorktree(ctx context.Context, identity fix.CandidateIdentity) error {
@@ -480,6 +800,7 @@ func (service *GitWorktreeService) verifyReservedWorktree(ctx context.Context, i
 
 func sameOwnership(left, right ownershipRecord) bool {
 	if left.Version != right.Version || left.Identity != right.Identity || left.Scope != right.Scope || left.CommandOutputBytes != right.CommandOutputBytes ||
+		left.MaxSeedFileBytes != right.MaxSeedFileBytes || left.MaxSeedTotalBytes != right.MaxSeedTotalBytes ||
 		len(left.Targets) != len(right.Targets) || len(left.Allowed) != len(right.Allowed) {
 		return false
 	}
@@ -612,11 +933,29 @@ func (service *GitWorktreeService) ReconcileDiscard(ctx context.Context, identit
 		return errors.New("candidate identity does not name its exact managed worktree")
 	}
 	if _, err := os.Lstat(jobRoot); errors.Is(err, os.ErrNotExist) {
-		service.mu.Lock()
-		delete(service.policies, identity.Job)
-		service.mu.Unlock()
-		_ = service.releaseRepository(identity.GitCommonDir, identity.Job)
-		return nil
+		ctx = withCommandOutputBytes(ctx, service.discoveryCommandOutputBytes)
+		lock, lockErr := acquireRepositoryLock(identity.GitCommonDir)
+		if lockErr != nil {
+			return lockErr
+		}
+		_, commandErr := service.gitBytes(ctx, identity.GitCommonDir, "worktree", "remove", "--force", expected)
+		if commandErr != nil {
+			listing, listErr := service.gitBytes(ctx, identity.GitCommonDir, "worktree", "list", "--porcelain")
+			if listErr == nil && !worktreeRegistered(listing, expected) {
+				commandErr = nil
+			} else {
+				commandErr = errors.Join(commandErr, listErr)
+			}
+		}
+		lockErr = lock.Close()
+		var releaseErr error
+		if commandErr == nil && lockErr == nil {
+			service.mu.Lock()
+			delete(service.policies, identity.Job)
+			service.mu.Unlock()
+			releaseErr = service.releaseRepository(identity.GitCommonDir, identity.Job)
+		}
+		return errors.Join(commandErr, lockErr, releaseErr)
 	} else if err != nil {
 		return fmt.Errorf("inspect candidate discard state: %w", err)
 	}
@@ -632,11 +971,14 @@ func (service *GitWorktreeService) ReconcileDiscard(ctx context.Context, identit
 	if err != nil {
 		return err
 	}
-	var commandErr error
-	if _, statErr := os.Lstat(expected); statErr == nil {
-		_, commandErr = service.gitBytes(ctx, expected, "worktree", "remove", "--force", expected)
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		commandErr = statErr
+	_, commandErr := service.gitBytes(ctx, identity.GitCommonDir, "worktree", "remove", "--force", expected)
+	if commandErr != nil {
+		listing, listErr := service.gitBytes(ctx, identity.GitCommonDir, "worktree", "list", "--porcelain")
+		if listErr == nil && !worktreeRegistered(listing, expected) {
+			commandErr = nil
+		} else {
+			commandErr = errors.Join(commandErr, listErr)
+		}
 	}
 	lockErr := lock.Close()
 	if commandErr == nil && lockErr == nil {
@@ -824,11 +1166,25 @@ func (service *GitWorktreeService) Close() error {
 
 func validJobID(job fix.JobID) bool {
 	value := string(job)
-	if len(value) != len("job-")+32 || !strings.HasPrefix(value, "job-") {
+	if !strings.HasPrefix(value, "job-") {
 		return false
 	}
-	_, err := hex.DecodeString(value[len("job-"):])
-	return err == nil
+	name := strings.TrimPrefix(value, "job-")
+	words := strings.Split(name, "-")
+	if len(words) != 3 {
+		return false
+	}
+	for _, word := range words {
+		if len(word) == 0 || len(word) > 8 {
+			return false
+		}
+		for _, character := range word {
+			if character < 'a' || character > 'z' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func writeOwnership(jobRoot string, record ownershipRecord) error {
@@ -850,10 +1206,61 @@ func ensureCandidateRecord(jobRoot, name string, record ownershipRecord) error {
 }
 
 func writeCandidateRecord(jobRoot, name string, record ownershipRecord) error {
-	data, err := json.Marshal(record)
+	return writePrivateJSON(jobRoot, name, record)
+}
+
+func writeSeedManifest(jobRoot string, manifest seedManifest) (string, error) {
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), writePrivateData(jobRoot, seedManifestName, data)
+}
+
+func writeSeedCompletion(jobRoot string, completion seedCompletion) error {
+	return writePrivateJSON(jobRoot, seedCompletedName, completion)
+}
+
+func readSeedManifest(jobRoot string) (seedManifest, string, error) {
+	data, err := readPrivateRegular(filepath.Join(jobRoot, seedManifestName))
+	if err != nil {
+		return seedManifest{}, "", err
+	}
+	var manifest seedManifest
+	if err := json.Unmarshal(data, &manifest); err != nil || manifest.Version != 1 {
+		return seedManifest{}, "", errors.New("candidate seed manifest is invalid")
+	}
+	for _, entry := range manifest.Entries {
+		if entry.Size < 0 || entry.Size >= maxSeedByteLimit {
+			return seedManifest{}, "", errors.New("candidate seed manifest has an invalid file size")
+		}
+	}
+	hash := sha256.Sum256(data)
+	return manifest, hex.EncodeToString(hash[:]), nil
+}
+
+func readSeedCompletion(jobRoot string) (seedCompletion, error) {
+	data, err := readPrivateRegular(filepath.Join(jobRoot, seedCompletedName))
+	if err != nil {
+		return seedCompletion{}, err
+	}
+	var completion seedCompletion
+	if err := json.Unmarshal(data, &completion); err != nil {
+		return seedCompletion{}, err
+	}
+	return completion, nil
+}
+
+func writePrivateJSON(jobRoot, name string, value any) error {
+	data, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
+	return writePrivateData(jobRoot, name, data)
+}
+
+func writePrivateData(jobRoot, name string, data []byte) error {
 	file, err := os.CreateTemp(jobRoot, "."+name+"-*")
 	if err != nil {
 		return err
