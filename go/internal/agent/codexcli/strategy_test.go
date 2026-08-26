@@ -843,8 +843,8 @@ func waitForCapturedMethod(t *testing.T, path, method string) {
 }
 
 func startFakeDescendant(capture string) {
-	command := exec.Command("sh", "-c", `trap 'printf terminated > "$SLOPWATCH_CHILD_TERMINATED"; exit 0' TERM; printf ready > "$SLOPWATCH_CHILD_READY"; while :; do sleep 1; done`)
-	command.Env = append(os.Environ(), "SLOPWATCH_CHILD_READY="+capture+".ready", "SLOPWATCH_CHILD_TERMINATED="+capture+".terminated")
+	command := exec.Command("sh", "-c", `trap 'exit 0' TERM; printf '%s' "$$" > "$SLOPWATCH_CHILD_PID"; printf ready > "$SLOPWATCH_CHILD_READY"; while :; do sleep 1; done`)
+	command.Env = append(os.Environ(), "SLOPWATCH_CHILD_READY="+capture+".ready", "SLOPWATCH_CHILD_PID="+capture+".pid")
 	if command.Start() != nil {
 		return
 	}

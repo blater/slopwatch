@@ -3,8 +3,12 @@
 package codexcli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -24,9 +28,20 @@ func TestCloseTerminatesOwnedSameGroupDescendants(t *testing.T) {
 	if result.Status != agent.ResultCompleted {
 		t.Fatalf("Execute() = %#v", result)
 	}
-	data, err := os.ReadFile(capture + ".terminated")
-	if err != nil || string(data) != "terminated" {
-		t.Fatalf("owned descendant was not terminated before return: data=%q err=%v", data, err)
+	data, err := os.ReadFile(capture + ".pid")
+	if err != nil {
+		t.Fatalf("owned descendant did not start: %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("invalid owned descendant pid %q: %v", data, err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && !errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+		t.Fatalf("owned descendant %d survived Execute return: %v", pid, err)
 	}
 }
 
