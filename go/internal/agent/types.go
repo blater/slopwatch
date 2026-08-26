@@ -106,9 +106,11 @@ const (
 )
 
 type ProfileDescriptor struct {
-	Runtime RuntimeKind
-	Label   string
-	Fields  []ProfileField
+	Runtime                RuntimeKind
+	Label                  string
+	ConnectionInstructions string
+	DocumentationURL       string
+	Fields                 []ProfileField
 }
 
 type ProfileCatalog interface {

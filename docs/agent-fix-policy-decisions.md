@@ -46,7 +46,7 @@ incorrect or cross an authority boundary:
 
 | Area | Accepted behaviour | Settings surface and consequence |
 | --- | --- | --- |
-| OpenAI authentication | Codex with provider-owned sign-in is the recommended built-in default; ChatGPT sign-in is recommended, while Codex also reports API-key-backed sessions truthfully. Direct Responses API access remains a separately selected API-key profile; there is no automatic fallback between routes. | Settings › Agents labels the authentication/billing route, reports sanitized readiness, marks `DEFAULT`, and uses `D` to change the default. Existing explicit user selections are preserved. |
+| OpenAI authentication | Codex with provider-owned sign-in is the recommended built-in default; ChatGPT sign-in is recommended, while Codex also reports API-key-backed sessions truthfully. Direct Responses API access remains a separately selected API-key profile; there is no automatic fallback between routes. | Settings › Agents shows fixed provider choices, availability and `[ACTIVE]`. Enter opens provider-specific connection guidance and automatically checks readiness; a provider becomes active only after success. |
 | Agent duration | No Slopwatch wall-clock timeout for an active fix attempt. Liveness comes from progress/activity events and explicit per-job cancellation. | No misleading timeout control. Provider transport budgets, if an adapter supports them, must be adapter settings and identify exactly what they time. |
 | Attempts and retry | One initial attempt. Retry is an explicit job action that creates a new durable attempt with prior verified evidence. No attempt maximum and no automatic retry. | Job history shows attempt ordinals and each retry remains available in retryable/review states. |
 | Concurrent work | Defaults remain 2 running agents and 1 verifier. Additional jobs are accepted and visibly queued. No compiled hard maximum. | Settings › Concurrency & retention; effective values and queueing consequence are shown. |
@@ -78,9 +78,9 @@ Every constraint control shown in the UI must display:
 5. whether `0` means unlimited, provider default, disabled, or is invalid.
 
 Low-frequency adapter implementation settings are described and validated by
-the adapter but configured only in the preferences file. The Agents UI renders
-only profile identity, authentication, readiness/Test output, and default
-selection. This keeps the agent framework deep and cohesive without turning
+the adapter but configured only in the preferences file. The single-account
+Agents UI renders only provider availability, the active provider, essential
+connection details, and automatic readiness output. This keeps the agent framework deep and cohesive without turning
 the primary UI into a dump of provider-specific transport controls.
 
 ## Deliberately deferred rather than prohibited

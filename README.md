@@ -5,14 +5,14 @@ But we do see them drop in performance as slop causes reasoning chains to length
 evidence to conflict, distraction to increase. Planning becomes more elaborate with more subtasks,
 they start overlooking constraints more often, forgetting goals, and prioritising irrelvancies.
 
-*Slopmark* is your quality measuring tool.
-It finds design and abstraction smells in Go, Java, TypeScript, and Rust, giving the code a weighted score
-based on coupling, cohesion, module depth, and cognitive complexity. It is not a substitute for a linter.
-It is designed to be run by agents and lets you give them *one clear and simple KPI* to stop the descent to slop.
+*Slopwatch* is a quality management tool a window into code health.
+Use it to keep an eye on what is creeping upwards, request and trigger refactors, and to see how refactors are progressing.
+
+The bundled *slopmark* utility supplies slopwatch with quality metrics. It finds design and abstraction smells in Go, Java, TypeScript, and Rust, giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
+
+It can also be run by agents (it has an mcp server) and lets you give them *one clear and simple KPI* to stop the descent to slop.
 Give them a simple rule: keep the score under target, pass the gates, and rework anything over it until it is clean.
 
-*Slopwatch* is your window into code health.
-Use it to keep an eye on what is creeping upwards and how refactors are progressing.
 
 ## Install and usage
 
@@ -20,11 +20,11 @@ The Homebrew package includes the `slopmark` analyzer and `slopwatch` live dashb
 
 ```sh
 brew tap blater/tap
+
 brew install slopwatch
 ```
+You'll probably need to run brew trust to trust this tap, if you prefer not to, then you can also build from source.
 
-The TypeScript analyzer requires Node.js 22 or newer. Homebrew installs that
-runtime dependency automatically.
 
 For a source checkout:
 
@@ -33,20 +33,16 @@ git clone https://github.com/blater/slopwatch.git
 cd slopwatch
 make build
 ```
+The TypeScript analyzer requires Node.js 22 or newer. Homebrew installs that runtime dependency automatically.
 
-Analyze one or more directories or files. Supported source files are `.go`,
-`.java`, `.ts`, `.tsx`, `.mts`, `.cts`, and `.rs`:
+## Usage
 
+Open the live dashboard with `slopwatch [TARGET ...]`
+e.g. to scan and show a project in the current directory:
 ```sh
-slopmark src
-slopmark myproj/src anotherProj/prod/src
+slopwatch .
 ```
-
-Open the live dashboard with `slopwatch` (equivalent to `slopmark --follow`):
-
-```sh
-slopwatch --limit 200 .
-```
+![Slopmark follow-mode dashboard](docs/follow-mode.svg)
 
 In the dashboard, use the arrow keys or `j`/`k` to move, `g`/`G` to jump to
 the first or last result, `v` to view the selected file, `f` or `/` to find,
@@ -58,79 +54,16 @@ defaults persist in a versioned, user-editable TOML file. See
 [Preferences](docs/preferences.md) for its location, complete schema, and
 command-line precedence rules.
 
-### Agent-assisted fixes
+### Running slopmark
+use `slopmark [TARGET ...]` to Analyze directories or files
+e.g.
+```sh
+slopmark src
+slopmark myproj/src anotherProj/prod/src
+```
+Supported source file extensions are `.go`, `.java`, `.ts`, `.tsx`, `.mts`, `.cts`, and `.rs`:
 
-Install the Codex CLI, run `codex login`, then highlight a file and press `x`.
-Codex sign-in supports ChatGPT accounts and is the built-in default; it does
-not require an OpenAI API key. The Fix form lets you choose the score target,
-one or more focus metrics, change scope, agent profile, model, effort,
-delegation mode,
-validation plan, delivery workflow and branch name. Advanced mode replaces the
-editable task body while retaining Slopwatch's locked scoring and write-scope
-envelope.
-
-The alternative `OpenAI Responses API — API key` profile uses
-`env:OPENAI_API_KEY`; API usage is billed separately from ChatGPT. That adapter
-has no shell, process, Git or ambient filesystem access: candidate reads and
-writes pass through Slopwatch-controlled tools. Slopwatch never silently falls
-back between the Codex/ChatGPT and direct API-key routes. Codex uses its local
-App Server with a workspace-write sandbox, streamed activity and per-job
-`turn/interrupt` cancellation; it works natively without Docker.
-
-Fix jobs use detached Git worktrees, so multiple non-overlapping jobs can run
-at once and new jobs can be submitted while others are active. Press `Tab` to
-switch between Files and Agents, or `A` to jump to Agents. Expand a job to see
-its targets and compact metric state; `C` cancels only the selected eligible
-job. Agent completion is not treated as success: Slopwatch freshly analyzes
-the candidate and keeps its diff for review.
-
-Settings contains Agents, Fix defaults, Concurrency & retention, Validation,
-and Git & pull requests. Agent profiles store only authentication references
-such as `env:OPENAI_API_KEY`, never the credential itself. Pull-request
-publication can optionally require a ready validation plan. Operational
-constraints are visible settings: concurrency, retention and actor limits are
-global; provider turn/tool/token/file/context budgets belong to the selected
-agent profile; validation time/output limits belong to each trusted check, and
-candidate workspace file/directory/byte ceilings are visible in Validation.
-Model turns, tool calls and token checks default to no Slopwatch-imposed cap,
-active attempts have no wall-clock timeout, and Retry is an explicit unlimited
-job action. The hardened Docker
-validation executor is enabled only when
-`SLOPWATCH_FIX_CONTAINER_IMAGE` names an immutable image digest and
-`SLOPWATCH_FIX_DOCKER_HOST` names an explicit local `unix://` daemon socket;
-`SLOPWATCH_FIX_DOCKER_EXECUTABLE` must name the canonical absolute path of a
-non-writable Docker CLI outside the repository, and
-`SLOPWATCH_FIX_EXECUTABLE_MAP` must be a JSON object mapping each trusted host
-validation executable to its exact absolute path in the image (for example
-`{"/usr/bin/go":"/usr/local/go/bin/go"}`). These environment variables are a
-temporary typed installation bridge until the properties-file PR lands;
-adapters and services never read them directly. If any property is absent or
-invalid, validation is safely unavailable without preventing candidate-only
-fixes. Build the installation image with
-`make build-fix-validation-image FIX_VALIDATION_BASE=name@sha256:...`; its
-immutable base must already contain the absolute executables named by the
-trusted validation plans. The target performs no package installation or
-network access and prints the resulting image ID. See the detailed
-[agent-assisted fix plan](docs/agent-fix-plan.md) for the image and confinement
-contract.
-
-Pull-request delivery (draft or ready for review, as configured) additionally requires
-`SLOPWATCH_FIX_GH_EXECUTABLE` to name the canonical absolute path of a
-non-writable GitHub CLI outside the repository. Slopwatch checks `gh`
-authorization and the exact `github.com/owner/repository` target before job
-admission and again before publication; it does not select either CLI from the
-ambient `PATH`.
-
-![Slopmark follow-mode dashboard](docs/follow-mode.svg)
-
-Common commands:
-
-| Command | Purpose | Example |
-| --- | --- | --- |
-| `slopmark [TARGET ...]` | Analyze directories or files | `slopmark src` |
-| `slopwatch [TARGET ...]` | Follow the live ranking dashboard | `slopwatch .` |
-
-Common analysis options:
+### Common analysis options:
 
 | Option | Purpose | Example |
 | --- | --- | --- |
@@ -317,29 +250,72 @@ depending on the language and analyzer. The displayed GOD value is the
 weighted penalty for the candidate; zero means the combined conditions did not
 trigger, and `-` means unavailable.
 
-### PATH
 
-PATH is the source path only; it is not a quality measurement.
+## Agent-assisted fixes
 
-## Release
+You can highlight files in the slopwatch file browser and request an agent to lower its score.
+I'll write up a proper description, but in the meantime, enjoy Codex's slop description - it has
+written a lot, so I think it was quite proud of this one:
 
-Configure GitHub Actions once. The setup script checks the source repository,
-enables Actions, verifies that the Homebrew token can update the tap, and stores
-the token as an Actions secret without writing it locally:
+ Install the Codex CLI, run `codex login`, then highlight a file and press `x`.
+ Codex sign-in supports ChatGPT accounts and is the built-in default; it does
+ not require an OpenAI API key. The Fix form lets you choose the score target, one or more
+ focus metrics, change scope, agent profile, model, effort, delegation mode,
+ validation plan, delivery workflow and branch name. Advanced mode replaces the
+ editable task body while retaining Slopwatch's locked scoring and write-scope
+ envelope.
 
-```sh
-./actions-setup.sh
-```
+ The alternative `OpenAI Responses API — API key` profile uses
+ `env:OPENAI_API_KEY`; API usage is billed separately from ChatGPT. That adapter
+ has no shell, process, Git or ambient filesystem access: candidate reads and
+ writes pass through Slopwatch-controlled tools. Slopwatch never silently falls
+ back between the Codex/ChatGPT and direct API-key routes. Codex uses its local
+ App Server with a workspace-write sandbox, streamed activity and per-job
+ `turn/interrupt` cancellation; it works natively without Docker.
 
-Then release with:
+ Fix jobs use detached Git worktrees, so multiple non-overlapping jobs can run
+ at once and new jobs can be submitted while others are active. Press `Tab` to
+ switch between Files and Agents, or `A` to jump to Agents. Expand a job to see
+ its targets and compact metric state; `C` cancels only the selected eligible
+ job. Agent completion is not treated as success: Slopwatch freshly analyzes
+ the candidate and keeps its diff for review.
 
-```sh
-./release.sh X.Y.Z
-```
+ Settings lists its sections alphabetically. Agents presents one row per
+ provider, marks unavailable integrations and highlights the active one.
+ Selecting a provider opens a provider-specific connection dialog and starts
+ an automatic readiness check; only a successful connection becomes active.
+ Connection settings store only provider-owned login state or authentication
+ references such as `env:OPENAI_API_KEY`, never the credential itself. Pull-request
+ publication can optionally require a ready validation plan. Operational
+ constraints are visible settings: concurrency, retention and actor limits are
+ global; provider turn/tool/token/file/context budgets belong to the selected
+ agent profile; validation time/output limits belong to each trusted check, and
+ candidate workspace file/directory/byte ceilings are visible in Validation.
+ Model turns, tool calls and token checks default to no Slopwatch-imposed cap,
+ active attempts have no wall-clock timeout, and Retry is an explicit unlimited
+ job action. The hardened Docker
+ validation executor is enabled only when
+ `SLOPWATCH_FIX_CONTAINER_IMAGE` names an immutable image digest and
+ `SLOPWATCH_FIX_DOCKER_HOST` names an explicit local `unix://` daemon socket;
+ `SLOPWATCH_FIX_DOCKER_EXECUTABLE` must name the canonical absolute path of a
+ non-writable Docker CLI outside the repository, and
+ `SLOPWATCH_FIX_EXECUTABLE_MAP` must be a JSON object mapping each trusted host
+ validation executable to its exact absolute path in the image (for example
+ `{"/usr/bin/go":"/usr/local/go/bin/go"}`). These environment variables are a
+ temporary typed installation bridge until the properties-file PR lands;
+ adapters and services never read them directly. If any property is absent or
+ invalid, validation is safely unavailable without preventing candidate-only
+ fixes. Build the installation image with
+ `make build-fix-validation-image FIX_VALIDATION_BASE=name@sha256:...`; its
+ immutable base must already contain the absolute executables named by the
+ trusted validation plans. The target performs no package installation or
+ network access and prints the resulting image ID. See the detailed
+ [agent-assisted fix plan](docs/agent-fix-plan.md) for the image and confinement
+ contract.
 
-Run the script locally from a clean working tree, using a version higher than
-the latest local release tag. It pushes the current branch, creates and pushes
-the release tag, then monitors the tag-triggered GitHub Release workflow. That
-workflow builds and smoke-tests the packaged Go, Java, Rust, and TypeScript
-analyzers before publishing them. Finally, the local script verifies the GitHub
-assets and Homebrew formula.
+ Pull-request delivery (draft or ready for review, as configured) additionally requires
+ `SLOPWATCH_FIX_GH_EXECUTABLE` to name the canonical absolute path of a
+ non-writable GitHub CLI outside the repository. Slopwatch checks `gh`
+ authorization and the exact `github.com/owner/repository` target before job
+ admission and again before publication; it does not select either CLI from the
+ ambient `PATH`.

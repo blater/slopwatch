@@ -97,10 +97,6 @@ func TestScanningStatusRendersAnimatedOnTopBar(t *testing.T) {
 	if !strings.Contains(lines[0], "SCANNING") {
 		t.Fatalf("scanning status is not on the top line: %q", lines[0])
 	}
-	wantPosition := len("-=[slopwatch]=-") + 2
-	if strings.Index(lines[0], "⠙SCANNING⠙") != wantPosition {
-		t.Fatalf("scanning status is not two spaces after the logo: %q", lines[0])
-	}
 	for _, line := range lines[1:] {
 		if strings.Contains(line, "SCANNING") {
 			t.Fatalf("scanning status still appears in the body: %q", line)
@@ -125,73 +121,7 @@ func TestStartupScanningIndicatorUsesFreshnessStatus(t *testing.T) {
 	}
 }
 
-func TestInitialScanCentersLogoOverTable(t *testing.T) {
-	ConfigureTerminalColours()
-	model := Model{
-		width: 40, height: 7, analyzing: true, initialAnalysis: true,
-		options: Options{Workspace: "/workspace"},
-	}
-	view := ansi.Strip(model.startupOverlay(model.tableView(), "XX\nYY"))
-	lines := strings.Split(view, "\n")
-	if len(lines) != model.height {
-		t.Fatalf("startup view has %d lines, want %d: %q", len(lines), model.height, view)
-	}
-	if strings.TrimSpace(lines[2]) != "XX" || strings.TrimSpace(lines[3]) != "YY" {
-		t.Fatalf("logo is not vertically centered: %q", view)
-	}
-	if strings.Index(lines[2], "XX") != 19 || strings.Index(lines[3], "YY") != 19 {
-		t.Fatalf("logo is not horizontally centered: %q", view)
-	}
-	if !strings.Contains(lines[0], "SCANNING") || !strings.Contains(lines[len(lines)-1], "sort") {
-		t.Fatalf("dashboard is not visible behind startup logo: %q", view)
-	}
-}
-
-func TestInitialViewUsesEmbeddedLogoWithoutReplacingDashboard(t *testing.T) {
-	model := Model{
-		width: 120, height: 20, analyzing: true, initialAnalysis: true,
-		options: Options{Workspace: "/workspace"},
-	}
-	base := ansi.Strip(model.tableView())
-	view := ansi.Strip(model.View())
-	if view == base {
-		t.Fatal("initial view did not overlay the embedded logo")
-	}
-	baseLines := strings.Split(base, "\n")
-	viewLines := strings.Split(view, "\n")
-	if viewLines[0] != baseLines[0] || viewLines[len(viewLines)-1] != baseLines[len(baseLines)-1] {
-		t.Fatalf("logo replaced dashboard chrome: %q", view)
-	}
-	if !strings.Contains(viewLines[0], "SCANNING") {
-		t.Fatalf("initial view lost scanning status: %q", viewLines[0])
-	}
-}
-
-func TestStartupLogoExpiresAfterTwoSecondsWithoutStoppingInitialAnalysis(t *testing.T) {
-	if startupLogoDuration != 2*time.Second {
-		t.Fatalf("startup logo duration = %s, want 2s", startupLogoDuration)
-	}
-	model := Model{
-		width: 120, height: 20, analyzing: true, initialAnalysis: true,
-		options: Options{Workspace: "/workspace"},
-	}
-	if model.View() == model.tableView() {
-		t.Fatal("startup logo was not initially visible")
-	}
-	updated, command := model.Update(startupLogoExpired{})
-	result := updated.(*Model)
-	if command != nil {
-		t.Fatal("logo timeout unexpectedly scheduled more work")
-	}
-	if !result.initialAnalysis || !result.analyzing {
-		t.Fatalf("logo timeout stopped analysis: initial=%t analyzing=%t", result.initialAnalysis, result.analyzing)
-	}
-	if result.View() != result.tableView() {
-		t.Fatal("startup logo remained visible after its timeout")
-	}
-}
-
-func TestInitialScanCompletionReplacesLogoWithTable(t *testing.T) {
+func TestInitialScanCompletionShowsTable(t *testing.T) {
 	model := Model{
 		width: 80, height: 10, analyzing: true, initialAnalysis: true,
 		options: Options{Workspace: "/workspace"},
@@ -207,7 +137,7 @@ func TestInitialScanCompletionReplacesLogoWithTable(t *testing.T) {
 		t.Fatalf("initial scan state was not cleared: initial=%t analyzing=%t", result.initialAnalysis, result.analyzing)
 	}
 	if !strings.Contains(view, "main.go") {
-		t.Fatalf("table did not replace startup logo: %q", view)
+		t.Fatalf("completed scan did not show its file: %q", view)
 	}
 }
 
@@ -242,21 +172,10 @@ func TestFailedInitialScanDoesNotEnableCacheReads(t *testing.T) {
 	}
 }
 
-func TestStartupLogoRemovesCursorModeControls(t *testing.T) {
-	logo := "\x1b[?25lART\x1b[?25h"
-	if got := cleanStartupLogo(logo); got != "ART" {
-		t.Fatalf("cleaned logo = %q", got)
-	}
-}
-
 func TestTableTopBarRightAlignsWorkspaceOneCharacterFromMargin(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80, height: 10, options: Options{Workspace: "/workspace"}}
 	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
-	logo := "-=[slopwatch]=-"
-	if !strings.HasPrefix(firstLine, logo) {
-		t.Fatalf("top bar = %q, want logo prefix %q", firstLine, logo)
-	}
 	if !strings.HasSuffix(firstLine, "/workspace ") {
 		t.Fatalf("workspace is not right-aligned one character from the margin: %q", firstLine)
 	}
@@ -1238,7 +1157,7 @@ func TestSettingsContainsColumnsAndReturnsAfterEditing(t *testing.T) {
 	if !strings.Contains(ansi.Strip(result.settingsView()), "Columns") {
 		t.Fatal("settings does not contain Columns")
 	}
-	result.settingsCursor = 1
+	result.settingsCursor = settingsIndex("columns")
 	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.columns || !result.columnsFromSettings || result.settings {
@@ -1248,6 +1167,18 @@ func TestSettingsContainsColumnsAndReturnsAfterEditing(t *testing.T) {
 	result = updated.(*Model)
 	if result.columns || !result.settings {
 		t.Fatal("Columns did not return to Settings")
+	}
+}
+
+func TestSettingsOptionsAreAlphabetical(t *testing.T) {
+	want := []string{"Agents", "Appearance", "Columns", "Concurrency & retention", "Fix defaults", "Git & pull requests", "Validation", "Weights"}
+	if len(settingsItems) != len(want) {
+		t.Fatalf("settings count = %d, want %d", len(settingsItems), len(want))
+	}
+	for index, label := range want {
+		if settingsItems[index].label != label {
+			t.Fatalf("settings[%d] = %q, want %q", index, settingsItems[index].label, label)
+		}
 	}
 }
 

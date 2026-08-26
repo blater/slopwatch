@@ -592,9 +592,9 @@ func fixPreflightSummary(draft fixapp.FixDraft) string {
 	}
 	switch draft.Probe.State {
 	case agent.ProbeUnauthenticated:
-		return "agent is unauthenticated — open Settings › Agents, repair authorization, then Test" + suffix
+		return "agent is unauthenticated — open Settings › Agents and select it for connection guidance" + suffix
 	case agent.ProbeUnavailable, agent.ProbeIncompatible:
-		return fmt.Sprintf("agent is %s — open Settings › Agents, repair the profile, then Test%s", draft.Probe.State, suffix)
+		return fmt.Sprintf("agent is %s — open Settings › Agents and select it for connection guidance%s", draft.Probe.State, suffix)
 	case agent.ProbeDegraded:
 		if !draft.Probe.Capabilities.Isolation.EligibleForMutation() {
 			return "runtime confinement is unsupported; this build cannot run fixes safely and Settings cannot enable it" + suffix

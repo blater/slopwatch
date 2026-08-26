@@ -1713,23 +1713,21 @@ plus a concise consequence when selected. Low-level adapter properties such as
 the executable, readiness timeout and cancellation grace remain available only
 in the preferences file; they do not add noise to **Agents**.
 
-Agents first shows each stable profile name, authentication identity,
-readiness, detected version and default marker. Add chooses an adapter by its
-human-facing provider label; the stored runtime kind is not presented as a
-transport detail the user must understand. Edit shows profile identity and the
-adapter's user-facing authentication choice. `ProfileDescriptor` still owns
-the complete typed profile schema, but fields marked preferences-only are not
-rendered in this dialog. Users never author a shell command line.
+Agents is deliberately a single-account provider chooser in this release. It
+shows a fixed provider list, aligned availability, and one `[ACTIVE]` marker;
+CLI providers are unavailable when their adapter or executable is absent.
+There are no add, remove, label, explicit-test, or default-profile controls.
+The stored runtime kind and profile identity remain implementation details.
 
-**Test connection** runs the read-only probe and shows version, auth status,
-capabilities, confinement guarantee and actionable diagnostics. It cannot run
-an inference request. **Authorize** either launches a specifically supported,
-trusted provider login flow after leaving the alternate screen, or shows the
-exact external command the user must run; Slopwatch does not scrape arbitrary
-interactive login output. Saving an unready profile is allowed as disabled,
-but it cannot be selected for a job. Deleting a profile referenced by a
-running/retained job is blocked; its pinned snapshot remains readable even if
-the profile is later removed.
+Enter opens a provider-titled connection dialog. `ProfileDescriptor` owns the
+minimal connection fields, instructions, and documentation link; fields marked
+preferences-only are not rendered. Opening the dialog or applying a connection
+detail automatically runs the read-only probe. A distinct checking state is
+shown immediately, followed by a separated connected result or prominent,
+wrapped error. A provider becomes active and is saved only after the probe
+reports mutation-safe readiness. The probe cannot run an inference request.
+For external authorization Slopwatch gives the exact trusted command and link;
+it does not scrape arbitrary interactive login output.
 
 Every settings form distinguishes inherited and overridden values using
 origin metadata, supports Reset to inherited, validates templates with a

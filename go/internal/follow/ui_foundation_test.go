@@ -81,6 +81,7 @@ func TestTopOverlayOwnsKeysAndRecordsItsCaller(t *testing.T) {
 		t.Fatal("Tab escaped the top Settings overlay")
 	}
 
+	result.settingsCursor = settingsIndex("appearance")
 	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	top, ok = result.overlays.Top()

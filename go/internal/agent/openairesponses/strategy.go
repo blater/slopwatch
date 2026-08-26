@@ -46,7 +46,12 @@ func (strategy *Strategy) ProfileDescriptor() agent.ProfileDescriptor {
 		},
 	}
 	fields = append(fields, strategy.config.profileFields()...)
-	return agent.ProfileDescriptor{Runtime: RuntimeKind, Label: "OpenAI Responses API — API key", Fields: fields}
+	return agent.ProfileDescriptor{
+		Runtime: RuntimeKind, Label: "OpenAI API",
+		ConnectionInstructions: "Set the named environment variable before starting Slopwatch. The API key is read at runtime and is never stored in preferences.",
+		DocumentationURL:       "https://platform.openai.com/api-keys",
+		Fields:                 fields,
+	}
 }
 
 func (strategy *Strategy) ValidateProfile(profile agent.Profile) error {

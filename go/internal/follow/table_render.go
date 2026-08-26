@@ -46,7 +46,7 @@ func tableTopParts(model Model) (string, string) {
 		right = model.repositoryIdentity + "  " + right
 	}
 	status := tableStatus(model)
-	logo := lipgloss.NewStyle().Foreground(style.AccentPositive).Bold(true).Render("-=[slopwatch]=-")
+	logo := lipgloss.NewStyle().Foreground(style.AccentPositive).Bold(true).Render("૮(˶ᵔ ᵕ ᵔ˶)ა botMochi")
 	left := logo
 	if model.analyzing {
 		status = model.scanningIndicator(model.freshnessStatus())

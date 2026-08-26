@@ -19,11 +19,11 @@ import (
 
 func TestProfileDescriptorKeepsOperationalDetailsInPreferences(t *testing.T) {
 	descriptor := New().ProfileDescriptor()
-	if descriptor.Runtime != RuntimeKind || descriptor.Label != "Codex — managed sign-in" {
+	if descriptor.Runtime != RuntimeKind || descriptor.Label != "Codex" || descriptor.DocumentationURL != "https://developers.openai.com/codex/auth" || !strings.Contains(descriptor.ConnectionInstructions, "codex login") {
 		t.Fatalf("descriptor = %#v", descriptor)
 	}
 	for _, field := range descriptor.Fields {
-		if field.Key != "authentication_ref" && !field.PreferencesOnly {
+		if !field.PreferencesOnly {
 			t.Fatalf("operational field is visible in the Agents dialog: %#v", field)
 		}
 	}
@@ -326,6 +326,30 @@ func TestUnexpectedServerRequestIsRejected(t *testing.T) {
 	}
 }
 
+func TestUnsupportedServerRequestFailsFastWhenOutboundQueueIsFull(t *testing.T) {
+	client := &appServerClient{
+		pending:  make(map[int64]chan rpcResponse),
+		outbound: make(chan outboundMessage, 1),
+		stop:     make(chan struct{}),
+		done:     make(chan struct{}),
+		maximum:  1 << 20,
+	}
+	client.outbound <- outboundMessage{}
+	finished := make(chan struct{})
+	go func() {
+		client.read(strings.NewReader("{\"id\":99,\"method\":\"item/permissions/requestApproval\"}\n"))
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("reader blocked while the outbound queue was full")
+	}
+	if err := client.protocolExitError(); err == nil || !strings.Contains(err.Error(), "more unsupported requests than could be rejected") {
+		t.Fatalf("protocolExitError() = %v", err)
+	}
+}
+
 func TestProbeReportsActionableEarlyAppServerExit(t *testing.T) {
 	strategy := New()
 	strategy.workingDir = func() (string, error) { return t.TempDir(), nil }
@@ -379,45 +403,6 @@ func TestCancellationUsesTurnInterrupt(t *testing.T) {
 	interrupt := findCaptured(t, capturedMessages(t, capture), "turn/interrupt")
 	if stringField(interrupt.Params, "threadId") != "thread-1" || stringField(interrupt.Params, "turnId") != "turn-1" {
 		t.Fatalf("interrupt params = %#v", interrupt.Params)
-	}
-}
-
-func TestCancellationUnblocksProviderWriteBackpressure(t *testing.T) {
-	root := canonicalTestRoot(t)
-	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
-	for _, path := range []string{common, candidate} {
-		if err := os.Mkdir(path, 0o700); err != nil {
-			t.Fatal(err)
-		}
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	started := make(chan struct{})
-	finished := make(chan agent.Result, 1)
-	go func() {
-		finished <- New().Execute(ctx, testProfile(fakeAppServerExecutable(t, "backpressure", filepath.Join(root, "capture"))), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
-			if event.Kind == agent.EventStarted {
-				select {
-				case <-started:
-				default:
-					close(started)
-				}
-			}
-			return nil
-		}))
-	}()
-	select {
-	case <-started:
-	case <-time.After(3 * time.Second):
-		t.Fatal("backpressured turn did not start")
-	}
-	cancel()
-	select {
-	case result := <-finished:
-		if result.Status != agent.ResultCanceled || result.Failure != agent.FailureCancellation {
-			t.Fatalf("Execute() = %#v", result)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("cancellation remained blocked on App Server stdin")
 	}
 }
 
@@ -503,12 +488,6 @@ func serveFakeAppServer(mode, capture string) {
 				// Give the client writer a chance to put the rejection on stdin
 				// before this deliberately unrealistic peer completes the turn.
 				time.Sleep(50 * time.Millisecond)
-			}
-			if mode == "backpressure" {
-				for index := 0; index < 5000; index++ {
-					encoded, _ := json.Marshal(map[string]any{"id": 10_000 + index, "method": "item/permissions/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1"}})
-					fmt.Println(string(encoded))
-				}
 			}
 			if mode == "descendant" {
 				startFakeDescendant(capture)

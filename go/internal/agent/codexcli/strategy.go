@@ -48,12 +48,16 @@ func New() *Strategy {
 }
 
 func (*Strategy) ProfileDescriptor() agent.ProfileDescriptor {
-	return agent.ProfileDescriptor{Runtime: RuntimeKind, Label: "Codex — managed sign-in", Fields: []agent.ProfileField{
-		{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true, Default: "codex", PreferencesOnly: true},
-		{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Description: "Codex-managed sign-in; run `codex login` to use a ChatGPT account (recommended)", Required: true, Default: "provider-owned"},
-		{Key: "options.probe_timeout", OptionKey: "probe_timeout", Label: "Probe timeout", Kind: agent.ProfileFieldText, Description: "Wall-clock deadline for the readiness test only; never times an active fix job.", Default: defaultProbeTimeout.String(), PreferencesOnly: true},
-		{Key: "options.termination_grace", OptionKey: "termination_grace", Label: "Cancellation grace", Kind: agent.ProfileFieldText, Description: "How long a cancelled Codex turn may finish interrupting before its owned App Server is stopped; this never cancels a live job by itself.", Default: defaultTerminationGrace.String(), PreferencesOnly: true},
-	}}
+	return agent.ProfileDescriptor{
+		Runtime: RuntimeKind, Label: "Codex",
+		ConnectionInstructions: "Run `codex login`, then complete the browser sign-in. Slopwatch uses the resulting Codex-managed session and does not store the credential.",
+		DocumentationURL:       "https://developers.openai.com/codex/auth",
+		Fields: []agent.ProfileField{
+			{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true, Default: "codex", PreferencesOnly: true},
+			{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Description: "Managed by Codex sign-in", Required: true, Default: "provider-owned", PreferencesOnly: true},
+			{Key: "options.probe_timeout", OptionKey: "probe_timeout", Label: "Probe timeout", Kind: agent.ProfileFieldText, Description: "Wall-clock deadline for the readiness test only; never times an active fix job.", Default: defaultProbeTimeout.String(), PreferencesOnly: true},
+			{Key: "options.termination_grace", OptionKey: "termination_grace", Label: "Cancellation grace", Kind: agent.ProfileFieldText, Description: "How long a cancelled Codex turn may finish interrupting before its owned App Server is stopped; this never cancels a live job by itself.", Default: defaultTerminationGrace.String(), PreferencesOnly: true},
+		}}
 }
 
 func (*Strategy) ValidateProfile(profile agent.Profile) error {

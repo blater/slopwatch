@@ -46,7 +46,7 @@ func TestUnauthenticatedRuntimeLinksDirectlyToAgentRepair(t *testing.T) {
 	prepare := model.openFixForSelected()
 	model.handleFixPrepared(prepare().(fixPreparedMsg))
 
-	if text := ansi.Strip(model.View()); !strings.Contains(text, "Settings › Agents") || !strings.Contains(text, "authorization, then Test") {
+	if text := ansi.Strip(model.View()); !strings.Contains(text, "Settings › Agents") || !strings.Contains(text, "connection guidance") {
 		t.Fatalf("authentication remediation was not actionable: %q", text)
 	}
 	_, command := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})

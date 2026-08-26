@@ -5,21 +5,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/report"
 )
 
 func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := message.(type) {
 	case configProbeMsg:
-		if model.configSettings.open && message.generation == model.configSettings.generation &&
-			probeDefinitionCurrent(model.configSettings.working.Profiles, message.definition) {
-			if model.configSettings.probes == nil {
-				model.configSettings.probes = map[agent.ProfileID]agent.ProbeResult{}
-			}
-			model.configSettings.probes[message.profile] = message.result
-		}
-		return model, nil
+		return model, model.handleConfigProbe(message)
 	case configResolvedMsg:
 		return model, model.handleConfigResolved(message)
 	case configSavedMsg:

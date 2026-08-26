@@ -18,8 +18,9 @@ run; currently this applies to `--trend-window`.
 
 Low-frequency agent implementation settings—including runtime, executable,
 probe timing, cancellation grace, confinement roots, and provider resource
-limits—are edited only in this file. The Agents popup intentionally exposes
-only profile identity, authentication, readiness, and default selection.
+limits—are edited only in this file. The Agents popup is deliberately a
+single-account provider chooser: it shows availability and the active provider,
+then exposes only essential connection details and automatic readiness results.
 
 ```toml
 version = 1

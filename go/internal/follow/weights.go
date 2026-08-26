@@ -130,14 +130,14 @@ type settingsItem struct {
 }
 
 var settingsItems = []settingsItem{
+	{key: "agents", label: "Agents"},
 	{key: "appearance", label: "Appearance"},
 	{key: "columns", label: "Columns"},
-	{key: "weights", label: "Weights"},
-	{key: "agents", label: "Agents"},
-	{key: "fix", label: "Fix defaults"},
 	{key: "concurrency", label: "Concurrency & retention"},
-	{key: "validation", label: "Validation"},
+	{key: "fix", label: "Fix defaults"},
 	{key: "delivery", label: "Git & pull requests"},
+	{key: "validation", label: "Validation"},
+	{key: "weights", label: "Weights"},
 }
 
 func settingsIndex(key string) int {

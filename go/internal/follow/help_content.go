@@ -71,7 +71,7 @@ var mainScreenHelp = []helpEntry{
 	{label: "Previous match", description: "N selects the previous result for the current search."},
 	{label: "Quit", description: "q or Ctrl-C exits when idle. With active fixes, Slopwatch confirms cancel-all and visibly joins them before exit."},
 	{label: "Rescan", description: "r runs a full analysis again."},
-	{label: "Settings", description: "s opens persistent Appearance, Columns, and Weights, plus agent, fix-default, concurrency, validation, and Git-delivery settings. Degraded agents show textual diagnostics."},
+	{label: "Settings", description: "s opens alphabetically ordered settings. Agents shows provider availability, highlights the active provider, and automatically checks connections in provider-specific dialogs."},
 	{label: "Sort", description: "o chooses the sort field and direction."},
 	{label: "View source", description: "v opens the selected file with syntax highlighting."},
 }
