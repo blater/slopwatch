@@ -1,6 +1,6 @@
-# SlopMochi
-
 ![SlopMochi](docs/slopmochi1.png)
+
+# SlopMochi: One KPI to Stop Agentic Codebases Sliding into Slop
 
 Slop causes us humans painful extra cognitive load, while agents have DEEP slop tolerance.
 But we do see them drop in performance as slop causes reasoning chains to lengthen,
