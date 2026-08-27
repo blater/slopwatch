@@ -1,6 +1,6 @@
 # SlopMochi
 
-!(docs/slopmochi1.png)
+![SlopMochi](docs/slopmochi1.png)
 
 Slop causes us humans painful extra cognitive load, while agents have DEEP slop tolerance.
 But we do see them drop in performance as slop causes reasoning chains to lengthen,
