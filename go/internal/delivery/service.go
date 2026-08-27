@@ -12,6 +12,8 @@ type Request struct {
 	Job                    fix.JobID
 	Candidate              fix.CandidateIdentity
 	DiffHash               string
+	Plan                   fix.DeliveryPlan
+	Paths                  []fix.RepoPath
 	Branch                 string
 	Remote                 string
 	CommitTitle            string
@@ -38,7 +40,7 @@ type Service interface {
 }
 
 // SagaService exposes publication at the durable acknowledgement boundaries
-// used by the fix controller. Each successful return can be journaled before
+// used by the fix controller. Each successful return can be saved before
 // the next externally visible side effect begins.
 type SagaService interface {
 	CreateCommit(context.Context, Request) (Result, error)
@@ -49,7 +51,7 @@ type SagaService interface {
 
 type PreflightRequest struct {
 	Workspace                  fix.WorkspaceIdentity
-	Mode                       fix.DeliveryMode
+	Plan                       fix.DeliveryPlan
 	Remote, BaseBranch, Branch string
 	Publication                bool
 	CommandOutputBytes         int64

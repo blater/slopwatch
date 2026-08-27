@@ -1,8 +1,6 @@
 package fixapp
 
 import (
-	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -14,133 +12,107 @@ import (
 	"github.com/blater/slopwatch/internal/jobstore"
 )
 
-func TestRetryAttemptAndVerifierEvidenceSurviveRestart(t *testing.T) {
-	seed, runtime := newTestManager(t, 1)
-	draft := prepare(t, seed, "retry.go")
-	draft.Instructions.DetachedBody = "Preserve this advanced draft exactly"
-	dependencies := seed.deps
-	shutdownManager(t, seed)
-
+func TestScoreAboveTargetAutomaticallyQueuesAnotherAgentAttempt(t *testing.T) {
 	job, _ := fix.NewJobID()
-	identity := fix.CandidateIdentity{Job: job, Repository: draft.Workspace.Repository, RepositoryRoot: "/candidate/" + string(job),
-		AnalysisRoot: "/candidate/" + string(job), BaseCommit: draft.Workspace.BaseCommit}
-	presentation := fix.JobPresentation{
-		ID: job, Revision: 7, Phase: fix.PhaseAwaitingReview, Goal: goalLabel(draft), Targets: baselineTargets(draft.Baseline.Contract),
-		AttemptOrdinal: 2, CreatedAt: time.Now(), UpdatedAt: time.Now(), Compliance: fix.ComplianceNoncompliant,
-		Validation: fix.ValidationNotConfigured, Scope: fix.ScopeClean,
-	}
-	evidence := "attempt 2; scoring noncompliant; retry.go score 72.0 exceeds target 50.0"
-	store := jobstore.NewMemory()
-	encoded, err := json.Marshal(journalEnvelope{Presentation: presentation, Draft: draft, Candidate: &identity, RetryEvidence: evidence})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Append(context.Background(), jobstore.Record{JobID: job, Revision: presentation.Revision, Kind: "checkpoint", Data: encoded}); err != nil {
-		t.Fatal(err)
-	}
-	dependencies.Store = store
-	restarted, err := New(dependencies, Options{MaxAgents: 1, MaxVerifiers: 1, MaxRetainedJobs: 100, MaxTranscriptBytes: 1 << 20})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdownManager(t, restarted)
-
-	restored, ok := restarted.Job(job)
-	if !ok || restored.AttemptOrdinal != 2 || !hasAction(restored.AllowedActions, fix.ActionRetry) {
-		t.Fatalf("restored retry state = %+v", restored)
-	}
-	commandID, _ := fix.NewCommandID()
-	if _, err := restarted.Execute(context.Background(), fix.JobCommand{RequestID: commandID, JobID: job, ExpectedRevision: restored.Revision, Action: fix.ActionRetry}); err != nil {
-		t.Fatal(err)
-	}
-	waitStarted(t, runtime, job)
-	runtime.mu.Lock()
-	requests := append([]agent.Request(nil), runtime.requests[job]...)
-	runtime.mu.Unlock()
-	if len(requests) != 1 {
-		t.Fatalf("retry requests = %d, want 1", len(requests))
-	}
-	request := requests[0]
-	if request.Task.Instructions.Envelope != draft.Instructions.Envelope || request.Task.Instructions.DetachedBody != draft.Instructions.DetachedBody {
-		t.Fatalf("retry weakened or rewrote prepared instructions: %+v", request.Task.Instructions)
-	}
-	if request.Task.Instructions.RetryEvidence != evidence || !strings.Contains(request.Task.Instructions.EffectiveBody(), evidence) {
-		t.Fatalf("retry evidence missing from next task: %+v", request.Task.Instructions)
-	}
-	running, _ := restarted.Job(job)
-	if running.AttemptOrdinal != 3 {
-		t.Fatalf("retry attempt = %d, want 3", running.AttemptOrdinal)
-	}
-	cancelID, _ := fix.NewCommandID()
-	if _, err := restarted.Execute(context.Background(), fix.JobCommand{RequestID: cancelID, JobID: job, Action: fix.ActionCancel}); err != nil {
-		t.Fatal(err)
-	}
-	readyAgain := waitForPhase(t, restarted, job, fix.PhaseAwaitingAction)
-	if !hasAction(readyAgain.AllowedActions, fix.ActionRetry) {
-		t.Fatalf("explicit retry was capped after attempt 3: %+v", readyAgain.AllowedActions)
-	}
-	fourthID, _ := fix.NewCommandID()
-	if _, err := restarted.Execute(context.Background(), fix.JobCommand{RequestID: fourthID, JobID: job, ExpectedRevision: readyAgain.Revision, Action: fix.ActionRetry}); err != nil {
-		t.Fatalf("fourth explicit attempt was rejected: %v", err)
-	}
-	waitStarted(t, runtime, job)
-	fourth, _ := restarted.Job(job)
-	if fourth.AttemptOrdinal != 4 {
-		t.Fatalf("retry attempt = %d, want 4", fourth.AttemptOrdinal)
-	}
-	runtime.mu.Lock()
-	history := append([]agent.Request(nil), runtime.requests[job]...)
-	runtime.mu.Unlock()
-	if len(history) != 2 || history[0].AttemptID == history[1].AttemptID {
-		t.Fatalf("retry attempt history = %+v, want two distinct post-restart attempts", history)
-	}
-}
-
-func TestRetryAndCancelOneJobDoNotDisturbConcurrentJob(t *testing.T) {
-	manager, runtime := newTestManager(t, 2)
-	defer shutdownManager(t, manager)
-	first := prepareAndSubmit(t, manager, "first.go")
-	second := prepareAndSubmit(t, manager, "second.go")
-	waitStarted(t, runtime, first, second)
-
-	runtime.complete(first)
-	firstReview := waitForPhase(t, manager, first, fix.PhaseAwaitingReview)
-	retryID, _ := fix.NewCommandID()
-	if _, err := manager.Execute(context.Background(), fix.JobCommand{RequestID: retryID, JobID: first, ExpectedRevision: firstReview.Revision, Action: fix.ActionRetry}); err != nil {
-		t.Fatal(err)
-	}
-	waitStarted(t, runtime, first)
-	cancelID, _ := fix.NewCommandID()
-	if _, err := manager.Execute(context.Background(), fix.JobCommand{RequestID: cancelID, JobID: first, Action: fix.ActionCancel}); err != nil {
-		t.Fatal(err)
-	}
-	waitForPhase(t, manager, first, fix.PhaseAwaitingAction)
-	secondView, _ := manager.Job(second)
-	if secondView.Phase != fix.PhaseRunning || secondView.AttemptOrdinal != 1 {
-		t.Fatalf("concurrent job disturbed by retry/cancel: %+v", secondView)
-	}
-	runtime.complete(second)
-	waitForPhase(t, manager, second, fix.PhaseAwaitingReview)
-}
-
-func TestVerificationBuildsBoundedRetryEvidence(t *testing.T) {
+	attempt, _ := fix.NewAttemptID()
 	path, _ := fix.ParseRepoPath("bad.go")
 	record := &jobRecord{
-		draft: FixDraft{TargetScore: 50, Baseline: fixanalysis.BaselineSnapshot{Contract: fix.ScoringContract{
+		input: FixInput{DeliveryPlan: testPushPlan, TargetScore: 50, Baseline: fixanalysis.BaselineSnapshot{Contract: fix.ScoringContract{
+			Targets: []fix.TargetSnapshot{{Path: path, Score: 88, Complete: true}},
+		}}},
+		presentation: fix.JobPresentation{ID: job, Phase: fix.PhaseVerifying, AttemptOrdinal: 1, Targets: []fix.FilePresentation{{Path: path}}},
+		attempt:      attempt,
+		candidate:    &fix.CandidateIdentity{Job: job},
+		commands:     map[fix.CommandID]CommandReceipt{},
+	}
+	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory()}, options: Options{Clock: time.Now}, notify: make(chan struct{})}
+	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, verifiersRunning: 1}
+
+	manager.handleResult(state, workerResult{kind: workerVerifier, job: job, attempt: attempt,
+		diff: candidateDiffForNextAttempt(),
+		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{Path: path, Score: 72, Complete: true}},
+			Complete: true, TargetMet: false, FingerprintBefore: "same", FingerprintAfter: "same"},
+	})
+
+	if record.presentation.Phase != fix.PhaseQueued || record.presentation.AttemptOrdinal != 2 {
+		t.Fatalf("next attempt was not queued automatically: %+v", record.presentation)
+	}
+	if record.presentation.TargetStatus != fix.ScorePending || !strings.Contains(record.nextAttemptNotes, "SCORE 72.0/50.0") {
+		t.Fatalf("next-attempt notes = %q; status=%q", record.nextAttemptNotes, record.presentation.TargetStatus)
+	}
+	if len(record.logs) != 1 || record.logs[0].Kind != agent.EventActivity || record.logs[0].Summary != "Retry attempt 2 queued: target score not met" {
+		t.Fatalf("retry Activity log = %+v", record.logs)
+	}
+	if record.presentation.CurrentAction != record.logs[0].Summary {
+		t.Fatalf("current Activity = %q, log = %q", record.presentation.CurrentAction, record.logs[0].Summary)
+	}
+}
+
+func TestVerificationBuildsBoundedNextAttemptEvidence(t *testing.T) {
+	path, _ := fix.ParseRepoPath("bad.go")
+	record := &jobRecord{
+		input: FixInput{TargetScore: 50, Baseline: fixanalysis.BaselineSnapshot{Contract: fix.ScoringContract{
 			Targets: []fix.TargetSnapshot{{Path: path, Score: 88, Complete: true}},
 		}}},
 		presentation: fix.JobPresentation{AttemptOrdinal: 1, Targets: []fix.FilePresentation{{Path: path}}},
 	}
 	manager := &Manager{}
 	manager.applyVerification(record, workerResult{
-		diff:   candidateDiffForRetry(),
-		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{Path: path, Score: 72, Complete: true}}, Complete: true, Compliant: false, Diagnostic: strings.Repeat("x", 600)},
+		diff:   candidateDiffForNextAttempt(),
+		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{Path: path, Score: 72, Complete: true}}, Complete: true, TargetMet: false, Diagnostic: strings.Repeat("x", 600)},
 	})
-	if len(record.retryEvidence) > 504 || !strings.Contains(record.retryEvidence, "score 72.0 exceeds target 50.0") {
-		t.Fatalf("retry evidence is not concise/actionable: len=%d value=%q", len(record.retryEvidence), record.retryEvidence)
+	if len(record.nextAttemptNotes) > 504 || !strings.Contains(record.nextAttemptNotes, "SCORE 72.0/50.0") {
+		t.Fatalf("next-attempt notes are not concise: len=%d value=%q", len(record.nextAttemptNotes), record.nextAttemptNotes)
 	}
 }
 
-func candidateDiffForRetry() candidate.DiffSnapshot {
-	return candidate.DiffSnapshot{Scope: fix.ScopeClean, Fingerprint: "retry-diff"}
+func TestNextAttemptEvidenceIncludesFocusAndRegressionMeasurements(t *testing.T) {
+	path, _ := fix.ParseRepoPath("bad.go")
+	record := &jobRecord{
+		input: FixInput{TargetScore: 50, Focus: []fix.MetricGoal{{Metric: "cog", Maximum: 10}}, Baseline: fixanalysis.BaselineSnapshot{Contract: fix.ScoringContract{
+			Goal:    fix.ScoringGoal{AllowedRegression: map[fix.MetricID]float64{"cpl": 2}},
+			Targets: []fix.TargetSnapshot{{Path: path, Metrics: map[fix.MetricID]fix.MetricValue{"cpl": {ID: "cpl", Label: "CPL", Value: 5, Complete: true}}}},
+		}}},
+		presentation: fix.JobPresentation{AttemptOrdinal: 2, Targets: []fix.FilePresentation{{Path: path}}},
+	}
+	manager := &Manager{}
+	manager.applyVerification(record, workerResult{
+		diff: candidateDiffForNextAttempt(),
+		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{
+			Path: path, Score: 40, Complete: true, TargetMet: false, Diagnostic: "COG exceeds focus target; CPL regressed",
+			Metrics: map[fix.MetricID]fix.MetricValue{
+				"cog": {ID: "cog", Label: "COG", Value: 12, Complete: true},
+				"cpl": {ID: "cpl", Label: "CPL", Value: 9, Complete: true},
+			},
+		}}, Complete: true, TargetMet: false, FingerprintBefore: "same", FingerprintAfter: "same"},
+	})
+	for _, wanted := range []string{"SCORE 40.0/50.0", "COG 12.0/10.0", "CPL 9.0/7.0", "COG exceeds focus target", "CPL regressed"} {
+		if !strings.Contains(record.nextAttemptNotes, wanted) {
+			t.Fatalf("next-attempt notes omitted %q: %q", wanted, record.nextAttemptNotes)
+		}
+	}
+}
+
+func TestLegacyScopeFlagDoesNotRejectRepositoryRefactor(t *testing.T) {
+	job, _ := fix.NewJobID()
+	attempt, _ := fix.NewAttemptID()
+	path, _ := fix.ParseRepoPath("bad.go")
+	record := &jobRecord{
+		input:        FixInput{TargetScore: 50},
+		presentation: fix.JobPresentation{ID: job, Phase: fix.PhaseVerifying, AttemptOrdinal: 1, Targets: []fix.FilePresentation{{Path: path}}},
+		attempt:      attempt, candidate: &fix.CandidateIdentity{Job: job}, commands: map[fix.CommandID]CommandReceipt{},
+	}
+	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory()}, options: Options{Clock: time.Now}, notify: make(chan struct{})}
+	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, verifiersRunning: 1}
+	manager.handleResult(state, workerResult{kind: workerVerifier, job: job, attempt: attempt,
+		diff:   candidate.DiffSnapshot{Scope: fix.ScopeViolated, Fingerprint: "scope-diff"},
+		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{Path: path, Score: 60, Complete: true, TargetMet: false}}, Complete: true, TargetMet: false, FingerprintBefore: "same", FingerprintAfter: "same"},
+	})
+	if record.presentation.Phase != fix.PhaseQueued || record.presentation.Issue != nil || record.presentation.AttemptOrdinal != 2 {
+		t.Fatalf("repository refactor was rejected instead of continuing: %+v", record.presentation)
+	}
+}
+
+func candidateDiffForNextAttempt() candidate.DiffSnapshot {
+	return candidate.DiffSnapshot{Scope: fix.ScopeClean, Fingerprint: "next-diff"}
 }

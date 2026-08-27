@@ -5,62 +5,98 @@ import "time"
 type Phase string
 
 const (
-	PhaseAdmitted        Phase = "admitted"
 	PhaseQueued          Phase = "queued"
 	PhasePreflight       Phase = "preflight"
 	PhasePreparing       Phase = "preparing"
 	PhaseRunning         Phase = "running"
 	PhaseWaitingVerifier Phase = "waiting_verifier"
 	PhaseVerifying       Phase = "verifying"
-	PhaseAwaitingReview  Phase = "awaiting_review"
+	PhaseFailed          Phase = "failed"
 	PhasePublishing      Phase = "publishing"
 	PhaseReconciling     Phase = "reconciling"
 	PhaseDiscarding      Phase = "discarding"
 	PhaseCanceling       Phase = "canceling"
-	PhaseAwaitingAction  Phase = "awaiting_action"
 	PhaseCompleted       Phase = "completed"
-	PhaseArchived        Phase = "archived"
+	PhaseCanceled        Phase = "canceled"
 	PhaseDiscarded       Phase = "discarded"
 )
 
-type Compliance string
+type TargetStatus string
 
 const (
-	ComplianceUnknown      Compliance = "unknown"
-	ComplianceCompliant    Compliance = "compliant"
-	ComplianceNoncompliant Compliance = "noncompliant"
+	ScorePending TargetStatus = "score_pending"
+	TargetMet    TargetStatus = "met"
+	TargetNotMet TargetStatus = "not_met"
 )
 
 type ScopeState string
 
 const (
-	ScopeUnknown    ScopeState = "unknown"
-	ScopeClean      ScopeState = "clean"
-	ScopeViolated   ScopeState = "violated"
-	ScopeConflicted ScopeState = "conflicted"
+	ScopeUnknown  ScopeState = "unknown"
+	ScopeClean    ScopeState = "clean"
+	ScopeViolated ScopeState = "violated"
 )
 
 type DeliveryState string
-type DeliveryMode string
+type WorkspaceMode string
+type GitMode string
+type PublishMode string
 
 const (
-	DeliveryModeCandidate   DeliveryMode = "candidate"
-	DeliveryModeBranch      DeliveryMode = "branch"
-	DeliveryModePullRequest DeliveryMode = "pull-request"
+	WorkspaceCurrent  WorkspaceMode = "current-files"
+	WorkspaceWorktree WorkspaceMode = "worktree"
+
+	GitLeaveUncommitted GitMode = "uncommitted"
+	GitCommitCurrent    GitMode = "current-branch"
+	GitCommitNewBranch  GitMode = "new-branch"
+
+	PublishLocal       PublishMode = "local"
+	PublishPush        PublishMode = "push"
+	PublishPullRequest PublishMode = "pull-request"
 )
 
-func (mode DeliveryMode) Valid() bool {
+func (mode WorkspaceMode) Valid() bool {
 	switch mode {
-	case DeliveryModeCandidate, DeliveryModeBranch, DeliveryModePullRequest:
+	case WorkspaceCurrent, WorkspaceWorktree:
 		return true
 	default:
 		return false
 	}
 }
 
+func (mode GitMode) Valid() bool {
+	switch mode {
+	case GitLeaveUncommitted, GitCommitCurrent, GitCommitNewBranch:
+		return true
+	default:
+		return false
+	}
+}
+
+func (mode PublishMode) Valid() bool {
+	switch mode {
+	case PublishLocal, PublishPush, PublishPullRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+type DeliveryPlan struct {
+	Workspace WorkspaceMode
+	Git       GitMode
+	Publish   PublishMode
+}
+
+func (plan DeliveryPlan) Valid() bool {
+	if !plan.Workspace.Valid() || !plan.Git.Valid() || !plan.Publish.Valid() {
+		return false
+	}
+	return plan.Git != GitLeaveUncommitted || plan.Publish == PublishLocal
+}
+
 const (
 	DeliveryNone        DeliveryState = "none"
-	DeliveryCandidate   DeliveryState = "candidate"
 	DeliveryCommitted   DeliveryState = "committed"
 	DeliveryPushed      DeliveryState = "pushed"
 	DeliveryPullRequest DeliveryState = "pull_request"
@@ -72,22 +108,14 @@ type Attention string
 const (
 	AttentionNone     Attention = "none"
 	AttentionInfo     Attention = "information"
-	AttentionRequired Attention = "action_required"
+	AttentionError    Attention = "error"
 	AttentionBlocking Attention = "blocking"
 )
 
 type JobAction string
 
 const (
-	ActionCancel              JobAction = "cancel"
-	ActionRetry               JobAction = "retry"
-	ActionResume              JobAction = "resume"
-	ActionPublish             JobAction = "publish"
-	ActionKeep                JobAction = "keep"
-	ActionArchive             JobAction = "archive"
-	ActionDiscard             JobAction = "discard"
-	ActionAcknowledgeConflict JobAction = "acknowledge_conflict"
-	ActionCleanup             JobAction = "cleanup"
+	ActionCancel JobAction = "cancel"
 )
 
 type JobIssue struct {
@@ -113,7 +141,7 @@ type FilePresentation struct {
 	VerifiedScore   *float64
 	BaselineMetrics []MetricValue
 	VerifiedMetrics []MetricValue
-	// Metrics is retained for journal compatibility. New code projects
+	// Metrics is retained for saved-state compatibility. New code projects
 	// baseline and verified values separately.
 	Metrics        []MetricValue
 	Changed        bool
@@ -123,7 +151,6 @@ type FilePresentation struct {
 
 type JobPresentation struct {
 	ID              JobID
-	Revision        uint64
 	Phase           Phase
 	Attention       Attention
 	ProfileLabel    string
@@ -139,26 +166,22 @@ type JobPresentation struct {
 	Usage           UsagePresentation
 	UsageReported   bool
 	WarningCount    int
-	ConflictCount   int
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	FinishedAt      time.Time
 	AllowedActions  []JobAction
-	Compliance      Compliance
-	Validation      ValidationState
+	TargetStatus    TargetStatus
 	Scope           ScopeState
 	Delivery        DeliveryState
-	DeliveryMode    DeliveryMode
+	DeliveryPlan    DeliveryPlan
 	BranchName      string
+	WorkspacePath   string
 	DiffFingerprint string
 	Issue           *JobIssue
 }
 
 type JobCommand struct {
-	RequestID        CommandID
-	JobID            JobID
-	ExpectedRevision uint64
-	Action           JobAction
-	DiffHash         string
-	Value            string
+	RequestID CommandID
+	JobID     JobID
+	Action    JobAction
 }

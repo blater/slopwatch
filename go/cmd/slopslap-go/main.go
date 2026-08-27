@@ -16,10 +16,10 @@ import (
 
 	"github.com/blater/slopwatch/internal/follow"
 	"github.com/blater/slopwatch/internal/isolation"
-	isolationdocker "github.com/blater/slopwatch/internal/isolation/docker"
 	"github.com/blater/slopwatch/internal/native"
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/userdata"
 )
 
 type stringList []string
@@ -79,19 +79,6 @@ func parser() (*flag.FlagSet, *options) {
 }
 
 func main() {
-	// These hidden image entry points must be dispatched before ordinary
-	// process supervision or flag parsing. The same installation-owned binary
-	// is copied into the confinement image and acts as its PID 1 and empirical
-	// descendant-escape probe.
-	if handled, code := isolationdocker.ContainerEscapeProbeMain(os.Args[1:]); handled {
-		os.Exit(code)
-	}
-	if handled, code := isolationdocker.ContainerSupervisorMain(os.Args[1:]); handled {
-		os.Exit(code)
-	}
-	if handled, code := isolation.ProbeMain(os.Args[1:]); handled {
-		os.Exit(code)
-	}
 	if handled, code := isolation.SupervisorMain(os.Args[1:]); handled {
 		os.Exit(code)
 	}
@@ -202,15 +189,6 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 	if err != nil {
 		return err
 	}
-	nativeAnalyzer.EnableDefaultCache()
-	initial := report.Document{}
-	if cached, ok := nativeAnalyzer.CachedProjection(); ok {
-		initial = cached
-	} else {
-		// A first-ever dashboard launch should be no slower than slopmark's
-		// ordinary fresh scan. Reuse is enabled after that result is visible.
-		nativeAnalyzer.SetCacheReads(false)
-	}
 	preferencesPath := parsed.config
 	if preferencesPath == "" {
 		var pathErr error
@@ -224,7 +202,20 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 			return fmt.Errorf("resolve preferences path: %w", err)
 		}
 	}
-	fixFeature, fixErr := buildFixFeature(context.Background(), workspace, installationRoot, preferencesPath, parsed, languages)
+	userDataRoot, err := userdata.Root()
+	if err != nil {
+		return err
+	}
+	nativeAnalyzer.EnableCache(filepath.Join(userDataRoot, "analysis"))
+	initial := report.Document{}
+	if cached, ok := nativeAnalyzer.CachedProjection(); ok {
+		initial = cached
+	} else {
+		// A first-ever dashboard launch should be no slower than slopmark's
+		// ordinary fresh scan. Reuse is enabled after that result is visible.
+		nativeAnalyzer.SetCacheReads(false)
+	}
+	fixFeature, fixErr := buildFixFeature(context.Background(), workspace, installationRoot, preferencesPath, userDataRoot, parsed, languages)
 	follow.ConfigureTerminalColours()
 	followOptions := follow.Options{
 		Workspace: workspace, Targets: targets, Languages: languages,

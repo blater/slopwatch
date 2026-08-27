@@ -1,6 +1,8 @@
 package follow
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	name := key.String()
@@ -56,9 +58,9 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			model.moveAgentSelection(1)
 		case "left":
-			model.moveAgentHorizontal(-pathScrollStep)
-		case "right":
 			model.moveAgentHorizontal(pathScrollStep)
+		case "right":
+			model.moveAgentHorizontal(-pathScrollStep)
 		case "ctrl+f", "pgdown":
 			model.pageAgentSelection(1)
 		case "ctrl+b", "pgup":
@@ -87,7 +89,7 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "d":
 			return model, model.openJobDiff(model.agents.Selected.JobID, model.agents.Selected.Path)
 		case "l":
-			if model.agents.Selected.IsJob() {
+			if !model.agents.Selected.IsZero() {
 				return model, model.openJobLog(model.agents.Selected.JobID)
 			}
 		case "v":
@@ -96,16 +98,29 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		case "C":
 			model.openCancelConfirmation()
-		case " ":
-			model.openJobActions()
 		}
 		return model, nil
+	}
+	if name != "shift+up" && name != "shift+down" {
+		model.shiftMarking = false
 	}
 	switch name {
 	case "up", "k":
 		model.move(-1)
 	case "down", "j":
 		model.move(1)
+	case "shift+up":
+		if model.marking {
+			model.moveAndToggleMark(-1)
+		} else {
+			model.move(-1)
+		}
+	case "shift+down":
+		if model.marking {
+			model.moveAndToggleMark(1)
+		} else {
+			model.move(1)
+		}
 	case "left":
 		model.movePath(-pathScrollStep)
 	case "right":
@@ -126,6 +141,14 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		model.openSelectedFileInfo()
 	case "x":
 		return model, model.openFixForSelected()
+	case "m":
+		model.toggleMarkMode()
+	case "M":
+		model.clearMarkedFiles()
+	case " ":
+		if model.marking {
+			model.toggleCurrentMark()
+		}
 	case "v":
 		return model, model.openSourceView()
 	case "c":
@@ -142,11 +165,6 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "N":
 		if model.findQuery != "" {
 			model.findNext(-1)
-		}
-	case "r":
-		if !model.analyzing {
-			model.analyzing = true
-			return model, model.analyze(nil, true)
 		}
 	}
 	return model, nil
@@ -185,16 +203,12 @@ func dispatchOverlayKey(model *Model, kind OverlayKind, key tea.KeyMsg) (tea.Mod
 		return model.handleConfigSettingsKey(key)
 	case OverlayFixForm:
 		return model.handleFixFormKey(key)
+	case OverlayTargetScoreEditor:
+		return model.handleFixTargetScoreKey(key)
 	case OverlayPromptEditor:
-		return model.handlePromptEditorKey(key)
-	case OverlayPromptDetach:
-		return model.handlePromptDetachKey(key)
-	case OverlayPromptDirty:
-		return model.handlePromptDirtyKey(key)
+		return model.handleMasterPromptKey(key)
 	case OverlayJobMonitor:
 		return model.handleJobMonitorKey(key)
-	case OverlayJobActions:
-		return model.handleJobActionsKey(key)
 	case OverlayJobLog, OverlayJobDiff, OverlayCandidateSource:
 		return model.handleJobReaderKey(key)
 	case OverlayConfirmation:

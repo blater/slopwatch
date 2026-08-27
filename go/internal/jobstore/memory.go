@@ -3,48 +3,27 @@ package jobstore
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
+
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 type Memory struct {
 	mu      sync.Mutex
-	records []Record
+	records map[string]Record
 	closed  bool
 }
 
-func NewMemory() *Memory { return &Memory{} }
+func NewMemory() *Memory { return &Memory{records: map[string]Record{}} }
 
-func (memory *Memory) Append(ctx context.Context, record Record) (Record, error) {
-	if err := ctx.Err(); err != nil {
-		return Record{}, err
-	}
-	memory.mu.Lock()
-	defer memory.mu.Unlock()
-	if memory.closed {
-		return Record{}, errors.New("job store closed")
-	}
-	record.Version = RecordVersion
-	record.Sequence = uint64(len(memory.records) + 1)
-	record.Data = append(record.Data[:0:0], record.Data...)
-	memory.records = append(memory.records, record)
-	return record, nil
-}
+type memoryLock struct{}
 
-func (memory *Memory) Load(ctx context.Context) ([]Record, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	memory.mu.Lock()
-	defer memory.mu.Unlock()
-	result := make([]Record, len(memory.records))
-	copy(result, memory.records)
-	for index := range result {
-		result[index].Data = append(result[index].Data[:0:0], result[index].Data...)
-	}
-	return result, nil
-}
+func (memoryLock) Close() error { return nil }
 
-func (memory *Memory) Compact(ctx context.Context, records []Record) error {
+func (memory *Memory) Lock(fix.JobID) (Lock, error) { return memoryLock{}, nil }
+
+func (memory *Memory) Save(ctx context.Context, record Record) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -53,14 +32,24 @@ func (memory *Memory) Compact(ctx context.Context, records []Record) error {
 	if memory.closed {
 		return errors.New("job store closed")
 	}
-	memory.records = make([]Record, len(records))
-	for index, record := range records {
-		record.Version = RecordVersion
-		record.Sequence = uint64(index + 1)
-		record.Data = append(record.Data[:0:0], record.Data...)
-		memory.records[index] = record
-	}
+	record.State = append(record.State[:0:0], record.State...)
+	memory.records[string(record.JobID)] = record
 	return nil
+}
+
+func (memory *Memory) Load(ctx context.Context) ([]Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	memory.mu.Lock()
+	defer memory.mu.Unlock()
+	result := make([]Record, 0, len(memory.records))
+	for _, record := range memory.records {
+		record.State = append(record.State[:0:0], record.State...)
+		result = append(result, record)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].UpdatedAt.Before(result[j].UpdatedAt) })
+	return result, nil
 }
 
 func (memory *Memory) Close() error {

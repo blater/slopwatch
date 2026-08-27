@@ -7,38 +7,34 @@ import (
 
 type subscription struct {
 	manager *Manager
+	mu      sync.Mutex
+	notify  <-chan struct{}
 	closed  chan struct{}
 	once    sync.Once
 }
 
-// Wait is level-triggered: it returns immediately when the current revision
-// is newer, otherwise waits for a publication without a check/subscribe race.
-func (value *subscription) Wait(ctx context.Context, after GlobalRevision) (GlobalRevision, error) {
-	for {
-		if value.manager.closed.Load() {
-			return value.manager.Jobs(JobFilter{IncludeArchived: true}).Revision, ErrClosed
-		}
-		current := value.manager.Jobs(JobFilter{IncludeArchived: true}).Revision
-		if current > after {
-			return current, nil
-		}
+// Wait blocks for the next coalesced state-change notification. The next
+// channel is captured before returning, so changes cannot be lost between a
+// UI refresh and its following wait.
+func (value *subscription) Wait(ctx context.Context) error {
+	value.mu.Lock()
+	notify := value.notify
+	value.mu.Unlock()
+	select {
+	case <-notify:
 		value.manager.notifyMu.Lock()
-		notify := value.manager.notify
-		current = value.manager.current.Load().(JobListSnapshot).Revision
+		next := value.manager.notify
 		value.manager.notifyMu.Unlock()
-		if current > after {
-			return current, nil
-		}
-		select {
-		case <-notify:
-			continue
-		case <-value.closed:
-			return current, ErrClosed
-		case <-value.manager.done:
-			return current, ErrClosed
-		case <-ctx.Done():
-			return current, ctx.Err()
-		}
+		value.mu.Lock()
+		value.notify = next
+		value.mu.Unlock()
+		return nil
+	case <-value.closed:
+		return ErrClosed
+	case <-value.manager.done:
+		return ErrClosed
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

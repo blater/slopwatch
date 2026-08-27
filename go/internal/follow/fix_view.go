@@ -8,6 +8,7 @@ import (
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/fixapp"
+	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/blater/slopwatch/internal/style"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -16,28 +17,18 @@ import (
 func (model Model) featureOverlayView(base string, frame OverlayFrame) string {
 	switch frame.Kind {
 	case OverlayFixForm:
-		if fullScreenSurface(model.width, model.height) {
-			return model.fixDialogFullScreen()
-		}
 		return model.overlay(base, model.fixDialogPopup())
+	case OverlayTargetScoreEditor:
+		return model.fixTargetScoreEditorView(base)
 	case OverlayConfigSettings:
 		if fullScreenSurface(model.width, model.height) {
 			return model.configSettingsFullScreen()
 		}
 		return model.overlay(base, model.configSettingsView())
 	case OverlayPromptEditor:
-		return model.promptEditorView()
-	case OverlayPromptDetach:
-		return model.promptDetachView(base)
-	case OverlayPromptDirty:
-		return model.dirtyChoiceView(base, "UNSAVED TASK EDITS", model.fixDialog.promptDirtyCursor)
+		return model.masterPromptEditorView()
 	case OverlayJobMonitor:
 		return model.jobMonitorView(base)
-	case OverlayJobActions:
-		if fullScreenSurface(model.width, model.height) {
-			return model.jobActionsFullScreen()
-		}
-		return model.overlay(base, model.jobActionsPopup())
 	case OverlayConfirmation:
 		if fullScreenSurface(model.width, model.height) {
 			return model.confirmationFullScreen()
@@ -58,12 +49,24 @@ func (model Model) jobMonitorView(base string) string {
 	width := min(82, max(36, model.width-4))
 	height := max(6, min(18, model.height-6))
 	content := model.jobMonitorContent(width-4, height)
-	footer := "↑/↓ details · Esc background · Enter actions · [/] job · l logs · d diff · C cancel"
+	items := []string{"Esc close"}
+	job := model.jobMonitor.job
+	if containsFixAction(job.AllowedActions, fix.ActionCancel) {
+		items = append(items, "C cancel")
+	}
+	items = append(items, "l logs", "d diff", "[ prev", "] next")
+	footer := strings.Join(items, " · ")
 	if responsiveTier(model.width, model.height) == ResponsiveCompact {
-		footer = "↑/↓ details · Esc back · Enter actions"
+		compact := []string{}
+		switch {
+		case containsFixAction(job.AllowedActions, fix.ActionCancel):
+			compact = append(compact, "C cancel")
+		}
+		compact = append(compact, "[ prev", "] next", "Esc")
+		footer = strings.Join(compact, " · ")
 	}
 	if fullScreenSurface(model.width, model.height) {
-		lines := []string{fixSurfaceLine("FIX JOB · "+agentPhaseText(model.jobMonitor.job), model.width, style.SurfaceHeader, style.TextPrimary)}
+		lines := []string{fixSurfaceLine("INSPECT", model.width, style.SurfaceHeader, style.TextPrimary)}
 		lines = append(lines, model.jobMonitorContent(model.width, max(1, model.height-2))...)
 		for len(lines) < model.height-1 {
 			lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
@@ -71,7 +74,7 @@ func (model Model) jobMonitorView(base string) string {
 		lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
 		return joinScreenLines(lines[:model.height])
 	}
-	return model.overlay(base, style.Popup("FIX JOB · "+agentPhaseText(model.jobMonitor.job), content, footer, width))
+	return model.overlay(base, style.Popup("INSPECT", content, footer, width))
 }
 
 func (model Model) jobMonitorContent(width, height int) []string {
@@ -86,25 +89,41 @@ func (model Model) jobMonitorContent(width, height int) []string {
 	lines := []string{
 		fixSurfaceLine("Job: "+string(job.ID), width, style.SurfaceModal, style.TextMuted),
 		fixSurfaceLine("Goal: "+cleanAgentText(job.Goal), width, style.SurfaceModal, style.TextPrimary),
-		fixSurfaceLine("Agent: "+strings.Join(nonemptyStrings(strings.Join(nonemptyStrings(job.ProfileLabel, job.ModelLabel, job.EffortLabel), " / "), agentAttemptText(job)), " · "), width, style.SurfaceModal, style.TextPrimary),
+		fixSurfaceLine("Agent: "+strings.Join(nonemptyStrings(agentHarnessName(job), job.ModelLabel, job.EffortLabel), " · "), width, style.SurfaceModal, style.TextPrimary),
 		fixSurfaceLine("State: "+agentPhaseText(job)+" · "+nonemptySetting(job.CurrentAction, "No current activity"), width, style.SurfaceModal, style.TextPrimary),
-		fixSurfaceLine(fmt.Sprintf("Targets: %d · Compliance: %s · Validation: %s · Scope: %s", len(job.Targets), job.Compliance, job.Validation, job.Scope), width, style.SurfaceModal, style.TextPrimary),
+		fixSurfaceLine(fmt.Sprintf("Targets: %d", len(job.Targets)), width, style.SurfaceModal, style.TextPrimary),
+	}
+	if job.DeliveryPlan.Valid() {
+		workspace := "current files"
+		if job.DeliveryPlan.Workspace == fix.WorkspaceWorktree {
+			workspace = nonemptySetting(job.WorkspacePath, "separate worktree")
+		}
+		lines = append(lines, fixSurfaceLine("Files: "+workspace, width, style.SurfaceModal, style.TextPrimary))
+		gitResult := gitModeLabel(job.DeliveryPlan.Git)
+		if job.DeliveryPlan.Git != fix.GitLeaveUncommitted {
+			gitResult += " · " + publishModeLabel(job.DeliveryPlan.Publish)
+		}
+		lines = append(lines, fixSurfaceLine("Git: "+gitResult, width, style.SurfaceModal, style.TextPrimary))
 	}
 	if job.UsageReported {
-		lines = append(lines, fixSurfaceLine(fmt.Sprintf("Usage: in %d · cached %d · out %d · reasoning %d", job.Usage.InputTokens, job.Usage.CachedTokens, job.Usage.OutputTokens, job.Usage.ReasoningTokens), width, style.SurfaceModal, style.TextPrimary))
+		lines = append(lines, fixSurfaceLine(fmt.Sprintf("Tokens: input %d · cached %d · output %d · reasoning %d", job.Usage.InputTokens, job.Usage.CachedTokens, job.Usage.OutputTokens, job.Usage.ReasoningTokens), width, style.SurfaceModal, style.TextPrimary))
 	} else {
-		lines = append(lines, fixSurfaceLine("Usage: not reported by this agent adapter", width, style.SurfaceModal, style.TextMuted))
+		lines = append(lines, fixSurfaceLine("Tokens: not reported by this agent", width, style.SurfaceModal, style.TextMuted))
 	}
 	if state.focusPath != "" {
 		lines = append(lines, fixSurfaceLine("Focused file: "+state.focusPath.String(), width, style.SurfaceModal, style.TextPrimary))
 		for _, target := range job.Targets {
 			if target.Path == state.focusPath {
-				lines = append(lines, fixSurfaceLine(agentFileMetrics(target), width, style.SurfaceModal, style.TextPrimary))
+				lines = append(lines, fixSurfaceLine(model.visibleAgentFileMetrics(target), width, style.SurfaceModal, style.TextPrimary))
 			}
 		}
 	}
 	if job.Issue != nil {
-		lines = append(lines, fixSurfaceLine("Attention: "+job.Issue.Summary+" · "+job.Issue.Detail, width, style.SurfaceModal, style.TextPrimary))
+		label := "Attention: "
+		if job.Phase == fix.PhaseFailed {
+			label = "Failure: "
+		}
+		lines = append(lines, fixSurfaceLine(label+strings.Join(nonemptyStrings(job.Issue.Summary, job.Issue.Detail), " · "), width, style.SurfaceModal, style.TextPrimary))
 	}
 	if len(job.Actors) > 0 {
 		lines = append(lines, fixSurfaceLine("ACTORS", width, style.SurfaceModal, style.TextMuted))
@@ -116,24 +135,8 @@ func (model Model) jobMonitorContent(width, height int) []string {
 			lines = append(lines, fixSurfaceLine(prefix+cleanAgentText(actor.ID)+" · "+cleanAgentText(actor.CurrentAction), width, style.SurfaceModal, style.TextPrimary))
 		}
 	}
-	lines = append(lines, fixSurfaceLine("ACTIVITY", width, style.SurfaceModal, style.TextMuted))
-	activity := state.activity
-	if len(activity) == 0 {
-		lines = append(lines, fixSurfaceLine("No provider activity recorded yet", width, style.SurfaceModal, style.TextMuted))
-	} else {
-		for _, entry := range activity {
-			actor := ""
-			if entry.ActorID != "" {
-				actor = "[" + cleanAgentText(entry.ActorID) + "] "
-			}
-			lines = append(lines, fixSurfaceLine(entry.At.Format("15:04:05")+"  "+actor+cleanAgentText(entry.Summary), width, style.SurfaceModal, style.TextPrimary))
-		}
-	}
-	if state.activityTruncated {
-		lines = append(lines, fixSurfaceLine("Earlier activity omitted by the configured transcript retention limit", width, style.SurfaceModal, style.TextMuted))
-	}
 	if state.errorText != "" {
-		lines = append(lines, fixSurfaceLine("Activity warning: "+state.errorText, width, style.SurfaceModal, style.TextPrimary))
+		lines = append(lines, fixSurfaceLine("Error: "+state.errorText, width, style.SurfaceModal, style.TextPrimary))
 	}
 	start := min(max(0, state.offset), max(0, len(lines)-height))
 	end := min(len(lines), start+height)
@@ -173,15 +176,21 @@ func (model Model) jobMonitorLineCount() int {
 	if len(job.Actors) > 0 {
 		count += 1 + len(job.Actors)
 	}
-	count++ // activity heading
-	count += max(1, len(state.activity))
-	if state.activityTruncated {
-		count++
-	}
 	if state.errorText != "" {
 		count++
 	}
 	return count
+}
+
+func agentHarnessName(job fix.JobPresentation) string {
+	label := cleanAgentText(job.ProfileLabel)
+	if fields := strings.Fields(label); len(fields) > 0 {
+		return strings.ToLower(fields[0])
+	}
+	if profile := strings.TrimSpace(job.ProfileID); profile != "" {
+		return strings.ToLower(strings.SplitN(profile, "-", 2)[0])
+	}
+	return "agent"
 }
 
 func (model Model) jobReaderView(base string) string {
@@ -190,17 +199,28 @@ func (model Model) jobReaderView(base string) string {
 	switch state.kind {
 	case OverlayJobLog:
 		title = "JOB LOG"
+		if state.follow {
+			title += " · LIVE"
+		} else {
+			title += " · PAUSED"
+		}
 	case OverlayJobDiff:
 		title = "CANDIDATE DIFF"
 	case OverlayCandidateSource:
 		title = "CANDIDATE SOURCE"
 	}
-	width := min(92, max(36, model.width-4))
-	height := max(4, min(20, model.height-7))
+	width, height := model.jobReaderDimensions()
 	content := model.jobReaderContent(width-4, height)
-	footer := "↑/↓ scroll · PgUp/PgDn · r refresh · Esc back"
+	footer := "PgUp/PgDn · r refresh · Esc back"
+	if state.kind == OverlayJobLog {
+		footer = "G follow · Esc back"
+	}
 	if responsiveTier(model.width, model.height) == ResponsiveCompact {
-		footer = "↑/↓ · r refresh · Esc back"
+		if state.kind == OverlayJobLog {
+			footer = "G follow · Esc"
+		} else {
+			footer = "r refresh · Esc back"
+		}
 	}
 	if fullScreenSurface(model.width, model.height) {
 		lines := []string{fixSurfaceLine(title, model.width, style.SurfaceHeader, style.TextPrimary)}
@@ -229,17 +249,16 @@ func (model Model) jobReaderContent(width, height int) []string {
 	} else if len(state.lines) == 0 {
 		lines = append(lines, fixSurfaceLine("No details are available yet", width, style.SurfaceModal, style.TextMuted))
 	} else {
-		available := max(1, height-2)
+		available := jobReaderAvailableLines(height)
 		start := min(max(0, state.offset), max(0, len(state.lines)-available))
 		for _, line := range state.lines[start:min(len(state.lines), start+available)] {
-			lines = append(lines, fixSurfaceLine(line, width, style.SurfaceModal, style.TextPrimary))
+			visible := ansi.Cut(line, state.horizontal, state.horizontal+width)
+			lines = append(lines, fixSurfaceLine(visible, width, style.SurfaceModal, style.TextPrimary))
 		}
 	}
 	if state.truncated {
 		message := "Output truncated"
 		switch state.kind {
-		case OverlayJobLog:
-			message = "Earlier activity omitted by the configured transcript retention limit"
 		case OverlayJobDiff:
 			message = "More changed files exist · press r to retry loading them"
 		case OverlayCandidateSource:
@@ -248,6 +267,52 @@ func (model Model) jobReaderContent(width, height int) []string {
 		lines = append(lines, fixSurfaceLine(message, width, style.SurfaceModal, style.TextMuted))
 	}
 	return fitFixContent(lines, width, height)
+}
+
+func (model Model) jobReaderDimensions() (int, int) {
+	if model.jobReader.kind == OverlayJobLog {
+		return min(140, max(36, model.width-2)), max(6, min(30, model.height-5))
+	}
+	return min(92, max(36, model.width-4)), max(4, min(20, model.height-7))
+}
+
+func jobReaderAvailableLines(height int) int {
+	return max(1, height-2)
+}
+
+func (model Model) jobReaderPageSize() int {
+	_, height := model.jobReaderDimensions()
+	if fullScreenSurface(model.width, model.height) {
+		height = max(1, model.height-2)
+	}
+	return jobReaderAvailableLines(height)
+}
+
+func (model Model) jobReaderMaxOffset() int {
+	return max(0, len(model.jobReader.lines)-model.jobReaderPageSize())
+}
+
+func (model Model) jobReaderMaxHorizontalOffset() int {
+	width, _ := model.jobReaderDimensions()
+	if fullScreenSurface(model.width, model.height) {
+		width = model.width
+	} else {
+		width -= 4
+	}
+	longest := 0
+	for _, line := range model.jobReader.lines {
+		longest = max(longest, ansi.StringWidth(line))
+	}
+	return max(0, longest-width)
+}
+
+func (model *Model) clampJobReaderPosition() {
+	if model.jobReader.follow {
+		model.jobReader.offset = model.jobReaderMaxOffset()
+	} else {
+		model.jobReader.offset = min(model.jobReader.offset, model.jobReaderMaxOffset())
+	}
+	model.jobReader.horizontal = min(model.jobReader.horizontal, model.jobReaderMaxHorizontalOffset())
 }
 
 func (model Model) dirtyChoiceView(base, title string, cursor int) string {
@@ -260,9 +325,9 @@ func (model Model) dirtyChoiceView(base, title string, cursor int) string {
 		}
 		content = append(content, style.ModalOption(prefix+choice, index == cursor, min(44, max(24, model.width-8))))
 	}
-	footer := "↑/↓ choose · Enter · Esc continue editing"
+	footer := "Enter choose · Esc continue editing"
 	if responsiveTier(model.width, model.height) == ResponsiveCompact {
-		footer = "↑/↓ · Enter · Esc edit"
+		footer = "Enter choose · Esc edit"
 	}
 	if fullScreenSurface(model.width, model.height) {
 		lines := []string{fixSurfaceLine(title, model.width, style.SurfaceHeader, style.TextPrimary)}
@@ -276,26 +341,6 @@ func (model Model) dirtyChoiceView(base, title string, cursor int) string {
 		return joinScreenLines(lines[:model.height])
 	}
 	return model.overlay(base, style.Popup(title, content, footer, min(52, max(32, model.width-4))))
-}
-
-func (model Model) promptDetachView(base string) string {
-	content := []string{"Form controls will no longer regenerate this task body.", "The Slopwatch safety envelope remains locked."}
-	footer := "Enter detach+save · Esc continue editing"
-	if responsiveTier(model.width, model.height) == ResponsiveCompact {
-		footer = "Enter detach · Esc edit"
-	}
-	if fullScreenSurface(model.width, model.height) {
-		lines := []string{fixSurfaceLine("DETACH GENERATED TASK", model.width, style.SurfaceHeader, style.TextPrimary)}
-		for _, line := range content {
-			lines = append(lines, fixSurfaceLine(line, model.width, style.SurfaceModal, style.TextPrimary))
-		}
-		for len(lines) < model.height-1 {
-			lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
-		}
-		lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
-		return joinScreenLines(lines[:model.height])
-	}
-	return model.overlay(base, style.Popup("DETACH GENERATED TASK", content, footer, min(68, max(32, model.width-4))))
 }
 
 func (model Model) shutdownView(base string) string {
@@ -325,75 +370,73 @@ func (model Model) shutdownView(base string) string {
 }
 
 func (model Model) fixDialogPopup() string {
-	width := min(76, max(36, model.width-4))
+	width := min(76, max(24, model.width-4))
+	if model.height < 10 {
+		contentHeight := max(1, model.height-4) // border, title, and footer
+		content := model.fixDialogContent(width-4, contentHeight)
+		return style.TightPopup("FIX FILE", content, model.fixDialogFooter(), width)
+	}
 	contentHeight := max(4, min(12, model.height-7))
 	content := model.fixDialogContent(width-4, contentHeight)
 	return style.Popup("FIX FILE", content, model.fixDialogFooter(), width)
 }
 
-func (model Model) fixDialogFullScreen() string {
-	lines := []string{fixSurfaceLine("FIX FILE", model.width, style.SurfaceHeader, style.TextPrimary)}
-	lines = append(lines, model.fixDialogContent(model.width, max(1, model.height-2))...)
-	for len(lines) < model.height-1 {
-		lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
-	}
-	lines = append(lines, fixSurfaceLine(model.fixDialogFooter(), model.width, style.SurfaceFooter, style.TextMuted))
-	return joinScreenLines(lines[:model.height])
-}
-
 func (model Model) fixDialogFooter() string {
+	if model.fixDialog.choiceOpen {
+		if model.fixDialog.choiceField == fixFieldFocus {
+			return "Space toggle"
+		}
+		return "Enter select"
+	}
+	if model.fixDialog.starting {
+		return "Starting fix…"
+	}
+	if model.fixDialog.loading {
+		return ""
+	}
 	if !model.fixDialog.loading && !model.fixDialogRunnable() {
 		_, hasSettings := model.fixRemediationSettingsKind()
-		if model.fixDialog.cursor == fixFieldValidation {
-			if responsiveTier(model.width, model.height) == ResponsiveCompact {
-				return "←/→ plan · r recheck · s Settings · Esc"
-			}
-			return "←/→ choose validation plan · r recheck readiness · s remediation settings · Esc back"
-		}
-		if responsiveTier(model.width, model.height) == ResponsiveCompact {
-			if hasSettings {
-				return "r recheck · s Settings · Esc"
-			}
-			return "r recheck · Esc back"
-		}
 		if hasSettings {
-			return "r recheck readiness · s open remediation settings · Esc back"
+			return "R recheck · s settings"
 		}
-		return "Fix cannot run safely · r recheck · Esc back"
+		return "R recheck"
 	}
-	if responsiveTier(model.width, model.height) == ResponsiveCompact {
-		switch model.fixDialog.cursor {
-		case fixFieldFocus:
-			return "↑/↓ · ←/→ metric · Space · Esc"
-		case fixFieldBranch:
-			return "↑/↓ · Enter branch · Esc"
-		case fixFieldAdvanced:
-			return "↑/↓ · Enter edit · P preview · Esc"
-		case fixFieldRun:
-			return "↑/↓ · Enter run · Esc"
-		default:
-			return "↑/↓ · ←/→ change · Esc"
-		}
+	if model.fixDialog.branchEditing {
+		return "Enter apply"
 	}
-	switch model.fixDialog.cursor {
-	case fixFieldFocus:
-		return "←/→ metric · Space toggle · P preview · ↑/↓ fields · Esc back"
-	case fixFieldBranch:
-		return "Enter edit branch · P preview · ↑/↓ fields · Esc back"
-	case fixFieldAdvanced:
-		return "Enter detach/edit · P preview · ↑/↓ fields · Esc back"
-	case fixFieldRun:
-		return "Enter run fix · P preview · ↑/↓ fields · Esc back"
-	default:
-		return "←/→ change · P preview · ↑/↓ fields · Esc back"
+	return "r run"
+}
+
+func (model Model) fixTargetScoreEditorView(base string) string {
+	underlay := model.overlay(base, model.fixDialogPopup())
+	width := min(34, max(26, model.width-4))
+	input := model.fixDialog.score
+	style.ApplyTextInputStyle(&input, true)
+	input.Width = min(14, max(8, width-8))
+	field := style.InputField(input.View(), input.Width+2)
+	content := []string{"Score  " + field}
+	if model.fixDialog.scoreError != "" {
+		content = append(content, lipgloss.NewStyle().Foreground(style.AccentCritical).Background(style.SurfaceModal).Render(model.fixDialog.scoreError))
 	}
+	popup := style.Popup("TARGET SCORE", content, "Enter apply · Esc cancel", width)
+	if model.height < 9 {
+		popup = style.TightPopup("TARGET SCORE", content, "Enter apply · Esc cancel", width)
+	}
+	return model.overlay(underlay, popup)
 }
 
 func (model Model) fixDialogContent(width, height int) []string {
 	state := model.fixDialog
-	lines := []string{fixSurfaceLine("Target: "+state.target.String(), width, style.SurfaceModal, style.TextMuted)}
-	if state.loading || !state.hasDraft {
-		message := state.statusText
+	lines := []string{}
+	if height > 2 {
+		targetText := "Target: " + state.target.String()
+		if len(state.targetPaths()) > 1 {
+			targetText = "Targets: " + markedFilesLabel(len(state.targetPaths()))
+		}
+		lines = append(lines, fixSurfaceLine(targetText, width, style.SurfaceModal, style.TextMuted))
+	}
+	if state.loading || !state.hasInput {
+		message := "PREPARING ANALYSIS…"
 		if state.errorText != "" {
 			message = "Error: " + state.errorText
 		}
@@ -401,43 +444,34 @@ func (model Model) fixDialogContent(width, height int) []string {
 		return fitFixContent(lines, width, height)
 	}
 	status := state.statusText
-	if state.errorText != "" {
+	if state.starting {
+		status = "STARTING FIX…"
+	} else if state.errorText != "" {
 		status = "Error: " + state.errorText
-	} else if state.deliveryStale {
-		status = "Run disabled: delivery or branch changed · press r to recheck workspace and delivery readiness"
 	} else if !model.fixDialogRunnable() {
-		status = "Run disabled: " + fixPreflightSummary(state.draft)
+		status = "FIX BLOCKED · " + fixPreflightSummary(state.input)
+	} else if warning := fixPreflightWarning(state.input); warning != "" {
+		status = "READY WITH WARNING · " + warning
 	} else {
-		status = "Ready · " + fixRuntimeCapabilitySummary(state.draft)
+		status = "READY TO FIX"
 	}
-	statusLines := fixWrappedLines(status, width, min(3, max(1, height-len(lines)-1)), style.TextMuted)
+	statusColour := style.TextMuted
+	if !model.fixDialogRunnable() {
+		statusColour = style.AccentCritical
+	}
+	statusLines := fixWrappedLines(status, width, min(3, max(1, height-len(lines)-1)), statusColour)
 	fields := model.fixFieldRows(width)
 	available := max(1, height-len(lines)-len(statusLines))
-	start := min(max(0, state.cursor-available/2), max(0, len(fields)-available))
+	cursor := model.fixDialogCursorRow()
+	start := min(max(0, cursor-available/2), max(0, len(fields)-available))
 	end := min(len(fields), start+available)
 	lines = append(lines, fields[start:end]...)
 	lines = append(lines, statusLines...)
-	return fitFixContent(lines, width, height)
-}
-
-func fixRuntimeCapabilitySummary(draft fixapp.FixDraft) string {
-	isolation := draft.Probe.Capabilities.Isolation
-	confinement := "Confinement: NOT PROVEN"
-	if isolation.ProviderManagedCancellation && isolation.Writes >= agent.CandidateTreeEnforced {
-		confinement = "Confinement: provider workspace sandbox with per-job cancellation"
-	} else if isolation.EligibleForMutation() {
-		confinement = "Confinement: enforced for candidate/Git, reads, auth, and child processes"
+	lines = fitFixContent(lines, width, height)
+	if state.choiceOpen {
+		lines = model.overlayFixChoiceMenu(lines, width, height, start, end)
 	}
-	network := "Network: tools offline"
-	if draft.Probe.Capabilities.Network.ToolNetwork {
-		network = "Network: agent tools enabled"
-		if domains := draft.Probe.Capabilities.Network.ToolDomains; len(domains) > 0 {
-			network += " for " + strings.Join(domains, ",")
-		}
-	} else if draft.Probe.Capabilities.Network.TransportRequired {
-		network = "Network: provider transport only; agent tools offline"
-	}
-	return confinement + " · " + network
+	return lines
 }
 
 func fixWrappedLines(text string, width, maximum int, foreground lipgloss.Color) []string {
@@ -465,108 +499,365 @@ func fitFixContent(lines []string, width, height int) []string {
 
 func (model Model) fixFieldRows(width int) []string {
 	state := model.fixDialog
-	metrics := "-"
-	if len(state.metrics) > 0 {
-		parts := make([]string, len(state.metrics))
-		for index, id := range state.metrics {
-			mark := " "
-			if state.focus[id] {
-				mark = "x"
-			}
-			label := strings.ToUpper(string(id))
-			if index == state.metricCursor {
-				label = "<" + label + ">"
-			}
-			parts[index] = "[" + mark + "] " + label
-		}
-		metrics = strings.Join(parts, "  ")
+	values := model.fixFieldValues()
+	labels := map[int]string{
+		fixFieldTargetScore: "Target score", fixFieldFocus: "Metrics", fixFieldProfile: "Agent",
+		fixFieldModel: "Model", fixFieldEffort: "Effort", fixFieldScope: "May edit",
+		fixFieldWorkspace: "Work in", fixFieldGit: "Git", fixFieldPublish: "Publish", fixFieldBranch: "Branch name",
 	}
-	validation := state.draft.ValidationPlanID
-	if validation == "" {
-		validation = "none"
-	} else if !fixValidationRunnable(state.draft) {
-		validation += " · NOT RUNNABLE"
-	} else {
-		validation += " · ready"
-	}
-	branch := state.branch.Value()
-	if state.branchEditing {
-		branch = state.branch.View()
-	}
-	delegation := string(state.draft.Delegation)
-	if delegation == string(agent.DelegationSingle) {
-		delegation = "single agent"
-	}
-	advanced := "edit generated task body"
-	if state.detached {
-		advanced = "DETACHED · edit task body"
-	}
-	profile := state.draft.Profile.Label
-	if state.draft.Probe.Authentication.Label != "" {
-		profile += " · " + state.draft.Probe.Authentication.Label
-	}
-	values := []string{
-		fmt.Sprintf("Target SCORE  ≤ %.0f", state.draft.TargetScore),
-		"Focus metrics  " + metrics,
-		"Agent profile  " + profile,
-		"Model          " + string(state.draft.Model),
-		"Effort         " + string(state.draft.Effort),
-		"Delegation     " + delegation,
-		"Change scope   " + state.draft.ChangeScope,
-		"Validation     " + validation,
-		"Delivery       " + string(state.draft.DeliveryMode),
-		"Branch         " + branch,
-		"Advanced       " + advanced + " (safety envelope locked)",
-		"Run fix",
-	}
-	rows := make([]string, len(values))
-	for index, value := range values {
+	fields := model.fixVisibleFields()
+	rows := make([]string, 0, len(fields))
+	for _, field := range fields {
+		value := values[field]
 		prefix := "  "
-		if index == state.cursor {
+		if field == state.cursor {
 			prefix = "› "
 		}
-		background := style.SelectionSurface(index == state.cursor)
-		foreground := style.TextPrimary
-		if index == fixFieldRun && !model.fixDialogRunnable() {
-			foreground = style.TextMuted
+		selected := field == state.cursor
+		if model.fixFieldEditable(field) {
+			rows = append(rows, style.FormFieldRow(prefix+labels[field], value, width, 18, selected, fixChoiceField(field)))
+		} else {
+			rows = append(rows, fixSurfaceLine(prefix+fmt.Sprintf("%-16s", labels[field])+value, width, style.SelectionSurface(selected), style.TextPrimary))
 		}
-		rows[index] = fixSurfaceLine(prefix+value, width, background, foreground)
 	}
 	return rows
 }
 
-func fixDraftRunnable(draft fixapp.FixDraft) bool {
-	return draft.Preflight.Clean && draft.Preflight.Supported && draft.Probe.State == agent.ProbeReady &&
-		draft.Probe.Capabilities.Isolation.EligibleForMutation() &&
-		fixOptionContains(draft.Probe.Capabilities.Models, draft.Model) &&
-		fixOptionContains(draft.Probe.Capabilities.Efforts, draft.Effort) &&
-		fixOptionContains(draft.Probe.Capabilities.Delegation, draft.Delegation) &&
-		(draft.DeliveryMode != "pull-request" || !draft.Preferences.Delivery.RequireValidation || strings.TrimSpace(draft.ValidationPlanID) != "") &&
-		fixValidationRunnable(draft) &&
-		(draft.DeliveryMode == "candidate" || strings.TrimSpace(draft.BranchName) != "")
+func (model Model) fixFieldValues() map[int]string {
+	state := model.fixDialog
+	branch := state.branch.Value()
+	if state.branchEditing {
+		input := state.branch
+		style.ApplyTextInputStyle(&input, true)
+		branch = input.View()
+	}
+	targetScore := formatTargetScore(state.input.TargetScore)
+	return map[int]string{
+		fixFieldTargetScore: "≤ " + targetScore,
+		fixFieldFocus:       model.fixMetricSelectionLabel(),
+		fixFieldProfile:     model.fixAgentLabel(),
+		fixFieldModel:       agentOptionLabel(state.input.Probe.Capabilities.Models, state.input.Model),
+		fixFieldEffort:      agentOptionLabel(state.input.Probe.Capabilities.Efforts, state.input.Effort),
+		fixFieldScope:       changeScopeLabel(state.input.ChangeScope),
+		fixFieldWorkspace:   workspaceModeLabel(state.input.DeliveryPlan.Workspace),
+		fixFieldGit:         gitModeLabel(state.input.DeliveryPlan.Git),
+		fixFieldPublish:     publishModeLabel(state.input.DeliveryPlan.Publish),
+		fixFieldBranch:      branch,
+	}
 }
 
-func fixValidationPlanAvailable(draft fixapp.FixDraft) bool {
-	if draft.ValidationPlanID == "" {
-		return true
+func (model Model) overlayFixChoiceMenu(lines []string, width, height, fieldStart, fieldEnd int) []string {
+	state := model.fixDialog
+	fields := model.fixVisibleFields()
+	fieldRow := fixFieldPosition(fields, state.choiceField)
+	if fieldRow < fieldStart || fieldRow >= fieldEnd {
+		return lines
 	}
-	for _, plan := range draft.Preferences.Validation {
-		if plan.ID == draft.ValidationPlanID && len(plan.Checks) > 0 {
-			return true
+	fieldOffset := 0
+	if height > 2 {
+		fieldOffset = 1 // target row
+	}
+	anchorRow := fieldOffset + fieldRow - fieldStart
+	if height <= 0 {
+		return lines
+	}
+	menu := model.fixChoiceMenu(width, height, 1)
+	if len(menu) == 0 {
+		return lines
+	}
+	// Start at the field and shift upward only when needed. The menu may cover
+	// form rows in either direction, but never the dialog border.
+	menuTop := min(anchorRow, max(0, height-len(menu)))
+	minimumWidth := 1
+	values := model.fixFieldValues()
+	for row := menuTop; row < menuTop+len(menu); row++ {
+		position := fieldStart + row - fieldOffset
+		if row < fieldOffset || position < 0 || position >= len(fields) {
+			continue
+		}
+		field := fields[position]
+		fieldWidth := lipgloss.Width(values[field])
+		if fixChoiceField(field) {
+			fieldWidth++
+		}
+		minimumWidth = max(minimumWidth, fieldWidth)
+	}
+	menu = model.fixChoiceMenu(width, height, minimumWidth)
+	menuLeft := min(18, max(0, width-lipgloss.Width(menu[0])))
+	return overlayFixLines(lines, menu, menuLeft, menuTop, width, height)
+}
+
+func (model Model) fixChoiceMenu(maximumWidth, maximumHeight, minimumWidth int) []string {
+	choices := model.fixChoices(model.fixDialog.choiceField)
+	return formChoiceMenu(choices, model.fixDialog.choiceCursor, model.fixDialog.choiceField == fixFieldFocus, maximumWidth, maximumHeight, minimumWidth)
+}
+
+func formChoiceMenu(choices []fixDialogChoice, cursor int, multi bool, maximumWidth, maximumHeight, minimumWidth int) []string {
+	if len(choices) == 0 || maximumWidth <= 0 || maximumHeight <= 0 {
+		return nil
+	}
+	desiredInnerWidth := 1
+	for _, choice := range choices {
+		mark := "○"
+		if choice.selected {
+			mark = "●"
+		}
+		if multi {
+			mark = "[ ]"
+			if choice.selected {
+				mark = "[x]"
+			}
+		}
+		desiredInnerWidth = max(desiredInnerWidth, lipgloss.Width("›↓ "+mark+" "+choice.label))
+	}
+
+	bordered := maximumHeight >= 3 && maximumWidth >= 5
+	borderWidth := 0
+	if bordered {
+		borderWidth = 2
+	}
+	innerWidth := max(1, min(max(desiredInnerWidth, minimumWidth-borderWidth), maximumWidth-borderWidth))
+	visibleRows := min(len(choices), maximumHeight-borderWidth)
+	if visibleRows <= 0 {
+		return nil
+	}
+	start := min(max(0, cursor-visibleRows/2), max(0, len(choices)-visibleRows))
+	end := start + visibleRows
+	rows := make([]string, 0, visibleRows)
+	for index := start; index < start+visibleRows; index++ {
+		choice := choices[index]
+		active := index == cursor
+		mark := "○"
+		if choice.selected {
+			mark = "●"
+		}
+		if multi {
+			mark = "[ ]"
+			if choice.selected {
+				mark = "[x]"
+			}
+		}
+		prefix := "  "
+		if active {
+			prefix = "› "
+		}
+		moreAbove := index == start && start > 0
+		moreBelow := index == end-1 && end < len(choices)
+		switch {
+		case moreAbove && moreBelow:
+			prefix = " ↕ "
+			if active {
+				prefix = "›↕ "
+			}
+		case moreAbove:
+			prefix = " ↑ "
+			if active {
+				prefix = "›↑ "
+			}
+		case moreBelow:
+			prefix = " ↓ "
+			if active {
+				prefix = "›↓ "
+			}
+		}
+		foreground := style.TextPrimary
+		if choice.disabled {
+			foreground = style.TextMuted
+		}
+		background := style.SurfaceField
+		if active {
+			background = style.SurfaceFieldActive
+		}
+		text := ansi.Truncate(prefix+mark+" "+choice.label, innerWidth, "")
+		rows = append(rows, lipgloss.NewStyle().Width(innerWidth).Background(background).Foreground(foreground).Bold(active).Render(text))
+	}
+	if !bordered {
+		return rows
+	}
+	menu := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(style.AccentInfo).
+		Background(style.SurfaceField).
+		Render(strings.Join(rows, "\n"))
+	return strings.Split(menu, "\n")
+}
+
+func overlayFixLines(base, overlay []string, left, top, width, height int) []string {
+	result := append([]string(nil), base...)
+	for len(result) < height {
+		result = append(result, fixSurfaceLine("", width, style.SurfaceModal, style.TextPrimary))
+	}
+	for index, overlayLine := range overlay {
+		row := top + index
+		if row < 0 || row >= min(height, len(result)) || left >= width {
+			continue
+		}
+		baseLine := padANSI(result[row], width)
+		overlayWidth := min(lipgloss.Width(overlayLine), width-left)
+		if overlayWidth <= 0 {
+			continue
+		}
+		result[row] = ansi.Cut(baseLine, 0, left) +
+			ansi.Cut(padANSI(overlayLine, overlayWidth), 0, overlayWidth) +
+			ansi.Cut(baseLine, left+overlayWidth, width)
+	}
+	return result[:min(height, len(result))]
+}
+
+func (model Model) fixFieldEditable(field int) bool {
+	state := model.fixDialog
+	switch field {
+	case fixFieldTargetScore, fixFieldFocus, fixFieldScope, fixFieldWorkspace, fixFieldGit, fixFieldPublish, fixFieldBranch:
+		return true
+	case fixFieldProfile:
+		return len(state.input.Preferences.Profiles) > 1
+	case fixFieldModel:
+		return len(state.input.Probe.Capabilities.Models) > 0
+	case fixFieldEffort:
+		return len(state.input.Probe.Capabilities.Efforts) > 1
+	default:
+		return false
+	}
+}
+
+func (model Model) fixMetricSelectionLabel() string {
+	state := model.fixDialog
+	labels := make([]string, 0, len(state.metrics))
+	for _, id := range state.metrics {
+		if state.focus[id] {
+			labels = append(labels, fixMetricLabel(id))
 		}
 	}
-	return false
-}
-
-func fixValidationRunnable(draft fixapp.FixDraft) bool {
-	if draft.ValidationPlanID == "" {
-		return !draft.ValidationReadiness.Required
+	if len(labels) == 0 {
+		return "none"
 	}
-	return fixValidationPlanAvailable(draft) && draft.ValidationReadiness.Required && draft.ValidationReadiness.Ready
+	if len(labels) <= 2 {
+		return strings.Join(labels, ", ")
+	}
+	return fmt.Sprintf("%s + %d", labels[0], len(labels)-1)
 }
 
-func fixValidationNeedsRepair(draft fixapp.FixDraft) bool {
-	return (draft.DeliveryMode == fix.DeliveryModePullRequest && draft.Preferences.Delivery.RequireValidation && strings.TrimSpace(draft.ValidationPlanID) == "") || !fixValidationRunnable(draft)
+func (model Model) fixDialogCursorRow() int {
+	return fixFieldPosition(model.fixVisibleFields(), model.fixDialog.cursor)
+}
+
+func (model Model) fixVisibleFields() []int {
+	state := model.fixDialog
+	fields := []int{fixFieldTargetScore}
+	if len(state.metrics) > 0 {
+		fields = append(fields, fixFieldFocus)
+	}
+	fields = append(fields, fixFieldProfile, fixFieldModel, fixFieldEffort)
+	fields = append(fields, fixFieldScope)
+	fields = append(fields, fixFieldWorkspace, fixFieldGit)
+	if state.input.DeliveryPlan.Git != fix.GitLeaveUncommitted {
+		fields = append(fields, fixFieldPublish)
+	}
+	if state.input.DeliveryPlan.Git == fix.GitCommitNewBranch {
+		fields = append(fields, fixFieldBranch)
+	}
+	return fields
+}
+
+func fixFieldPosition(fields []int, field int) int {
+	for index, candidate := range fields {
+		if candidate == field {
+			return index
+		}
+	}
+	return 0
+}
+
+func (model Model) fixAgentLabel() string {
+	profile := model.fixDialog.input.Profile
+	if model.profileCatalog != nil {
+		if descriptor, err := model.profileCatalog.Descriptor(profile.Runtime); err == nil && descriptor.Label != "" {
+			return cleanAgentText(descriptor.Label)
+		}
+	}
+	switch profile.Runtime {
+	case "codex-cli":
+		return "Codex"
+	case "openai-responses":
+		return "OpenAI API"
+	}
+	label := cleanAgentText(profile.Label)
+	for _, separator := range []string{" —", " ·", " ("} {
+		if before, _, found := strings.Cut(label, separator); found {
+			label = before
+		}
+	}
+	return nonemptySetting(label, string(profile.ID))
+}
+
+func agentOptionLabel[T ~string](options []agent.Option[T], selected T) string {
+	if selected == "" {
+		return "Default"
+	}
+	for _, option := range options {
+		if option.ID == selected {
+			return nonemptySetting(cleanAgentText(option.Label), string(option.ID))
+		}
+	}
+	return string(selected)
+}
+
+func changeScopeLabel(value string) string {
+	switch value {
+	case "targets-only":
+		return "Selected files"
+	case "repository":
+		return "Any file in the project"
+	default:
+		return "Selected files + related tests"
+	}
+}
+
+func workspaceModeLabel(value fix.WorkspaceMode) string {
+	switch value {
+	case fix.WorkspaceWorktree:
+		return "Separate worktree"
+	default:
+		return "Current files"
+	}
+}
+
+func gitModeLabel(value fix.GitMode) string {
+	switch value {
+	case fix.GitCommitCurrent:
+		return "Commit current branch"
+	case fix.GitCommitNewBranch:
+		return "Commit new branch"
+	default:
+		return "Leave uncommitted"
+	}
+}
+
+func publishModeLabel(value fix.PublishMode) string {
+	switch value {
+	case fix.PublishPush:
+		return "Push"
+	case fix.PublishPullRequest:
+		return "Open pull request"
+	default:
+		return "Keep local"
+	}
+}
+
+func fixMetricLabel(id fix.MetricID) string {
+	if id == "score" {
+		return "SCORE"
+	}
+	definition, ok := scoring.MetricDefinitionByID(scoring.MetricID(id))
+	if ok && definition.ComponentID != "" {
+		if component, found := scoring.ComponentByID(definition.ComponentID); found {
+			return component.Label
+		}
+	}
+	if id == fix.MetricID(scoring.MetricTypeSafety) {
+		return "Type safety"
+	}
+	return strings.ToUpper(string(id))
 }
 
 func fixOptionContains[T ~string](options []agent.Option[T], wanted T) bool {
@@ -578,116 +869,79 @@ func fixOptionContains[T ~string](options []agent.Option[T], wanted T) bool {
 	return false
 }
 
-func fixPreflightSummary(draft fixapp.FixDraft) string {
-	if !draft.Preflight.Supported || !draft.Preflight.Clean {
-		if draft.Preflight.Diagnostic != "" {
-			return cleanAgentText(draft.Preflight.Diagnostic)
-		}
-		return "workspace preflight failed"
+func fixPreflightSummary(input fixapp.FixInput) string {
+	if warning := fixPreflightWarning(input); warning != "" {
+		return warning
 	}
-	diagnostic := cleanAgentText(draft.Probe.Diagnostic)
+	return "the input is incomplete"
+}
+
+func fixPreflightWarning(input fixapp.FixInput) string {
+	if input.DeliveryPlan.Git == fix.GitCommitNewBranch && strings.TrimSpace(input.BranchName) == "" {
+		return "enter a branch name"
+	}
+	if input.DeliveryPlan.Git != fix.GitLeaveUncommitted && input.Workspace.GitCommonDir == "" {
+		return "this folder is not a Git repository; choose Leave uncommitted"
+	}
+	if input.DeliveryPlan.Workspace == fix.WorkspaceWorktree && input.DeliveryPlan.Git == fix.GitCommitCurrent {
+		return "choose Current files to commit the current branch"
+	}
+	if input.DeliveryPlan.Git == fix.GitCommitCurrent && input.Workspace.CurrentBranch == "" {
+		return "Git has no current branch; leave changes uncommitted or create a new branch"
+	}
+	diagnostic := cleanAgentText(input.Probe.Diagnostic)
 	suffix := ""
 	if diagnostic != "" {
 		suffix = " · " + diagnostic
 	}
-	switch draft.Probe.State {
+	switch input.Probe.State {
+	case "":
+		return ""
 	case agent.ProbeUnauthenticated:
-		return "agent is unauthenticated — open Settings › Agents, repair authorization, then Test" + suffix
+		return "agent appears unauthenticated; the job will attempt to connect at runtime" + suffix
 	case agent.ProbeUnavailable, agent.ProbeIncompatible:
-		return fmt.Sprintf("agent is %s — open Settings › Agents, repair the profile, then Test%s", draft.Probe.State, suffix)
+		return fmt.Sprintf("agent appears %s; the job will attempt to start it at runtime%s", input.Probe.State, suffix)
 	case agent.ProbeDegraded:
-		if !draft.Probe.Capabilities.Isolation.EligibleForMutation() {
-			return "runtime confinement is unsupported; this build cannot run fixes safely and Settings cannot enable it" + suffix
-		}
-		return "agent is degraded and cannot run fixes" + suffix
+		return "agent readiness is degraded; the job will report any concrete runtime failure" + suffix
 	default:
-		if draft.Probe.State != agent.ProbeReady {
-			return fmt.Sprintf("agent is %s and cannot run fixes%s", draft.Probe.State, suffix)
+		if input.Probe.State != agent.ProbeReady {
+			return fmt.Sprintf("agent readiness is %s; the job will attempt to start it at runtime%s", input.Probe.State, suffix)
 		}
 	}
-	if !draft.Probe.Capabilities.Isolation.EligibleForMutation() {
-		return "runtime confinement is unsupported; this build cannot run fixes safely and Settings cannot enable it"
+	if !input.Probe.Capabilities.Isolation.EligibleForMutation() {
+		return fixAgentName(input) + " did not report the configured isolation capabilities"
 	}
-	if !fixOptionContains(draft.Probe.Capabilities.Models, draft.Model) ||
-		!fixOptionContains(draft.Probe.Capabilities.Efforts, draft.Effort) ||
-		!fixOptionContains(draft.Probe.Capabilities.Delegation, draft.Delegation) {
-		return "selected model, effort, or delegation is unavailable — repair Settings › Fix defaults"
+	if !fixOptionContains(input.Probe.Capabilities.Models, input.Model) ||
+		!fixOptionContains(input.Probe.Capabilities.Efforts, input.Effort) {
+		return "selected model or effort was not reported by the readiness probe"
 	}
-	if draft.DeliveryMode != "candidate" && strings.TrimSpace(draft.BranchName) == "" {
-		return "branch name is required — repair Settings › Git & pull requests"
-	}
-	if draft.DeliveryMode == "pull-request" && draft.Preferences.Delivery.RequireValidation && strings.TrimSpace(draft.ValidationPlanID) == "" {
-		if len(draft.Preferences.Validation) == 0 {
-			return "pull-request delivery is configured to require validation, but no trusted plans are configured · add one in preferences, then press r"
-		}
-		return "pull-request delivery requires a ready validation plan — select one in Settings › Validation"
-	}
-	if !fixValidationPlanAvailable(draft) {
-		for _, plan := range draft.Preferences.Validation {
-			if plan.ID == draft.ValidationPlanID && len(plan.Checks) == 0 {
-				return fmt.Sprintf("validation plan %q is unavailable: it has no trusted checks · repair the installation-owned validation configuration, then press r", draft.ValidationPlanID)
-			}
-		}
-		if len(draft.Preferences.Validation) == 0 {
-			return fmt.Sprintf("validation plan %q is unavailable because no installation-owned validation plans are configured · add a trusted plan in installation preferences, then press r", draft.ValidationPlanID)
-		}
-		return fmt.Sprintf("validation plan %q is unavailable — select a configured plan in Settings › Validation", draft.ValidationPlanID)
-	}
-	if !fixValidationRunnable(draft) {
-		diagnostic := cleanAgentText(draft.ValidationReadiness.Diagnostic)
-		if diagnostic == "" {
-			diagnostic = "validation confinement or executable readiness was not proven"
-		}
-		return fmt.Sprintf("validation plan %q is NOT RUNNABLE · %s · choose a ready plan or none", draft.ValidationPlanID, diagnostic)
-	}
-	return "ready"
+	return ""
 }
 
-func (model Model) promptEditorView() string {
+func fixAgentName(input fixapp.FixInput) string {
+	if label := cleanAgentText(input.Profile.Label); label != "" {
+		return label
+	}
+	if runtime := cleanAgentText(string(input.Profile.Runtime)); runtime != "" {
+		return runtime
+	}
+	return "The selected agent"
+}
+
+func (model Model) masterPromptEditorView() string {
 	width, height := model.width, model.height
 	if width <= 0 || height <= 0 {
 		return ""
 	}
-	editor := model.fixDialog.prompt
-	editorValue := editor.Value()
-	if model.fixDialog.promptPreview {
-		document := model.fixDialog.draft.Instructions
-		if model.fixDialog.detached {
-			document.DetachedBody = editorValue
-		}
-		editorValue = document.EffectiveBody()
-	}
-	editor.SetValue(cleanEditorText(editorValue))
-	editor.SetWidth(max(1, width))
-	editor.SetHeight(max(1, height-2))
-	title := "ADVANCED TASK BODY · safety envelope locked"
-	footer := "Ctrl-S apply · Esc back"
-	if model.fixDialog.promptPreview {
-		title = "EFFECTIVE PROMPT PREVIEW · locked envelope included"
-		footer = "e detach/edit · Esc back"
-	} else if !model.fixDialog.detached {
-		footer = "Ctrl-S detach+apply (confirmation required) · Esc back"
-	} else if model.fixDialog.promptResetPending {
-		footer = "R again reset from controls · Ctrl-S apply · Esc back"
-	} else {
-		footer = "Ctrl-S apply · R reset from controls · Esc back"
-	}
-	if responsiveTier(model.width, model.height) == ResponsiveCompact {
-		if model.fixDialog.promptPreview {
-			footer = "e detach/edit · Esc back"
-		} else if model.fixDialog.detached {
-			if model.fixDialog.promptResetPending {
-				footer = "R again reset · Esc back"
-			} else {
-				footer = "Ctrl-S apply · R reset · Esc back"
-			}
-		} else {
-			footer = "Ctrl-S detach · Esc back"
-		}
-	}
+	errorText := cleanAgentText(model.configSettings.promptError)
+	title := "MASTER AGENT PROMPT"
+	footer := "Ctrl-S done · Esc cancel"
 	lines := []string{fixSurfaceLine(title, width, style.SurfaceHeader, style.TextPrimary)}
-	for _, line := range strings.Split(editor.View(), "\n") {
-		lines = append(lines, fixSurfaceLineANSI(line, width, style.SurfaceModal))
+	for _, line := range strings.Split(model.configSettings.prompt.View(), "\n") {
+		lines = append(lines, fixSurfaceLineANSI(line, width, style.SurfaceFieldActive))
+	}
+	if errorText != "" {
+		lines = append(lines, fixSurfaceLine(errorText, width, style.SurfaceModal, style.AccentCritical))
 	}
 	for len(lines) < height-1 {
 		lines = append(lines, fixSurfaceLine("", width, style.SurfaceModal, style.TextPrimary))
@@ -709,7 +963,7 @@ func (model Model) confirmationPopup() string {
 	}
 	footer := "Enter confirm · Esc stay"
 	if !state.allowed {
-		footer = "Esc back · action unavailable"
+		footer = "Esc back · cancel unavailable"
 	}
 	return style.Popup("CONFIRM "+strings.ToUpper(jobActionLabel(state.action)), content, footer, min(68, max(32, model.width-4)))
 }
@@ -736,115 +990,28 @@ func (model Model) confirmationFullScreen() string {
 	}
 	footer := "Enter confirm · Esc stay"
 	if !model.cancelConfirmation.allowed {
-		footer = "Esc back · action unavailable"
+		footer = "Esc back · cancel unavailable"
 	}
 	lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
 	return joinScreenLines(lines[:model.height])
 }
 
-func (model Model) jobActionsPopup() string {
-	width := min(64, max(36, model.width-4))
-	content := model.jobActionsContent(width-4, max(3, min(12, model.height-7)))
-	return style.Popup("JOB ACTIONS", content, "↑/↓ choose · Enter run · Esc back", width)
-}
-
-func (model Model) jobActionsFullScreen() string {
-	lines := []string{fixSurfaceLine("JOB ACTIONS", model.width, style.SurfaceHeader, style.TextPrimary)}
-	lines = append(lines, model.jobActionsContent(model.width, max(1, model.height-2))...)
-	for len(lines) < model.height-1 {
-		lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
-	}
-	lines = append(lines, fixSurfaceLine("↑/↓ choose · Enter run · Esc back", model.width, style.SurfaceFooter, style.TextMuted))
-	return joinScreenLines(lines[:model.height])
-}
-
-func (model Model) jobActionsContent(width, height int) []string {
-	state := model.jobActions
-	lines := []string{fixSurfaceLine("Job: "+string(state.jobID), width, style.SurfaceModal, style.TextMuted)}
-	if len(state.actions) == 0 {
-		lines = append(lines, fixSurfaceLine("No actions are allowed in the current phase", width, style.SurfaceModal, style.TextMuted))
-	} else {
-		for index, action := range state.actions {
-			prefix := "  "
-			if index == state.cursor {
-				prefix = "› "
-			}
-			label := jobActionLabel(action)
-			if jobActionRequiresConfirmation(action) {
-				label += " · confirms"
-			}
-			lines = append(lines, fixSurfaceLine(prefix+label, width, style.SelectionSurface(index == state.cursor), style.TextPrimary))
-		}
-	}
-	status := "Only currently allowed actions are shown"
-	if state.pending {
-		status = "Applying action…"
-	}
-	if state.errorText != "" {
-		status = "Error: " + state.errorText
-	}
-	lines = append(lines, fixSurfaceLine(status, width, style.SurfaceModal, style.TextMuted))
-	return fitFixContent(lines, width, height)
-}
-
 func jobActionLabel(action fix.JobAction) string {
-	switch action {
-	case fix.ActionRetry:
-		return "Retry"
-	case fix.ActionResume:
-		return "Resume"
-	case fix.ActionPublish:
-		return "Publish"
-	case fix.ActionKeep:
-		return "Keep candidate"
-	case fix.ActionArchive:
-		return "Archive"
-	case fix.ActionDiscard:
-		return "Discard candidate"
-	case fix.ActionCleanup:
-		return "Cleanup candidate"
-	case fix.ActionCancel:
+	if action == fix.ActionCancel {
 		return "Cancel"
-	case fix.ActionAcknowledgeConflict:
-		return "Acknowledge conflict"
-	default:
-		return cleanAgentText(string(action))
 	}
+	return cleanAgentText(string(action))
 }
 
 func jobActionConfirmationQuestion(action fix.JobAction) string {
-	switch action {
-	case fix.ActionPublish:
-		return "Publish this independently verified candidate?"
-	case fix.ActionDiscard:
-		return "Permanently discard this candidate and its uncommitted changes?"
-	case fix.ActionCleanup:
-		return "Permanently clean up this retained candidate?"
-	case fix.ActionCancel:
+	if action == fix.ActionCancel {
 		return "Cancel only this job?"
-	default:
-		return "Apply " + strings.ToLower(jobActionLabel(action)) + "?"
 	}
+	return "Apply " + strings.ToLower(jobActionLabel(action)) + "?"
 }
 
 func jobActionOutcomeLines(state cancelConfirmation) []string {
-	if state.action != fix.ActionPublish {
-		return nil
-	}
-	mode := cleanAgentText(string(state.deliveryMode))
-	if mode == "" {
-		mode = "configured delivery"
-	}
-	outcome := "Outcome: create an exact commit and branch"
-	if strings.Contains(strings.ToLower(mode), "pull") || strings.Contains(strings.ToLower(mode), "pr") {
-		outcome = "Outcome: create a pull request via an exact commit and branch"
-	}
-	lines := []string{"Delivery: " + mode}
-	if state.branchName != "" {
-		lines = append(lines, "Branch: "+cleanAgentText(state.branchName))
-	}
-	lines = append(lines, outcome)
-	return lines
+	return nil
 }
 
 func fixSurfaceLine(text string, width int, background, foreground lipgloss.Color) string {

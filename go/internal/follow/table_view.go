@@ -70,7 +70,7 @@ func freshnessStatusForFiles(files []report.File) string {
 
 func (model Model) findFooter(width int) string {
 	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
-	input := model.findInput.View()
+	input := style.InputField(model.findInput.View(), max(8, min(24, width/3)))
 	text := background.Render(" FIND "+input+"  ") + hintRow(style.SurfaceFooter,
 		hintItem{"ENTER", "find"},
 		hintItem{"ESC", "cancel"},
@@ -97,9 +97,13 @@ func (model Model) selectedFile() (report.File, bool) {
 
 func footer(model Model) string {
 	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
-	screenItems := [][2]string{{"o", "sort"}, {"r", "rescan"}, {"v", "view"}, {"i", "info"}}
+	markLabel := "mark"
+	if model.marking {
+		markLabel = "done"
+	}
+	screenItems := [][2]string{{"m", markLabel}, {"M", "clear"}, {"o", "sort"}, {"v", "view"}, {"i", "info"}}
 	if model.width >= 36 {
-		screenItems = append([][2]string{{"Tab", "agents"}, {"x", "fix"}}, screenItems...)
+		screenItems = append(screenItems[:2], append([][2]string{{"Tab", "agents"}, {"x", "fix"}}, screenItems[2:]...)...)
 	}
 	generalItems := [][2]string{{"f", "find"}, {"n", "next"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
 	screenFunctions := footerItems(screenItems)
@@ -141,7 +145,6 @@ type column struct {
 
 var columnDefinitions = []column{
 	{"score", "SCORE", "overall score", 8, true, true, false, 1},
-	{"fix", "FIX", "fix job state", 4, false, true, false, 0},
 	{"cog", "COG", "cognitive", 6, false, true, true, -1},
 	{"npath", "NPATH", "execution path complexity", 8, false, true, true, -2},
 	{"cyclo", "CYCLO", "cyclomatic complexity", 7, false, true, true, -3},
@@ -195,7 +198,7 @@ func activeColumns(model Model) []column {
 }
 
 func headerColumns(model Model) []column {
-	columns := []column{columnDefinitions[0], columnDefinitions[1]}
+	columns := []column{columnDefinitions[0]}
 	if !model.options.Compact {
 		columns = append(columns, model.activeColumns()...)
 	}
@@ -273,7 +276,7 @@ func fitHeader(model Model, heading, fileCount string) (string, string) {
 
 func header(model Model) string {
 	columns := headerColumns(model)
-	heading := headerSortSuffix(model, buildHeader(model, columns))
+	heading := strings.Repeat(" ", model.markColumnWidth()) + headerSortSuffix(model, buildHeader(model, columns))
 	fileCount := "FILES: " + formatIntegerWithCommas(len(model.document.Files))
 	heading, fileCount = fitHeader(model, heading, fileCount)
 	usableWidth := max(0, model.width-1)

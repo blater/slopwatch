@@ -41,6 +41,7 @@ func (UnitScopePlanner) Plan(ctx context.Context, workspace fix.WorkspaceIdentit
 		prefix = filepath.ToSlash(relRoot) + "/"
 	}
 	analysisTargets := make([]string, len(targets))
+	targetSet := make(map[string]bool, len(targets))
 	for i, target := range targets {
 		value := target.String()
 		if prefix != "" {
@@ -50,6 +51,7 @@ func (UnitScopePlanner) Plan(ctx context.Context, workspace fix.WorkspaceIdentit
 			value = strings.TrimPrefix(value, prefix)
 		}
 		analysisTargets[i] = value
+		targetSet[value] = true
 	}
 	plan, err := unitplan.PlanWorkspace(workspace.AnalysisRoot, unitplan.Options{Targets: analysisTargets})
 	if err != nil {
@@ -58,10 +60,9 @@ func (UnitScopePlanner) Plan(ctx context.Context, workspace fix.WorkspaceIdentit
 	targetUnits := map[string]bool{}
 	for _, unit := range plan.Units {
 		for _, source := range unit.Sources {
-			for _, target := range analysisTargets {
-				if source == target {
-					targetUnits[unit.ID] = true
-				}
+			if targetSet[source] {
+				targetUnits[unit.ID] = true
+				break
 			}
 		}
 	}

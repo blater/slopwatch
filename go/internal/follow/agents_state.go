@@ -72,7 +72,7 @@ func (model Model) visibleAgentJobs() []fix.JobPresentation {
 		if job.Phase == fix.PhaseDiscarded {
 			continue
 		}
-		if !model.agents.ShowAll && (job.Phase == fix.PhaseCompleted || job.Phase == fix.PhaseArchived) {
+		if !model.agents.ShowAll && (job.Phase == fix.PhaseCompleted || job.Phase == fix.PhaseCanceled) {
 			continue
 		}
 		if query != "" && !agentJobMatches(job, query) {
@@ -195,24 +195,31 @@ func agentJobPriority(job fix.JobPresentation) int {
 	switch job.Attention {
 	case fix.AttentionBlocking:
 		return 0
-	case fix.AttentionRequired:
+	case fix.AttentionError:
 		return 1
 	}
 	switch job.Phase {
-	case fix.PhaseAwaitingAction:
+	case fix.PhaseFailed:
 		return 2
-	case fix.PhaseAwaitingReview:
-		return 3
 	case fix.PhaseVerifying, fix.PhaseWaitingVerifier:
 		return 4
 	case fix.PhaseRunning, fix.PhaseCanceling, fix.PhasePublishing, fix.PhaseReconciling:
 		return 5
-	case fix.PhaseAdmitted, fix.PhaseQueued, fix.PhasePreflight, fix.PhasePreparing:
+	case fix.PhaseQueued, fix.PhasePreflight, fix.PhasePreparing:
 		return 6
 	case fix.PhaseCompleted:
 		return 7
 	default:
 		return 8
+	}
+}
+
+func agentJobFinished(phase fix.Phase) bool {
+	switch phase {
+	case fix.PhaseFailed, fix.PhaseCompleted, fix.PhaseCanceled, fix.PhaseDiscarded:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -354,19 +361,15 @@ func (model *Model) clampAgentHorizontalOffset() {
 }
 
 func (model Model) maximumAgentHorizontalOffset() int {
-	viewport := max(1, model.width-4)
 	maximum := 0
+	tier := responsiveTier(model.width, model.height)
 	for _, row := range model.agentRows() {
 		if row.File == nil {
 			continue
 		}
-		pathWidth := lipgloss.Width(cleanAgentText(row.File.Path.String())) + 3
-		metricWidth := lipgloss.Width(agentFileMetrics(*row.File)) + 3
-		contentWidth := max(pathWidth, metricWidth)
-		if responsiveTier(model.width, model.height) != ResponsiveCompact {
-			contentWidth = pathWidth + metricWidth
-		}
-		maximum = max(maximum, contentWidth-viewport)
+		path := agentFileDisplayPath(*row.File)
+		viewport := model.agentFilePathViewport(*row.File, tier, model.width)
+		maximum = max(maximum, lipgloss.Width(path)-viewport)
 	}
 	return maximum
 }

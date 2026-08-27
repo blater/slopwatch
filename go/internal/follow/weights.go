@@ -130,14 +130,13 @@ type settingsItem struct {
 }
 
 var settingsItems = []settingsItem{
+	{key: "agents", label: "Agents"},
 	{key: "appearance", label: "Appearance"},
 	{key: "columns", label: "Columns"},
-	{key: "weights", label: "Weights"},
-	{key: "agents", label: "Agents"},
+	{key: "concurrency", label: "Concurrency"},
 	{key: "fix", label: "Fix defaults"},
-	{key: "concurrency", label: "Concurrency & retention"},
-	{key: "validation", label: "Validation"},
 	{key: "delivery", label: "Git & pull requests"},
+	{key: "weights", label: "Weights"},
 }
 
 func settingsIndex(key string) int {
@@ -179,7 +178,7 @@ func openSetting(model *Model, key string) tea.Cmd {
 		model.weightsOpen = true
 		model.weightCursor = 0
 		model.weightsResetConfirm = false
-	case "agents", "fix", "concurrency", "validation", "delivery":
+	case "agents", "fix", "concurrency", "delivery":
 		return model.openConfigSettings(configSettingsKind(key))
 	}
 	return nil
@@ -197,6 +196,10 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		}
 		return model, nil
 	}
+	if isToggleKey(name) {
+		model.toggleWeight()
+		return model, model.syncTypeScriptTypes()
+	}
 	switch name {
 	case "esc", "escape", "q":
 		model.weightsOpen = false
@@ -213,12 +216,9 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "r":
 		model.resetWeight()
 		return model, model.syncTypeScriptTypes()
-	case " ":
-		model.toggleWeight()
-		return model, model.syncTypeScriptTypes()
 	case "c":
 		model.weightsResetConfirm = true
-	case "i", "enter":
+	case "i":
 		model.openInfo(weightInfoKey(componentWeights[model.weightCursor].id))
 	}
 	return model, nil
@@ -300,7 +300,7 @@ func weightsView(model Model) string {
 		if model.isWeightEnabled(item.id) {
 			mark = "✓"
 		}
-		body = append(body, style.ModalOption(fmt.Sprintf("    [%s]     %5.1f   %s", mark, model.weights[item.id], item.label), index == model.weightCursor, 52))
+		body = append(body, style.ToggleValueOption(fmt.Sprintf("[%s]", mark), fmt.Sprintf("%5.1f", model.weights[item.id]), item.label, index == model.weightCursor, 52, 8))
 	}
 	content := scrollModalLines(body, selectedLine, max(1, model.modalBodyHeight()-1))
 	footer := ""

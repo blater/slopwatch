@@ -19,7 +19,7 @@ func validateGoal(goal fix.ScoringGoal) error {
 	}
 	seen := make(map[fix.MetricID]struct{}, len(goal.Focus))
 	for _, item := range goal.Focus {
-		if _, exists := scoring.MetricDefinitionByID(scoring.MetricID(item.Metric)); !exists {
+		if _, exists := scoring.MetricDefinitionByID(scoring.MetricID(item.Metric)); !exists && item.Metric != fix.MetricScore {
 			return fmt.Errorf("unknown focus metric %q", item.Metric)
 		}
 		if math.IsNaN(item.Maximum) || math.IsInf(item.Maximum, 0) || item.Maximum < 0 {
@@ -129,6 +129,9 @@ func metricEvidence(file report.File, target fix.RepoPath, mapper pathMapper) ([
 
 func requiredMetricsComplete(values map[fix.MetricID]fix.MetricValue, goal fix.ScoringGoal) error {
 	for _, focus := range goal.Focus {
+		if focus.Metric == fix.MetricScore {
+			continue
+		}
 		if !values[focus.Metric].Complete {
 			return fmt.Errorf("focus metric %q is incomplete", focus.Metric)
 		}
@@ -147,7 +150,7 @@ func verifyFile(baseline fix.TargetSnapshot, file report.File, goal fix.ScoringG
 	if err := requiredMetricsComplete(metrics, goal); err != nil {
 		complete = false
 	}
-	compliant := (!requireComplete || complete) && file.Score <= goal.MaximumScore
+	targetMet := (!requireComplete || complete) && file.Score <= goal.MaximumScore
 	diagnostics := make([]string, 0)
 	if file.Score > goal.MaximumScore {
 		diagnostics = append(diagnostics, fmt.Sprintf("score %.1f exceeds %.1f", file.Score, goal.MaximumScore))
@@ -155,9 +158,12 @@ func verifyFile(baseline fix.TargetSnapshot, file report.File, goal fix.ScoringG
 	focused := make(map[fix.MetricID]struct{}, len(goal.Focus))
 	for _, focus := range goal.Focus {
 		focused[focus.Metric] = struct{}{}
+		if focus.Metric == fix.MetricScore {
+			continue
+		}
 		value := metrics[focus.Metric]
 		if !value.Complete || value.Value > focus.Maximum {
-			compliant = false
+			targetMet = false
 			diagnostics = append(diagnostics, fmt.Sprintf("%s %.1f exceeds %.1f", value.Label, value.Value, focus.Maximum))
 		}
 	}
@@ -176,7 +182,7 @@ func verifyFile(baseline fix.TargetSnapshot, file report.File, goal fix.ScoringG
 		}
 		allowance := goal.AllowedRegression[metric]
 		if !after.Complete || after.Value > before.Value+allowance {
-			compliant = false
+			targetMet = false
 			diagnostics = append(diagnostics, fmt.Sprintf("%s regressed from %.1f to %.1f (allowance %.1f)", before.Label, before.Value, after.Value, allowance))
 		}
 	}
@@ -185,7 +191,7 @@ func verifyFile(baseline fix.TargetSnapshot, file report.File, goal fix.ScoringG
 	}
 	return fixanalysis.FileResult{
 		Path: baseline.Path, Score: file.Score, Metrics: metrics,
-		Complete: complete, Compliant: compliant, Diagnostic: strings.Join(diagnostics, "; "),
+		Complete: complete, TargetMet: targetMet, Diagnostic: strings.Join(diagnostics, "; "),
 	}, nil
 }
 

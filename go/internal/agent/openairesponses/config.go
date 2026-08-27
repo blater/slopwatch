@@ -39,24 +39,6 @@ func (function SecretResolverFunc) ResolveSecret(ctx context.Context, reference 
 	return function(ctx, reference)
 }
 
-type SecretAdmission struct{ Resolver SecretResolver }
-
-func (guard SecretAdmission) RejectKnownSecret(ctx context.Context, reference string, values ...string) error {
-	if guard.Resolver == nil || !strings.HasPrefix(reference, "env:") {
-		return nil
-	}
-	secret, err := guard.Resolver.ResolveSecret(ctx, reference)
-	if err != nil {
-		return nil
-	}
-	for _, value := range values {
-		if strings.Contains(value, secret) {
-			return errors.New("protected authentication material detected")
-		}
-	}
-	return nil
-}
-
 // EnvironmentSecretResolver accepts references of the form env:NAME. Lookup
 // is injected so callers can choose the environment boundary; New does not
 // implicitly read process environment variables.

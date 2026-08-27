@@ -99,6 +99,10 @@ func TestStrategyImplementsControlledResponsesToolLoop(t *testing.T) {
 	if len(provider.requests) != 3 {
 		t.Fatalf("provider requests=%d", len(provider.requests))
 	}
+	firstRequest := string(provider.requests[0])
+	if !strings.Contains(firstRequest, "Trusted remediation envelope\\n\\nImprove main.go") || strings.Contains(firstRequest, "Apply the requested remediation") {
+		t.Fatalf("provider did not receive only the configured prompt: %s", provider.requests[0])
+	}
 	for index, body := range provider.requests {
 		if bytesContainSecret(body) {
 			t.Fatalf("request %d leaked authentication: %s", index, body)
@@ -160,7 +164,7 @@ func TestCrashLeftoverStagingCannotPoisonCandidateOrDeleteLookalikes(t *testing.
 	if err := os.WriteFile(filepath.Join(request.Workspace.StagingRoot, ".slopwatch-agent-crash.tmp"), []byte("partial"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	tools, err := newCandidateTools(request.Workspace, request.Write, resolvedConfig{maxWriteBytes: 1 << 20, maxReadBytes: 1 << 20})
+	tools, err := newCandidateTools(request.Workspace, request.Write, resolvedConfig{maxWriteBytes: 1 << 20, maxReadBytes: 1 << 20}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,6 +184,52 @@ func TestCrashLeftoverStagingCannotPoisonCandidateOrDeleteLookalikes(t *testing.
 		if strings.HasPrefix(entry.Name(), ".slopwatch-agent-") && entry.Name() != filepath.Base(lookalike) {
 			t.Fatalf("temporary artifact entered candidate: %s", entry.Name())
 		}
+	}
+}
+
+func TestTargetManifestIsAvailableThroughDedicatedTool(t *testing.T) {
+	root := canonicalTempDir(t)
+	request := testRequest(t, root)
+	directory := filepath.Join(request.Workspace.StagingRoot, "agent-input")
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(directory, "targets.txt")
+	contents := "main.go\nother.go\n"
+	if err := os.WriteFile(manifestPath, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	request.Task.Manifest = &agent.TargetManifest{Path: manifestPath, Count: 2}
+	provider := &scriptedProvider{t: t, responses: []string{
+		functionResponse("call-manifest", "read_target_manifest", `{}`, 1, 1),
+		messageResponse("Updated both targets.", 1, 1, 0),
+	}}
+	result := newTestStrategy(t, provider, Config{}).Execute(t.Context(), testProfile(), request, nil)
+	if result.Status != agent.ResultCompleted {
+		t.Fatalf("Execute() = %#v", result)
+	}
+	if len(provider.requests) != 2 || !strings.Contains(string(provider.requests[0]), `"name":"read_target_manifest"`) {
+		t.Fatalf("manifest tool was not offered: %s", provider.requests[0])
+	}
+	var sent apiRequest
+	if err := json.Unmarshal(provider.requests[1], &sent); err != nil {
+		t.Fatal(err)
+	}
+	returned := ""
+	for _, item := range sent.Input {
+		var output struct {
+			Type   string `json:"type"`
+			Output string `json:"output"`
+		}
+		if json.Unmarshal(item, &output) == nil && output.Type == "function_call_output" {
+			var result readResult
+			if json.Unmarshal([]byte(output.Output), &result) == nil {
+				returned = result.Content
+			}
+		}
+	}
+	if returned != contents {
+		t.Fatalf("manifest contents returned to the agent = %q", returned)
 	}
 }
 
@@ -549,7 +599,7 @@ func testRequest(t *testing.T, root string) agent.Request {
 	return agent.Request{
 		JobID: "job-test", AttemptID: "attempt-test", Workspace: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: root, StagingRoot: staging},
 		Task:  agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "Trusted remediation envelope", Objective: "Improve main.go"}},
-		Model: "gpt-test", Effort: "high", Delegation: agent.DelegationSingle,
+		Model: "gpt-test", Effort: "high",
 		Write:  agent.WritePolicy{Allowed: []fix.RepoPath{allowed}, Scope: "targets"},
 		Limits: agent.Limits{MaxOutputBytes: 4 << 20, MaxEvents: 200},
 	}

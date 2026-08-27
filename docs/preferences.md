@@ -4,22 +4,36 @@ The live dashboard stores user preferences in a versioned TOML file. TOML was
 chosen because the hierarchy remains readable and editable without YAML's type
 ambiguities or JSON's lack of comments.
 
-The platform-default location is:
+Slopwatch keeps preferences and supporting persistent data under one root:
 
-- macOS: `~/Library/Application Support/slopwatch/preferences.toml`
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/slopwatch/preferences.toml`
-- Windows: `%AppData%\slopwatch\preferences.toml`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/slopwatch/`
+- Other platforms: `~/.slopwatch/`
 
-The file is created with complete defaults on the first dashboard launch.
+The preferences file is `preferences.toml` in that directory. `fix-jobs.jsonl`
+contains one structured record per fix, linking to its plain-text logfile in
+`fix-jobs/`. The record contains the settings used and is updated with the
+final status, touched files, and agent references. Each job logfile contains
+the exact prompt, agent activity, and final outcome. Analysis data, worktrees,
+and repository-specific settings are stored in subdirectories of the same
+root. The preferences file is created with complete
+defaults on the first dashboard launch. If it is deleted or unreadable,
+Slopwatch replaces it with current defaults and continues.
 Changes made through Settings, Columns, Weights, or Sort are written
 immediately using an atomic file replacement. Hand edits are read on the next
 launch. An explicitly supplied command-line option takes precedence for that
 run; currently this applies to `--trend-window`.
 
 Low-frequency agent implementation settings—including runtime, executable,
-probe timing, cancellation grace, confinement roots, and provider resource
-limits—are edited only in this file. The Agents popup intentionally exposes
-only profile identity, authentication, readiness, and default selection.
+probe timing, cancellation grace, and provider resource
+limits—are edited only in this file. The Agents popup is deliberately a
+single-account provider chooser: it shows availability and the active provider,
+then exposes only essential connection details and automatic readiness results.
+
+The fix `prompt_template` is the complete agent prompt. Slopwatch substitutes
+`{targets}`, `{target_score}`, `{focus_metrics}`, `{change_scope}`,
+`{allowed_paths}`, `{baseline_scores}`, `{target_checklist}`, `{target_count}`,
+`{target_manifest}`, `{target_manifest_count}`, `{previous_attempt}`, and
+`{branch}`. No instruction text is added outside the template.
 
 ```toml
 version = 1
@@ -37,42 +51,46 @@ trend_window = '10m0s'
 
 [fix]
 target_score = 100.0
-focus = []
-change_scope = 'targets-and-tests'
+focus = ['score']
+change_scope = 'repository' # Any file in the project
 profile = 'codex-default'
 model = '' # selected adapter default
 effort = 'high'
-delegation = 'single'
-prompt_template = 'default'
+prompt_template = '''Work only inside the workspace. The named files are measurement targets, not a write allowlist.
+You may change supporting project files when needed for a coherent refactor.
+Do not create branches, commits, pushes, pull requests, waivers, suppressions, scoring configuration changes, or dead code intended to game scores.
+Slopwatch will measure the changed files and handle Git after you finish.
+
+Measurement context:
+The values in this task are Slopmark static code-quality measurements reported by Slopwatch. Each baseline line belongs to the file named at the start of that line. Lower values are better.
+SCORE is Slopmark's weighted total of the enabled measurements for that file; it is not the sum of the raw values shown.
+COG means cognitive complexity; NPATH means possible execution paths; CYCLO means cyclomatic complexity; SHALLOW is the module-shallowness penalty; GOD is responsibility concentration; coupling counts referenced types; nesting means excessive control-flow nesting; type safety counts unsafe TypeScript findings.
+
+This is a code refactor task using the 'slopmark' tool to monitor effectiveness. Refactor {targets} until every file has a score of {target_score} or lower.
+Focus on: {focus_metrics}.
+You may edit any project file needed for a coherent refactor, including creating,
+moving, or splitting classes, functions, routines, and modules. However, we must refactor effectively, not move complexity around - do not increase the scores of other existing code by more than trivial amounts. Any new code must score low.
+Current measurements:
+{baseline_scores}
+Keep observable behaviour and public APIs unchanged unless the task requires a compatible change.
+
+Required target checklist:
+Review and address every file below; do not stop after the first. Each file must meet the requested goal before you finish.
+{target_checklist}
+
+There are {target_count} selected target files. When a target manifest path is present below, read every newline-delimited filename from it before editing and report what was done for each target.
+Target manifest: {target_manifest}
+
+Measurements from the previous attempt, when present:
+{previous_attempt}'''
 branch_template = 'slopwatch/fix/{target-stem}-{job-short-id}'
-validation_plan = ''
 
 [concurrency]
 max_agents = 2
 max_verifiers = 1
-max_retained_jobs = 100
-max_transcript_bytes = 1048576
 max_actors_per_job = 32
 max_candidate_preview_bytes = 4194304
 max_candidate_preview_lines = 5000
-
-[validation_workspace]
-max_files = 100000
-max_directories = 20000
-max_path_bytes = 16777216
-max_file_bytes = 67108864
-max_total_bytes = 536870912
-container_pids = 256
-container_memory_bytes = 4294967296
-container_cpu_millis = 2000
-container_temporary_bytes = 1073741824
-container_workspace_bytes = 1073741824
-container_nofile_limit = 1024
-container_generated_file_bytes = 67108864
-container_stop_timeout = '3s'
-container_control_timeout = '30s'
-container_sentinel_timeout = '10s'
-container_crash_probe_timeout = '15s'
 
 [[agents.profiles]]
 id = 'codex-default'
@@ -101,20 +119,19 @@ max_context_tokens = '0'
 # budgets are configured here when non-default values are needed.
 
 [delivery]
-default_mode = 'candidate'
+workspace = 'current-files' # current-files | worktree
+git = 'uncommitted'         # uncommitted | current-branch | new-branch
+publish = 'local'           # local | push | pull-request
 remote = 'origin'
 base_branch = 'main'
 branch_template = 'slopwatch/fix/{target-stem}-{job-short-id}'
 publisher = 'github-cli'
 draft_pull_requests = true
-require_validation = false
 command_output_bytes = 4194304
-commit_policy = 'on-publish'
 commit_title_template = 'Refactor {targets} with Slopwatch'
 commit_body_template = 'Automated remediation for {goal}.'
 pull_request_title_template = 'Refactor {targets} with Slopwatch'
 pull_request_body_template = 'Automated remediation for {goal}.'
-cleanup_policy = 'retain'
 
 [scoring]
 weight_step = 0.5
@@ -181,6 +198,13 @@ enabled = false
 weight = 4.0
 ```
 
+The three delivery defaults are independent. `uncommitted` always implies
+`local`. Committing the current branch is available only when working in the
+current files. A separate worktree can be left uncommitted or committed to a
+new branch. Remote, base-branch and pull-request settings are used only when
+the selected publish result needs them. `command_output_bytes` is an advanced
+preferences-file setting and is deliberately absent from the UI.
+
 `visible_columns` accepts `cog`, `npath`, `cyclo`, `deep`, `god`, `coupling`,
 `nesting`, and `typesafety`. `sort_by` accepts those names plus `score` and
 `filename`. Themes are `dark` and `light`; durations use Go duration syntax.
@@ -190,33 +214,20 @@ but are configured only in this preferences file. For the OpenAI Responses
 adapter, `max_turns`, `max_tool_calls`, and token checks use `0` to mean no
 Slopwatch-imposed budget (or provider default for output tokens). Byte and entry
 budgets must be positive. Slopwatch does not impose an attempt count or job
-wall-clock timeout; Retry and per-job Cancel remain explicit actions. The Codex
+wall-clock timeout; iterations are automatic and per-job Cancel remains
+available. The Codex
 App Server adapter's readiness timeout and post-cancellation termination grace
 are also preferences-file-only. Probe timeout governs readiness checks only;
 termination grace starts only after the user or owning context cancels work.
 Neither disconnects a live fix attempt.
 
-`concurrency.max_transcript_bytes` is enforced exactly per job as the sum of
-the JSON-encoded transcript entries retained for display and recovery. Saving a
-smaller value trims the oldest entries immediately; an entry larger than the
-configured budget is not retained. There is no hidden minimum or maximum.
-Candidate source monitoring uses the pinned preview byte and line settings;
+Transcripts are process-local display data and are not copied into persisted
+job state. Candidate source monitoring uses the pinned preview byte and line settings;
 larger files are explicitly labelled truncated instead of being rejected by a
 compiled 4 MiB/5,000-line ceiling.
 
-Validation plans are trusted user/installation definitions. Settings ›
-Validation can select a plan and edit each check's required status, timeout and
-output budget. The same panel exposes the file, directory, path-byte,
-per-file-byte and total-byte ceilings used identically for the confined
-candidate copy and the before/after fingerprint; exceeding one fails validation
-with the named effective value. Repository preferences may select trusted plan
-IDs but cannot author executable commands or broaden these user-owned workspace
-limits. The same panel exposes finite validation-container process, memory, CPU,
-tmpfs, open-file, generated-file, cleanup and readiness-probe policy. Timeout
-labels distinguish active validation checks from Docker lifecycle/readiness
-operations; none is an undisclosed fix-job timeout. Settings › Git & pull
-requests controls whether new PRs are drafts or
-ready for review, whether passing validation is mandatory, the user-selected
+Settings › Git & pull requests controls whether new PRs are drafts or
+ready for review, the user-selected
 base, the organisation's branch template, and the shared candidate/delivery/
 publisher command-output budget. These commands have no Slopwatch wall-clock
 timeout and remain cancelable.
@@ -226,8 +237,9 @@ invariants, not work budgets: once a user has cancelled an operation, they
 bound cleanup before a wedged child/supervisor is killed. They cannot activate
 while an operation is live and are labelled as such in the implementation.
 
-Every constraint shown in Settings includes its effective origin. Repository
-preferences may narrow concurrency, retention, validation and delivery policy,
+Preference precedence is resolved internally without adding source or origin
+hints to Settings rows. Repository preferences may narrow concurrency,
+retention and delivery policy,
 but cannot broaden authority or replace user-owned agents, credentials,
 executables, remotes, prompts or publishers.
 

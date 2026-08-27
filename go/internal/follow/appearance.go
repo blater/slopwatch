@@ -17,6 +17,12 @@ var appearanceThemes = []struct {
 }
 
 func handleAppearanceKey(model *Model, name string) (tea.Model, tea.Cmd) {
+	if isToggleKey(name) {
+		model.selectAppearance()
+		model.appearance = false
+		model.settings = true
+		return model, nil
+	}
 	switch name {
 	case "esc", "escape", "q":
 		model.appearance = false
@@ -25,10 +31,6 @@ func handleAppearanceKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		model.appearanceCursor = max(0, model.appearanceCursor-1)
 	case "down", "j":
 		model.appearanceCursor = min(len(appearanceThemes)-1, model.appearanceCursor+1)
-	case "enter", " ":
-		model.selectAppearance()
-		model.appearance = false
-		model.settings = true
 	}
 	return model, nil
 }
@@ -46,8 +48,7 @@ func appearanceView(model Model) string {
 		if item.theme == model.theme || (model.theme == "" && item.theme == style.ThemeDark) {
 			mark = "✓"
 		}
-		label := fmt.Sprintf("[%s] %s", mark, item.label)
-		content = append(content, style.ModalOption(label, index == model.appearanceCursor, 34))
+		content = append(content, style.ToggleOption(fmt.Sprintf("[%s]", mark), item.label, index == model.appearanceCursor, false, 34))
 	}
 	return style.Popup(style.Heading("APPEARANCE"), content, "", 38)
 }

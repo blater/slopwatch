@@ -12,8 +12,8 @@ import (
 
 func renderRow(model Model, file report.File, selected bool) string {
 	state := model.rows[file.Path]
-	background := rowBackground(state, selected, model.options.TrendWindow)
-	prefix := model.renderFixedColumns(file, state, background)
+	background := rowBackground(state, selected, model.marked[file.Path], model.options.TrendWindow)
+	prefix := model.fileMarkPrefix(file.Path, background) + model.renderFixedColumns(file, state, background)
 	pathWidth := max(0, model.width-lipgloss.Width(prefix))
 	line := prefix + renderPath(file.Path, pathWidth, model.pathOffset, background)
 	if remaining := model.width - lipgloss.Width(line); remaining > 0 {
@@ -25,13 +25,14 @@ func renderRow(model Model, file report.File, selected bool) string {
 func renderFixedColumns(model Model, file report.File, state rowState, background lipgloss.Color) string {
 	separator := lipgloss.NewStyle().Background(background).Render(" ")
 	marker, markerColour := model.rowMarker(file, state, time.Now())
-	scoreWidth := max(1, 7-lipgloss.Width(marker))
-	score := styleCell(pad(decimalWithin(file.Score, scoreWidth), scoreWidth, true), scoreColour(file.Score), background)
+	fixMarker := model.fixMarkerForPath(file.Path)
+	scoreWidth := max(1, columnDefinitions[0].width-lipgloss.Width(fixMarker)-lipgloss.Width(marker))
+	score := styleCell(fixMarker, style.TextPrimary, background)
 	if marker != "" {
 		score += styleCell(marker, markerColour, background)
 	}
-	fixCode := styleCell(pad(model.fixCodeForPath(file.Path), 3, false), style.TextPrimary, background)
-	parts := []string{score, fixCode}
+	score += styleCell(pad(decimalWithin(file.Score, scoreWidth), scoreWidth, true), scoreColour(file.Score), background)
+	parts := []string{score}
 	activeColumns := model.activeColumns()
 	for _, column := range activeColumns {
 		parts = append(parts, renderMetricCell(file, column, background))
@@ -46,7 +47,7 @@ func renderFixedColumns(model Model, file report.File, state rowState, backgroun
 
 func (model Model) pathViewportWidth() int {
 	prefix := model.renderFixedColumns(report.File{}, rowState{}, style.SurfaceScreen)
-	return max(0, model.width-lipgloss.Width(prefix))
+	return max(0, model.width-model.markColumnWidth()-lipgloss.Width(prefix))
 }
 
 func rowMarker(model Model, file report.File, state rowState, now time.Time) (string, lipgloss.Color) {
@@ -71,9 +72,12 @@ func rowMarker(model Model, file report.File, state rowState, now time.Time) (st
 	return arrow, directionColour(state.movementDelta)
 }
 
-func rowBackground(state rowState, selected bool, window time.Duration) lipgloss.Color {
+func rowBackground(state rowState, selected, marked bool, window time.Duration) lipgloss.Color {
 	if selected {
 		return style.SelectionSurface(true)
+	}
+	if marked {
+		return style.SurfaceMarked
 	}
 	if state.editedAt.IsZero() {
 		return style.SelectionSurface(false)

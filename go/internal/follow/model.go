@@ -117,10 +117,9 @@ type Model struct {
 	fixService           FixService
 	fixWorkspace         fix.WorkspaceIdentity
 	fixSubscription      fixapp.Subscription
-	fixRevision          fixapp.GlobalRevision
 	fixGeneration        uint64
 	fixDialog            fixDialogState
-	jobActions           jobActionsState
+	jobCommand           jobCommandState
 	cancelConfirmation   cancelConfirmation
 	jobMonitor           jobMonitorState
 	jobReader            jobReaderState
@@ -128,6 +127,8 @@ type Model struct {
 	fixNotice            string
 	fixUpdatesStale      bool
 	fixRetryGeneration   uint64
+	fixTargetDesired     float64
+	fixTargetSaving      bool
 	configStore          ConfigStore
 	configWorkspace      fix.WorkspaceIdentity
 	profileProber        ProfileProber
@@ -147,6 +148,9 @@ type Model struct {
 	offset               int
 	pathOffset           int
 	selected             string
+	marking              bool
+	shiftMarking         bool
+	marked               map[string]bool
 	analyzing            bool
 	queued               map[string]bool
 	status               string
@@ -233,7 +237,8 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	}
 	model := &Model{
 		analyzer: analyzer, watcher: watcher, options: options, document: document,
-		mainView: MainViewFiles, agents: AgentsState{Expanded: map[fix.JobID]bool{}},
+		mainView: MainViewFiles, agents: AgentsState{ShowAll: true, Expanded: map[fix.JobID]bool{}},
+		marked:     map[string]bool{},
 		fixService: options.FixService, fixWorkspace: options.FixWorkspace,
 		configStore: options.ConfigStore, configWorkspace: configWorkspace, profileProber: options.ProfileProber, profileCatalog: options.ProfileCatalog,
 		repositoryIdentity: repositoryIdentity(options.Workspace),
@@ -354,7 +359,13 @@ func languagesForPaths(paths []string) []string {
 	return result
 }
 
-func (model Model) bodyHeight() int { return max(1, model.height-3) }
+func (model Model) bodyHeight() int {
+	reserved := 3
+	if model.mainView == MainViewFiles {
+		reserved = 4
+	}
+	return max(1, model.height-reserved)
+}
 
 func (model *Model) ensureVisible() {
 	page := model.bodyHeight()
@@ -451,7 +462,7 @@ func columnsView(model Model) string {
 		if model.visible[column.key] {
 			mark = "✓"
 		}
-		body = append(body, style.ModalOption(fmt.Sprintf("[%s] %s", mark, column.title), index == model.columnCursor, 34))
+		body = append(body, style.ToggleOption(fmt.Sprintf("[%s]", mark), column.title, index == model.columnCursor, false, 34))
 	}
 	return style.Popup(style.Heading("Columns"), scrollModalLines(body, model.columnCursor, model.modalBodyHeight()), "", 38)
 }

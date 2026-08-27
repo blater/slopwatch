@@ -2,9 +2,11 @@
 node_modules/
 dist/
 build/
+/go/slopslap-go
 coverage/
 target/
-/internal/
+/internal/*
+!/internal/generic-command-engine.md
 # Authored documentation is tracked. Put generated documentation artifacts
 # under this directory if they should not be committed.
 docs/generated/

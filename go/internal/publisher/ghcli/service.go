@@ -145,7 +145,7 @@ func (service *Service) Reconcile(ctx context.Context, request publisher.Request
 	expectedNumber, identityErr := previousPullRequestNumber(previous, request.HostRepository)
 	if identityErr != nil {
 		previous.Ambiguous = true
-		previous.Diagnostic = "journaled pull request identity is invalid"
+		previous.Diagnostic = "saved pull request identity is invalid"
 		return previous, identityErr
 	}
 	result, found, err := service.lookup(ctx, request, expectedNumber)
@@ -157,7 +157,7 @@ func (service *Service) Reconcile(ctx context.Context, request publisher.Request
 	if !found {
 		if expectedNumber > 0 {
 			previous.Ambiguous = true
-			previous.Diagnostic = "journaled pull request is not visible for exact reconciliation"
+			previous.Diagnostic = "saved pull request is not visible for exact reconciliation"
 			return previous, errors.New(previous.Diagnostic)
 		}
 		return publisher.Result{Diagnostic: "pull request is absent"}, nil
@@ -186,8 +186,8 @@ func (service *Service) lookup(ctx context.Context, request publisher.Request, e
 	for _, record := range records {
 		if expectedNumber > 0 && record.Number == expectedNumber &&
 			!recordMatchesRequest(record, request) {
-			return publisher.Result{Ambiguous: true, Diagnostic: "journaled pull request no longer matches the delivered state"}, false,
-				errors.New("journaled GitHub pull request identity does not match the delivered commit and review state")
+			return publisher.Result{Ambiguous: true, Diagnostic: "saved pull request no longer matches the delivered state"}, false,
+				errors.New("saved GitHub pull request identity does not match the delivered commit and review state")
 		}
 		if recordMatchesRequest(record, request) &&
 			(expectedNumber == 0 || record.Number == expectedNumber) {
@@ -251,14 +251,14 @@ func previousPullRequestNumber(previous publisher.Result, hostRepository string)
 	if previous.ProviderID != "" {
 		number, err := strconv.Atoi(previous.ProviderID)
 		if err != nil || number <= 0 {
-			return 0, errors.New("journaled GitHub pull request number is invalid")
+			return 0, errors.New("saved GitHub pull request number is invalid")
 		}
 		expected = number
 	}
 	if previous.URL != "" {
 		number, err := pullRequestNumber(previous.URL, hostRepository)
 		if err != nil || expected > 0 && number != expected {
-			return 0, errors.New("journaled GitHub pull request URL and number disagree")
+			return 0, errors.New("saved GitHub pull request URL and number disagree")
 		}
 		expected = number
 	}

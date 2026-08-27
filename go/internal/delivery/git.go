@@ -1,7 +1,6 @@
 package delivery
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -56,20 +55,36 @@ func NewGitService(runner isolation.Executor) (*GitService, error) {
 
 func (service *GitService) Preflight(ctx context.Context, request PreflightRequest) (PreflightResult, error) {
 	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
-	if !request.Mode.Valid() {
-		return PreflightResult{}, errors.New("delivery mode is invalid")
+	if !request.Plan.Valid() {
+		return PreflightResult{}, errors.New("delivery plan is invalid")
 	}
-	if request.Mode == fix.DeliveryModeCandidate {
+	if request.Plan.Git == fix.GitLeaveUncommitted {
 		return PreflightResult{}, nil
 	}
-	if request.Workspace.RepositoryRoot == "" || request.Remote == "" || request.Branch == "" {
-		return PreflightResult{}, errors.New("delivery repository, remote, and branch are required")
+	if request.Workspace.RepositoryRoot == "" {
+		return PreflightResult{}, errors.New("delivery repository is required")
 	}
-	if !validRemoteAlias(request.Remote) {
+	if request.Plan.Publish != fix.PublishLocal && !validRemoteAlias(request.Remote) {
 		return PreflightResult{}, errors.New("delivery remote must be a safe configured remote alias")
 	}
-	if err := service.validateLiteralBranch(ctx, request.Workspace.RepositoryRoot, request.Branch); err != nil {
-		return PreflightResult{}, fmt.Errorf("invalid delivery branch: %w", err)
+	if request.Plan.Git == fix.GitCommitNewBranch {
+		if request.Branch == "" {
+			return PreflightResult{}, errors.New("new-branch delivery requires a branch name")
+		}
+		if err := service.validateLiteralBranch(ctx, request.Workspace.RepositoryRoot, request.Branch); err != nil {
+			return PreflightResult{}, fmt.Errorf("invalid delivery branch: %w", err)
+		}
+	}
+	if request.Plan.Publish == fix.PublishLocal {
+		if request.Plan.Git == fix.GitCommitNewBranch {
+			ref := "refs/heads/" + request.Branch
+			if exists, _, err := service.ref(ctx, request.Workspace.RepositoryRoot, ref); err != nil {
+				return PreflightResult{}, fmt.Errorf("check local delivery branch: %w", err)
+			} else if exists {
+				return PreflightResult{}, errors.New("delivery branch already exists locally")
+			}
+		}
+		return PreflightResult{}, nil
 	}
 	remoteURL, err := service.resolveRemoteURL(ctx, request.Workspace.RepositoryRoot, request.Remote)
 	if err != nil {
@@ -83,21 +98,23 @@ func (service *GitService) Preflight(ctx context.Context, request PreflightReque
 	if err != nil {
 		return PreflightResult{}, fmt.Errorf("delivery remote %q identity is invalid: %w", request.Remote, err)
 	}
-	if request.Mode == fix.DeliveryModePullRequest && (!strings.EqualFold(target.RemoteHost, "github.com") || target.HostRepository == "") {
+	if request.Plan.Publish == fix.PublishPullRequest && (!strings.EqualFold(target.RemoteHost, "github.com") || target.HostRepository == "") {
 		return PreflightResult{}, errors.New("pull-request delivery requires a canonical github.com owner/repository remote")
 	}
-	ref := "refs/heads/" + request.Branch
-	if exists, _, err := service.ref(ctx, request.Workspace.RepositoryRoot, ref); err != nil {
-		return PreflightResult{}, fmt.Errorf("check local delivery branch: %w", err)
-	} else if exists {
-		return PreflightResult{}, errors.New("delivery branch already exists locally")
+	if request.Plan.Git == fix.GitCommitNewBranch {
+		ref := "refs/heads/" + request.Branch
+		if exists, _, err := service.ref(ctx, request.Workspace.RepositoryRoot, ref); err != nil {
+			return PreflightResult{}, fmt.Errorf("check local delivery branch: %w", err)
+		} else if exists {
+			return PreflightResult{}, errors.New("delivery branch already exists locally")
+		}
+		if exists, _, err := service.remoteRefURL(ctx, request.Workspace.RepositoryRoot, remoteURL, ref); err != nil {
+			return PreflightResult{}, fmt.Errorf("check remote delivery branch: %w", err)
+		} else if exists {
+			return PreflightResult{}, errors.New("delivery branch already exists remotely")
+		}
 	}
-	if exists, _, err := service.remoteRefURL(ctx, request.Workspace.RepositoryRoot, remoteURL, ref); err != nil {
-		return PreflightResult{}, fmt.Errorf("check remote delivery branch: %w", err)
-	} else if exists {
-		return PreflightResult{}, errors.New("delivery branch already exists remotely")
-	}
-	if request.Mode == fix.DeliveryModePullRequest && request.Publication {
+	if request.Plan.Publish == fix.PublishPullRequest && request.Publication {
 		if request.BaseBranch == "" {
 			return PreflightResult{}, errors.New("pull-request delivery requires an explicit base branch")
 		}
@@ -141,17 +158,22 @@ func (service *GitService) PublishCommit(ctx context.Context, request Request) (
 func (service *GitService) CreateCommit(ctx context.Context, request Request) (Result, error) {
 	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
 	result := Result{}
-	if request.Job == "" || request.Candidate.RepositoryRoot == "" || request.Branch == "" || request.Remote == "" || request.DiffHash == "" {
+	if request.Job == "" || request.Candidate.RepositoryRoot == "" || request.Branch == "" || request.DiffHash == "" || len(request.Paths) == 0 || !request.Plan.Valid() || request.Plan.Git == fix.GitLeaveUncommitted {
 		return result, errors.New("delivery request is incomplete")
 	}
-	if !validRemoteAlias(request.Remote) {
-		return result, errors.New("delivery remote must be a safe configured remote alias")
-	}
-	if err := service.verifyRequestRemote(ctx, request); err != nil {
-		return result, err
+	if request.Plan.Publish != fix.PublishLocal {
+		if !validRemoteAlias(request.Remote) {
+			return result, errors.New("delivery remote must be a safe configured remote alias")
+		}
+		if err := service.verifyRequestRemote(ctx, request); err != nil {
+			return result, err
+		}
 	}
 	if err := service.validateLiteralBranch(ctx, request.Candidate.RepositoryRoot, request.Branch); err != nil {
 		return result, fmt.Errorf("invalid delivery branch: %w", err)
+	}
+	if request.Plan.Git == fix.GitCommitCurrent {
+		return service.createCurrentBranchCommit(ctx, request)
 	}
 	ref := "refs/heads/" + request.Branch
 	if exists, _, err := service.ref(ctx, request.Candidate.RepositoryRoot, ref); err != nil {
@@ -159,26 +181,18 @@ func (service *GitService) CreateCommit(ctx context.Context, request Request) (R
 	} else if exists {
 		return result, errors.New("delivery branch already exists locally")
 	}
-	if exists, _, err := service.remoteRef(ctx, request.Candidate.RepositoryRoot, request.Remote, ref); err != nil {
-		return result, err
-	} else if exists {
-		return result, errors.New("delivery branch already exists remotely")
+	if request.Plan.Publish != fix.PublishLocal {
+		if exists, _, err := service.remoteRef(ctx, request.Candidate.RepositoryRoot, request.Remote, ref); err != nil {
+			return result, err
+		} else if exists {
+			return result, errors.New("delivery branch already exists remotely")
+		}
 	}
 	lock, err := acquireDeliveryLock(request.Candidate.GitCommonDir)
 	if err != nil {
 		return result, err
 	}
 	defer lock.Close()
-	fingerprint, err := service.diffFingerprint(ctx, request.Candidate.RepositoryRoot)
-	if err != nil {
-		return result, err
-	}
-	if fingerprint != request.DiffHash {
-		return result, errors.New("candidate diff changed since review")
-	}
-	if err := service.rejectTransformingAttributes(ctx, request.Candidate.RepositoryRoot); err != nil {
-		return result, err
-	}
 	index, err := privateIndexPath(request.Candidate.RepositoryRoot)
 	if err != nil {
 		return result, err
@@ -188,7 +202,11 @@ func (service *GitService) CreateCommit(ctx context.Context, request Request) (R
 	if _, err := service.gitBytesEnv(ctx, request.Candidate.RepositoryRoot, environment, false, "read-tree", string(request.Candidate.BaseCommit)); err != nil {
 		return result, fmt.Errorf("initialize private publication index: %w", err)
 	}
-	if _, err := service.gitBytesEnv(ctx, request.Candidate.RepositoryRoot, environment, false, "add", "-A", "--"); err != nil {
+	arguments := []string{"add", "-A", "--"}
+	for _, path := range request.Paths {
+		arguments = append(arguments, path.String())
+	}
+	if _, err := service.gitBytesEnv(ctx, request.Candidate.RepositoryRoot, environment, false, arguments...); err != nil {
 		return result, fmt.Errorf("stage candidate in private publication index: %w", err)
 	}
 	tree, err := service.gitTextEnv(ctx, request.Candidate.RepositoryRoot, environment, "write-tree")
@@ -206,11 +224,11 @@ func (service *GitService) CreateCommit(ctx context.Context, request Request) (R
 	if title == "" {
 		title = "Refactor with Slopwatch"
 	}
-	arguments := []string{"commit-tree", tree, "-p", string(request.Candidate.BaseCommit), "-m", title}
+	commitArguments := []string{"commit-tree", tree, "-p", string(request.Candidate.BaseCommit), "-m", title}
 	if body := strings.TrimSpace(request.CommitBody); body != "" {
-		arguments = append(arguments, "-m", body)
+		commitArguments = append(commitArguments, "-m", body)
 	}
-	commit, err := service.gitTextEnv(ctx, request.Candidate.RepositoryRoot, environment, arguments...)
+	commit, err := service.gitTextEnv(ctx, request.Candidate.RepositoryRoot, environment, commitArguments...)
 	if err != nil {
 		return result, fmt.Errorf("create candidate commit object: %w", err)
 	}
@@ -218,29 +236,71 @@ func (service *GitService) CreateCommit(ctx context.Context, request Request) (R
 	return result, nil
 }
 
-func (service *GitService) rejectTransformingAttributes(ctx context.Context, root string) error {
-	paths, err := service.gitBytes(ctx, root, false, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+func (service *GitService) createCurrentBranchCommit(ctx context.Context, request Request) (Result, error) {
+	result := Result{}
+	if request.Candidate.WorkspaceMode != fix.WorkspaceCurrent {
+		return result, errors.New("committing the current branch requires working in the current files")
+	}
+	branch, err := service.gitText(ctx, request.Candidate.RepositoryRoot, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil || branch != request.Branch {
+		return result, errors.New("the current Git branch changed before commit")
+	}
+	head, err := service.gitText(ctx, request.Candidate.RepositoryRoot, "rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil || fix.ObjectID(head) != request.Candidate.BaseCommit {
+		return result, errors.New("the current Git commit changed before commit")
+	}
+	lock, err := acquireDeliveryLock(request.Candidate.GitCommonDir)
 	if err != nil {
-		return err
+		return result, err
 	}
-	attributes, err := service.gitBytesInputEnv(ctx, root, nil, paths, false, "check-attr", "-z", "--stdin", "--all")
+	defer lock.Close()
+	index, err := privateIndexPath(request.Candidate.RepositoryRoot)
 	if err != nil {
-		return err
+		return result, err
 	}
-	fields := bytes.Split(attributes, []byte{0})
-	if len(fields) > 1 && (len(fields)-1)%3 != 0 {
-		return errors.New("malformed Git attribute response")
+	defer os.Remove(index)
+	environment := []string{"GIT_INDEX_FILE=" + index}
+	if _, err := service.gitBytesEnv(ctx, request.Candidate.RepositoryRoot, environment, false, "read-tree", head); err != nil {
+		return result, fmt.Errorf("initialize current-branch commit: %w", err)
 	}
-	for index := 0; index+2 < len(fields)-1; index += 3 {
-		attribute, value := strings.ToLower(string(fields[index+1])), string(fields[index+2])
-		switch attribute {
-		case "filter", "working-tree-encoding", "text", "eol", "crlf", "ident":
-			if value != "unspecified" {
-				return fmt.Errorf("candidate path %q selects unsupported content-transforming Git attribute %q", fields[index], attribute)
-			}
-		}
+	arguments := []string{"add", "-A", "--"}
+	for _, path := range request.Paths {
+		arguments = append(arguments, path.String())
 	}
-	return nil
+	if _, err := service.gitBytesEnv(ctx, request.Candidate.RepositoryRoot, environment, false, arguments...); err != nil {
+		return result, fmt.Errorf("stage current-branch files: %w", err)
+	}
+	tree, err := service.gitTextEnv(ctx, request.Candidate.RepositoryRoot, environment, "write-tree")
+	if err != nil {
+		return result, fmt.Errorf("write current-branch tree: %w", err)
+	}
+	title := strings.TrimSpace(request.CommitTitle)
+	if title == "" {
+		title = "Refactor with Slopwatch"
+	}
+	commitArguments := []string{"commit-tree", tree, "-p", head, "-m", title}
+	if body := strings.TrimSpace(request.CommitBody); body != "" {
+		commitArguments = append(commitArguments, "-m", body)
+	}
+	commit, err := service.gitTextEnv(ctx, request.Candidate.RepositoryRoot, environment, commitArguments...)
+	if err != nil {
+		return result, fmt.Errorf("create current-branch commit: %w", err)
+	}
+	ref := "refs/heads/" + branch
+	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, "update-ref", ref, commit, head); err != nil {
+		result.Commit, result.Ambiguous, result.Diagnostic = fix.ObjectID(commit), true, err.Error()
+		return result, fmt.Errorf("advance current branch: %w", err)
+	}
+	resetArguments := []string{"reset", "-q", commit, "--"}
+	for _, path := range request.Paths {
+		resetArguments = append(resetArguments, path.String())
+	}
+	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, resetArguments...); err != nil {
+		result.Commit, result.LocalRef, result.Ambiguous, result.Diagnostic = fix.ObjectID(commit), ref, true, err.Error()
+		return result, fmt.Errorf("refresh committed files in the Git index: %w", err)
+	}
+	result.Commit, result.LocalRef = fix.ObjectID(commit), ref
+	return result, nil
 }
 
 func privateIndexPath(root string) (string, error) {
@@ -264,8 +324,12 @@ func (service *GitService) CreateLocalRef(ctx context.Context, request Request, 
 	if result.Commit == "" || result.LocalRef != "" {
 		return result, errors.New("local ref step requires only a committed object")
 	}
-	if err := service.verifyRequestRemote(ctx, request); err != nil {
-		return result, err
+	if request.Plan.Git == fix.GitCommitCurrent {
+		ref := "refs/heads/" + request.Branch
+		if result.LocalRef == ref {
+			return result, nil
+		}
+		return result, errors.New("current branch commit did not record its local ref")
 	}
 	ref := "refs/heads/" + request.Branch
 	lock, err := acquireDeliveryLock(request.Candidate.GitCommonDir)
@@ -291,6 +355,8 @@ func (service *GitService) CreateLocalRef(ctx context.Context, request Request, 
 		zeros = strings.Repeat("0", 64)
 	}
 	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, "update-ref", ref, string(result.Commit), zeros); err != nil {
+		result.Ambiguous = true
+		result.Diagnostic = err.Error()
 		return result, fmt.Errorf("create local delivery ref: %w", err)
 	}
 	result.LocalRef = ref
@@ -327,18 +393,26 @@ func (service *GitService) CreateRemoteRef(ctx context.Context, request Request,
 	if err := verifyExpectedRemote(remoteURL, request.ExpectedRemoteIdentity, request.ExpectedRemoteHost, request.HostRepository); err != nil {
 		return result, err
 	}
-	if exists, oid, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref); err != nil {
+	exists, oid, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
+	if err != nil {
 		return result, err
-	} else if exists {
+	}
+	if exists {
 		if oid == commit {
 			result.RemoteRef, result.Pushed = ref, true
 			result.Repository = remoteRepositoryURL(remoteURL)
 			return result, nil
 		}
-		return result, errors.New("delivery branch appeared remotely at a different commit")
+		if request.Plan.Git == fix.GitCommitNewBranch {
+			return result, errors.New("delivery branch appeared remotely at a different commit")
+		}
 	}
-	lease := "--force-with-lease=" + ref + ":"
-	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, "push", "--porcelain", lease, remoteURL, commit+":"+ref); err != nil {
+	arguments := []string{"push", "--porcelain"}
+	if request.Plan.Git == fix.GitCommitNewBranch {
+		arguments = append(arguments, "--force-with-lease="+ref+":")
+	}
+	arguments = append(arguments, remoteURL, commit+":"+ref)
+	if _, err := service.gitBytes(ctx, request.Candidate.RepositoryRoot, false, arguments...); err != nil {
 		result.Ambiguous = true
 		result.Diagnostic = err.Error()
 		return result, fmt.Errorf("create remote delivery ref: %w", err)
@@ -358,7 +432,7 @@ func (service *GitService) CreateRemoteRef(ctx context.Context, request Request,
 func (service *GitService) Reconcile(ctx context.Context, request Request, previous Result) (Result, error) {
 	ctx = withCommandOutput(ctx, request.CommandOutputBytes)
 	if previous.Commit == "" {
-		return previous, errors.New("delivery reconciliation requires the journaled commit")
+		return previous, errors.New("delivery reconciliation requires the saved commit")
 	}
 	ref := previous.RemoteRef
 	if ref == "" {
@@ -370,6 +444,27 @@ func (service *GitService) Reconcile(ctx context.Context, request Request, previ
 	}
 	if err := verifyExpectedRemote(remoteURL, request.ExpectedRemoteIdentity, request.ExpectedRemoteHost, request.HostRepository); err != nil {
 		return previous, err
+	}
+	if previous.LocalRef == "" {
+		localRef := "refs/heads/" + request.Branch
+		exists, commit, err := service.ref(ctx, request.Candidate.RepositoryRoot, localRef)
+		if err != nil {
+			return previous, err
+		}
+		if !exists {
+			previous.Ambiguous = false
+			previous.Diagnostic = "local ref is absent"
+			return previous, nil
+		}
+		if commit != string(previous.Commit) {
+			previous.Ambiguous = true
+			previous.Diagnostic = "local ref exists at a different commit"
+			return previous, errors.New(previous.Diagnostic)
+		}
+		previous.LocalRef = localRef
+		previous.Ambiguous = false
+		previous.Diagnostic = ""
+		return previous, nil
 	}
 	exists, commit, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
 	if err != nil {

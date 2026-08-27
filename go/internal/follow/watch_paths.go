@@ -31,7 +31,7 @@ func excluded(watcher *sourceWatcher, relative string) bool {
 	parts := strings.Split(filepath.ToSlash(relative), "/")
 	for _, part := range parts[:max(0, len(parts)-1)] {
 		lower := strings.ToLower(part)
-		if ignoredDirectories[lower] || !watcher.includeTests && testDirectories[lower] {
+		if sourcepath.IsIgnoredDirectory(lower) || !watcher.includeTests && testDirectories[lower] {
 			return true
 		}
 	}

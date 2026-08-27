@@ -3,6 +3,7 @@ package candidate
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -76,7 +77,9 @@ func TestCandidateReconcilesDiscardAfterWorktreeRemovalCrash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gitRun(t, repository, "worktree", "remove", "--force", identity.RepositoryRoot)
+	if err := os.RemoveAll(identity.RepositoryRoot); err != nil {
+		t.Fatal(err)
+	}
 	if err := service.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +92,36 @@ func TestCandidateReconcilesDiscardAfterWorktreeRemovalCrash(t *testing.T) {
 	}
 }
 
-func TestPrepareReusesExactOwnedCandidateAfterCrashBeforeJournalHandshake(t *testing.T) {
+func TestCandidateReconcilesRegisteredWorktreeAfterWholeJobStateIsLost(t *testing.T) {
+	repository := initializeRepository(t)
+	state := filepath.Join(t.TempDir(), "state")
+	service, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
+	workspace, _ := service.DiscoverWorkspace(t.Context(), repository)
+	target, _ := fix.ParseRepoPath("main.go")
+	job, _ := fix.NewJobID()
+	identity, err := service.Prepare(t.Context(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(state, string(job))); err != nil {
+		t.Fatal(err)
+	}
+	if listing := gitOutput(t, repository, "worktree", "list", "--porcelain"); !strings.Contains(listing, identity.RepositoryRoot) {
+		t.Fatalf("test did not retain exact Git registration:\n%s", listing)
+	}
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restarted, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
+	if err := restarted.ReconcileDiscard(t.Context(), identity); err != nil {
+		t.Fatal(err)
+	}
+	if listing := gitOutput(t, repository, "worktree", "list", "--porcelain"); strings.Contains(listing, identity.RepositoryRoot) {
+		t.Fatalf("reconciled discard retained Git registration:\n%s", listing)
+	}
+}
+
+func TestPrepareReusesExactOwnedCandidateAfterCrashBeforeStateSave(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
 	first, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
@@ -231,10 +263,6 @@ func TestGitWorktreeServiceCreatesDetachedCandidatesAndEnforcesScope(t *testing.
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil || !preflight.Clean || !preflight.Supported || preflight.TargetBlobs[target] == "" {
-		t.Fatalf("preflight = %+v, %v", preflight, err)
-	}
 	job, _ := fix.NewJobID()
 	candidate, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
@@ -255,8 +283,8 @@ func TestGitWorktreeServiceCreatesDetachedCandidatesAndEnforcesScope(t *testing.
 		t.Fatal(err)
 	}
 	diff, err = service.Diff(context.Background(), candidate)
-	if err != nil || diff.Scope != fix.ScopeViolated {
-		t.Fatalf("out-of-scope diff = %+v, %v", diff, err)
+	if err != nil || diff.Scope != fix.ScopeClean || len(diff.Files) != 2 {
+		t.Fatalf("supporting refactor diff = %+v, %v", diff, err)
 	}
 	if err := service.Discard(context.Background(), candidate); err != nil {
 		t.Fatal(err)
@@ -291,27 +319,209 @@ func TestCandidatePreservesAnalysisRootRelativeToRepository(t *testing.T) {
 	}
 }
 
-func TestGitWorktreeServiceRejectsDirtyRepository(t *testing.T) {
+func TestValidJobIDAcceptsGonamesOnly(t *testing.T) {
+	tests := []struct {
+		value string
+		valid bool
+	}{
+		{"job-calm-swift-otter", true},
+		{"job-two-words", false},
+		{"job-waytoolong-swift-otter", false},
+		{"job-calm-swift-otter/escape", false},
+		{"draft-calm-swift-otter", false},
+	}
+	for _, test := range tests {
+		if got := validJobID(fix.JobID(test.value)); got != test.valid {
+			t.Errorf("validJobID(%q) = %t, want %t", test.value, got, test.valid)
+		}
+	}
+}
+
+func TestGitWorktreeServiceSeedsAllowedCurrentChanges(t *testing.T) {
 	repository := initializeRepository(t)
 	service, err := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
-	if err := os.WriteFile(filepath.Join(repository, "untracked"), []byte("dirty"), 0o600); err != nil {
+	const currentTarget = "package main\n\nfunc main() { println(\"current\") }\n"
+	if err := os.WriteFile(filepath.Join(repository, "main.go"), []byte(currentTarget), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repository, "untracked"), []byte("unrelated"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
+	job, _ := fix.NewJobID()
+	isolated, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets-only", AllowedPaths: []fix.RepoPath{target}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if preflight.Clean || preflight.Supported {
-		t.Fatalf("dirty preflight = %+v", preflight)
+	contents, err := os.ReadFile(filepath.Join(isolated.RepositoryRoot, "main.go"))
+	if err != nil || string(contents) != currentTarget {
+		t.Fatalf("isolated target = %q, err=%v", contents, err)
+	}
+	if _, err := os.Stat(filepath.Join(isolated.RepositoryRoot, "untracked")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unrelated current file entered isolated scope: %v", err)
 	}
 }
 
-func TestGitWorktreeServiceRejectsInProgressRepositoryOperation(t *testing.T) {
+func TestCandidateSnapshotPreservesRenameCopyAndExecutableMode(t *testing.T) {
+	repository := initializeRepository(t)
+	if err := os.WriteFile(filepath.Join(repository, "old.go"), []byte("package old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repository, "source.go"), []byte("package source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, repository, "add", "old.go", "source.go")
+	gitRun(t, repository, "commit", "-q", "-m", "seed files")
+	gitRun(t, repository, "config", "status.renames", "copies")
+	gitRun(t, repository, "mv", "old.go", "new.go")
+	contents, _ := os.ReadFile(filepath.Join(repository, "source.go"))
+	if err := os.WriteFile(filepath.Join(repository, "copy.go"), contents, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, repository, "add", "copy.go")
+	if err := os.Chmod(filepath.Join(repository, "main.go"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
+	workspace, _ := service.DiscoverWorkspace(t.Context(), repository)
+	job, _ := fix.NewJobID()
+	target, _ := fix.ParseRepoPath("main.go")
+	identity, err := service.Prepare(t.Context(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace,
+		Targets: []fix.RepoPath{target}, AllowedScope: "repository"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(identity.RepositoryRoot, "old.go")); !os.IsNotExist(err) {
+		t.Fatalf("rename source remains in candidate: %v", err)
+	}
+	for _, path := range []string{"new.go", "source.go", "copy.go"} {
+		if _, err := os.Stat(filepath.Join(identity.RepositoryRoot, path)); err != nil {
+			t.Fatalf("candidate omitted %s: %v", path, err)
+		}
+	}
+	info, err := os.Stat(filepath.Join(identity.RepositoryRoot, "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("candidate lost executable mode: mode=%v", info.Mode())
+	}
+}
+
+func TestCandidateAppliesImmutableSnapshotAfterSourceChanges(t *testing.T) {
+	repository := initializeRepository(t)
+	const snapshotted = "package main\n// snapshotted\n"
+	if err := os.WriteFile(filepath.Join(repository, "main.go"), []byte(snapshotted), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := t.TempDir()
+	staging := filepath.Join(state, "staging")
+	destination := filepath.Join(state, "destination")
+	if err := os.Mkdir(staging, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(destination, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	service, _ := NewGitWorktreeService(filepath.Join(state, "service"), directExecutor{}, testGitWorktreeConfig())
+	target, _ := fix.ParseRepoPath("main.go")
+	manifest, err := service.snapshotWorkingChanges(withCommandOutputBytes(t.Context(), testCandidateCommandOutputBytes), repository, staging, "targets", []fix.RepoPath{target})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repository, "main.go"), []byte("package main\n// later mutation\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := applySeedManifest(t.Context(), staging, destination, manifest); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(filepath.Join(destination, "main.go"))
+	if string(got) != snapshotted {
+		t.Fatalf("candidate used mutable source bytes: %q", got)
+	}
+}
+
+func TestCandidateCleansAndRetriesPartialReservationWithoutCompletionMarker(t *testing.T) {
+	repository := initializeRepository(t)
+	state := filepath.Join(t.TempDir(), "state")
+	service, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
+	workspace, _ := service.DiscoverWorkspace(t.Context(), repository)
+	target, _ := fix.ParseRepoPath("main.go")
+	job, _ := fix.NewJobID()
+	request := PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
+	identity, err := service.Prepare(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobRoot := filepath.Join(state, string(job))
+	if err := os.Remove(filepath.Join(jobRoot, ownershipName)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(jobRoot, seedCompletedName)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(identity.RepositoryRoot, "main.go"), []byte("partial crash state\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restarted, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
+	recovered, err := restarted.Prepare(t.Context(), request)
+	if err != nil {
+		t.Fatalf("partial reservation was not cleaned and retried: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(recovered.RepositoryRoot, "main.go"))
+	if err != nil || string(got) == "partial crash state\n" {
+		t.Fatalf("partial reservation bytes were adopted: %q, %v", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(jobRoot, ownershipName)); err != nil {
+		t.Fatalf("retried candidate has no ownership marker: %v", err)
+	}
+}
+
+func TestCandidateRetriesReservationLeftBeforeWorktreeCreation(t *testing.T) {
+	repository := initializeRepository(t)
+	state := filepath.Join(t.TempDir(), "state")
+	service, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
+	workspace, _ := service.DiscoverWorkspace(t.Context(), repository)
+	target, _ := fix.ParseRepoPath("main.go")
+	job, _ := fix.NewJobID()
+	request := PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
+	identity, err := service.Prepare(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(identity.RepositoryRoot); err != nil {
+		t.Fatal(err)
+	}
+	if listing := gitOutput(t, repository, "worktree", "list", "--porcelain"); !strings.Contains(listing, identity.RepositoryRoot) {
+		t.Fatalf("test did not leave the missing worktree registered:\n%s", listing)
+	}
+	jobRoot := filepath.Join(state, string(job))
+	for _, marker := range []string{ownershipName, seedCompletedName} {
+		if err := os.Remove(filepath.Join(jobRoot, marker)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restarted, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
+	recovered, err := restarted.Prepare(t.Context(), request)
+	if err != nil {
+		t.Fatalf("reservation without worktree was not retried: %v", err)
+	}
+	if _, err := os.Stat(recovered.RepositoryRoot); err != nil {
+		t.Fatalf("retried worktree missing: %v", err)
+	}
+}
+
+func TestGitWorktreeServiceAttemptsCandidateDuringRepositoryOperation(t *testing.T) {
 	repository := initializeRepository(t)
 	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
@@ -319,12 +529,9 @@ func TestGitWorktreeServiceRejectsInProgressRepositoryOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preflight.Supported || preflight.Diagnostic == "" {
-		t.Fatalf("in-progress operation accepted: %+v", preflight)
+	job, _ := fix.NewJobID()
+	if _, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets-only", AllowedPaths: []fix.RepoPath{target}}); err != nil {
+		t.Fatalf("candidate operation was rejected by speculative repository policy: %v", err)
 	}
 }
 
@@ -449,60 +656,6 @@ func TestCandidateRejectsSymlinkOwnershipMarker(t *testing.T) {
 	}
 	if _, err := service.Diff(context.Background(), identity); err == nil {
 		t.Fatal("symlink ownership marker was accepted")
-	}
-}
-
-func TestPreflightRejectsAttributesOutsideRepositoryRootFileAndDisablesFsmonitor(t *testing.T) {
-	repository := initializeRepository(t)
-	if err := os.MkdirAll(filepath.Join(repository, "nested"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(repository, "nested", ".gitattributes"), []byte("future-*.txt working-tree-encoding=UTF-16\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(repository, "nested", "file.txt"), []byte("content\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	gitRun(t, repository, "add", "nested")
-	gitRun(t, repository, "commit", "-q", "-m", "attributes")
-	marker := filepath.Join(t.TempDir(), "fsmonitor-ran")
-	hook := filepath.Join(t.TempDir(), "fsmonitor")
-	if err := os.WriteFile(hook, []byte("#!/bin/sh\ntouch \""+marker+"\"\n"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	gitRun(t, repository, "config", "core.fsmonitor", hook)
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
-	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
-	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preflight.Supported || preflight.Diagnostic == "" {
-		t.Fatalf("content-transforming nested attributes accepted: %+v", preflight)
-	}
-	if _, err := os.Stat(marker); !os.IsNotExist(err) {
-		t.Fatalf("configured fsmonitor executed: %v", err)
-	}
-}
-
-func TestPreflightRejectsGitInfoAttributesForFuturePaths(t *testing.T) {
-	repository := initializeRepository(t)
-	if err := os.MkdirAll(filepath.Join(repository, ".git", "info"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(repository, ".git", "info", "attributes"), []byte("future-* filter=unsafe\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
-	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
-	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preflight.Supported {
-		t.Fatalf("info/attributes content transform accepted: %+v", preflight)
 	}
 }
 

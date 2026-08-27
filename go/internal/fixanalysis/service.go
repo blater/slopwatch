@@ -34,7 +34,7 @@ type FileResult struct {
 	Score      float64
 	Metrics    map[fix.MetricID]fix.MetricValue
 	Complete   bool
-	Compliant  bool
+	TargetMet  bool
 	Diagnostic string
 }
 
@@ -43,7 +43,7 @@ type VerificationResult struct {
 	FingerprintBefore string
 	FingerprintAfter  string
 	Complete          bool
-	Compliant         bool
+	TargetMet         bool
 	Diagnostic        string
 }
 

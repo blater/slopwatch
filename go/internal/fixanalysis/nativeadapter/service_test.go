@@ -53,7 +53,7 @@ func TestPrepareBaselineAndVerifyUseFreshCandidateAnalyzer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !verified.Complete || !verified.Compliant || !verified.Stable() || len(verified.Files) != 1 || verified.Files[0].Score != 70 {
+	if !verified.Complete || !verified.TargetMet || !verified.Stable() || len(verified.Files) != 1 || verified.Files[0].Score != 70 {
 		t.Fatalf("verified = %#v", verified)
 	}
 	factory.mu.Lock()
@@ -107,8 +107,8 @@ func TestVerifyEnforcesScoreFocusRegressionCompletenessAndExactInventory(t *test
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.Compliant {
-				t.Fatalf("Verify() = %#v, want noncompliant", result)
+			if result.TargetMet {
+				t.Fatalf("Verify() = %#v, want target not met", result)
 			}
 			detail := result.Diagnostic
 			if len(result.Files) > 0 {
@@ -137,7 +137,7 @@ func TestVerifyDetectsMutationDuringAnalysis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Stable() || result.Complete || result.Compliant || !strings.Contains(result.Diagnostic, "changed during analysis") {
+	if result.Stable() || result.Complete || result.TargetMet || !strings.Contains(result.Diagnostic, "changed during analysis") {
 		t.Fatalf("Verify() = %#v", result)
 	}
 }
@@ -158,7 +158,7 @@ func TestVerifyRejectsCatalogOrProfileDriftWithoutAcceptingReport(t *testing.T) 
 			result, err := mustService(t, factory).Verify(context.Background(), fixanalysis.VerificationRequest{
 				Candidate: candidate, Contract: testContract("go/a.go"),
 			})
-			if err != nil || result.Compliant || !strings.Contains(result.Diagnostic, detail) {
+			if err != nil || result.TargetMet || !strings.Contains(result.Diagnostic, detail) {
 				t.Fatalf("Verify() = %#v, %v", result, err)
 			}
 		})

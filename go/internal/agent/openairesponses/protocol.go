@@ -33,12 +33,12 @@ type toolDefinition struct {
 	Strict      bool           `json:"strict"`
 }
 
-func functionTools() []toolDefinition {
+func functionTools(hasTargetManifest bool) []toolDefinition {
 	pathProperty := map[string]any{
 		"type":        "string",
 		"description": "Slash-separated path relative to the candidate repository root.",
 	}
-	return []toolDefinition{
+	tools := []toolDefinition{
 		{
 			Type: "function", Name: "list_files",
 			Description: "List bounded candidate file metadata. Symlinks, special files, and .git are blocked.",
@@ -66,9 +66,20 @@ func functionTools() []toolDefinition {
 			Parameters:  objectSchema(map[string]any{"path": pathProperty}, "path"), Strict: true,
 		},
 	}
+	if hasTargetManifest {
+		tools = append(tools, toolDefinition{
+			Type: "function", Name: "read_target_manifest",
+			Description: "Read the complete newline-delimited selected target list supplied by Slopwatch.",
+			Parameters:  objectSchema(map[string]any{}), Strict: true,
+		})
+	}
+	return tools
 }
 
 func objectSchema(properties map[string]any, required ...string) map[string]any {
+	if required == nil {
+		required = []string{}
+	}
 	return map[string]any{
 		"type":                 "object",
 		"properties":           properties,
@@ -257,6 +268,14 @@ type pathArguments struct {
 type writeArguments struct {
 	Path    *string `json:"path"`
 	Content *string `json:"content"`
+}
+
+func decodeNoArguments(value string) error {
+	var arguments struct{}
+	if err := decodeStrictString(value, &arguments); err != nil {
+		return errors.New("read_target_manifest arguments violate the strict tool schema")
+	}
+	return nil
 }
 
 func decodeListArguments(value string) (struct {

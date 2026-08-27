@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,11 +20,11 @@ import (
 
 func TestProfileDescriptorKeepsOperationalDetailsInPreferences(t *testing.T) {
 	descriptor := New().ProfileDescriptor()
-	if descriptor.Runtime != RuntimeKind || descriptor.Label != "Codex — managed sign-in" {
+	if descriptor.Runtime != RuntimeKind || descriptor.Label != "Codex" || descriptor.DocumentationURL != "https://developers.openai.com/codex/auth" || !strings.Contains(descriptor.ConnectionInstructions, "codex login") {
 		t.Fatalf("descriptor = %#v", descriptor)
 	}
 	for _, field := range descriptor.Fields {
-		if field.Key != "authentication_ref" && !field.PreferencesOnly {
+		if !field.PreferencesOnly {
 			t.Fatalf("operational field is visible in the Agents dialog: %#v", field)
 		}
 	}
@@ -59,16 +60,25 @@ func TestExecuteStreamsEventsAndUsesWorkspaceWrite(t *testing.T) {
 	root := canonicalTestRoot(t)
 	common := filepath.Join(root, "common.git")
 	candidate := filepath.Join(root, "candidate")
-	for _, path := range []string{common, candidate} {
+	staging := filepath.Join(root, "staging")
+	for _, path := range []string{common, candidate, staging} {
 		if err := os.Mkdir(path, 0o700); err != nil {
 			t.Fatal(err)
 		}
+	}
+	manifestPath := filepath.Join(staging, "targets.txt")
+	if err := os.WriteFile(manifestPath, []byte("main.go\nother.go\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 	capture := filepath.Join(root, "capture.jsonl")
 	strategy := New()
 	strategy.workingDir = func() (string, error) { return root, nil }
 	var events []agent.Event
-	result := strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "complete", capture)), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
+	request := testRequest(candidate, common)
+	request.Workspace.StagingRoot = staging
+	request.Task.Instructions.Objective += "\nManifest {target_manifest}; files {target_manifest_count}."
+	request.Task.Manifest = &agent.TargetManifest{Path: manifestPath, Count: 2}
+	result := strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "complete", capture)), request, agent.EventSinkFunc(func(event agent.Event) error {
 		events = append(events, event)
 		return nil
 	}))
@@ -106,10 +116,214 @@ func TestExecuteStreamsEventsAndUsesWorkspaceWrite(t *testing.T) {
 	if stringField(sandbox, "type") != "workspaceWrite" || sandbox["networkAccess"] != false {
 		t.Fatalf("turn sandbox = %#v", sandbox)
 	}
+	if !strings.Contains(fmt.Sprint(sandbox["writableRoots"]), staging) {
+		t.Fatalf("target manifest directory was not exposed to Codex: %#v", sandbox)
+	}
 	input, _ := turn.Params["input"].([]any)
 	first, _ := input[0].(map[string]any)
-	if stringField(first, "text") != "trusted envelope\n\nfix main.go" {
+	if !strings.Contains(stringField(first, "text"), "Manifest "+manifestPath+"; files 2.") {
 		t.Fatalf("turn input = %#v", input)
+	}
+}
+
+func TestExecutePrefersCompletionWhenServerExitsImmediatelyAfterIt(t *testing.T) {
+	for attempt := 0; attempt < 50; attempt++ {
+		root := canonicalTestRoot(t)
+		common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+		for _, path := range []string{common, candidate} {
+			if err := os.Mkdir(path, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "completeexit", filepath.Join(root, "capture"))), testRequest(candidate, common), nil)
+		if result.Status != agent.ResultCompleted {
+			t.Fatalf("attempt %d: Execute() = %#v", attempt, result)
+		}
+	}
+}
+
+func TestZeroOutputBudgetAllowsUnlimitedBoundedProtocolFrames(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	request := testRequest(candidate, common)
+	request.Limits.MaxOutputBytes = 0
+	result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "cumulative", filepath.Join(root, "capture"))), request, nil)
+	if result.Status != agent.ResultCompleted {
+		t.Fatalf("unlimited bounded frames failed: %#v", result)
+	}
+}
+
+func TestZeroOutputBudgetStillRejectsOversizedProtocolFrame(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	request := testRequest(candidate, common)
+	request.Limits.MaxOutputBytes = 0
+	result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "oversizeframe", filepath.Join(root, "capture"))), request, nil)
+	if result.Status == agent.ResultCompleted || !strings.Contains(result.Diagnostic, "token too long") {
+		t.Fatalf("oversized protocol frame was accepted: %#v", result)
+	}
+}
+
+func TestExecuteReconcilesLostTurnCompletionFromAuthoritativeThreadState(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	strategy := New()
+	strategy.reconcileEvery = 10 * time.Millisecond
+	result := strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "lostcompletion", filepath.Join(root, "capture"))), testRequest(candidate, common), nil)
+	if result.Status != agent.ResultCompleted || result.Summary != "Fixed the target." {
+		t.Fatalf("Execute() = %#v", result)
+	}
+}
+
+func TestCompletionReconciliationNeverStopsAnActiveCodexTurn(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capture := filepath.Join(root, "capture")
+	strategy := New()
+	strategy.reconcileEvery = 10 * time.Millisecond
+	ctx, cancel := context.WithCancel(t.Context())
+	finished := make(chan agent.Result, 1)
+	go func() {
+		finished <- strategy.Execute(ctx, testProfile(fakeAppServerExecutable(t, "lostactive", capture)), testRequest(candidate, common), nil)
+	}()
+	waitForCapturedMethod(t, capture, "thread/read")
+	cancel()
+	select {
+	case result := <-finished:
+		if result.Status != agent.ResultCanceled || result.Failure != agent.FailureCancellation {
+			t.Fatalf("active reconciliation result = %#v", result)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("active Codex turn did not remain cancelable")
+	}
+}
+
+func TestCompletionReconciliationRejectsForeignOrMissingThreadIdentity(t *testing.T) {
+	for _, test := range []struct {
+		mode string
+		want string
+	}{
+		{mode: "lostforeign", want: "foreign thread"},
+		{mode: "lostmissing", want: "no thread id"},
+	} {
+		t.Run(test.mode, func(t *testing.T) {
+			root := canonicalTestRoot(t)
+			common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+			for _, path := range []string{common, candidate} {
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			strategy := New()
+			strategy.reconcileEvery = 10 * time.Millisecond
+			result := strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, test.mode, filepath.Join(root, "capture"))), testRequest(candidate, common), nil)
+			if result.Failure != agent.FailureProtocol || !strings.Contains(result.Diagnostic, test.want) {
+				t.Fatalf("Execute() = %#v", result)
+			}
+		})
+	}
+}
+
+func TestOutstandingCompletionReadCannotMaskOwnedTurnCompletion(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	strategy := New()
+	strategy.reconcileEvery = 10 * time.Millisecond
+	result := strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "readblockedcomplete", filepath.Join(root, "capture"))), testRequest(candidate, common), nil)
+	if result.Status != agent.ResultCompleted || result.Summary != "Fixed the target." {
+		t.Fatalf("Execute() = %#v", result)
+	}
+}
+
+func TestCancellationJoinsOutstandingCompletionRead(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capture := filepath.Join(root, "capture")
+	strategy := New()
+	strategy.reconcileEvery = 10 * time.Millisecond
+	ctx, cancel := context.WithCancel(t.Context())
+	finished := make(chan agent.Result, 1)
+	go func() {
+		finished <- strategy.Execute(ctx, testProfile(fakeAppServerExecutable(t, "readblockedcancel", capture)), testRequest(candidate, common), nil)
+	}()
+	waitForCapturedMethod(t, capture, "thread/read")
+	cancel()
+	select {
+	case result := <-finished:
+		if result.Status != agent.ResultCanceled || result.Failure != agent.FailureCancellation {
+			t.Fatalf("Execute() = %#v", result)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("cancellation did not join the outstanding completion read")
+	}
+}
+
+func TestReconciliationCannotOutrunFailingFinalAnswerSink(t *testing.T) {
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capture := filepath.Join(root, "capture")
+	strategy := New()
+	strategy.reconcileEvery = 10 * time.Millisecond
+	entered, release := make(chan struct{}), make(chan struct{})
+	finished := make(chan agent.Result, 1)
+	go func() {
+		finished <- strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "lostcompletion", capture)), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
+			if event.Kind == agent.EventRuntimeMessage && event.Summary == "Fixed the target." {
+				close(entered)
+				<-release
+				return errors.New("sink rejected final answer")
+			}
+			return nil
+		}))
+	}()
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("final-answer event did not reach the sink")
+	}
+	close(release)
+	select {
+	case result := <-finished:
+		if result.Failure != agent.FailureProtocol || !strings.Contains(result.Diagnostic, "sink rejected final answer") {
+			t.Fatalf("Execute() = %#v", result)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("sink failure did not terminate the attempt")
 	}
 }
 
@@ -251,6 +465,24 @@ func TestOwnedCompletionSynchronouslySuppressesNextNotification(t *testing.T) {
 	}
 }
 
+func TestCompletionBeforeTurnBindingCannotClaimOwnedTurn(t *testing.T) {
+	run := newAppServerRun(agent.Request{JobID: "job", AttemptID: "attempt"}, nil)
+	run.setThread("thread-1")
+	foreign, _ := json.Marshal(map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "foreign-turn", "status": "completed"}})
+	owned, _ := json.Marshal(map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "completed"}})
+	run.handle(rpcMessage{Method: "turn/completed", Params: foreign})
+	run.handle(rpcMessage{Method: "turn/completed", Params: owned})
+	run.setTurn("turn-1")
+	select {
+	case completion := <-run.completed:
+		if completion.Status != "completed" {
+			t.Fatalf("completion = %#v", completion)
+		}
+	default:
+		t.Fatal("owned buffered completion was not published")
+	}
+}
+
 func TestActorLimitFailureWakesSilentAttempt(t *testing.T) {
 	root := canonicalTestRoot(t)
 	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
@@ -326,11 +558,35 @@ func TestUnexpectedServerRequestIsRejected(t *testing.T) {
 	}
 }
 
+func TestUnsupportedServerRequestFailsFastWhenOutboundQueueIsFull(t *testing.T) {
+	client := &appServerClient{
+		pending:  make(map[int64]chan rpcResponse),
+		outbound: make(chan outboundMessage, 1),
+		stop:     make(chan struct{}),
+		done:     make(chan struct{}),
+		maximum:  1 << 20,
+	}
+	client.outbound <- outboundMessage{}
+	finished := make(chan struct{})
+	go func() {
+		client.read(strings.NewReader("{\"id\":99,\"method\":\"item/permissions/requestApproval\"}\n"))
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("reader blocked while the outbound queue was full")
+	}
+	if err := client.protocolExitError(); err == nil || !strings.Contains(err.Error(), "more unsupported requests than could be rejected") {
+		t.Fatalf("protocolExitError() = %v", err)
+	}
+}
+
 func TestProbeReportsActionableEarlyAppServerExit(t *testing.T) {
 	strategy := New()
 	strategy.workingDir = func() (string, error) { return t.TempDir(), nil }
 	result := strategy.Probe(t.Context(), testProfile(fakeAppServerExecutable(t, "fail", filepath.Join(t.TempDir(), "capture"))))
-	if result.State != agent.ProbeIncompatible || !strings.Contains(result.Diagnostic, "fake app-server startup failure") ||
+	if result.State != agent.ProbeIncompatible || !strings.Contains(result.Diagnostic, "exited before responding") ||
 		!strings.Contains(result.Diagnostic, "install or update Codex") || !strings.Contains(result.Diagnostic, "Test again") {
 		t.Fatalf("Probe() = %#v", result)
 	}
@@ -379,45 +635,6 @@ func TestCancellationUsesTurnInterrupt(t *testing.T) {
 	interrupt := findCaptured(t, capturedMessages(t, capture), "turn/interrupt")
 	if stringField(interrupt.Params, "threadId") != "thread-1" || stringField(interrupt.Params, "turnId") != "turn-1" {
 		t.Fatalf("interrupt params = %#v", interrupt.Params)
-	}
-}
-
-func TestCancellationUnblocksProviderWriteBackpressure(t *testing.T) {
-	root := canonicalTestRoot(t)
-	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
-	for _, path := range []string{common, candidate} {
-		if err := os.Mkdir(path, 0o700); err != nil {
-			t.Fatal(err)
-		}
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	started := make(chan struct{})
-	finished := make(chan agent.Result, 1)
-	go func() {
-		finished <- New().Execute(ctx, testProfile(fakeAppServerExecutable(t, "backpressure", filepath.Join(root, "capture"))), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
-			if event.Kind == agent.EventStarted {
-				select {
-				case <-started:
-				default:
-					close(started)
-				}
-			}
-			return nil
-		}))
-	}()
-	select {
-	case <-started:
-	case <-time.After(3 * time.Second):
-		t.Fatal("backpressured turn did not start")
-	}
-	cancel()
-	select {
-	case result := <-finished:
-		if result.Status != agent.ResultCanceled || result.Failure != agent.FailureCancellation {
-			t.Fatalf("Execute() = %#v", result)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("cancellation remained blocked on App Server stdin")
 	}
 }
 
@@ -504,12 +721,6 @@ func serveFakeAppServer(mode, capture string) {
 				// before this deliberately unrealistic peer completes the turn.
 				time.Sleep(50 * time.Millisecond)
 			}
-			if mode == "backpressure" {
-				for index := 0; index < 5000; index++ {
-					encoded, _ := json.Marshal(map[string]any{"id": 10_000 + index, "method": "item/permissions/requestApproval", "params": map[string]any{"threadId": "thread-1", "turnId": "turn-1"}})
-					fmt.Println(string(encoded))
-				}
-			}
 			if mode == "descendant" {
 				startFakeDescendant(capture)
 			}
@@ -534,20 +745,48 @@ func serveFakeAppServer(mode, capture string) {
 					notify("item/completed", mergeMap(identity, map[string]any{"item": map[string]any{"id": actor, "type": "collabAgentToolCall", "receiverThreadIds": []any{actor}}}))
 				}
 			}
-			if mode == "complete" || mode == "foreign" || mode == "flood" || mode == "descendant" || mode == "stubborn" || mode == "serverrequest" || mode == "trailing" {
+			if mode == "cumulative" {
+				for index := 0; index < 160; index++ {
+					notify("warning", map[string]any{"message": strings.Repeat("x", 8192)})
+				}
+			}
+			if mode == "oversizeframe" {
+				notify("warning", map[string]any{"message": strings.Repeat("x", diagnosticCaptureLimit+1)})
+				return
+			}
+			if mode == "complete" || mode == "completeexit" || mode == "cumulative" || mode == "foreign" || mode == "flood" || mode == "descendant" || mode == "stubborn" || mode == "serverrequest" || mode == "trailing" || mode == "lostcompletion" || mode == "lostactive" || mode == "lostforeign" || mode == "lostmissing" || mode == "readblockedcomplete" || mode == "readblockedcancel" {
 				identity := map[string]any{"threadId": "thread-1", "turnId": "turn-1"}
 				notify("item/started", mergeMap(identity, map[string]any{"item": map[string]any{"id": "cmd-1", "type": "commandExecution", "command": "go test ./..."}}))
 				notify("item/completed", mergeMap(identity, map[string]any{"item": map[string]any{"id": "change-1", "type": "fileChange", "changes": []any{map[string]any{"path": "main.go"}}}}))
-				notify("item/completed", mergeMap(identity, map[string]any{"item": map[string]any{"id": "message-1", "type": "agentMessage", "text": "Fixed the target."}}))
+				notify("item/completed", mergeMap(identity, map[string]any{"item": map[string]any{"id": "message-1", "type": "agentMessage", "phase": "final_answer", "text": "Fixed the target."}}))
 				notify("thread/tokenUsage/updated", mergeMap(identity, map[string]any{"tokenUsage": map[string]any{"total": map[string]any{"inputTokens": 20, "cachedInputTokens": 5, "outputTokens": 8, "reasoningOutputTokens": 3}}}))
-				notify("turn/completed", map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "completed", "items": []any{}}})
+				if mode != "lostcompletion" && mode != "lostactive" && mode != "lostforeign" && mode != "lostmissing" && mode != "readblockedcomplete" && mode != "readblockedcancel" {
+					notify("turn/completed", map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "completed", "items": []any{}}})
+				}
 				if mode == "trailing" {
 					notify("warning", map[string]any{"message": "late provider warning"})
+				}
+				if mode == "completeexit" {
+					return
 				}
 			}
 		case "turn/interrupt":
 			respond(map[string]any{})
 			notify("turn/completed", map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "interrupted", "items": []any{}}})
+		case "thread/read":
+			switch mode {
+			case "readblockedcomplete":
+				notify("turn/completed", map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "completed", "items": []any{}}})
+			case "readblockedcancel":
+			case "lostactive":
+				respond(map[string]any{"thread": map[string]any{"id": "thread-1", "status": map[string]any{"type": "active"}, "turns": []any{}}})
+			case "lostforeign":
+				respond(map[string]any{"thread": map[string]any{"id": "foreign-thread", "status": map[string]any{"type": "idle"}, "turns": []any{}}})
+			case "lostmissing":
+				respond(map[string]any{"thread": map[string]any{"status": map[string]any{"type": "idle"}, "turns": []any{}}})
+			default:
+				respond(map[string]any{"thread": map[string]any{"id": "thread-1", "status": map[string]any{"type": "idle"}, "turns": []any{}}})
+			}
 		}
 	}
 }
@@ -616,8 +855,8 @@ func waitForCapturedMethod(t *testing.T, path, method string) {
 }
 
 func startFakeDescendant(capture string) {
-	command := exec.Command("sh", "-c", `trap 'printf terminated > "$SLOPWATCH_CHILD_TERMINATED"; exit 0' TERM; printf ready > "$SLOPWATCH_CHILD_READY"; while :; do sleep 1; done`)
-	command.Env = append(os.Environ(), "SLOPWATCH_CHILD_READY="+capture+".ready", "SLOPWATCH_CHILD_TERMINATED="+capture+".terminated")
+	command := exec.Command("sh", "-c", `trap 'exit 0' TERM; printf '%s' "$$" > "$SLOPWATCH_CHILD_PID"; printf ready > "$SLOPWATCH_CHILD_READY"; while :; do sleep 1; done`)
+	command.Env = append(os.Environ(), "SLOPWATCH_CHILD_READY="+capture+".ready", "SLOPWATCH_CHILD_PID="+capture+".pid")
 	if command.Start() != nil {
 		return
 	}
@@ -662,7 +901,7 @@ func testProfile(executable string) agent.Profile {
 
 func testRequest(candidate, common string) agent.Request {
 	return agent.Request{
-		JobID: "job-1", AttemptID: "attempt-1", Model: "gpt-5.6-sol", Effort: "high", Delegation: agent.DelegationSingle,
+		JobID: "job-1", AttemptID: "attempt-1", Model: "gpt-5.6-sol", Effort: "high",
 		Workspace: fix.CandidateIdentity{RepositoryRoot: candidate, GitCommonDir: common},
 		Task:      agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "trusted envelope", Objective: "fix main.go"}},
 		Limits:    agent.Limits{MaxOutputBytes: 1 << 20, MaxActors: 10},

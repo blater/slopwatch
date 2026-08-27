@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -16,9 +17,9 @@ import (
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
 	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixprompt"
 	userprefs "github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/style"
-	"github.com/blater/slopwatch/internal/validation"
 )
 
 func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
@@ -50,6 +51,8 @@ func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
 		t.Fatal("Tab escaped the feature settings overlay")
 	}
 	result.configSettings.cursor = 1
+	result.configSettings.working.Delivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}
+	result.configSettings.cursor = 4 // Remote in the expanded delivery form.
 	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.configSettings.editing {
@@ -72,16 +75,16 @@ func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
 	}
 }
 
-func TestLegacyDashboardDefaultsCarryValidFeatureDefaults(t *testing.T) {
+func TestDashboardDefaultsCarryValidFeatureDefaults(t *testing.T) {
 	t.Parallel()
 	value := defaultUserPreferences()
-	if value.Fix.TargetScore != 100 || value.Fix.ChangeScope != "targets-and-tests" ||
+	if value.Fix.TargetScore != 100 || value.Fix.ChangeScope != "repository" ||
 		value.Concurrency.MaxAgents != 2 || value.Delivery.Publisher != "github-cli" {
 		t.Fatalf("dashboard defaults lost feature properties: %#v", value)
 	}
 }
 
-func TestLegacyDashboardSavePreservesFeatureGroups(t *testing.T) {
+func TestDashboardSavePreservesFeatureGroups(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "preferences.toml")
 	value := defaultUserPreferences()
@@ -102,7 +105,7 @@ func TestLegacyDashboardSavePreservesFeatureGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(loaded.Agents.Profiles) != 1 || loaded.Agents.Profiles[0].Options["sandbox"] != "strict" || loaded.Fix.Profile != "codex" {
-		t.Fatalf("legacy save overwrote feature groups: %#v", loaded)
+		t.Fatalf("dashboard save overwrote feature groups: %#v", loaded)
 	}
 }
 
@@ -112,10 +115,9 @@ func TestFeatureSettingsValidateBeforeAsyncSave(t *testing.T) {
 	resolved.Concurrency.MaxAgents = 0
 	model := settingsModel(configConcurrency, resolved, &settingsConfigStore{resolved: settingsResolved()})
 	model.configSettings.dirty = true
-	updated, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	result := updated.(*Model)
-	if command != nil || !strings.Contains(result.configSettings.status, "Cannot save") {
-		t.Fatalf("invalid save status=%q command=%v", result.configSettings.status, command)
+	command := model.saveConfigSettings()
+	if command != nil || !strings.Contains(model.configSettings.status, "Cannot save") {
+		t.Fatalf("invalid save status=%q command=%v", model.configSettings.status, command)
 	}
 }
 
@@ -125,7 +127,7 @@ func TestFeatureSettingsSaveReportsConflictAndServiceErrors(t *testing.T) {
 		err  error
 		want string
 	}{
-		"conflict": {fmt.Errorf("wrapped: %w", appconfig.ErrRevisionConflict), "Save conflict"},
+		"conflict": {fmt.Errorf("wrapped: %w", appconfig.ErrRevisionConflict), "Save failed: settings changed elsewhere"},
 		"service":  {errors.New("disk unavailable"), "Save failed: disk unavailable"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -134,13 +136,12 @@ func TestFeatureSettingsSaveReportsConflictAndServiceErrors(t *testing.T) {
 			model := settingsModel(configConcurrency, settingsResolved(), store)
 			model.configSettings.working.Concurrency.MaxAgents++
 			model.configSettings.dirty = true
-			updated, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-			result := updated.(*Model)
-			if command == nil || store.saveCalls != 0 || !result.configSettings.saving {
+			command := model.saveConfigSettings()
+			if command == nil || store.saveCalls != 0 || !model.configSettings.saving {
 				t.Fatal("save did not remain asynchronous")
 			}
-			updated, _ = result.Update(command())
-			result = updated.(*Model)
+			updated, _ := model.Update(command())
+			result := updated.(*Model)
 			if result.configSettings.saving || !strings.Contains(result.configSettings.status, test.want) || store.saveCalls != 1 {
 				t.Fatalf("save result status=%q calls=%d", result.configSettings.status, store.saveCalls)
 			}
@@ -151,66 +152,111 @@ func TestFeatureSettingsSaveReportsConflictAndServiceErrors(t *testing.T) {
 	}
 }
 
+func TestFixDefaultsSaveEachChangeAndDoNotOfferReload(t *testing.T) {
+	resolved := settingsResolved()
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configFix, resolved, store)
+	model.configSettings.cursor = 0
+
+	updated, save := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(*Model)
+	if save == nil || !model.configSettings.saving || model.configSettings.working.Fix.TargetScore != 105 {
+		t.Fatalf("target score change was not saved automatically: %+v", model.configSettings)
+	}
+	model.handleConfigSaved(save().(configSavedMsg))
+	if store.saveCalls != 1 || model.configSettings.dirty || model.configSettings.working.Fix.TargetScore != 105 {
+		t.Fatalf("automatic save did not settle: calls=%d state=%+v", store.saveCalls, model.configSettings)
+	}
+
+	before := model.configSettings.working.Fix.TargetScore
+	_, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if command != nil || model.configSettings.loading || model.configSettings.working.Fix.TargetScore != before {
+		t.Fatal("Fix Defaults retained a reload key")
+	}
+	footer := model.configSettingsFooter()
+	if strings.Contains(footer, "save") || strings.Contains(footer, "reload") {
+		t.Fatalf("Fix Defaults footer still exposes manual persistence: %q", footer)
+	}
+}
+
 func TestAgentSettingsOfferSafeCodexDefaultAndShowReadiness(t *testing.T) {
 	t.Parallel()
-	model := settingsModel(configAgents, settingsResolved(), &settingsConfigStore{})
-	model.width = 120
-	model.configSettings.working.Profiles = nil
-	model.addDefaultAgentProfile()
-	profiles := model.configSettings.working.Profiles
-	if len(profiles) != 1 || profiles[0].Runtime != "codex-cli" || profiles[0].Executable != "codex" || profiles[0].AuthenticationRef != "provider-owned" {
-		t.Fatalf("Codex default = %#v", profiles)
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{
+		{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
+		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
 	}
+	resolved.Fix.Profile = "codex"
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
+	model.profileCatalog = &multiRuntimeProfileServices{}
+	model.width = 120
 	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady, Version: "1.2.3", Authentication: agent.Authentication{Method: "chatgpt", Label: "Signed in with ChatGPT"}, Capabilities: agent.Capabilities{Isolation: agent.RuntimeIsolation{
 		Writes: agent.CandidateTreeAndGitMetadataProtected, SensitiveReadsDenied: true, TransportAuthIsolated: true, CrashContainment: true,
 	}}}
 	text := ansi.Strip(model.configSettingsView())
-	for _, fragment := range []string{"Codex", "managed sign-in", "DEFAULT", "ready 1.", "D set default"} {
+	for _, fragment := range []string{"Claude CLI  not available", "Claude API  not available", "Codex       [ACTIVE]", "Grok        not available", "OpenAI API  available", "Enter select"} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("agent settings missing %q: %q", fragment, text)
 		}
 	}
-	model.configSettings.profileEditing = true
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(160), "\n")); !strings.Contains(text, "Signed in with ChatGPT") {
-		t.Fatalf("agent settings omitted sanitized account method: %q", text)
-	}
-}
-
-func TestAgentTestStatusWrapsInsidePopupAndRemainsVisible(t *testing.T) {
-	t.Parallel()
-	resolved := settingsResolved()
-	resolved.Profiles = resolved.Profiles[:1]
-	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
-	model.width, model.height = 54, 16
-	model.configSettings.probes[resolved.Profiles[0].ID] = agent.ProbeResult{
-		State:      agent.ProbeDegraded,
-		Diagnostic: "Codex confinement gates failed: crash containment unavailable at /a/very/long/unbroken/provider/protocol/path; run Test again after correcting the installation",
-	}
-
-	text := ansi.Strip(model.configSettingsView())
-	for _, fragment := range []string{"Test: NOT RUNNABLE", "confinement gates failed", "/a/very/long/unbroken/provider/protocol/path", "run Test again", "installation"} {
-		if !strings.Contains(text, fragment) {
-			t.Fatalf("wrapped Test status hid %q: %q", fragment, text)
+	for _, forbidden := range []string{"add agent", "remove", "t test", "↑/↓", "Label", "Profile ID"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("agent chooser exposed %q: %q", forbidden, text)
 		}
 	}
 }
 
-func TestAgentSettingsAddAdapterDefinedProfilesWithoutImplementationNoise(t *testing.T) {
+func TestAgentConnectionCheckHasImmediateAndReadableFeedback(t *testing.T) {
 	t.Parallel()
-	model := settingsModel(configAgents, settingsResolved(), &settingsConfigStore{})
-	model.profileCatalog = &multiRuntimeProfileServices{}
-	model.configSettings.working.Profiles = nil
-	model.addDefaultAgentProfile()
-	model.addDefaultAgentProfile()
-	profiles := model.configSettings.working.Profiles
-	if len(profiles) != 2 || profiles[0].Runtime != "codex-cli" || profiles[1].Runtime != "openai-responses" ||
-		profiles[1].Executable != "" || profiles[1].AuthenticationRef != "env:OPENAI_API_KEY" {
-		t.Fatalf("adapter defaults = %#v", profiles)
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"}}
+	resolved.Fix.Profile = "codex"
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
+	services := &settingsProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.width, model.height = 54, 16
+	model.configSettings.cursor = agentProviderIndex("codex-cli")
+	command := model.openSelectedAgentProvider()
+	if command == nil {
+		t.Fatal("opening Codex did not start its connection check")
 	}
-	model.configSettings.cursor = 0
+	if text := ansi.Strip(model.configSettingsView()); !strings.Contains(text, "CODEX") || !strings.Contains(text, "CHECKING CONNECTION") {
+		t.Fatalf("connection check had no immediate feedback: %q", text)
+	}
+	_, _ = handleMessage(model, command())
+	text := ansi.Strip(model.configSettingsView())
+	for _, fragment := range []string{"CODEX", "CONNECTION FAILED", "codex login", "https://developers.openai.com/codex/auth"} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("connection result hid %q: %q", fragment, text)
+		}
+	}
+}
+
+func TestMissingCodexExecutableIsMarkedUnavailable(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{{ID: "codex", Runtime: "codex-cli", Executable: "missing-codex", AuthenticationRef: "provider-owned"}}
+	resolved.Fix.Profile = "codex"
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
+	model.profileCatalog = &multiRuntimeProfileServices{}
+	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeUnavailable, Diagnostic: "codex executable was not found on PATH"}
+	text := ansi.Strip(model.configSettingsView())
+	if !strings.Contains(text, "Codex       [ACTIVE] · unavailable") {
+		t.Fatalf("missing CLI harness was not marked unavailable: %q", text)
+	}
+}
+
+func TestAgentConnectionDialogShowsOnlyEssentialAdapterFields(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"}}
+	resolved.Fix.Profile = "api"
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
+	model.profileCatalog = &multiRuntimeProfileServices{}
+	model.configSettings.providerRuntime = "openai-responses"
 	model.configSettings.profileEditing = true
 	text := ansi.Strip(strings.Join(model.configSettingsLines(120), "\n"))
-	for _, hidden := range []string{"Runtime", "Executable", "Probe timeout", "Cancellation grace", "Additional denied roots"} {
+	for _, hidden := range []string{"Runtime", "Executable", "Probe timeout", "Cancellation grace", "Profile ID", "Label"} {
 		if strings.Contains(text, hidden) {
 			t.Fatalf("Agents popup exposed preferences-only field %q: %q", hidden, text)
 		}
@@ -220,92 +266,304 @@ func TestAgentSettingsAddAdapterDefinedProfilesWithoutImplementationNoise(t *tes
 	}
 }
 
-func TestAgentSettingsCanExplicitlySetAndSaveDefaultProfile(t *testing.T) {
+func TestSuccessfulAutomaticConnectionCheckSelectsAndSavesActiveProvider(t *testing.T) {
 	t.Parallel()
 	resolved := settingsResolved()
 	resolved.Profiles = []agent.Profile{
 		{ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
 		{ID: "api", Label: "OpenAI", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
 	}
-	resolved.Fix.Profile = "api"
+	resolved.Fix.Profile = "codex"
 	store := &settingsConfigStore{resolved: resolved}
 	model := settingsModel(configAgents, resolved, store)
-	model.configSettings.cursor = 0
-	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady, Capabilities: agent.Capabilities{
-		Models:     []agent.Option[agent.ModelID]{{ID: "codex-model", Default: true}},
-		Efforts:    []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
-		Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Default: true}},
-	}}
-	updated, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}})
-	result := updated.(*Model)
-	if command != nil || result.configSettings.working.Fix.Profile != "codex" || result.configSettings.working.Fix.Model != "codex-model" || !result.configSettings.dirty {
-		t.Fatalf("set default state=%+v command=%v", result.configSettings, command)
+	services := &readyMultiRuntimeProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.cursor = agentProviderIndex("openai-responses")
+	probe := model.openSelectedAgentProvider()
+	if probe == nil || !model.configSettings.probing["api"] {
+		t.Fatal("selecting OpenAI API did not begin an automatic connection check")
 	}
-	save := result.saveConfigSettings()
+	_, save := handleMessage(model, probe())
 	if save == nil {
-		t.Fatal("setting default did not produce a save command")
+		t.Fatal("successful connection did not schedule automatic activation save")
 	}
-	result.handleConfigSaved(save().(configSavedMsg))
-	if store.resolved.Fix.Profile != "codex" || store.resolved.Fix.Model != "codex-model" {
+	model.handleConfigSaved(save().(configSavedMsg))
+	if store.resolved.Fix.Profile != "api" || store.resolved.Fix.Model != "api-model" {
 		t.Fatalf("saved Fix defaults=%#v", store.resolved.Fix)
 	}
 }
 
-func TestUnprobedDefaultSwitchPersistsRuntimeDefaults(t *testing.T) {
+func TestEditedConnectionRejectsStaleABAProbeAndRestoresLastKnownGoodProfile(t *testing.T) {
 	t.Parallel()
 	resolved := settingsResolved()
 	resolved.Profiles = []agent.Profile{
 		{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
-		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
+		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OLD_OPENAI_KEY"},
 	}
-	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationSingle
-	store := &settingsConfigStore{resolved: resolved}
-	model := settingsModel(configAgents, resolved, store)
-	model.configSettings.cursor = 1
-	model.setSelectedAgentDefault()
-	if model.configSettings.working.Fix.Model != "" || model.configSettings.working.Fix.Effort != "" || model.configSettings.working.Fix.Delegation != agent.DelegationSingle {
-		t.Fatalf("untested adapter retained foreign selections: %#v", model.configSettings.working.Fix)
+	resolved.Fix.Profile = "codex"
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{resolved: resolved})
+	services := &multiRuntimeProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.cursor = agentProviderIndex("openai-responses")
+	stale := model.openSelectedAgentProvider()
+	if stale == nil {
+		t.Fatal("initial connection check was not started")
 	}
-	save := model.saveConfigSettings()
-	if save == nil {
-		t.Fatal("unprobed default switch did not save")
+	model.configSettings.editField = 0
+	model.configSettings.input.SetValue("env:NEW_OPENAI_KEY")
+	if err := model.commitConfigText(); err != nil {
+		t.Fatal(err)
 	}
-	model.handleConfigSaved(save().(configSavedMsg))
-	if store.resolved.Fix.Profile != "api" || store.resolved.Fix.Model != "" || store.resolved.Fix.Effort != "" {
-		t.Fatalf("saved runtime defaults=%#v", store.resolved.Fix)
+	superseded := model.testSelectedProfileCommand()
+	if superseded == nil {
+		t.Fatal("edited connection remained blocked behind the stale check")
+	}
+	model.configSettings.editField = 0
+	model.configSettings.input.SetValue("env:OLD_OPENAI_KEY")
+	if err := model.commitConfigText(); err != nil {
+		t.Fatal(err)
+	}
+	current := model.testSelectedProfileCommand()
+	if current == nil {
+		t.Fatal("second connection edit did not supersede the first edit")
+	}
+	_, _ = handleMessage(model, stale())
+	if _, exists := model.configSettings.probes["api"]; exists || !model.configSettings.probing["api"] {
+		t.Fatal("ABA-stale connection result replaced the newer in-flight check")
+	}
+	_, _ = handleMessage(model, superseded())
+	if _, exists := model.configSettings.probes["api"]; exists || !model.configSettings.probing["api"] {
+		t.Fatal("superseded middle connection result replaced the current check")
+	}
+	_, _ = handleMessage(model, current())
+	if model.configSettings.probing["api"] {
+		t.Fatal("current connection result did not finish its check")
+	}
+	if got := model.configSettings.working.Profiles[1].AuthenticationRef; got != "env:OLD_OPENAI_KEY" || model.configSettings.dirty || model.configSettings.pendingOriginal != nil {
+		t.Fatalf("failed second edit did not restore the last-known-good profile: %+v", model.configSettings)
 	}
 }
 
-func TestFailedProbeDefaultSwitchDoesNotReuseItsCapabilities(t *testing.T) {
+func TestSuccessfulEditToActiveConnectionIsAutomaticallySaved(t *testing.T) {
 	t.Parallel()
 	resolved := settingsResolved()
-	resolved.Profiles = []agent.Profile{
-		{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
-		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
-	}
-	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationSingle
+	resolved.Profiles = []agent.Profile{{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OLD_OPENAI_KEY"}}
+	resolved.Fix.Profile = "api"
 	store := &settingsConfigStore{resolved: resolved}
 	model := settingsModel(configAgents, resolved, store)
-	model.configSettings.cursor = 1
-	model.configSettings.probes["api"] = agent.ProbeResult{
-		State: agent.ProbeUnauthenticated,
-		Capabilities: agent.Capabilities{
-			Models:  []agent.Option[agent.ModelID]{{ID: "api-model", Default: true}},
-			Efforts: []agent.Option[agent.EffortID]{{ID: "medium", Default: true}},
-		},
+	services := &readyMultiRuntimeProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.profileEditing = true
+	model.configSettings.providerRuntime = "openai-responses"
+	model.configSettings.editField = 0
+	model.configSettings.input.SetValue("env:NEW_OPENAI_KEY")
+	if err := model.commitConfigText(); err != nil {
+		t.Fatal(err)
 	}
-
-	model.setSelectedAgentDefault()
-	if got := model.configSettings.working.Fix; got.Profile != "api" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
-		t.Fatalf("failed probe was treated as a usable capability catalog: %#v", got)
+	probe := model.testSelectedProfileCommand()
+	if probe == nil {
+		t.Fatal("active connection edit did not begin an automatic check")
 	}
-	save := model.saveConfigSettings()
+	_, save := handleMessage(model, probe())
 	if save == nil {
-		t.Fatal("failed-probe default switch did not save")
+		t.Fatal("successful active connection edit was not automatically saved")
 	}
 	model.handleConfigSaved(save().(configSavedMsg))
-	if got := store.resolved.Fix; got.Profile != "api" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
-		t.Fatalf("failed-probe selections were persisted: %#v", got)
+	if got := store.resolved.Profiles[0].AuthenticationRef; got != "env:NEW_OPENAI_KEY" {
+		t.Fatalf("saved authentication reference = %q", got)
+	}
+}
+
+func TestFailedConnectionEditIsRolledBackAndCannotBeSaved(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:WORKING_OPENAI_KEY"}}
+	resolved.Fix.Profile = "api"
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configAgents, resolved, store)
+	services := &multiRuntimeProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.profileEditing = true
+	model.configSettings.providerRuntime = "openai-responses"
+	model.configSettings.editField = 0
+	model.configSettings.input.SetValue("env:BROKEN_OPENAI_KEY")
+	if err := model.commitConfigText(); err != nil {
+		t.Fatal(err)
+	}
+	probe := model.testSelectedProfileCommand()
+	_, save := handleMessage(model, probe())
+	if save != nil {
+		t.Fatal("failed connection check attempted to save")
+	}
+	state := model.configSettings
+	if got := state.working.Profiles[0].AuthenticationRef; got != "env:WORKING_OPENAI_KEY" || state.dirty || state.pendingOriginal != nil {
+		t.Fatalf("failed connection edit was not rolled back: %+v", state)
+	}
+	model.handleAgentSettingsKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if model.hasOverlay(OverlaySettingsDirty) || store.saveCalls != 0 {
+		t.Fatal("failed connection edit remained reachable through Save/Discard")
+	}
+}
+
+func TestEscapingAnInFlightConnectionEditRestoresItAndRejectsItsResult(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:WORKING_OPENAI_KEY"}}
+	resolved.Fix.Profile = "api"
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{resolved: resolved})
+	services := &readyMultiRuntimeProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.profileEditing = true
+	model.configSettings.providerRuntime = "openai-responses"
+	model.configSettings.editField = 0
+	model.configSettings.input.SetValue("env:UNVERIFIED_OPENAI_KEY")
+	if err := model.commitConfigText(); err != nil {
+		t.Fatal(err)
+	}
+	probe := model.testSelectedProfileCommand()
+	if probe == nil {
+		t.Fatal("connection edit did not start a check")
+	}
+	model.handleAgentSettingsKey(tea.KeyMsg{Type: tea.KeyEsc})
+	_, save := handleMessage(model, probe())
+	if save != nil || model.configSettings.working.Profiles[0].AuthenticationRef != "env:WORKING_OPENAI_KEY" || model.configSettings.dirty {
+		t.Fatalf("escaped connection candidate remained saveable: %+v", model.configSettings)
+	}
+}
+
+func TestAutomaticActivationSaveFailureRestoresActiveProviderAndIsVisible(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = append(resolved.Profiles, agent.Profile{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"})
+	store := &settingsConfigStore{resolved: resolved, saveErr: errors.New("preferences are read-only")}
+	model := settingsModel(configAgents, resolved, store)
+	services := &readyMultiRuntimeProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.cursor = agentProviderIndex("openai-responses")
+	probe := model.openSelectedAgentProvider()
+	_, save := handleMessage(model, probe())
+	if save == nil {
+		t.Fatal("ready provider did not attempt automatic activation")
+	}
+	_, _ = handleMessage(model, save())
+	if model.configSettings.working.Fix.Profile != "codex" || model.configSettings.saving {
+		t.Fatalf("failed save left an unsaved provider active: %+v", model.configSettings)
+	}
+	text := ansi.Strip(model.configSettingsView())
+	if !strings.Contains(text, "ACTIVATION FAILED") || !strings.Contains(text, "preferences are read-only") {
+		t.Fatalf("activation save failure was hidden: %q", text)
+	}
+}
+
+func TestDuplicateProviderProfilesAreUnavailableAndNeverProbed(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = append(resolved.Profiles,
+		agent.Profile{ID: "api-work", Runtime: "openai-responses", AuthenticationRef: "env:WORK_KEY"},
+		agent.Profile{ID: "api-personal", Runtime: "openai-responses", AuthenticationRef: "env:PERSONAL_KEY"},
+	)
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{resolved: resolved})
+	services := &readyMultiRuntimeProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.cursor = agentProviderIndex("openai-responses")
+	if available, _ := model.agentProviderAvailability(agentProviderChoices[model.configSettings.cursor]); available {
+		t.Fatal("ambiguous provider profiles were reported available")
+	}
+	if command := model.openSelectedAgentProvider(); command != nil {
+		t.Fatal("ambiguous provider profiles started a connection check")
+	}
+	text := ansi.Strip(model.configSettingsView())
+	if !strings.Contains(text, "Multiple connections") || !strings.Contains(text, "one account") {
+		t.Fatalf("duplicate-profile recovery was unclear: %q", text)
+	}
+}
+
+func TestSupportedProviderWithoutProfileIsUnavailableWithRecovery(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{resolved: resolved})
+	model.profileCatalog = &multiRuntimeProfileServices{}
+	model.configSettings.cursor = agentProviderIndex("openai-responses")
+	choice := agentProviderChoices[model.configSettings.cursor]
+	if available, _ := model.agentProviderAvailability(choice); available {
+		t.Fatal("provider without a configuration was reported available")
+	}
+	if command := model.openSelectedAgentProvider(); command != nil {
+		t.Fatal("provider without a profile started a connection check")
+	}
+	text := ansi.Strip(model.configSettingsView())
+	if !strings.Contains(text, "No connection configured") || !strings.Contains(text, "preferences") {
+		t.Fatalf("missing-profile recovery was unclear: %q", text)
+	}
+}
+
+func TestCompactMissingAndDuplicateProfileRecoveryIsVisible(t *testing.T) {
+	t.Parallel()
+	for name, profiles := range map[string][]agent.Profile{
+		"missing": settingsResolved().Profiles,
+		"duplicate": append(settingsResolved().Profiles,
+			agent.Profile{ID: "api-work", Runtime: "openai-responses", AuthenticationRef: "env:WORK_KEY"},
+			agent.Profile{ID: "api-personal", Runtime: "openai-responses", AuthenticationRef: "env:PERSONAL_KEY"},
+		),
+	} {
+		t.Run(name, func(t *testing.T) {
+			resolved := settingsResolved()
+			resolved.Profiles = profiles
+			model := settingsModel(configAgents, resolved, &settingsConfigStore{resolved: resolved})
+			model.profileCatalog = &multiRuntimeProfileServices{}
+			model.width, model.height = 40, 10
+			model.configSettings.cursor = agentProviderIndex("openai-responses")
+			model.openSelectedAgentProvider()
+			view := ansi.Strip(model.configSettingsFullScreen())
+			assertScreenSize(t, view, 40, 10)
+			if !strings.Contains(view, "preferences file") || !strings.Contains(view, "reopen Settings") {
+				t.Fatalf("compact %s recovery was clipped: %q", name, view)
+			}
+		})
+	}
+}
+
+func TestChoiceConnectionEditRollsBackAfterFailedAutomaticCheck(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = []agent.Profile{{ID: "choice", Runtime: "choice-api", AuthenticationRef: "provider-owned", Options: map[string]string{"region": "us"}}}
+	resolved.Fix.Profile = "choice"
+	model := settingsModel(configAgents, resolved, &settingsConfigStore{resolved: resolved})
+	services := &choiceProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.profileEditing = true
+	model.configSettings.providerRuntime = "choice-api"
+	if !model.adjustProfileChoice(1) {
+		t.Fatal("choice field was not changed")
+	}
+	probe := model.testSelectedProfileCommand()
+	_, save := handleMessage(model, probe())
+	if save != nil || model.configSettings.working.Profiles[0].Options["region"] != "us" || model.configSettings.dirty {
+		t.Fatalf("failed choice check was not rolled back: %+v", model.configSettings)
+	}
+}
+
+func TestChoiceRepairOfInactiveProviderActivatesAndSavesIt(t *testing.T) {
+	t.Parallel()
+	resolved := settingsResolved()
+	resolved.Profiles = append(resolved.Profiles, agent.Profile{ID: "choice", Runtime: "choice-api", AuthenticationRef: "provider-owned", Options: map[string]string{"region": "us"}})
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configAgents, resolved, store)
+	services := &repairableChoiceProfileServices{}
+	model.profileCatalog, model.profileProber = services, services
+	model.configSettings.profileEditing = true
+	model.configSettings.providerRuntime = "choice-api"
+	if !model.adjustProfileChoice(1) {
+		t.Fatal("choice repair did not change the field")
+	}
+	probe := model.testSelectedProfileCommand()
+	_, save := handleMessage(model, probe())
+	if save == nil {
+		t.Fatal("ready choice repair did not schedule activation save")
+	}
+	_, _ = handleMessage(model, save())
+	if store.resolved.Fix.Profile != "choice" || store.resolved.Profiles[1].Options["region"] != "eu" {
+		t.Fatalf("choice repair was saved without activation: %#v %#v", store.resolved.Fix, store.resolved.Profiles)
 	}
 }
 
@@ -316,12 +574,12 @@ func TestFixSettingsProfileCycleClearsForeignRuntimeChoices(t *testing.T) {
 		{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
 		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
 	}
-	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationMode("team")
+	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort = "codex", "codex-model", "high"
 
 	if !adjustFixSetting(&resolved, 2, 1, map[agent.ProfileID]agent.ProbeResult{}) {
 		t.Fatal("Fix Settings profile row did not change")
 	}
-	if resolved.Fix.Profile != "api" || resolved.Fix.Model != "" || resolved.Fix.Effort != "" || resolved.Fix.Delegation != agent.DelegationSingle {
+	if resolved.Fix.Profile != "api" || resolved.Fix.Model != "" || resolved.Fix.Effort != "" {
 		t.Fatalf("Fix Settings retained choices belonging to the previous runtime: %#v", resolved.Fix)
 	}
 }
@@ -338,91 +596,12 @@ func TestPreferencesReloadClearsAgentProbeCatalog(t *testing.T) {
 	}
 }
 
-func TestAuthenticationEditInvalidatesProbeBeforeProfileBecomesDefault(t *testing.T) {
-	t.Parallel()
-	resolved := settingsResolved()
-	resolved.Profiles = []agent.Profile{
-		{ID: "primary", Label: "Primary API", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
-		{ID: "candidate", Label: "Candidate", Runtime: "openai-responses", AuthenticationRef: "env:OLD_OPENAI_KEY"},
-	}
-	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "primary", "primary-model", "high", agent.DelegationSingle
-	store := &settingsConfigStore{resolved: resolved}
-	model := settingsModel(configAgents, resolved, store)
-	services := &multiRuntimeProfileServices{}
-	model.profileCatalog = services
-	model.profileProber = services
-	model.configSettings.probes["candidate"] = agent.ProbeResult{State: agent.ProbeReady, Capabilities: agent.Capabilities{
-		Models:     []agent.Option[agent.ModelID]{{ID: "stale-api-model", Default: true}},
-		Efforts:    []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
-		Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Default: true}},
-	}}
-	model.configSettings.profileEditing = true
-	model.configSettings.cursor = 1
-	model.configSettings.profileCursor = 2
-	staleProbe := model.testSelectedProfileCommand()
-	if staleProbe == nil {
-		t.Fatal("old runtime did not produce a probe command")
-	}
-
-	model.configSettings.editField = 2
-	model.configSettings.input.SetValue("env:NEW_OPENAI_KEY")
-	if err := model.commitConfigText(); err != nil {
-		t.Fatal(err)
-	}
-	if _, exists := model.configSettings.probes["candidate"]; exists {
-		t.Fatal("authentication change retained the old adapter probe")
-	}
-	_, _ = handleMessage(model, staleProbe())
-	if _, exists := model.configSettings.probes["candidate"]; exists {
-		t.Fatal("late probe for the old authentication definition was accepted after the edit")
-	}
-	model.configSettings.profileEditing = false
-	model.setSelectedAgentDefault()
-	if got := model.configSettings.working.Fix; got.Profile != "candidate" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
-		t.Fatalf("new default reused the old runtime's capability choices: %#v", got)
-	}
-	save := model.saveConfigSettings()
-	if save == nil {
-		t.Fatal("authentication/default change did not produce a save")
-	}
-	model.handleConfigSaved(save().(configSavedMsg))
-	reloaded := settingsModel(configAgents, store.resolved, store)
-	if got := reloaded.configSettings.working.Fix; got.Profile != "candidate" || got.Model != "" || got.Effort != "" || got.Delegation != agent.DelegationSingle {
-		t.Fatalf("reloaded settings retained a stale adapter selection: %#v", got)
-	}
-}
-
-func TestOnlyBuiltInCodexProfileCarriesRecommendation(t *testing.T) {
+func TestAgentProfileChoiceLabelsStayShort(t *testing.T) {
 	t.Parallel()
 	builtIn := agentProfileChoiceLabel(agent.Profile{ID: "codex-default", Runtime: "codex-cli"})
 	custom := agentProfileChoiceLabel(agent.Profile{ID: "work", Runtime: "codex-cli"})
-	if !strings.Contains(builtIn, "recommended") || strings.Contains(custom, "recommended") {
+	if builtIn != "Codex" || custom != "Codex" {
 		t.Fatalf("Codex choice labels: built-in=%q custom=%q", builtIn, custom)
-	}
-}
-
-func TestRenamingDefaultAgentPersistsUpdatedFixReference(t *testing.T) {
-	t.Parallel()
-	resolved := settingsResolved()
-	store := &settingsConfigStore{resolved: resolved}
-	model := settingsModel(configAgents, resolved, store)
-	model.configSettings.profileEditing = true
-	model.configSettings.cursor = 0
-	model.configSettings.editField = 0
-	model.configSettings.input.SetValue("renamed-codex")
-	if err := model.commitConfigText(); err != nil {
-		t.Fatal(err)
-	}
-	if model.configSettings.working.Fix.Profile != "renamed-codex" || !model.configSettings.defaultChanged {
-		t.Fatalf("renamed default state=%+v", model.configSettings)
-	}
-	save := model.saveConfigSettings()
-	if save == nil {
-		t.Fatal("renamed default did not save")
-	}
-	model.handleConfigSaved(save().(configSavedMsg))
-	if store.resolved.Fix.Profile != "renamed-codex" {
-		t.Fatalf("saved default reference=%q", store.resolved.Fix.Profile)
 	}
 }
 
@@ -449,51 +628,15 @@ func TestAPIBackedAgentProfileSavesAndReloadsWithoutExecutable(t *testing.T) {
 		t.Fatalf("saved API profile=%#v", got)
 	}
 
-	reload := model.reloadConfigSettings()
-	if reload == nil {
-		t.Fatal("reload did not remain asynchronous")
+	reopened := &Model{configStore: store, configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"}}
+	reload := reopened.openConfigSettings(configAgents)
+	if reload == nil || !reopened.configSettings.loading {
+		t.Fatal("reopening settings did not load fresh configuration")
 	}
-	model.handleConfigResolved(reload().(configResolvedMsg))
-	got := model.configSettings.working.Profiles
+	reopened.handleConfigResolved(reload().(configResolvedMsg))
+	got := reopened.configSettings.working.Profiles
 	if len(got) != 1 || got[0].ID != "gpt" || got[0].AuthenticationRef != "env:OPENAI_API_KEY" || got[0].Executable != "" {
 		t.Fatalf("reloaded API profile=%#v", got)
-	}
-}
-
-func TestAgentSettingsExposeTestDiagnosticsAndCanRemoveUnknownOption(t *testing.T) {
-	t.Parallel()
-	resolved := settingsResolved()
-	resolved.Profiles = []agent.Profile{{ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned", Options: map[string]string{"obsolete": "bad"}}}
-	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
-	services := &settingsProfileServices{}
-	model.profileCatalog = services
-	model.profileProber = services
-
-	command := model.testSelectedProfileCommand()
-	if command == nil {
-		t.Fatal("explicit profile test returned no command")
-	}
-	message := command().(configProbeMsg)
-	if message.result.State != agent.ProbeUnauthenticated || !strings.Contains(message.result.Diagnostic, "codex login") {
-		t.Fatalf("profile test = %#v", message.result)
-	}
-	model.configSettings.probes[message.profile] = message.result
-	if text := ansi.Strip(model.configSettingsView()); !strings.Contains(text, "codex login") {
-		t.Fatalf("profile diagnostic not rendered: %q", text)
-	}
-
-	model.configSettings.profileEditing = true
-	fields := model.profileEditorFields(model.configSettings.working.Profiles[0])
-	if len(fields) != 2 || fields[1].OptionKey != "obsolete" {
-		t.Fatalf("repair fields = %#v", fields)
-	}
-	model.configSettings.editField = 3
-	model.configSettings.input.SetValue("")
-	if err := model.commitConfigText(); err != nil {
-		t.Fatal(err)
-	}
-	if _, exists := model.configSettings.working.Profiles[0].Options["obsolete"]; exists {
-		t.Fatal("unsupported option was not removed")
 	}
 }
 
@@ -504,9 +647,9 @@ func (*settingsProfileServices) Descriptor(kind agent.RuntimeKind) (agent.Profil
 	if kind != "codex-cli" {
 		return agent.ProfileDescriptor{}, fmt.Errorf("unknown runtime %s", kind)
 	}
-	return agent.ProfileDescriptor{Runtime: kind, Label: "Codex", Fields: []agent.ProfileField{
+	return agent.ProfileDescriptor{Runtime: kind, Label: "Codex", ConnectionInstructions: "Run `codex login` to authorize.", DocumentationURL: "https://developers.openai.com/codex/auth", Fields: []agent.ProfileField{
 		{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true, PreferencesOnly: true},
-		{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Required: true, Description: "Run `codex login` to authorize."},
+		{Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference, Required: true, Description: "Run `codex login` to authorize.", PreferencesOnly: true},
 		{Key: "options.probe_timeout", OptionKey: "probe_timeout", Label: "Probe timeout", Kind: agent.ProfileFieldText, PreferencesOnly: true},
 		{Key: "options.termination_grace", OptionKey: "termination_grace", Label: "Cancellation grace", Kind: agent.ProfileFieldText, PreferencesOnly: true},
 	}}, nil
@@ -528,7 +671,7 @@ func (*multiRuntimeProfileServices) Kinds() []agent.RuntimeKind {
 }
 func (*multiRuntimeProfileServices) Descriptor(kind agent.RuntimeKind) (agent.ProfileDescriptor, error) {
 	if kind == "openai-responses" {
-		return agent.ProfileDescriptor{Runtime: kind, Label: "OpenAI Responses API", Fields: []agent.ProfileField{{
+		return agent.ProfileDescriptor{Runtime: kind, Label: "OpenAI API", ConnectionInstructions: "Set the API key environment variable.", Fields: []agent.ProfileField{{
 			Key: "authentication_ref", Label: "Authentication", Kind: agent.ProfileFieldAuthReference,
 			Required: true, Default: "env:OPENAI_API_KEY",
 		}}}, nil
@@ -536,19 +679,80 @@ func (*multiRuntimeProfileServices) Descriptor(kind agent.RuntimeKind) (agent.Pr
 	return (&settingsProfileServices{}).Descriptor(kind)
 }
 
+type readyMultiRuntimeProfileServices struct{ multiRuntimeProfileServices }
+
+func (*readyMultiRuntimeProfileServices) Probe(_ context.Context, profile agent.Profile) agent.ProbeResult {
+	model := agent.ModelID("codex-model")
+	if profile.Runtime == "openai-responses" {
+		model = "api-model"
+	}
+	return agent.ProbeResult{
+		Runtime: profile.Runtime, State: agent.ProbeReady,
+		Authentication: agent.Authentication{Label: "Authenticated"},
+		Capabilities: agent.Capabilities{
+			Models:  []agent.Option[agent.ModelID]{{ID: model, Default: true}},
+			Efforts: []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
+			Isolation: agent.RuntimeIsolation{
+				Writes: agent.CandidateTreeEnforced, ProviderManagedCancellation: true,
+			},
+		},
+	}
+}
+
+type choiceProfileServices struct{}
+
+func (*choiceProfileServices) Kinds() []agent.RuntimeKind {
+	return []agent.RuntimeKind{"codex-cli", "choice-api"}
+}
+func (*choiceProfileServices) Descriptor(kind agent.RuntimeKind) (agent.ProfileDescriptor, error) {
+	if kind == "codex-cli" {
+		return (&settingsProfileServices{}).Descriptor(kind)
+	}
+	if kind == "choice-api" {
+		return agent.ProfileDescriptor{Runtime: kind, Label: "Choice API", Fields: []agent.ProfileField{{
+			Key: "options.region", OptionKey: "region", Label: "Region", Kind: agent.ProfileFieldChoice,
+			Required: true, Choices: []string{"us", "eu"},
+		}}}, nil
+	}
+	return agent.ProfileDescriptor{}, fmt.Errorf("unknown runtime %s", kind)
+}
+func (*choiceProfileServices) ValidateProfile(agent.Profile) error { return nil }
+func (*choiceProfileServices) Probe(_ context.Context, profile agent.Profile) agent.ProbeResult {
+	return agent.ProbeResult{Runtime: profile.Runtime, State: agent.ProbeUnauthenticated, Diagnostic: "connection rejected"}
+}
+
+type repairableChoiceProfileServices struct{ choiceProfileServices }
+
+func (*repairableChoiceProfileServices) Probe(_ context.Context, profile agent.Profile) agent.ProbeResult {
+	if profile.Runtime != "choice-api" || profile.Options["region"] != "eu" {
+		return agent.ProbeResult{Runtime: profile.Runtime, State: agent.ProbeUnauthenticated, Diagnostic: "connection rejected"}
+	}
+	return agent.ProbeResult{
+		Runtime: profile.Runtime, State: agent.ProbeReady,
+		Capabilities: agent.Capabilities{
+			Models:    []agent.Option[agent.ModelID]{{ID: "choice-model", Default: true}},
+			Efforts:   []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
+			Isolation: agent.RuntimeIsolation{Writes: agent.CandidateTreeEnforced, ProviderManagedCancellation: true},
+		},
+	}
+}
+
 func TestFeatureSettingsRenderAllSectionsAtResponsiveSizes(t *testing.T) {
 	t.Parallel()
 	sections := map[configSettingsKind]string{
 		configAgents: "AGENTS", configFix: "FIX DEFAULTS", configConcurrency: "CONCURRENCY & RETENTION",
-		configValidation: "VALIDATION", configDelivery: "GIT & PULL REQUESTS",
+		configDelivery: "GIT & PULL REQUESTS",
 	}
 	for _, size := range [][2]int{{40, 10}, {72, 16}, {120, 30}} {
 		for kind, heading := range sections {
 			model := settingsModel(kind, settingsResolved(), &settingsConfigStore{})
 			model.width, model.height = size[0], size[1]
 			text := ansi.Strip(model.configSettingsView())
-			if !strings.Contains(text, heading) || !strings.Contains(text, "save") {
+			if !strings.Contains(text, heading) || kind == configAgents && !strings.Contains(text, "Enter select") {
 				t.Fatalf("%s at %dx%d = %q", kind, size[0], size[1], text)
+			}
+			if kind == configFix && (strings.Contains(text, "s save") || strings.Contains(text, "r reload")) {
+				t.Fatalf("Fix Defaults still advertises manual persistence at %dx%d: %q", size[0], size[1], text)
 			}
 		}
 	}
@@ -569,72 +773,119 @@ func TestCompactSettingsEditorKeepsApplyAndCancelFooterVisible(t *testing.T) {
 	}
 }
 
-func TestSettingsExposeFixedPoliciesTrustedCommandsAndFocusedSources(t *testing.T) {
+func TestSettingsKeepDeliveryAndMasterPromptClear(t *testing.T) {
 	resolved := settingsResolved()
-	resolved.Fix.PromptTemplate = "default"
-	resolved.Delivery.CleanupPolicy = "retain"
-	resolved.Delivery.CommitPolicy = "on-publish"
-	resolved.Validation = []validation.Plan{{ID: "release", Checks: []validation.Check{{
-		ID: "test", Label: "Go test", Executable: "/usr/bin/go", Arguments: []string{"test", "./..."},
-		WorkingDirectory: "module", Required: true, Timeout: 10 * time.Minute, MaxOutputBytes: 4096,
-	}}}}
-	resolved.Origins["validation.release.checks.test"] = appconfig.OriginRepository
-
-	validationModel := settingsModel(configValidation, resolved, &settingsConfigStore{})
-	validationModel.configSettings.cursor = 18 // trusted command row
-	validationText := ansi.Strip(strings.Join(validationModel.configSettingsLines(100), "\n"))
-	for _, wanted := range []string{"Go test command", "/usr/bin/go", `"./..."`, "installation-owned", "working dir", "module"} {
-		if !strings.Contains(validationText, wanted) {
-			t.Fatalf("validation settings hid %q: %q", wanted, validationText)
-		}
-	}
-	if footer := validationModel.configSettingsFooter(); !strings.Contains(footer, "Read-only in this release") {
-		t.Fatalf("trusted command footer implied editing: %q", footer)
-	}
-	if source := validationModel.configFocusedSourceNote(); !strings.Contains(source, "Repo override") || !strings.Contains(source, "saves user default only") {
-		t.Fatalf("repository precedence consequence=%q", source)
-	}
-	validationModel.configSettings.cursor = 20 // timeout row
-	if footer := validationModel.configSettingsFooter(); !strings.Contains(footer, "Enter edit") {
-		t.Fatalf("editable validation limit footer=%q", footer)
-	}
+	resolved.Fix.PromptTemplate = fixprompt.DefaultTemplate
 
 	deliveryModel := settingsModel(configDelivery, resolved, &settingsConfigStore{})
-	for _, cursor := range []int{4, 12, 13} {
-		deliveryModel.configSettings.cursor = cursor
-		before := deliveryModel.configSettings.working.Delivery
-		deliveryModel.adjustConfigSetting(1)
-		if deliveryModel.configSettings.working.Delivery != before || deliveryModel.configSettings.dirty {
-			t.Fatalf("fixed delivery row %d behaved as editable", cursor)
-		}
-		if footer := deliveryModel.configSettingsFooter(); !strings.Contains(footer, "Read-only in this release") {
-			t.Fatalf("fixed delivery row %d footer=%q", cursor, footer)
-		}
-	}
-	deliveryModel.configSettings.cursor = 12
 	deliveryText := ansi.Strip(strings.Join(deliveryModel.configSettingsLines(100), "\n"))
-	for _, wanted := range []string{"only supported v1 adapter", "retain · fixed v1", "on-publish · fixed v1", "until explicit Discard or Cleanup"} {
-		if !strings.Contains(deliveryText, wanted) {
-			t.Fatalf("delivery settings hid %q: %q", wanted, deliveryText)
+	for _, unwanted := range []string{"Publisher", "only supported v1 adapter", "fixed v1", "explicit Discard", "Built-in default", "save creates user default"} {
+		if strings.Contains(deliveryText, unwanted) {
+			t.Fatalf("delivery settings contain obsolete hint %q: %q", unwanted, deliveryText)
 		}
-	}
-	deliveryModel.configSettings.cursor = 9
-	if text := ansi.Strip(strings.Join(deliveryModel.configSettingsLines(100), "\n")); !strings.Contains(text, "Single-line body template") || !strings.Contains(text, "line breaks") {
-		t.Fatalf("delivery body-template constraint was hidden: %q", text)
 	}
 
 	fixModel := settingsModel(configFix, resolved, &settingsConfigStore{})
-	fixModel.configSettings.cursor = 6
-	if text := ansi.Strip(strings.Join(fixModel.configSettingsLines(100), "\n")); !strings.Contains(text, "Prompt strategy") || !strings.Contains(text, "fixed v1") || !strings.Contains(text, "non-editable safety envelope") {
-		t.Fatalf("fixed prompt strategy was unclear: %q", text)
+	fixModel.configSettings.cursor = fixSettingsPromptRow
+	fixText := ansi.Strip(strings.Join(fixModel.configSettingsLines(75), "\n"))
+	if !strings.Contains(fixText, "Agent prompt") || !strings.Contains(fixText, "[x] SCORE") {
+		t.Fatalf("master prompt or score metric missing: %q", fixText)
 	}
-	if footer := fixModel.configSettingsFooter(); !strings.Contains(footer, "Read-only in this release") {
-		t.Fatalf("fixed prompt footer=%q", footer)
+	if strings.Count(fixText, "Focus metrics") != 1 || strings.Contains(fixText, "Focus metric ") || strings.Contains(fixText, "Change scope") || !strings.Contains(fixText, "May edit") {
+		t.Fatalf("Fix settings grouping or labels are wrong: %q", fixText)
+	}
+	gridRows := 0
+	for _, line := range strings.Split(fixText, "\n") {
+		if strings.Count(line, "[") == 3 {
+			gridRows++
+		}
+	}
+	if gridRows != 3 {
+		t.Fatalf("focus metrics are not an aligned 3x3 grid: %q", fixText)
+	}
+	if text := ansi.Strip(strings.Join(fixModel.configSettingsLines(100), "\n")); strings.Contains(text, "Master template used") || strings.Contains(text, "Built-in default") {
+		t.Fatalf("Fix settings contain an explanatory hint: %q", text)
+	}
+}
+
+func TestSavingTargetScoreKeepsModelAndEffortChoicesStable(t *testing.T) {
+	resolved := settingsResolved()
+	model := settingsModel(configFix, resolved, &settingsConfigStore{})
+	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady, Capabilities: agent.Capabilities{
+		Models:  []agent.Option[agent.ModelID]{{ID: "gpt", Label: "GPT"}, {ID: "mini", Label: "Mini"}},
+		Efforts: []agent.Option[agent.EffortID]{{ID: "high", Label: "High"}, {ID: "medium", Label: "Medium"}},
+	}}
+	if !model.configChoiceField(3) || !model.configChoiceField(4) {
+		t.Fatal("model and effort did not start as dropdowns")
+	}
+	command := model.handleConfigSaved(configSavedMsg{generation: model.configSettings.generation, saved: appconfig.Saved{Revision: resolved.Revision + 1, Resolved: resolved}})
+	if command != nil || !model.configChoiceField(3) || !model.configChoiceField(4) {
+		t.Fatal("saving an unrelated FIX DEFAULT caused agent choices to disappear or re-probe")
+	}
+}
+
+func TestFixDefaultsEditTheMasterPrompt(t *testing.T) {
+	model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{})
+	model.configSettings.cursor = fixSettingsPromptRow
+	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if !model.hasOverlay(OverlayPromptEditor) || !strings.Contains(ansi.Strip(model.View()), "MASTER AGENT PROMPT") {
+		t.Fatalf("master prompt editor did not open: %q", ansi.Strip(model.View()))
+	}
+	if model.configSettings.prompt.ShowLineNumbers || model.configSettings.prompt.Prompt != "" || strings.Contains(ansi.Strip(model.View()), "┃") {
+		t.Fatalf("master prompt did not use a plain text box: %q", ansi.Strip(model.View()))
+	}
+	const prompt = "Refactor {targets} until SCORE is no more than {target_score}."
+	model.configSettings.prompt.SetValue(prompt)
+	model.handleMasterPromptKey(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if model.hasOverlay(OverlayPromptEditor) || model.configSettings.working.Fix.PromptTemplate != prompt || !model.configSettings.dirty {
+		t.Fatalf("master prompt was not applied to Fix Defaults: %+v", model.configSettings)
+	}
+}
+
+func TestFixDefaultsChoicesOpenAsAnchoredMenusWithoutReflow(t *testing.T) {
+	model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{resolved: settingsResolved()})
+	model.configSettings.cursor = 1 // May edit.
+	closed := model.configSettingsLines(68)
+	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if !model.configSettings.choiceOpen {
+		t.Fatal("Enter did not open the May edit dropdown")
+	}
+	open := model.configSettingsLines(68)
+	if strings.Join(closed, "\n") != strings.Join(open, "\n") {
+		t.Fatalf("opening a settings dropdown reflowed its form rows: closed=%q open=%q", ansi.Strip(strings.Join(closed, "\n")), ansi.Strip(strings.Join(open, "\n")))
+	}
+	view := ansi.Strip(model.configSettingsView())
+	for _, choice := range []string{"Selected files", "Selected files + related tests", "Any file in the project"} {
+		if !strings.Contains(view, choice) {
+			t.Fatalf("settings dropdown omitted %q despite available dialog space: %q", choice, view)
+		}
+	}
+	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyDown})
+	_, save := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if save == nil || model.configSettings.choiceOpen || model.configSettings.working.Fix.ChangeScope != "repository" {
+		t.Fatalf("settings dropdown selection was not applied and saved: %+v", model.configSettings)
+	}
+}
+
+func TestMasterPromptEmptyErrorIsVisible(t *testing.T) {
+	for _, size := range []struct{ width, height int }{{36, 6}, {80, 24}} {
+		model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{})
+		model.width, model.height = size.width, size.height
+		model.configSettings.cursor = fixSettingsPromptRow
+		model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
+		model.configSettings.prompt.SetValue("   ")
+		model.handleMasterPromptKey(tea.KeyMsg{Type: tea.KeyCtrlS})
+		plain := ansi.Strip(model.View())
+		if !model.hasOverlay(OverlayPromptEditor) || !strings.Contains(plain, "Agent prompt cannot be empty") {
+			t.Fatalf("%dx%d prompt error was not visible: %q", size.width, size.height, plain)
+		}
+		assertScreenSize(t, model.View(), size.width, size.height)
 	}
 }
 
 func TestDeliverySettingsDoNotSilentlyClipOrganisationBranchTemplate(t *testing.T) {
 	resolved := settingsResolved()
+	resolved.Delivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}
 	store := &settingsConfigStore{resolved: resolved}
 	model := &Model{width: 80, height: 24, configStore: store, configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"}}
 	load := model.openConfigSettings(configDelivery)
@@ -655,187 +906,16 @@ func TestDeliverySettingsDoNotSilentlyClipOrganisationBranchTemplate(t *testing.
 	}
 }
 
-func TestSettingsShowAndMigrateEffectiveLegacyBranchTemplate(t *testing.T) {
-	resolved := settingsResolved()
-	resolved.Delivery.BranchTemplate = "slopwatch/fix-{job-short-id}"
-	resolved.Fix.BranchTemplate = "organisation/legacy/{target-stem}-{job-short-id}"
-	resolved.Origins["delivery.branch_template"] = appconfig.OriginBuiltIn
-	resolved.Origins["fix.branch_template"] = appconfig.OriginUser
-	model := settingsModel(configDelivery, resolved, &settingsConfigStore{})
-	model.configSettings.cursor = 3
-
-	text := ansi.Strip(strings.Join(model.configSettingsLines(120), "\n"))
-	for _, wanted := range []string{"organisation/legacy", "legacy Fix preferences", "edit and save this row to migrate"} {
-		if !strings.Contains(text, wanted) {
-			t.Fatalf("legacy effective branch template omitted %q: %q", wanted, text)
-		}
-	}
-	if source := model.configFocusedSourceNote(); source != "Source: user preferences" {
-		t.Fatalf("legacy effective branch source=%q", source)
-	}
-	model.beginConfigText()
-	if got := model.configSettings.input.Value(); got != resolved.Fix.BranchTemplate {
-		t.Fatalf("migration editor started with %q, want effective %q", got, resolved.Fix.BranchTemplate)
-	}
-	if err := model.commitConfigText(); err != nil || model.configSettings.working.Delivery.BranchTemplate != resolved.Fix.BranchTemplate {
-		t.Fatalf("legacy template migration value=%q err=%v", model.configSettings.working.Delivery.BranchTemplate, err)
-	}
-}
-
-func TestValidationPlanSelectorReportsDefaultSelectionSource(t *testing.T) {
-	resolved := settingsResolved()
-	resolved.Origins["fix.validation_plan"] = appconfig.OriginCLI
-	resolved.Origins["validation.go-test"] = appconfig.OriginRepository
-	model := settingsModel(configValidation, resolved, &settingsConfigStore{})
-	model.configSettings.cursor = 16 // first plan, after startup workspace/container constraints.
-	if source := model.configFocusedSourceNote(); !strings.Contains(source, "CLI override") || strings.Contains(source, "Repo override") {
-		t.Fatalf("validation default selector source=%q", source)
-	}
-}
-
-func TestValidationWorkspaceConstraintsAreVisibleEditableAndExplained(t *testing.T) {
-	resolved := settingsResolved()
-	resolved.Origins["validation_workspace.max_files"] = appconfig.OriginUser
-	model := settingsModel(configValidation, resolved, &settingsConfigStore{})
-	text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n"))
-	for _, wanted := range []string{"Workspace files", "100000", "Workspace directories", "Workspace path bytes", "Largest file bytes", "Workspace total bytes", "candidate copy", "fingerprinting", "Container processes", "Container memory bytes", "Container CPU millis", "Container /tmp bytes", "Container workspace bytes", "Container open files", "Generated file bytes", "Container stop timeout", "Docker control timeout", "Safety sentinel timeout", "Crash probe timeout"} {
-		if !strings.Contains(text, wanted) {
-			t.Fatalf("validation workspace settings hid %q: %q", wanted, text)
-		}
-	}
-	if footer := model.configSettingsFooter(); !strings.Contains(footer, "Enter edit") {
-		t.Fatalf("workspace constraint was not editable: %q", footer)
-	}
-	model.beginConfigText()
-	model.configSettings.input.SetValue("120000")
-	if err := model.commitConfigText(); err != nil {
-		t.Fatal(err)
-	}
-	if model.configSettings.working.ValidationWorkspace.MaxFiles != 120000 {
-		t.Fatalf("workspace files=%d", model.configSettings.working.ValidationWorkspace.MaxFiles)
-	}
-	patch := configSettingsPatch(configValidation, model.configSettings.working)
-	if patch.ValidationWorkspace == nil || patch.ValidationWorkspace.MaxFiles != 120000 {
-		t.Fatalf("validation workspace patch=%#v", patch.ValidationWorkspace)
-	}
-	model.configSettings.cursor = 13 // Docker control timeout.
-	model.beginConfigText()
-	model.configSettings.input.SetValue("45s")
-	if err := model.commitConfigText(); err != nil || model.configSettings.working.ValidationWorkspace.ContainerControlTimeout != 45*time.Second {
-		t.Fatalf("control timeout=%s err=%v", model.configSettings.working.ValidationWorkspace.ContainerControlTimeout, err)
-	}
-	if consequence := validationWorkspaceConsequence(validationRowContainerControlTimeout); !strings.Contains(consequence, "lifecycle commands") || !strings.Contains(consequence, "must exceed stop") || !strings.Contains(consequence, "Next start only") || !strings.Contains(consequence, "restart") {
-		t.Fatalf("control timeout consequence=%q", consequence)
-	}
-}
-
-func TestValidationSettingsReportRestartOnlyForStartupPolicyChanges(t *testing.T) {
-	t.Parallel()
-
-	t.Run("workspace and container policy", func(t *testing.T) {
-		t.Parallel()
-		resolved := settingsResolved()
-		store := &settingsConfigStore{resolved: resolved}
-		model := settingsModel(configValidation, resolved, store)
-		model.configSettings.working.ValidationWorkspace.MaxFiles++
-		model.configSettings.dirty = true
-
-		command := model.saveConfigSettings()
-		if command == nil {
-			t.Fatal("workspace policy save did not remain asynchronous")
-		}
-		message := command().(configSavedMsg)
-		if !message.restartRequired {
-			t.Fatal("workspace policy save did not report restart requirement")
-		}
-		model.handleConfigSaved(message)
-		if !strings.Contains(model.configSettings.status, "Saved for next start") || !strings.Contains(model.configSettings.status, "restart Slopwatch") {
-			t.Fatalf("workspace policy save status=%q", model.configSettings.status)
-		}
-	})
-
-	t.Run("validation plan policy", func(t *testing.T) {
-		t.Parallel()
-		resolved := settingsResolved()
-		store := &settingsConfigStore{resolved: resolved}
-		model := settingsModel(configValidation, resolved, store)
-		model.configSettings.working.Validation[0].Checks[0].Timeout = time.Minute
-		model.configSettings.dirty = true
-
-		command := model.saveConfigSettings()
-		if command == nil {
-			t.Fatal("validation plan save did not remain asynchronous")
-		}
-		message := command().(configSavedMsg)
-		if message.restartRequired {
-			t.Fatal("live validation plan save incorrectly reported restart requirement")
-		}
-		model.handleConfigSaved(message)
-		if model.configSettings.status != "Saved" {
-			t.Fatalf("validation plan save status=%q, want live Saved status", model.configSettings.status)
-		}
-	})
-}
-
-func TestValidationPolicySaveAndReturnLeavesFixBlockedUntilRestart(t *testing.T) {
-	resolved := settingsResolved()
-	store := &settingsConfigStore{resolved: resolved}
-	service := &fakeFixService{draft: readyFixDraft("a.go")}
-	model := fixTestModel(service, 80, 24)
-	model.configStore = store
-	model.configWorkspace = fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"}
-	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
-
-	load := model.openConfigSettings(configValidation)
-	model.handleConfigResolved(load().(configResolvedMsg))
-	model.configSettings.returnToFix = true
-	model.overlays.Push(OverlayConfigSettings, OverlayCaller{MainView: MainViewFiles, Overlay: OverlayFixForm})
-	model.configSettings.working.ValidationWorkspace.MaxFiles++
-	model.configSettings.dirty = true
-	model.configSettings.closeAfterSave = true
-	service.prepareErr = errors.New("prepare fix: validation workspace or container settings changed after Slopwatch started; restart Slopwatch before preparing another Fix so the saved policy is enforced")
-
-	save := model.saveConfigSettings()
-	message := save().(configSavedMsg)
-	reprepare := model.handleConfigSaved(message)
-	if reprepare == nil || model.configSettings.open {
-		t.Fatalf("save-and-return did not close Settings and recheck Fix: open=%t command=%v", model.configSettings.open, reprepare)
-	}
-	model.handleFixPrepared(reprepare().(fixPreparedMsg))
-	if !model.hasOverlay(OverlayFixForm) || model.fixDialog.loading || model.fixDialog.statusText != "Preparation failed" ||
-		!strings.Contains(model.fixDialog.errorText, "restart Slopwatch") || !strings.Contains(model.fixDialog.errorText, "saved policy is enforced") {
-		t.Fatalf("Fix was not persistently restart-blocked after policy save: %+v", model.fixDialog)
-	}
-}
-
-func TestSettingsExplainLiveLimitConsequencesAndFriendlyOverrideSources(t *testing.T) {
+func TestSettingsDoNotAppendFocusedHints(t *testing.T) {
 	resolved := settingsResolved()
 	resolved.Origins["concurrency.max_agents"] = appconfig.OriginCLI
 	model := settingsModel(configConcurrency, resolved, &settingsConfigStore{})
 	model.configSettings.cursor = 0
 	text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n"))
-	if !strings.Contains(text, "lowering it never cancels running jobs") {
-		t.Fatalf("agent limit consequence=%q", text)
-	}
-	if source := model.configFocusedSourceNote(); !strings.Contains(source, "CLI override") || !strings.Contains(source, "saves user default only") || strings.Contains(source, "built_in") {
-		t.Fatalf("friendly CLI source=%q", source)
-	}
-	model.configSettings.cursor = 2
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n")); !strings.Contains(text, "never deletes jobs") || !strings.Contains(text, "blocks admission") {
-		t.Fatalf("retention consequence=%q", text)
-	}
-	model.configSettings.cursor = 3
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n")); !strings.Contains(text, "Pinned at Prepare") || !strings.Contains(text, "exactly bounds JSON transcript-entry bytes per job") {
-		t.Fatalf("transcript consequence=%q", text)
-	}
-	model.configSettings.cursor = 5
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n")); !strings.Contains(text, "maximum candidate-file bytes") || !strings.Contains(text, "Truncation is") {
-		t.Fatalf("candidate byte preview consequence=%q", text)
-	}
-	model.configSettings.cursor = 6
-	if text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n")); !strings.Contains(text, "maximum candidate-file lines") || !strings.Contains(text, "Truncation is") {
-		t.Fatalf("candidate line preview consequence=%q", text)
+	for _, unwanted := range []string{"lowering it", "never deletes", "Pinned at Prepare", "maximum candidate-file"} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("settings contain focused hint %q: %q", unwanted, text)
+		}
 	}
 }
 
@@ -871,12 +951,6 @@ func (store *settingsConfigStore) Save(_ context.Context, workspace fix.Workspac
 	if patch.Concurrency != nil {
 		resolved.Concurrency = *patch.Concurrency
 	}
-	if patch.Validation != nil {
-		resolved.Validation = cloneConfigValidation(*patch.Validation)
-	}
-	if patch.ValidationWorkspace != nil {
-		resolved.ValidationWorkspace = *patch.ValidationWorkspace
-	}
 	resolved.Revision++
 	store.resolved = cloneConfigResolved(resolved)
 	return appconfig.Saved{Revision: resolved.Revision, Resolved: resolved}, nil
@@ -884,12 +958,13 @@ func (store *settingsConfigStore) Save(_ context.Context, workspace fix.Workspac
 
 func settingsModel(kind configSettingsKind, resolved appconfig.Resolved, store ConfigStore) *Model {
 	input := textinput.New()
+	prompt := textarea.New()
 	return &Model{
 		width: 80, height: 24, configStore: store,
 		configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"},
 		configSettings: configSettingsState{
 			open: true, kind: kind, generation: 1, resolved: cloneConfigResolved(resolved),
-			working: cloneConfigResolved(resolved), probes: map[agent.ProfileID]agent.ProbeResult{}, input: input,
+			working: cloneConfigResolved(resolved), probes: map[agent.ProfileID]agent.ProbeResult{}, probing: map[agent.ProfileID]bool{}, input: input, prompt: prompt,
 		},
 	}
 }
@@ -899,19 +974,16 @@ func settingsResolved() appconfig.Resolved {
 		SchemaVersion: 1, Revision: 7,
 		Origins: map[string]appconfig.Origin{
 			"agents": appconfig.OriginUser, "fix": appconfig.OriginBuiltIn, "concurrency": appconfig.OriginUser,
-			"validation": appconfig.OriginUser, "delivery": appconfig.OriginBuiltIn,
+			"delivery": appconfig.OriginBuiltIn,
 		},
 		Fix: appconfig.FixDefaults{
-			TargetScore: 100, ChangeScope: "targets-and-tests", Profile: "codex", Delegation: "single",
+			TargetScore: 100, Focus: []fix.MetricID{fix.MetricScore}, ChangeScope: "targets-and-tests", Profile: "codex", PromptTemplate: fixprompt.DefaultTemplate,
 		},
-		Concurrency: appconfig.Concurrency{MaxAgents: 2, MaxVerifiers: 1, MaxRetainedJobs: 100, MaxTranscriptBytes: 1024 * 1024, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 4 << 20, MaxCandidatePreviewLines: 5000},
-		ValidationWorkspace: appconfig.ValidationWorkspace{MaxFiles: 100000, MaxDirectories: 20000, MaxPathBytes: 16 << 20, MaxFileBytes: 64 << 20, MaxTotalBytes: 512 << 20,
-			ContainerPIDs: 256, ContainerMemoryBytes: 4 << 30, ContainerCPUMillis: 2000, ContainerTemporaryBytes: 1 << 30, ContainerWorkspaceBytes: 1 << 30,
-			ContainerNofileLimit: 1024, ContainerGeneratedFileBytes: 64 << 20, ContainerStopTimeout: 3 * time.Second, ContainerControlTimeout: 30 * time.Second,
-			ContainerSentinelTimeout: 10 * time.Second, ContainerCrashProbeTimeout: 15 * time.Second},
-		Profiles:    []agent.Profile{{ID: "codex", Label: "Codex", Runtime: "codex", Executable: "codex", AuthenticationRef: "provider-owned"}},
-		Validation:  []validation.Plan{{ID: "go-test", Checks: []validation.Check{{ID: "test", Executable: "go"}}}},
-		Delivery:    appconfig.Delivery{DefaultMode: "candidate", Remote: "origin", BranchTemplate: "slopwatch/fix-{job}", Publisher: "github-cli", DraftPullRequests: true},
+		Concurrency: appconfig.Concurrency{MaxAgents: 2, MaxVerifiers: 1, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 4 << 20, MaxCandidatePreviewLines: 5000},
+		Profiles:    []agent.Profile{{ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"}},
+		Delivery: appconfig.Delivery{DefaultPlan: fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitLeaveUncommitted, Publish: fix.PublishLocal}, Remote: "origin", BaseBranch: "main",
+			BranchTemplate: "slopwatch/fix-{job}", Publisher: "github-cli", DraftPullRequests: true, CommandOutputBytes: 4 << 20,
+			CommitTitleTemplate: "Refactor {targets}", CommitBodyTemplate: "Fix {goal}", PullRequestTitleTemplate: "Refactor {targets}", PullRequestBodyTemplate: "Fix {goal}"},
 		TrendWindow: 10 * time.Minute,
 	}
 }

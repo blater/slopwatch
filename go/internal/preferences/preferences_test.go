@@ -12,7 +12,7 @@ func TestDefaultDocumentAndCloneDoNotShareMutableValues(t *testing.T) {
 	t.Parallel()
 	first := DefaultDocument()
 	second := DefaultDocument()
-	if first.Version != CurrentVersion || first.Fix.TargetScore != 100 || first.Concurrency.MaxAgents != 2 {
+	if first.Version != CurrentVersion || first.Fix.TargetScore != 100 || first.Fix.ChangeScope != "repository" || first.Concurrency.MaxAgents != 2 {
 		t.Fatalf("DefaultDocument() = %#v", first)
 	}
 	first.Table.VisibleColumns[0] = "mutated"
@@ -24,13 +24,10 @@ func TestDefaultDocumentAndCloneDoNotShareMutableValues(t *testing.T) {
 
 	first.Agents.Profiles = []AgentProfile{{Options: map[string]string{"key": "value"}}}
 	first.Fix.Focus = []string{"cog"}
-	first.Validation.Plans = []ValidationPlan{{Checks: []ValidationCheck{{Arguments: []string{"test"}}}}}
 	cloned := Clone(first)
 	cloned.Agents.Profiles[0].Options["key"] = "mutated"
 	cloned.Fix.Focus[0] = "mutated"
-	cloned.Validation.Plans[0].Checks[0].Arguments[0] = "mutated"
-	if first.Agents.Profiles[0].Options["key"] != "value" || first.Fix.Focus[0] != "cog" ||
-		first.Validation.Plans[0].Checks[0].Arguments[0] != "test" {
+	if first.Agents.Profiles[0].Options["key"] != "value" || first.Fix.Focus[0] != "cog" {
 		t.Fatal("Clone shares nested mutable values")
 	}
 }
@@ -108,7 +105,7 @@ func TestLoadOrCreateWritesCompleteDefaultsAndRoundTrips(t *testing.T) {
 	}
 }
 
-func TestLoadOrCreateRejectsMalformedUnknownAndFuturePreferences(t *testing.T) {
+func TestLoadOrCreateRecoversMalformedUnknownAndFuturePreferences(t *testing.T) {
 	for name, contents := range map[string]string{
 		"malformed": "version = [",
 		"unknown":   "version = 1\nsurprise = true\n",
@@ -119,8 +116,19 @@ func TestLoadOrCreateRejectsMalformedUnknownAndFuturePreferences(t *testing.T) {
 			if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := LoadOrCreate(path, testDefaults()); err == nil {
-				t.Fatal("invalid preferences were accepted")
+			got, err := LoadOrCreate(path, testDefaults())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Appearance.Theme != "dark" {
+				t.Fatalf("recovered preferences = %#v", got)
+			}
+			preserved, err := os.ReadFile(path + ".invalid")
+			if err != nil || string(preserved) != contents {
+				t.Fatalf("invalid preferences were not preserved: %q, %v", preserved, err)
+			}
+			if _, err := LoadOrCreate(path, testDefaults()); err != nil {
+				t.Fatalf("replacement preferences cannot be loaded: %v", err)
 			}
 		})
 	}

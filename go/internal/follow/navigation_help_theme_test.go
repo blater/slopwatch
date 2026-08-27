@@ -57,7 +57,7 @@ func TestHelpTopicsOpenTheirReferencePages(t *testing.T) {
 	model.helpCursor = 1
 	model.handleHelpKey("enter")
 	controls := strings.Join(topicLines(helpMainScreen, 100, 0), "\n")
-	for _, description := range []string{"G or End selects the final file", "g or Home selects the first file", "s opens persistent Appearance, Columns, and Weights"} {
+	for _, description := range []string{"G or End selects the final file", "g or Home selects the first file", "s opens alphabetically ordered settings"} {
 		if !strings.Contains(controls, description) {
 			t.Errorf("main-screen help does not contain %q", description)
 		}
@@ -95,6 +95,7 @@ func TestSettingsAreAlphabeticalAndLightThemeAppliesEverywhere(t *testing.T) {
 		t.Fatalf("settings are not alphabetical: %q", settings)
 	}
 
+	model.settingsCursor = settingsIndex("appearance")
 	model.handleSettingsKey("enter")
 	if !model.appearance || model.settings {
 		t.Fatal("Appearance did not open from Settings")
