@@ -267,7 +267,6 @@ func analyzeUncached(analyzer *analysisEngine, parent context.Context, catalog c
 	return scoreInputsReport(catalog, selected, inputs, options.PassScore)
 }
 
-var ignored = map[string]bool{".git": true, ".gradle": true, ".idea": true, ".mypy_cache": true, ".pytest_cache": true, ".ruff_cache": true, "build": true, "coverage": true, "dist": true, "node_modules": true, "out": true, "target": true, "vendor": true}
 var testDirs = map[string]bool{"__tests__": true, "integration-test": true, "integration-tests": true, "integrationtest": true, "integrationtests": true, "spec": true, "specs": true, "test": true, "test-fixtures": true, "testfixtures": true, "tests": true}
 var sourceLanguages = map[string]string{".go": "go", ".java": "java", ".rs": "rust", ".ts": "typescript", ".tsx": "typescript", ".mts": "typescript", ".cts": "typescript"}
 
@@ -312,7 +311,7 @@ func excludedDiscoveryDirectory(relative string, includeTests bool) bool {
 	parts := strings.Split(filepath.ToSlash(relative), "/")
 	for _, part := range parts[:max(0, len(parts)-1)] {
 		lower := strings.ToLower(part)
-		if ignored[lower] || (!includeTests && testDirs[lower]) {
+		if sourcepath.IsIgnoredDirectory(lower) || (!includeTests && testDirs[lower]) {
 			return true
 		}
 	}
@@ -356,7 +355,7 @@ func walkDirectory(analyzer *analysisEngine, directory string, grouped map[strin
 			continue
 		}
 		if isDirectory {
-			if ignored[strings.ToLower(entry.Name())] {
+			if sourcepath.IsIgnoredDirectory(entry.Name()) {
 				continue
 			}
 			if err := walkDirectory(analyzer, path, grouped, includeTests, followSymlinks, visited); err != nil {

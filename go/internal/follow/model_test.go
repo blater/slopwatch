@@ -69,6 +69,17 @@ func TestSearchInputsDoNotSilentlyClipLongQueries(t *testing.T) {
 	}
 }
 
+func TestJobHistoryIsVisibleByDefault(t *testing.T) {
+	model, err := New(report.Document{}, &settingsAnalyzer{}, Options{Workspace: t.TempDir(), Targets: []string{"."}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(model.Close)
+	if !model.agents.ShowAll {
+		t.Fatal("finished jobs would disappear from the default Agents view")
+	}
+}
+
 func TestArrowNavigationMovesImmediatelyWithoutATimer(t *testing.T) {
 	model := Model{
 		document: report.Document{Files: []report.File{testFile("a.go", 2), testFile("b.go", 1)}},
@@ -175,26 +186,42 @@ func TestFailedInitialScanDoesNotEnableCacheReads(t *testing.T) {
 func TestTableTopBarRightAlignsWorkspaceOneCharacterFromMargin(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80, height: 10, options: Options{Workspace: "/workspace"}}
-	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
-	if !strings.HasSuffix(firstLine, "/workspace ") {
-		t.Fatalf("workspace is not right-aligned one character from the margin: %q", firstLine)
+	lines := strings.Split(ansi.Strip(model.tableView()), "\n")
+	if !strings.HasSuffix(lines[1], "/workspace ") {
+		t.Fatalf("workspace is not right-aligned on the second title line: %q", lines[1])
 	}
 }
 
-func TestTableTopBarShowsRepositoryAndBranchBeforeWorkspace(t *testing.T) {
+func TestTableTopBarSplitsBrandBranchAndWorkspaceAcrossTwoLines(t *testing.T) {
 	model := Model{
 		width: 100, height: 10,
 		options:            Options{Workspace: "/workspace"},
 		repositoryIdentity: "river:feature/display",
 	}
-	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
-	repository := strings.Index(firstLine, "river:feature/display")
-	workspace := strings.Index(firstLine, "/workspace")
-	if repository < 0 || workspace <= repository {
-		t.Fatalf("top bar does not show repo:branch before path: %q", firstLine)
+	lines := strings.Split(ansi.Strip(model.tableView()), "\n")
+	if !strings.HasPrefix(lines[0], "૮(˶ᵔ ᵕ ᵔ˶)ა") || !strings.HasSuffix(lines[0], "river:feature/display ") {
+		t.Fatalf("first title line does not show logo and branch: %q", lines[0])
 	}
-	if !strings.HasSuffix(firstLine, "river:feature/display  /workspace ") {
-		t.Fatalf("repository and workspace pair is not right-aligned one character from the margin: %q", firstLine)
+	if !strings.HasSuffix(lines[1], "/workspace ") {
+		t.Fatalf("second title line does not show the workspace: %q", lines[1])
+	}
+	brandStart := strings.Index(lines[1], "botMochi")
+	wantStart := (lipgloss.Width("૮(˶ᵔ ᵕ ᵔ˶)ა") - lipgloss.Width("botMochi")) / 2
+	if brandStart < 0 || lipgloss.Width(lines[1][:brandStart]) != wantStart {
+		t.Fatalf("botMochi is not centered below the logo: %q", lines[1])
+	}
+}
+
+func TestTableTopBarPaintsPaddingInsteadOfUsingTerminalBackground(t *testing.T) {
+	ConfigureTerminalColours()
+	left := lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render("LEFT")
+	line := renderTableTitleLine(left, "RIGHT", 20)
+	paintedGap := lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(strings.Repeat(" ", 10))
+	if !strings.Contains(line, paintedGap) {
+		t.Fatalf("title gap does not carry the themed background: %q", line)
+	}
+	if got := lipgloss.Width(line); got != 20 {
+		t.Fatalf("painted title width = %d, want 20", got)
 	}
 }
 
@@ -277,6 +304,42 @@ func TestTargetedMergeLeavesUnchangedRowsAlone(t *testing.T) {
 	}
 	if !model.rows["a.go"].editedAt.IsZero() || model.rows["a.go"].movementDelta != 0 || !model.rows["a.go"].scoreChangedAt.IsZero() {
 		t.Fatalf("targeted row history was not isolated: %#v", model.rows)
+	}
+}
+
+func TestTargetedMergeRefreshesDisplayedScoresForEveryChangedFile(t *testing.T) {
+	model := Model{
+		document: report.Document{Files: []report.File{
+			testFile("Repository.java", 125),
+			testFile("Store.java", 125),
+			testFile("Writer.java", 121),
+		}},
+		rows: map[string]rowState{
+			"Repository.java": {}, "Store.java": {}, "Writer.java": {},
+		},
+		visible:     map[string]bool{},
+		selected:    "Store.java",
+		sortKey:     "score",
+		sortReverse: true,
+		options:     Options{TrendWindow: 15 * time.Minute},
+	}
+	model.document.SortAndRank()
+	model.refreshDisplayFiles()
+
+	model.merge(analysisResult{
+		document: report.Document{Files: []report.File{
+			testFile("Store.java", 0),
+			testFile("Writer.java", 0),
+		}},
+		replace: []string{"Store.java", "Writer.java"},
+	})
+
+	scores := map[string]float64{}
+	for _, file := range model.displayFiles() {
+		scores[file.Path] = file.Score
+	}
+	if scores["Repository.java"] != 125 || scores["Store.java"] != 0 || scores["Writer.java"] != 0 {
+		t.Fatalf("displayed scores after merge = %#v", scores)
 	}
 }
 
@@ -636,13 +699,13 @@ func TestFooterDropsGenericActionsBeforeLeftActionsOnNarrowScreens(t *testing.T)
 	ConfigureTerminalColours()
 	model := Model{width: 30}
 	text := ansi.Strip(model.footer())
-	if !strings.Contains(text, "sort") || !strings.Contains(text, "rescan") {
-		t.Fatalf("narrow footer dropped left actions: %q", text)
+	if !strings.Contains(text, "mark") || !strings.Contains(text, "clear") {
+		t.Fatalf("narrow footer dropped permanent marking actions: %q", text)
 	}
 	if !strings.Contains(text, "find") || !strings.Contains(text, "next") {
 		t.Fatalf("narrow footer dropped Find/Next: %q", text)
 	}
-	if strings.Contains(text, "settings") && strings.Index(text, "settings") < strings.Index(text, "rescan") {
+	if strings.Contains(text, "settings") && strings.Index(text, "settings") < strings.Index(text, "clear") {
 		t.Fatalf("generic actions overlap the left group: %q", text)
 	}
 }
@@ -716,9 +779,10 @@ func TestWeightsAndHelpOpenTheSharedInfoPopup(t *testing.T) {
 		t.Fatal("weights info did not open the shared COG popup")
 	}
 	model.handleInfoKey("esc")
+	before := model.isWeightEnabled(componentWeights[model.weightCursor].id)
 	model.handleWeightsKey("enter")
-	if !model.infoOpen || model.infoKey != "cog" {
-		t.Fatal("Enter did not open weight info")
+	if model.infoOpen || model.isWeightEnabled(componentWeights[model.weightCursor].id) == before {
+		t.Fatal("Enter did not toggle the weight checkbox")
 	}
 	model.infoOpen = false
 	model.help = true
@@ -731,6 +795,31 @@ func TestWeightsAndHelpOpenTheSharedInfoPopup(t *testing.T) {
 	model.handleInfoKey("esc")
 	if !model.help {
 		t.Fatal("closing info unexpectedly closed help")
+	}
+}
+
+func TestCheckboxListsAcceptEnterAndSpace(t *testing.T) {
+	model := Model{visible: defaultColumnVisibility(), weights: defaultWeights(), weightEnabled: defaultWeightEnabled()}
+	model.columnCursor = columnIndex("cog")
+	columnBefore := model.visible["cog"]
+	model.handleColumnKey("enter")
+	if model.visible["cog"] == columnBefore {
+		t.Fatal("Enter did not toggle a column checkbox")
+	}
+	model.handleColumnKey(" ")
+	if model.visible["cog"] != columnBefore {
+		t.Fatal("Space did not toggle the column checkbox")
+	}
+
+	model.weightCursor = componentIndex("cognitive_complexity")
+	weightBefore := model.isWeightEnabled("cognitive_complexity")
+	model.handleWeightsKey("enter")
+	if model.isWeightEnabled("cognitive_complexity") == weightBefore {
+		t.Fatal("Enter did not toggle a weight checkbox")
+	}
+	model.handleWeightsKey(" ")
+	if model.isWeightEnabled("cognitive_complexity") != weightBefore {
+		t.Fatal("Space did not toggle the weight checkbox")
 	}
 }
 
@@ -1171,7 +1260,7 @@ func TestSettingsContainsColumnsAndReturnsAfterEditing(t *testing.T) {
 }
 
 func TestSettingsOptionsAreAlphabetical(t *testing.T) {
-	want := []string{"Agents", "Appearance", "Columns", "Concurrency & retention", "Fix defaults", "Git & pull requests", "Validation", "Weights"}
+	want := []string{"Agents", "Appearance", "Columns", "Concurrency", "Fix defaults", "Git & pull requests", "Weights"}
 	if len(settingsItems) != len(want) {
 		t.Fatalf("settings count = %d, want %d", len(settingsItems), len(want))
 	}

@@ -60,16 +60,25 @@ func TestExecuteStreamsEventsAndUsesWorkspaceWrite(t *testing.T) {
 	root := canonicalTestRoot(t)
 	common := filepath.Join(root, "common.git")
 	candidate := filepath.Join(root, "candidate")
-	for _, path := range []string{common, candidate} {
+	staging := filepath.Join(root, "staging")
+	for _, path := range []string{common, candidate, staging} {
 		if err := os.Mkdir(path, 0o700); err != nil {
 			t.Fatal(err)
 		}
+	}
+	manifestPath := filepath.Join(staging, "targets.txt")
+	if err := os.WriteFile(manifestPath, []byte("main.go\nother.go\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 	capture := filepath.Join(root, "capture.jsonl")
 	strategy := New()
 	strategy.workingDir = func() (string, error) { return root, nil }
 	var events []agent.Event
-	result := strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "complete", capture)), testRequest(candidate, common), agent.EventSinkFunc(func(event agent.Event) error {
+	request := testRequest(candidate, common)
+	request.Workspace.StagingRoot = staging
+	request.Task.Instructions.Objective += "\nManifest {target_manifest}; files {target_manifest_count}."
+	request.Task.Manifest = &agent.TargetManifest{Path: manifestPath, Count: 2}
+	result := strategy.Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "complete", capture)), request, agent.EventSinkFunc(func(event agent.Event) error {
 		events = append(events, event)
 		return nil
 	}))
@@ -107,9 +116,12 @@ func TestExecuteStreamsEventsAndUsesWorkspaceWrite(t *testing.T) {
 	if stringField(sandbox, "type") != "workspaceWrite" || sandbox["networkAccess"] != false {
 		t.Fatalf("turn sandbox = %#v", sandbox)
 	}
+	if !strings.Contains(fmt.Sprint(sandbox["writableRoots"]), staging) {
+		t.Fatalf("target manifest directory was not exposed to Codex: %#v", sandbox)
+	}
 	input, _ := turn.Params["input"].([]any)
 	first, _ := input[0].(map[string]any)
-	if stringField(first, "text") != "trusted envelope\n\nfix main.go" {
+	if !strings.Contains(stringField(first, "text"), "Manifest "+manifestPath+"; files 2.") {
 		t.Fatalf("turn input = %#v", input)
 	}
 }
@@ -889,7 +901,7 @@ func testProfile(executable string) agent.Profile {
 
 func testRequest(candidate, common string) agent.Request {
 	return agent.Request{
-		JobID: "job-1", AttemptID: "attempt-1", Model: "gpt-5.6-sol", Effort: "high", Delegation: agent.DelegationSingle,
+		JobID: "job-1", AttemptID: "attempt-1", Model: "gpt-5.6-sol", Effort: "high",
 		Workspace: fix.CandidateIdentity{RepositoryRoot: candidate, GitCommonDir: common},
 		Task:      agent.RemediationTask{Instructions: agent.InstructionDocument{Envelope: "trusted envelope", Objective: "fix main.go"}},
 		Limits:    agent.Limits{MaxOutputBytes: 1 << 20, MaxActors: 10},

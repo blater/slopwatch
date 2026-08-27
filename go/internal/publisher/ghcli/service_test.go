@@ -112,13 +112,13 @@ func TestValidatePullRequestURLAcceptsCanonicalGitHubURL(t *testing.T) {
 	}
 }
 
-func TestReconcileRejectsUnverifiedJournaledIdentity(t *testing.T) {
+func TestReconcileRejectsUnverifiedSavedIdentity(t *testing.T) {
 	service := &Service{gh: "/usr/bin/gh", workingDirectory: "/safe", getenv: func(string) string { return "" }, runner: &sequenceRunner{results: []isolation.Result{{ExitCode: 0, Stdout: []byte("[]")}}}}
 	request := publisher.Request{Candidate: fix.CandidateIdentity{RepositoryRoot: "/candidate"}, HostRepository: "owner/repo", BaseBranch: "main", HeadBranch: "fix/test", Commit: "abc", CommandOutputBytes: testCommandOutputBytes}
 	previous := publisher.Result{ProviderID: "unverified", URL: "https://github.com/owner/repo/pull/1", Ambiguous: true}
 	result, err := service.Reconcile(t.Context(), request, previous)
 	if err == nil || !result.Ambiguous || result.ProviderID != "unverified" || result.URL == "" {
-		t.Fatalf("invalid journaled identity was not retained for intervention: result=%+v err=%v", result, err)
+		t.Fatalf("invalid saved identity was not retained for intervention: result=%+v err=%v", result, err)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestCreatePersistsExactNumberAndRejectsCrossNumberReconciliation(t *testing
 	}
 }
 
-func TestCreateFailureIsAmbiguousAndReconcileBindsJournaledNumber(t *testing.T) {
+func TestCreateFailureIsAmbiguousAndReconcileBindsSavedNumber(t *testing.T) {
 	request := publisher.Request{HostRepository: "owner/repo", BaseBranch: "main", HeadBranch: "fix/test", Commit: "abc", Draft: true, CommandOutputBytes: testCommandOutputBytes}
 	calls := 0
 	service := &Service{gh: "/usr/bin/gh", workingDirectory: "/safe", getenv: func(string) string { return "" }, runner: runnerFunc(func(_ context.Context, launched isolation.Request) (isolation.Result, error) {

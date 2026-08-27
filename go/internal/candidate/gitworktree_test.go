@@ -121,7 +121,7 @@ func TestCandidateReconcilesRegisteredWorktreeAfterWholeJobStateIsLost(t *testin
 	}
 }
 
-func TestPrepareReusesExactOwnedCandidateAfterCrashBeforeJournalHandshake(t *testing.T) {
+func TestPrepareReusesExactOwnedCandidateAfterCrashBeforeStateSave(t *testing.T) {
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
 	first, _ := NewGitWorktreeService(state, directExecutor{}, testGitWorktreeConfig())
@@ -263,10 +263,6 @@ func TestGitWorktreeServiceCreatesDetachedCandidatesAndEnforcesScope(t *testing.
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil || !preflight.Ready || !preflight.Supported || preflight.TargetBlobs[target] == "" {
-		t.Fatalf("preflight = %+v, %v", preflight, err)
-	}
 	job, _ := fix.NewJobID()
 	candidate, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
 	if err != nil {
@@ -287,8 +283,8 @@ func TestGitWorktreeServiceCreatesDetachedCandidatesAndEnforcesScope(t *testing.
 		t.Fatal(err)
 	}
 	diff, err = service.Diff(context.Background(), candidate)
-	if err != nil || diff.Scope != fix.ScopeViolated {
-		t.Fatalf("out-of-scope diff = %+v, %v", diff, err)
+	if err != nil || diff.Scope != fix.ScopeClean || len(diff.Files) != 2 {
+		t.Fatalf("supporting refactor diff = %+v, %v", diff, err)
 	}
 	if err := service.Discard(context.Background(), candidate); err != nil {
 		t.Fatal(err)
@@ -356,13 +352,6 @@ func TestGitWorktreeServiceSeedsAllowedCurrentChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !preflight.Ready || !preflight.Supported {
-		t.Fatalf("dirty preflight = %+v", preflight)
-	}
 	job, _ := fix.NewJobID()
 	isolated, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets-only", AllowedPaths: []fix.RepoPath{target}})
 	if err != nil {
@@ -402,7 +391,7 @@ func TestCandidateSnapshotPreservesRenameCopyAndExecutableMode(t *testing.T) {
 	job, _ := fix.NewJobID()
 	target, _ := fix.ParseRepoPath("main.go")
 	identity, err := service.Prepare(t.Context(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace,
-		Targets: []fix.RepoPath{target}, AllowedScope: "repository", MaxSeedFileBytes: 1 << 20, MaxSeedTotalBytes: 4 << 20})
+		Targets: []fix.RepoPath{target}, AllowedScope: "repository"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,35 +412,6 @@ func TestCandidateSnapshotPreservesRenameCopyAndExecutableMode(t *testing.T) {
 	}
 }
 
-func TestCandidateSnapshotRejectsFileOverConfiguredBudget(t *testing.T) {
-	repository := initializeRepository(t)
-	if err := os.WriteFile(filepath.Join(repository, "main.go"), bytes.Repeat([]byte("x"), 32), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
-	workspace, _ := service.DiscoverWorkspace(t.Context(), repository)
-	job, _ := fix.NewJobID()
-	target, _ := fix.ParseRepoPath("main.go")
-	_, err := service.Prepare(t.Context(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace,
-		Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}, MaxSeedFileBytes: 16, MaxSeedTotalBytes: 16})
-	if err == nil || !strings.Contains(err.Error(), "snapshot byte limit") {
-		t.Fatalf("oversized dirty file error = %v", err)
-	}
-}
-
-func TestCandidateSnapshotRejectsOverflowingByteLimits(t *testing.T) {
-	repository := initializeRepository(t)
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
-	workspace, _ := service.DiscoverWorkspace(t.Context(), repository)
-	job, _ := fix.NewJobID()
-	target, _ := fix.ParseRepoPath("main.go")
-	_, err := service.Prepare(t.Context(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace,
-		Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}, MaxSeedFileBytes: maxSeedByteLimit, MaxSeedTotalBytes: maxSeedByteLimit})
-	if err == nil || !strings.Contains(err.Error(), "snapshot byte limits are invalid") {
-		t.Fatalf("overflowing snapshot limits error = %v", err)
-	}
-}
-
 func TestCandidateAppliesImmutableSnapshotAfterSourceChanges(t *testing.T) {
 	repository := initializeRepository(t)
 	const snapshotted = "package main\n// snapshotted\n"
@@ -469,7 +429,7 @@ func TestCandidateAppliesImmutableSnapshotAfterSourceChanges(t *testing.T) {
 	}
 	service, _ := NewGitWorktreeService(filepath.Join(state, "service"), directExecutor{}, testGitWorktreeConfig())
 	target, _ := fix.ParseRepoPath("main.go")
-	manifest, err := service.snapshotWorkingChanges(withCommandOutputBytes(t.Context(), testCandidateCommandOutputBytes), repository, staging, "targets", []fix.RepoPath{target}, 1<<20, 1<<20)
+	manifest, err := service.snapshotWorkingChanges(withCommandOutputBytes(t.Context(), testCandidateCommandOutputBytes), repository, staging, "targets", []fix.RepoPath{target})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -561,7 +521,7 @@ func TestCandidateRetriesReservationLeftBeforeWorktreeCreation(t *testing.T) {
 	}
 }
 
-func TestGitWorktreeServiceRejectsInProgressRepositoryOperation(t *testing.T) {
+func TestGitWorktreeServiceAttemptsCandidateDuringRepositoryOperation(t *testing.T) {
 	repository := initializeRepository(t)
 	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
@@ -569,12 +529,9 @@ func TestGitWorktreeServiceRejectsInProgressRepositoryOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preflight.Supported || preflight.Diagnostic == "" {
-		t.Fatalf("in-progress operation accepted: %+v", preflight)
+	job, _ := fix.NewJobID()
+	if _, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets-only", AllowedPaths: []fix.RepoPath{target}}); err != nil {
+		t.Fatalf("candidate operation was rejected by speculative repository policy: %v", err)
 	}
 }
 
@@ -699,60 +656,6 @@ func TestCandidateRejectsSymlinkOwnershipMarker(t *testing.T) {
 	}
 	if _, err := service.Diff(context.Background(), identity); err == nil {
 		t.Fatal("symlink ownership marker was accepted")
-	}
-}
-
-func TestPreflightRejectsAttributesOutsideRepositoryRootFileAndDisablesFsmonitor(t *testing.T) {
-	repository := initializeRepository(t)
-	if err := os.MkdirAll(filepath.Join(repository, "nested"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(repository, "nested", ".gitattributes"), []byte("future-*.txt working-tree-encoding=UTF-16\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(repository, "nested", "file.txt"), []byte("content\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	gitRun(t, repository, "add", "nested")
-	gitRun(t, repository, "commit", "-q", "-m", "attributes")
-	marker := filepath.Join(t.TempDir(), "fsmonitor-ran")
-	hook := filepath.Join(t.TempDir(), "fsmonitor")
-	if err := os.WriteFile(hook, []byte("#!/bin/sh\ntouch \""+marker+"\"\n"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	gitRun(t, repository, "config", "core.fsmonitor", hook)
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
-	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
-	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preflight.Supported || preflight.Diagnostic == "" {
-		t.Fatalf("content-transforming nested attributes accepted: %+v", preflight)
-	}
-	if _, err := os.Stat(marker); !os.IsNotExist(err) {
-		t.Fatalf("configured fsmonitor executed: %v", err)
-	}
-}
-
-func TestPreflightRejectsGitInfoAttributesForFuturePaths(t *testing.T) {
-	repository := initializeRepository(t)
-	if err := os.MkdirAll(filepath.Join(repository, ".git", "info"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(repository, ".git", "info", "attributes"), []byte("future-* filter=unsafe\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	service, _ := NewGitWorktreeService(filepath.Join(t.TempDir(), "state"), directExecutor{}, testGitWorktreeConfig())
-	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
-	target, _ := fix.ParseRepoPath("main.go")
-	preflight, err := service.Preflight(context.Background(), PreflightRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Workspace: workspace, Targets: []fix.RepoPath{target}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preflight.Supported {
-		t.Fatalf("info/attributes content transform accepted: %+v", preflight)
 	}
 }
 

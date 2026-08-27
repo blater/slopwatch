@@ -6,11 +6,13 @@ Status: owner direction incorporated.
 
 - An agent receives targets, measurements and preferences through the typed
   harness request. It does not read Slopwatch caches or preference files.
-- Every job edits an isolated worktree. The user's checkout remains untouched.
+- The baseline measures the selected contents as they exist when the job is
+  prepared; it is not defined by, or required to match, Git `HEAD`.
 - Slopwatch measures the result; provider completion text is not a score.
-- Git delivery uses exact, create-only commits and refs. Slopwatch does not
-  force-push, overwrite an existing branch, auto-merge or give Git credentials
-  to an agent.
+- Policy diagnostics are warnings. Preparation and admission do not try to
+  predict every condition that may affect execution or delivery; operations
+  run and report concrete failures when they occur. Only malformed requests or
+  conditions that would act on the wrong resource fail before runtime.
 - Provider events are associated with the exact job, session and turn before
   they affect job state.
 - Cancellation is per job and releases target reservations immediately.
@@ -23,23 +25,23 @@ Status: owner direction incorporated.
 | Duration | No Slopwatch attempt timeout and no inactivity disconnect. Readiness timeout and post-cancel grace are preferences-file-only adapter settings. |
 | Iteration | The agent is automatically called again with fresh measurements until the target is met or the job is canceled/fails. There is no attempt cap. |
 | Concurrency | Agent and verifier counts are user-configurable. New jobs may be submitted while others run. |
-| Retention | Retained jobs and transcript bytes are configurable. Finished history rolls over automatically; it is not a lifetime quota. |
+| Persistence | Each job has one plain JSON state document. Transcripts and configurable persistence limits are excluded. |
 | Models and effort | Values come from the selected adapter's live capabilities. |
-| Delegation | Shown only when the selected adapter offers a real choice. |
-| SCORE and metrics | SCORE is always selected. Only enabled, measured component metrics are offered as additional focus. |
+| SCORE and metrics | SCORE and enabled, measured component metrics can be selected as focus metrics. |
 | Prompt | One global master template is stored in Fix Defaults and supplies every job. There is no per-job detached prompt. |
+| Execution workspace | Editing the current workspace or using an isolated worktree is a user choice. Worktrees are not a prerequisite for Fix. |
 | Branch naming | User-configurable; generated job tokens are optional and never an organisation requirement. |
-| Delivery | Branch or pull request. Commit, push and optional PR creation happen automatically after the target is met. |
+| Delivery | Optional. The user may apply changes without Git delivery, push a branch, or open a pull request. Git checks run only when Git delivery is selected and reaches runtime. |
 | PR base | Chosen by the user and checked for the configured remote. |
 | PR state | Draft or ready for review is a user setting. |
-| Validation | Optional trusted capability. Docker-backed validation is optional and Docker is not a product dependency. |
 
 ## Job interaction policy
 
 Cancel is the only job command. There is no manual Retry, Resume, Publish,
 Keep, Archive, Discard, conflict acknowledgement or generic Actions menu.
 Failures use plain FAILED state and release the target so another fix can start.
-Git branches and pull requests provide the review workflow.
+When delivery is selected, Git branches and pull requests may provide the
+review workflow; they are not required to retain a successful result.
 
 ## Settings presentation policy
 

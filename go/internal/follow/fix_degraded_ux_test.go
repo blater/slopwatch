@@ -9,44 +9,55 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/validation"
 )
 
-func TestDegradedConfinementIsExplicitlyNonRunnableAndNotPresentedAsSettingsRepair(t *testing.T) {
-	draft := readyFixDraft("a.go")
-	draft.Probe.State = agent.ProbeDegraded
-	draft.Probe.Diagnostic = "crash containment is not proven"
-	draft.Probe.Capabilities.Isolation.CrashContainment = false
-	service := &fakeFixService{draft: draft}
+func TestDegradedAgentIsWarningAndRuntimeAttemptRemainsAvailable(t *testing.T) {
+	input := readyFixInput("a.go")
+	input.Probe.State = agent.ProbeDegraded
+	input.Probe.Diagnostic = "crash containment is not proven"
+	input.Probe.Capabilities.Isolation.CrashContainment = false
+	service := &fakeFixService{input: input}
 	model := fixTestModel(service, 80, 24)
 	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
+	model.handleFixLoaded(prepare().(fixLoadedMsg))
 
 	plain := ansi.Strip(model.View())
-	for _, wanted := range []string{"FIX BLOCKED", "this build cannot run", "fixes safely", "Settings cannot enable it", "crash containment is not", "proven"} {
+	for _, wanted := range []string{"READY WITH WARNING", "degraded", "runtime failure", "crash", "containment is not proven"} {
 		if !strings.Contains(plain, wanted) {
 			t.Fatalf("degraded runtime omitted %q: %q", wanted, plain)
 		}
 	}
-	if model.fixDialogRunnable() || strings.Contains(model.fixDialogFooter(), "Enter run") {
-		t.Fatal("degraded confinement was presented as runnable")
+	if !model.fixDialogRunnable() || !strings.Contains(model.fixDialogFooter(), "r run") {
+		t.Fatal("degraded readiness warning prevented a runtime attempt")
 	}
-	if _, ok := model.fixRemediationSettingsKind(); ok {
-		t.Fatal("unsupported build confinement was falsely presented as settings-remediable")
+	if kind, ok := model.fixRemediationSettingsKind(); !ok || kind != configAgents {
+		t.Fatalf("blocked agent did not link to agent settings: kind=%q ok=%t", kind, ok)
+	}
+}
+
+func TestUnprobedAgentIsReadyWithoutAWarning(t *testing.T) {
+	input := readyFixInput("a.go")
+	input.Probe = agent.ProbeResult{}
+	model := fixTestModel(&fakeFixService{input: input}, 80, 24)
+	prepare := model.openFixForSelected()
+	model.handleFixLoaded(prepare().(fixLoadedMsg))
+	text := ansi.Strip(model.View())
+	if !strings.Contains(text, "READY") || strings.Contains(text, "READY WITH WARNING") || strings.Contains(text, "not probed") {
+		t.Fatalf("normal unprobed state was presented as a warning: %q", text)
 	}
 }
 
 func TestUnauthenticatedRuntimeLinksDirectlyToAgentRepair(t *testing.T) {
-	draft := readyFixDraft("a.go")
-	draft.Probe.State = agent.ProbeUnauthenticated
-	draft.Probe.Diagnostic = "Run codex login to authorize"
-	service := &fakeFixService{draft: draft}
+	input := readyFixInput("a.go")
+	input.Probe.State = agent.ProbeUnauthenticated
+	input.Probe.Diagnostic = "Run codex login to authorize"
+	service := &fakeFixService{input: input}
 	model := fixTestModel(service, 80, 24)
 	model.configStore = &settingsConfigStore{resolved: settingsResolved()}
 	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
+	model.handleFixLoaded(prepare().(fixLoadedMsg))
 
-	if text := ansi.Strip(model.View()); !strings.Contains(text, "Settings › Agents") || !strings.Contains(text, "connection guidance") {
+	if text := ansi.Strip(model.View()); !strings.Contains(text, "READY WITH WARNING") || !strings.Contains(text, "unauthenticated") || !strings.Contains(text, "runtime") {
 		t.Fatalf("authentication remediation was not actionable: %q", text)
 	}
 	_, command := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
@@ -56,21 +67,21 @@ func TestUnauthenticatedRuntimeLinksDirectlyToAgentRepair(t *testing.T) {
 }
 
 func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *testing.T) {
-	draft := readyFixDraft("a.go")
-	draft.Probe.State = agent.ProbeUnauthenticated
-	draft.Probe.Diagnostic = "Run codex login to authorize"
-	service := &fakeFixService{draft: draft}
+	input := readyFixInput("a.go")
+	input.Probe.State = agent.ProbeUnauthenticated
+	input.Probe.Diagnostic = "Run codex login to authorize"
+	service := &fakeFixService{input: input}
 	model := fixTestModel(service, 80, 24)
 	model.configStore = &settingsConfigStore{resolved: settingsResolved()}
 	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
+	model.handleFixLoaded(prepare().(fixLoadedMsg))
 
-	model.fixDialog.draft.TargetScore = 70
+	model.fixDialog.input.TargetScore = 70
 	model.fixDialog.focus["cog"] = true
 	model.fixDialog.branch.SetValue("slopwatch/fix/preserved")
 	model.fixDialog.cursor = fixFieldEffort
-	if !model.syncFixDraft() {
-		t.Fatalf("could not establish edited draft: %s", model.fixDialog.errorText)
+	if !model.syncFixInput() {
+		t.Fatalf("could not establish edited input: %s", model.fixDialog.errorText)
 	}
 
 	_, load := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
@@ -79,97 +90,34 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 	}
 	model.handleConfigResolved(load().(configResolvedMsg))
 
-	service.draft = readyFixDraft("a.go")
+	service.input = readyFixInput("a.go")
 	_, reprepare := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEsc})
 	if reprepare == nil || model.configSettings.open || !model.hasOverlay(OverlayFixForm) || model.hasOverlay(OverlayConfigSettings) {
 		t.Fatalf("settings did not return to Fix and reprepare: open=%t overlays=%d command nil=%t", model.configSettings.open, model.overlays.Len(), reprepare == nil)
 	}
-	if !model.fixDialog.loading || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.draft.TargetScore != 70 ||
+	if !model.fixDialog.loading || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||
 		model.fixDialog.branch.Value() != "slopwatch/fix/preserved" {
 		t.Fatalf("Fix edits changed before reprepare: %+v", model.fixDialog)
 	}
 
-	model.handleFixPrepared(reprepare().(fixPreparedMsg))
-	if model.fixDialog.loading || !model.fixDialogRunnable() || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.draft.TargetScore != 70 ||
-		model.fixDialog.draft.BranchName != "slopwatch/fix/preserved" {
+	model.handleFixLoaded(reprepare().(fixLoadedMsg))
+	if model.fixDialog.loading || !model.fixDialogRunnable() || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||
+		model.fixDialog.input.BranchName != "slopwatch/fix/preserved" {
 		t.Fatalf("reprepared Fix lost edits or readiness: %+v", model.fixDialog)
 	}
 }
 
-func TestUnavailableOrEmptyValidationPlanDisablesRunAndLinksToValidationSettings(t *testing.T) {
-	for _, plans := range [][]validation.Plan{nil, {{ID: "ci"}}} {
-		draft := readyFixDraft("a.go")
-		draft.ValidationPlanID = "ci"
-		draft.Preferences.Validation = plans
-		service := &fakeFixService{draft: draft}
-		model := fixTestModel(service, 80, 24)
-		model.configStore = &settingsConfigStore{resolved: settingsResolved()}
-		prepare := model.openFixForSelected()
-		model.handleFixPrepared(prepare().(fixPreparedMsg))
-
-		if model.fixDialogRunnable() || !strings.Contains(ansi.Strip(model.View()), "validation plan \"ci\" is unavailable") {
-			t.Fatalf("unavailable validation was presented as runnable: %q", ansi.Strip(model.View()))
-		}
-		_, command := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-		if command == nil || !model.configSettings.open || model.configSettings.kind != configValidation {
-			t.Fatalf("validation remediation did not open directly: open=%t kind=%q", model.configSettings.open, model.configSettings.kind)
-		}
-	}
-}
-
-func TestValidationConfinementReadinessIsVisibleAndCanBeDisabledInForm(t *testing.T) {
-	readiness := validation.Readiness{Required: true, Ready: false, Diagnostic: "validation commands are disabled until workspace confinement is ready"}
-	draft := readyFixDraft("a.go")
-	draft.ValidationPlanID = "ci"
-	draft.Preferences.Validation = []validation.Plan{{ID: "ci", Checks: []validation.Check{{ID: "test"}}}}
-	draft.ValidationReadiness = readiness
-	draft.ValidationReadinessByPlan = map[string]validation.Readiness{"ci": readiness}
-	service := &fakeFixService{draft: draft}
+func TestRunFailureCanBeRetriedWithoutReadinessRecheck(t *testing.T) {
+	service := &fakeFixService{input: readyFixInput("a.go"), runErr: errors.New("agent profile became unauthenticated")}
 	model := fixTestModel(service, 80, 24)
 	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
-
-	if model.fixDialogRunnable() {
-		t.Fatal("unproven validation confinement was presented as runnable")
+	model.handleFixLoaded(prepare().(fixLoadedMsg))
+	_, run := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	model.handleFixStarted(run().(fixStartedMsg))
+	if !model.fixDialogRunnable() || !strings.Contains(model.fixDialog.statusText, "retry") {
+		t.Fatalf("run failure incorrectly invalidated readiness: %+v", model.fixDialog)
 	}
-	if summary := fixPreflightSummary(model.fixDialog.draft); !strings.Contains(summary, "validation plan \"ci\" is NOT RUNNABLE") || !strings.Contains(summary, readiness.Diagnostic) {
-		t.Fatalf("validation readiness diagnostic=%q", summary)
-	}
-	if text := ansi.Strip(model.View()); !strings.Contains(text, "Validation") || !strings.Contains(text, "ci · NOT RUNNABLE") || !strings.Contains(text, "choose a ready") {
-		t.Fatalf("validation readiness was not visible in Fix: %q", text)
-	}
-
-	model.fixDialog.cursor = fixFieldValidation
-	model.adjustFixField(1)
-	if model.fixDialog.draft.ValidationPlanID != "" || !model.fixDialogRunnable() {
-		t.Fatalf("choosing no optional validation did not update readiness: %+v", model.fixDialog.draft.ValidationReadiness)
-	}
-}
-
-func TestSubmitFailureRequiresAuthoritativeRecheckBeforeRetry(t *testing.T) {
-	service := &fakeFixService{draft: readyFixDraft("a.go"), submitErr: errors.New("agent profile became unauthenticated")}
-	model := fixTestModel(service, 80, 24)
-	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
-	_, submit := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	model.handleFixSubmitted(submit().(fixSubmittedMsg))
-	if !model.fixDialog.submitBlocked || model.fixDialogRunnable() || !strings.Contains(model.fixDialog.statusText, "recheck") {
-		t.Fatalf("submit failure did not invalidate readiness: %+v", model.fixDialog)
-	}
-	if _, retry := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}); retry != nil || !strings.Contains(model.fixDialog.errorText, "press R") {
-		t.Fatal("stale submission readiness was retried without a recheck")
-	}
-	_, recheck := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}})
-	if recheck == nil || !model.fixDialog.loading || model.fixDialog.submitBlocked {
-		t.Fatal("R did not start a fresh authoritative readiness check")
-	}
-}
-
-func TestSelectedValidationPlanWithNoChecksCannotBeSaved(t *testing.T) {
-	resolved := settingsResolved()
-	resolved.Validation = []validation.Plan{{ID: "empty"}}
-	resolved.Fix.ValidationPlan = "empty"
-	if err := validateConfigSettings(configValidation, resolved); err == nil || !strings.Contains(err.Error(), "no configured checks") {
-		t.Fatalf("empty selected validation plan error=%v", err)
+	if _, retry := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}); retry == nil {
+		t.Fatal("start could not be retried directly")
 	}
 }

@@ -168,11 +168,14 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 		result.Diagnostic = probe.Diagnostic
 		return result
 	}
-	if !containsOption(probe.Capabilities.Models, request.Model) || !containsOption(probe.Capabilities.Efforts, request.Effort) || request.Delegation != agent.DelegationSingle {
+	model, modelOK := agent.ResolveOption(probe.Capabilities.Models, request.Model)
+	effort, effortOK := agent.ResolveOption(probe.Capabilities.Efforts, request.Effort)
+	if !modelOK || !effortOK {
 		result.Failure = agent.FailureUnsupportedCapability
-		result.Diagnostic = "requested Codex model, effort, or delegation mode is unavailable"
+		result.Diagnostic = "requested Codex model or effort is unavailable"
 		return result
 	}
+	request.Model, request.Effort = model, effort
 	var thread struct {
 		Thread struct {
 			ID string `json:"id"`
@@ -193,12 +196,20 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 			ID string `json:"id"`
 		} `json:"turn"`
 	}
+	writableRoots := []string{root}
+	if request.Task.Manifest != nil {
+		manifestDirectory, manifestErr := targetManifestDirectory(request.Workspace, *request.Task.Manifest)
+		if manifestErr != nil {
+			return failedExecution(result, ctx, agent.FailureProtocol, manifestErr)
+		}
+		writableRoots = append(writableRoots, manifestDirectory)
+	}
 	if err := client.Request(ctx, "turn/start", map[string]any{
 		"threadId": thread.Thread.ID,
-		"input":    []map[string]any{{"type": "text", "text": request.Task.Instructions.EffectiveBody()}},
+		"input":    []map[string]any{{"type": "text", "text": request.Task.EffectivePrompt()}},
 		"cwd":      root, "model": string(request.Model), "effort": string(request.Effort),
 		"approvalPolicy": "never",
-		"sandboxPolicy":  map[string]any{"type": "workspaceWrite", "writableRoots": []string{root}, "networkAccess": false},
+		"sandboxPolicy":  map[string]any{"type": "workspaceWrite", "writableRoots": writableRoots, "networkAccess": false},
 	}, &turn); err != nil {
 		return failedExecution(result, ctx, agent.FailureProvider, err)
 	}
@@ -279,6 +290,22 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 			return failedExecution(result, ctx, failure, exitErr)
 		}
 	}
+}
+
+func targetManifestDirectory(identity fix.CandidateIdentity, manifest agent.TargetManifest) (string, error) {
+	staging := identity.StagingRoot
+	if staging == "" || !filepath.IsAbs(staging) || filepath.Clean(staging) != staging || manifest.Path == "" || !filepath.IsAbs(manifest.Path) || filepath.Clean(manifest.Path) != manifest.Path || manifest.Count <= 0 {
+		return "", errors.New("target manifest must be a file in candidate staging")
+	}
+	relative, err := filepath.Rel(staging, manifest.Path)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("target manifest must be a file in candidate staging")
+	}
+	manifestInfo, err := os.Lstat(manifest.Path)
+	if err != nil || !manifestInfo.Mode().IsRegular() {
+		return "", errors.New("target manifest is unavailable")
+	}
+	return filepath.Dir(manifest.Path), nil
 }
 
 type turnReconciliation struct {
@@ -536,8 +563,7 @@ func readModels(ctx context.Context, client *appServerClient) ([]agent.Option[ag
 func appServerCapabilities(models []agent.Option[agent.ModelID], efforts []agent.Option[agent.EffortID]) agent.Capabilities {
 	return agent.Capabilities{
 		Models: models, Efforts: efforts,
-		Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Label: "Single agent", Default: true}},
-		Resume:     false, Progress: agent.ProgressStructured,
+		Resume: false, Progress: agent.ProgressStructured,
 		Network: agent.NetworkCapability{TransportRequired: true, ToolNetwork: false},
 		Isolation: agent.RuntimeIsolation{
 			Writes: agent.CandidateTreeEnforced, ProviderManagedCancellation: true,
@@ -956,15 +982,6 @@ func configuredProbePolicy(profile agent.Profile) (probePolicy, error) {
 		result.terminationGrace = value
 	}
 	return result, nil
-}
-
-func containsOption[T ~string](options []agent.Option[T], wanted T) bool {
-	for _, option := range options {
-		if option.ID == wanted {
-			return true
-		}
-	}
-	return false
 }
 
 func probeStateForError(err error) agent.ProbeState {

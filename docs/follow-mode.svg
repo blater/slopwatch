@@ -60,7 +60,7 @@
       <g transform="translate(0 673)"><text x="102" text-anchor="end" class="good">2</text><text x="105" class="warm">◌</text><text x="132" class="good">6</text><text x="194" class="good">7</text><text x="273" class="good">4</text><text x="353" class="good">0</text><text x="424" class="good">1</text><text x="486" class="good">3</text><text x="503" class="muted">river-spi/src/main/java/io/riverdb/spi/</text><text x="843.5" class="file">StorageProvider.java</text></g>
       <g transform="translate(0 694.5)"><text x="102" text-anchor="end" class="good">0</text><text x="105" class="warm">◌</text><text x="132" class="good">0</text><text x="194" class="good">1</text><text x="273" class="good">1</text><text x="353" class="good">0</text><text x="424" class="good">0</text><text x="486" class="good">1</text><text x="503" class="muted">river-model/src/main/java/io/riverdb/model/</text><text x="878.4" class="file">DatabaseName.java</text></g>
 
-      <text x="52" y="720" class="muted">sort  rescan  view  info</text>
+      <text x="52" y="720" class="muted">sort  view  info</text>
       <text x="1348" y="720" text-anchor="end" class="muted">find  next  settings  help  quit</text>
     </g>
   </g>

@@ -10,7 +10,7 @@ import (
 
 func renderTable(model Model) string {
 	lines := make([]string, 0, model.height)
-	lines = append(lines, tableTopLine(model))
+	lines = append(lines, tableTopLines(model)...)
 	lines = append(lines, model.header())
 	lines = append(lines, tableRows(model)...)
 	if model.findOpen {
@@ -21,48 +21,56 @@ func renderTable(model Model) string {
 	return strings.Join(lines, "\n")
 }
 
-func tableTopLine(model Model) string {
-	usableWidth := max(0, model.width-1)
-	left, right := tableTopParts(model)
-	left = truncateANSI(left, usableWidth)
-	rightWidth := max(0, usableWidth-lipgloss.Width(left)-1)
-	if rightWidth > 0 {
-		right = truncateLeft(right, rightWidth)
-	} else {
-		right = ""
+func tableTopLines(model Model) []string {
+	topLeft, topRight, bottomLeft, bottomRight := tableTopParts(model)
+	return []string{
+		renderTableTitleLine(topLeft, topRight, model.width),
+		renderTableTitleLine(bottomLeft, bottomRight, model.width),
 	}
-	right = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(right)
-	gap := max(0, usableWidth-lipgloss.Width(left)-lipgloss.Width(right))
-	topText := left + strings.Repeat(" ", gap) + right
-	if model.width > 0 {
-		topText += " "
-	}
-	return lipgloss.NewStyle().Background(style.SurfaceTop).Render(padANSI(topText, model.width))
 }
 
-func tableTopParts(model Model) (string, string) {
-	right := model.options.Workspace
-	if model.repositoryIdentity != "" {
-		right = model.repositoryIdentity + "  " + right
+func renderTableTitleLine(left, right string, width int) string {
+	titleStyle := lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop)
+	usableWidth := max(0, width-1)
+	right = truncateLeft(right, usableWidth)
+	leftWidth := usableWidth - lipgloss.Width(right)
+	if left != "" && right != "" {
+		leftWidth--
 	}
+	left = truncateANSI(left, max(0, leftWidth))
+	right = titleStyle.Render(right)
+	gap := max(0, usableWidth-lipgloss.Width(left)-lipgloss.Width(right))
+	topText := left + titleStyle.Render(strings.Repeat(" ", gap)) + right
+	if width > 0 {
+		topText += titleStyle.Render(" ")
+	}
+	if remaining := width - lipgloss.Width(topText); remaining > 0 {
+		topText += titleStyle.Render(strings.Repeat(" ", remaining))
+	}
+	return truncateANSI(topText, width)
+}
+
+func tableTopParts(model Model) (topLeft, topRight, bottomLeft, bottomRight string) {
 	status := tableStatus(model)
-	logo := lipgloss.NewStyle().Foreground(style.AccentPositive).Bold(true).Render("૮(˶ᵔ ᵕ ᵔ˶)ა botMochi")
-	left := logo
+	logoStyle := lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceTop).Bold(true)
+	const logo = "૮(˶ᵔ ᵕ ᵔ˶)ა"
+	topLeft = logoStyle.Render(logo)
+	bottomLeft = logoStyle.Width(lipgloss.Width(logo)).Align(lipgloss.Center).Render("botMochi")
 	if model.analyzing {
 		status = model.scanningIndicator(model.freshnessStatus())
 	} else if status != "" {
 		status = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(status)
 	}
 	if status != "" {
-		left += "  " + status
+		topLeft += lipgloss.NewStyle().Background(style.SurfaceTop).Render("  ") + status
 	}
 	if len(model.agents.Jobs) > 0 {
-		left += "  " + fixAggregateText(model.agents.Jobs)
+		topLeft += lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render("  " + fixAggregateText(model.agents.Jobs))
 	}
 	if model.fixUpdatesStale {
-		left += " · UPDATES STALE"
+		topLeft += lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(" · UPDATES STALE")
 	}
-	return left, right
+	return topLeft, model.repositoryIdentity, bottomLeft, model.options.Workspace
 }
 
 func tableStatus(model Model) string {

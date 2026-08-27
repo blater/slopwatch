@@ -5,18 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
+	"github.com/blater/slopwatch/internal/sourcepath"
 	workspacefs "github.com/blater/slopwatch/internal/workspace"
 )
-
-var ignoredDirectories = map[string]bool{
-	".git": true, ".gradle": true, ".idea": true, ".mypy_cache": true,
-	".pytest_cache": true, ".ruff_cache": true, "build": true,
-	"coverage": true, "dist": true, "node_modules": true, "out": true,
-	"target": true, "vendor": true,
-}
 
 var testDirectories = map[string]bool{
 	"__tests__": true, "integration-test": true, "integration-tests": true,
@@ -98,7 +91,7 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 			return workspacefs.Classification{Kind: workspacefs.KindSource, Language: language}, true
 		}),
 		IgnoreDirectory: func(_ string, name string) bool {
-			return ignoredDirectories[strings.ToLower(name)]
+			return sourcepath.IsIgnoredDirectory(name)
 		},
 	})
 	if err != nil {

@@ -13,7 +13,6 @@ import (
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/scoring"
-	"github.com/blater/slopwatch/internal/validation"
 )
 
 var environmentName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -30,21 +29,17 @@ func (adapter *Adapter) validateResolved(value appconfig.Resolved) error {
 	if err := validateFix(value.Fix); err != nil {
 		return err
 	}
-	if value.Concurrency.MaxAgents <= 0 || value.Concurrency.MaxVerifiers <= 0 ||
-		value.Concurrency.MaxRetainedJobs <= 0 || value.Concurrency.MaxTranscriptBytes <= 0 || value.Concurrency.MaxActorsPerJob <= 0 ||
+	if value.Concurrency.MaxAgents <= 0 || value.Concurrency.MaxVerifiers <= 0 || value.Concurrency.MaxActorsPerJob <= 0 ||
 		value.Concurrency.MaxCandidatePreviewBytes <= 0 || value.Concurrency.MaxCandidatePreviewLines <= 0 {
 		return fmt.Errorf("concurrency limits must all be greater than zero")
 	}
-	if err := validateValidationWorkspace(value.ValidationWorkspace); err != nil {
-		return err
-	}
-	if !value.Delivery.DefaultMode.Valid() {
-		return fmt.Errorf("unsupported delivery mode %q", value.Delivery.DefaultMode)
+	if !value.Delivery.DefaultPlan.Valid() {
+		return fmt.Errorf("unsupported delivery plan %+v", value.Delivery.DefaultPlan)
 	}
 	if value.Delivery.Publisher != "github-cli" {
 		return fmt.Errorf("unsupported pull-request publisher %q", value.Delivery.Publisher)
 	}
-	if value.Delivery.DefaultMode == "pull-request" && strings.TrimSpace(value.Delivery.BaseBranch) == "" {
+	if value.Delivery.DefaultPlan.Publish == fix.PublishPullRequest && strings.TrimSpace(value.Delivery.BaseBranch) == "" {
 		return fmt.Errorf("pull-request delivery requires an explicit base branch")
 	}
 	if value.Delivery.CommandOutputBytes <= 0 {
@@ -52,9 +47,6 @@ func (adapter *Adapter) validateResolved(value appconfig.Resolved) error {
 	}
 	if err := appconfig.ValidateBranchTemplate(value.Delivery.BranchTemplate); err != nil {
 		return fmt.Errorf("delivery %w", err)
-	}
-	if value.Delivery.CommitPolicy != "automatic" || value.Delivery.CleanupPolicy != "remove-worktree" {
-		return fmt.Errorf("delivery commit/cleanup policy is unsupported")
 	}
 	for label, text := range map[string]string{"commit title template": value.Delivery.CommitTitleTemplate, "commit body template": value.Delivery.CommitBodyTemplate, "pull request title template": value.Delivery.PullRequestTitleTemplate, "pull request body template": value.Delivery.PullRequestBodyTemplate} {
 		if strings.TrimSpace(text) == "" {
@@ -119,18 +111,6 @@ func (adapter *Adapter) validateResolved(value appconfig.Resolved) error {
 			return fmt.Errorf("fix profile %q is not configured", value.Fix.Profile)
 		}
 	}
-	if err := validatePlans(value.Validation); err != nil {
-		return err
-	}
-	if value.Fix.ValidationPlan != "" {
-		found := false
-		for _, plan := range value.Validation {
-			found = found || plan.ID == value.Fix.ValidationPlan
-		}
-		if !found {
-			return fmt.Errorf("fix validation plan %q is not configured", value.Fix.ValidationPlan)
-		}
-	}
 	if value.TrendWindow <= 0 {
 		return fmt.Errorf("interaction trend window must be greater than zero")
 	}
@@ -146,9 +126,6 @@ func validateFix(value appconfig.FixDefaults) error {
 	default:
 		return fmt.Errorf("unsupported fix change scope %q", value.ChangeScope)
 	}
-	if value.Delegation == "" {
-		return fmt.Errorf("fix delegation mode cannot be empty")
-	}
 	if strings.TrimSpace(value.PromptTemplate) == "" {
 		return errors.New("fix prompt template cannot be empty")
 	}
@@ -158,7 +135,7 @@ func validateFix(value appconfig.FixDefaults) error {
 	seen := make(map[scoring.MetricID]struct{}, len(value.Focus))
 	for _, metric := range value.Focus {
 		id := scoring.MetricID(metric)
-		if _, ok := scoring.MetricDefinitionByID(id); !ok {
+		if _, ok := scoring.MetricDefinitionByID(id); !ok && fix.MetricID(metric) != fix.MetricScore {
 			return fmt.Errorf("unknown fix focus metric %q", metric)
 		}
 		if _, exists := seen[id]; exists {
@@ -169,86 +146,9 @@ func validateFix(value appconfig.FixDefaults) error {
 	return nil
 }
 
-func validateValidationWorkspace(value appconfig.ValidationWorkspace) error {
-	if value.MaxFiles <= 0 || value.MaxDirectories <= 0 || value.MaxPathBytes <= 0 || value.MaxFileBytes <= 0 || value.MaxTotalBytes <= 0 {
-		return fmt.Errorf("validation workspace limits must all be greater than zero")
-	}
-	if value.MaxFileBytes > value.MaxTotalBytes {
-		return fmt.Errorf("validation workspace max file bytes cannot exceed max total bytes")
-	}
-	if value.ContainerPIDs <= 0 || value.ContainerMemoryBytes <= 0 || value.ContainerCPUMillis <= 0 || value.ContainerTemporaryBytes <= 0 ||
-		value.ContainerWorkspaceBytes <= 0 || value.ContainerNofileLimit <= 0 || value.ContainerGeneratedFileBytes <= 0 ||
-		value.ContainerStopTimeout <= 0 || value.ContainerControlTimeout <= 0 || value.ContainerSentinelTimeout <= 0 || value.ContainerCrashProbeTimeout <= 0 {
-		return fmt.Errorf("validation container operational limits must all be greater than zero")
-	}
-	if value.ContainerWorkspaceBytes <= value.MaxTotalBytes {
-		return fmt.Errorf("validation container workspace bytes must exceed admitted total bytes")
-	}
-	if value.ContainerGeneratedFileBytes < value.MaxFileBytes {
-		return fmt.Errorf("validation container generated-file bytes must cover admitted max file bytes")
-	}
-	if value.ContainerControlTimeout <= value.ContainerStopTimeout {
-		return fmt.Errorf("validation container control timeout must exceed stop timeout")
-	}
-	return nil
-}
-
-func validatePlans(plans []validation.Plan) error {
-	seenPlans := make(map[string]struct{}, len(plans))
-	for _, plan := range plans {
-		if plan.ID == "" {
-			return fmt.Errorf("validation plan ID cannot be empty")
-		}
-		if _, exists := seenPlans[plan.ID]; exists {
-			return fmt.Errorf("validation plan ID %q is duplicated", plan.ID)
-		}
-		seenPlans[plan.ID] = struct{}{}
-		seenChecks := make(map[validation.CheckID]struct{}, len(plan.Checks))
-		for _, check := range plan.Checks {
-			if check.ID == "" {
-				return fmt.Errorf("validation plan %q has an empty check ID", plan.ID)
-			}
-			if _, exists := seenChecks[check.ID]; exists {
-				return fmt.Errorf("validation plan %q check ID %q is duplicated", plan.ID, check.ID)
-			}
-			seenChecks[check.ID] = struct{}{}
-			if err := validateTrustedText("validation executable", check.Executable); err != nil {
-				return fmt.Errorf("validation plan %q check %q: %w", plan.ID, check.ID, err)
-			}
-			if check.Executable == "" {
-				return fmt.Errorf("validation plan %q check %q executable cannot be empty", plan.ID, check.ID)
-			}
-			for _, argument := range check.Arguments {
-				if strings.ContainsRune(argument, 0) || strings.ContainsAny(argument, "\r\n") {
-					return fmt.Errorf("validation plan %q check %q has an invalid argument", plan.ID, check.ID)
-				}
-			}
-			if check.Timeout <= 0 || check.MaxOutputBytes <= 0 {
-				return fmt.Errorf("validation plan %q check %q timeout and output limit must be greater than zero", plan.ID, check.ID)
-			}
-		}
-	}
-	return nil
-}
-
 func validateRepositoryPartial(value preferences.PartialDocument) error {
 	if value.Agents != nil && len(value.Agents.Profiles) != 0 {
 		return fmt.Errorf("repository preferences cannot register agent profiles, commands, or credentials")
-	}
-	if value.Validation != nil {
-		seen := make(map[string]struct{}, len(value.Validation.Plans))
-		for _, plan := range value.Validation.Plans {
-			if plan.ID == "" {
-				return fmt.Errorf("repository validation plan ID cannot be empty")
-			}
-			if _, exists := seen[plan.ID]; exists {
-				return fmt.Errorf("repository validation plan ID %q is duplicated", plan.ID)
-			}
-			seen[plan.ID] = struct{}{}
-			if len(plan.Checks) != 0 {
-				return fmt.Errorf("repository preferences may select validation plan IDs but cannot define executable checks")
-			}
-		}
 	}
 	return nil
 }
@@ -258,9 +158,6 @@ func validateRepositoryPartial(value preferences.PartialDocument) error {
 // but it cannot choose identities, templates or destinations owned by the
 // user. Fields without a provider-independent ordering must remain unchanged.
 func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.PartialDocument) error {
-	if value.ValidationWorkspace != nil {
-		return repositoryOwnedField("validation workspace limits")
-	}
 	if value.Fix != nil {
 		candidate, err := preferenceFixToApp(*value.Fix)
 		if err != nil {
@@ -284,14 +181,8 @@ func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.
 		if candidate.Effort != inherited.Fix.Effort {
 			return repositoryOwnedField("fix effort")
 		}
-		if candidate.Delegation != inherited.Fix.Delegation {
-			return repositoryOwnedField("fix delegation")
-		}
 		if candidate.PromptTemplate != inherited.Fix.PromptTemplate {
 			return repositoryOwnedField("fix prompt template")
-		}
-		if inherited.Fix.ValidationPlan != "" && candidate.ValidationPlan != inherited.Fix.ValidationPlan {
-			return fmt.Errorf("repository preferences cannot replace or remove inherited fix validation plan %q", inherited.Fix.ValidationPlan)
 		}
 	}
 	if value.Concurrency != nil {
@@ -301,12 +192,6 @@ func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.
 		}
 		if candidate.MaxVerifiers > inherited.Concurrency.MaxVerifiers {
 			return repositoryBroadening("concurrency max verifiers", candidate.MaxVerifiers, inherited.Concurrency.MaxVerifiers)
-		}
-		if candidate.MaxRetainedJobs > inherited.Concurrency.MaxRetainedJobs {
-			return repositoryBroadening("concurrency retained jobs", candidate.MaxRetainedJobs, inherited.Concurrency.MaxRetainedJobs)
-		}
-		if candidate.MaxTranscriptBytes > inherited.Concurrency.MaxTranscriptBytes {
-			return repositoryBroadening("concurrency transcript bytes", candidate.MaxTranscriptBytes, inherited.Concurrency.MaxTranscriptBytes)
 		}
 		if candidate.MaxActorsPerJob > inherited.Concurrency.MaxActorsPerJob {
 			return repositoryBroadening("concurrency actors per job", candidate.MaxActorsPerJob, inherited.Concurrency.MaxActorsPerJob)
@@ -320,8 +205,10 @@ func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.
 	}
 	if value.Delivery != nil {
 		candidate := preferenceDeliveryToApp(*value.Delivery)
-		if deliveryModeRank(candidate.DefaultMode) > deliveryModeRank(inherited.Delivery.DefaultMode) {
-			return repositoryBroadening("delivery mode", candidate.DefaultMode, inherited.Delivery.DefaultMode)
+		if workspaceModeRank(candidate.DefaultPlan.Workspace) > workspaceModeRank(inherited.Delivery.DefaultPlan.Workspace) ||
+			gitModeRank(candidate.DefaultPlan.Git) > gitModeRank(inherited.Delivery.DefaultPlan.Git) ||
+			publishModeRank(candidate.DefaultPlan.Publish) > publishModeRank(inherited.Delivery.DefaultPlan.Publish) {
+			return repositoryBroadening("delivery plan", candidate.DefaultPlan, inherited.Delivery.DefaultPlan)
 		}
 		if candidate.Remote != inherited.Delivery.Remote {
 			return repositoryOwnedField("delivery remote")
@@ -338,14 +225,8 @@ func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.
 		if inherited.Delivery.DraftPullRequests && !candidate.DraftPullRequests {
 			return repositoryBroadening("draft pull request policy", candidate.DraftPullRequests, inherited.Delivery.DraftPullRequests)
 		}
-		if inherited.Delivery.RequireValidation && !candidate.RequireValidation {
-			return repositoryBroadening("pull request validation policy", candidate.RequireValidation, inherited.Delivery.RequireValidation)
-		}
 		if candidate.CommandOutputBytes > inherited.Delivery.CommandOutputBytes {
 			return repositoryBroadening("delivery command output bytes", candidate.CommandOutputBytes, inherited.Delivery.CommandOutputBytes)
-		}
-		if candidate.CommitPolicy != inherited.Delivery.CommitPolicy {
-			return repositoryOwnedField("delivery commit policy")
 		}
 		if candidate.CommitTitleTemplate != inherited.Delivery.CommitTitleTemplate {
 			return repositoryOwnedField("delivery commit title template")
@@ -358,9 +239,6 @@ func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.
 		}
 		if candidate.PullRequestBodyTemplate != inherited.Delivery.PullRequestBodyTemplate {
 			return repositoryOwnedField("delivery pull request body template")
-		}
-		if candidate.CleanupPolicy != inherited.Delivery.CleanupPolicy {
-			return repositoryOwnedField("delivery cleanup policy")
 		}
 	}
 	return nil
@@ -396,20 +274,46 @@ func mutationScopeRank(value string) int {
 	case "repository":
 		return 2
 	default:
-		// The normal resolved validation reports the unsupported value. Treat it
+		// Normal configuration checks report the unsupported value. Treat it
 		// as broad here so it can never slip through a repository comparison.
 		return 3
 	}
 }
 
-func deliveryModeRank(value fix.DeliveryMode) int {
+func workspaceModeRank(value fix.WorkspaceMode) int {
 	switch value {
-	case fix.DeliveryModeBranch:
+	case fix.WorkspaceWorktree:
 		return 0
-	case fix.DeliveryModePullRequest:
+	case fix.WorkspaceCurrent:
 		return 1
 	default:
 		return 2
+	}
+}
+
+func gitModeRank(value fix.GitMode) int {
+	switch value {
+	case fix.GitLeaveUncommitted:
+		return 0
+	case fix.GitCommitNewBranch:
+		return 1
+	case fix.GitCommitCurrent:
+		return 2
+	default:
+		return 3
+	}
+}
+
+func publishModeRank(value fix.PublishMode) int {
+	switch value {
+	case fix.PublishLocal:
+		return 0
+	case fix.PublishPush:
+		return 1
+	case fix.PublishPullRequest:
+		return 2
+	default:
+		return 3
 	}
 }
 

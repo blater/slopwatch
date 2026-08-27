@@ -3,11 +3,8 @@ package fixapp
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -23,13 +20,11 @@ import (
 	"github.com/blater/slopwatch/internal/fixprompt"
 	"github.com/blater/slopwatch/internal/jobstore"
 	"github.com/blater/slopwatch/internal/publisher"
-	"github.com/blater/slopwatch/internal/validation"
 )
 
 type Dependencies struct {
 	Config            appconfig.Resolver
 	Analysis          fixanalysis.Service
-	Validation        validation.Service
 	Candidates        candidate.Service
 	ScopePlanner      candidate.ScopePlanner
 	Agents            *agent.Registry
@@ -37,28 +32,13 @@ type Dependencies struct {
 	Delivery          delivery.SagaService
 	DeliveryPreflight delivery.PreflightService
 	Publisher         publisher.Service
-	SecretAdmission   SecretAdmission
-}
-
-// SecretAdmission checks untrusted user-authored text without exposing secret
-// values to orchestration or persistence.
-type SecretAdmission interface {
-	RejectKnownSecret(context.Context, string, ...string) error
 }
 
 type Options struct {
-	MaxAgents          int
-	MaxVerifiers       int
-	MaxRetainedJobs    int
-	MaxTranscriptBytes int64
-	// StartupValidationWorkspace is the exact workspace and container policy
-	// installed in the validation service for this process. Prepare rejects a
-	// newly resolved policy that differs from this snapshot, because pinning a
-	// policy which the running validator cannot enforce would be misleading.
-	StartupValidationWorkspace appconfig.ValidationWorkspace
-	JournalCompactRecords      int
-	TranscriptCheckpointEvents int
-	Clock                      func() time.Time
+	MaxAgents    int
+	MaxVerifiers int
+	JobIndexPath string
+	Clock        func() time.Time
 }
 
 type Manager struct {
@@ -70,39 +50,36 @@ type Manager struct {
 	done     chan struct{}
 	ready    chan struct{}
 
-	current atomic.Value // JobListSnapshot
-	logs    atomic.Value // map[fix.JobID]logSnapshot
-
-	notifyMu       sync.Mutex
-	notify         chan struct{}
-	closed         atomic.Bool
-	initial        []jobstore.Record
-	journalRecords int
-	journalFailed  bool
-	draftMu        sync.Mutex
-	prepared       map[fix.DraftID]preparedDraft
+	notifyMu sync.Mutex
+	jobLogMu sync.Mutex
+	notify   chan struct{}
+	closed   atomic.Bool
+	initial  []jobstore.Record
 }
 
 type jobRecord struct {
-	draft                 FixDraft
-	presentation          fix.JobPresentation
-	attempt               fix.AttemptID
-	nextAttemptNotes      string
-	candidate             *fix.CandidateIdentity
-	cancel                context.CancelFunc
-	logs                  []LogEntry
-	logBytes              int64
-	truncated             bool
-	commands              map[fix.CommandID]CommandReceipt
-	actors                map[string]bool
-	diffHash              string
-	diffPaths             map[fix.RepoPath]bool
-	baseScope             fix.ScopeState
-	delivery              delivery.Result
-	published             publisher.Result
-	canceled              bool
-	publicationStep       publicationStep
-	eventsSinceCheckpoint int
+	input            FixInput
+	presentation     fix.JobPresentation
+	attempt          fix.AttemptID
+	nextAttemptNotes string
+	candidate        *fix.CandidateIdentity
+	cancel           context.CancelFunc
+	logs             []LogEntry
+	commands         map[fix.CommandID]CommandReceipt
+	actors           map[string]bool
+	diffHash         string
+	diffPaths        map[fix.RepoPath]bool
+	baseScope        fix.ScopeState
+	delivery         delivery.Result
+	published        publisher.Result
+	canceled         bool
+	publicationStep  publicationStep
+	resultLogged     bool
+	agentReferences  []string
+	runLock          jobstore.Lock
+	runsHere         bool
+	runsElsewhere    bool
+	storedAt         time.Time
 }
 
 type controllerState struct {
@@ -112,18 +89,17 @@ type controllerState struct {
 	agentsRunning    int
 	verifiersRunning int
 	otherRunning     int
-	globalRevision   GlobalRevision
 	shuttingDown     bool
 	shutdownWaiters  []chan error
 }
 
-type submitCall struct {
+type runCall struct {
 	ctx      context.Context
-	request  SubmitRequest
-	response chan submitResponse
+	input    FixInput
+	response chan runResponse
 }
 
-type submitResponse struct {
+type runResponse struct {
 	id  fix.JobID
 	err error
 }
@@ -142,6 +118,23 @@ type commandResponse struct {
 type candidateCall struct {
 	id       fix.JobID
 	response chan candidateResponse
+}
+
+type jobsCall struct {
+	filter   JobFilter
+	response chan JobListSnapshot
+}
+
+type transcriptCall struct {
+	id       fix.JobID
+	cursor   LogCursor
+	limit    int
+	response chan transcriptResponse
+}
+
+type transcriptResponse struct {
+	page LogPage
+	err  error
 }
 
 type candidateResponse struct {
@@ -171,23 +164,23 @@ const (
 )
 
 type workerResult struct {
-	kind         workerKind
-	step         publicationStep
-	job          fix.JobID
-	attempt      fix.AttemptID
-	candidate    *fix.CandidateIdentity
-	agent        agent.Result
-	verify       fixanalysis.VerificationResult
-	validation   validation.Result
-	diff         candidate.DiffSnapshot
-	delivery     delivery.Result
-	published    publisher.Result
-	err          error
-	inventoryErr error
+	kind           workerKind
+	job            fix.JobID
+	attempt        fix.AttemptID
+	candidate      *fix.CandidateIdentity
+	agent          agent.Result
+	verify         fixanalysis.VerificationResult
+	diff           candidate.DiffSnapshot
+	delivery       delivery.Result
+	deliveryTarget delivery.PreflightResult
+	published      publisher.Result
+	err            error
+	inventoryErr   error
 }
 
 type agentUpdate struct {
 	event   agent.Event
+	prompt  *string
 	barrier chan struct{}
 	job     fix.JobID
 	attempt fix.AttemptID
@@ -209,14 +202,8 @@ func New(dependencies Dependencies, options Options) (*Manager, error) {
 		dependencies.Agents == nil || dependencies.Store == nil {
 		return nil, errors.New("fix service dependencies are incomplete")
 	}
-	if options.MaxAgents <= 0 || options.MaxVerifiers <= 0 || options.MaxRetainedJobs <= 0 || options.MaxTranscriptBytes <= 0 {
-		return nil, errors.New("fix service requires explicit positive scheduler and retention settings")
-	}
-	if options.JournalCompactRecords <= 0 {
-		options.JournalCompactRecords = 512
-	}
-	if options.TranscriptCheckpointEvents <= 0 {
-		options.TranscriptCheckpointEvents = 32
+	if options.MaxAgents <= 0 || options.MaxVerifiers <= 0 {
+		return nil, errors.New("fix service requires explicit positive scheduler settings")
 	}
 	if options.Clock == nil {
 		options.Clock = time.Now
@@ -224,74 +211,49 @@ func New(dependencies Dependencies, options Options) (*Manager, error) {
 	records, err := dependencies.Store.Load(context.Background())
 	if err != nil {
 		_ = dependencies.Store.Close()
-		return nil, fmt.Errorf("load fix job journal: %w", err)
-	}
-	if err := validateInitialJournal(records); err != nil {
-		_ = dependencies.Store.Close()
-		return nil, fmt.Errorf("restore fix job journal: %w", err)
+		return nil, fmt.Errorf("load fix job state: %w", err)
 	}
 	manager := &Manager{
 		deps: dependencies, options: options,
 		requests: make(chan any), events: make(chan agentUpdate, 256), results: make(chan workerResult, 32),
-		done: make(chan struct{}), ready: make(chan struct{}), notify: make(chan struct{}), initial: records, journalRecords: len(records), prepared: map[fix.DraftID]preparedDraft{},
+		done: make(chan struct{}), ready: make(chan struct{}), notify: make(chan struct{}), initial: records,
 	}
-	manager.current.Store(JobListSnapshot{})
-	manager.logs.Store(map[fix.JobID]logSnapshot{})
 	go manager.run()
 	<-manager.ready
 	return manager, nil
 }
 
-func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (FixDraft, error) {
+func (manager *Manager) LoadFix(ctx context.Context, request LoadRequest) (FixInput, error) {
 	if manager.closed.Load() {
-		return FixDraft{}, ErrClosed
+		return FixInput{}, ErrClosed
 	}
 	if len(request.Targets) == 0 {
-		return FixDraft{}, errors.New("prepare fix: at least one target is required")
+		return FixInput{}, errors.New("load fix: at least one target is required")
 	}
 	resolved, err := manager.deps.Config.Resolve(ctx, request.Workspace, request.Overrides)
 	if err != nil {
-		return FixDraft{}, fmt.Errorf("prepare fix preferences: %w", err)
-	}
-	if resolved.ValidationWorkspace != manager.options.StartupValidationWorkspace {
-		return FixDraft{}, errors.New("prepare fix: validation workspace or container settings changed after Slopwatch started; restart Slopwatch before preparing another Fix so the saved policy is enforced")
+		return FixInput{}, fmt.Errorf("load fix preferences: %w", err)
 	}
 	profile, err := selectedProfile(resolved)
 	if err != nil {
-		return FixDraft{}, err
-	}
-	validationReadinessByPlan := manager.preflightValidationPlans(ctx, request.Workspace, resolved.Validation)
-	validationReadiness := selectedValidationReadiness(resolved.Fix.ValidationPlan, validationReadinessByPlan)
-	strategy, err := manager.deps.Agents.Strategy(profile.Runtime)
-	if err != nil {
-		return FixDraft{}, err
+		return FixInput{}, err
 	}
 	goal := fix.ScoringGoal{MaximumScore: resolved.Fix.TargetScore}
 	baseline, err := manager.deps.Analysis.PrepareBaseline(ctx, fixanalysis.BaselineRequest{
 		Workspace: request.Workspace, Targets: append([]fix.RepoPath(nil), request.Targets...), Goal: goal,
-		RequiredMetrics: append([]fix.MetricID(nil), resolved.Fix.Focus...),
+		RequiredMetrics: measuredFocusMetrics(resolved.Fix.Focus),
 	})
 	if err != nil {
-		return FixDraft{}, fmt.Errorf("prepare fix baseline: %w", err)
+		return FixInput{}, fmt.Errorf("load fix baseline: %w", err)
 	}
-	preflight, err := manager.deps.Candidates.Preflight(ctx, candidate.PreflightRequest{
-		Workspace: request.Workspace, Targets: append([]fix.RepoPath(nil), request.Targets...),
-		CommandOutputBytes: resolved.Delivery.CommandOutputBytes,
-	})
-	if err != nil {
-		return FixDraft{}, fmt.Errorf("prepare fix workspace: %w", err)
-	}
-	// Freeze the superset needed by every non-repository dialog choice. The
-	// user may change scope after Prepare; ReviseDraft must never rediscover the
-	// filesystem or silently lose supporting test paths.
+	// Load the supporting paths once while opening the form.
 	plannedPaths := append([]fix.RepoPath(nil), request.Targets...)
 	if manager.deps.ScopePlanner != nil {
 		plannedPaths, err = manager.deps.ScopePlanner.Plan(ctx, request.Workspace, request.Targets, "targets-and-tests")
 		if err != nil {
-			return FixDraft{}, fmt.Errorf("prepare fix change scope: %w", err)
+			return FixInput{}, fmt.Errorf("load fix change scope: %w", err)
 		}
 	}
-	preflight.AllowedPaths = append([]fix.RepoPath(nil), plannedPaths...)
 	allowedPaths := append([]fix.RepoPath(nil), plannedPaths...)
 	switch resolved.Fix.ChangeScope {
 	case "targets", "targets-only":
@@ -300,81 +262,67 @@ func (manager *Manager) Prepare(ctx context.Context, request PrepareRequest) (Fi
 	case "repository":
 		allowedPaths = nil
 	default:
-		return FixDraft{}, fmt.Errorf("unsupported change scope %q", resolved.Fix.ChangeScope)
+		return FixInput{}, fmt.Errorf("unsupported change scope %q", resolved.Fix.ChangeScope)
 	}
-	probe := strategy.Probe(ctx, profile)
-	model, effort, delegation := resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation
-	if request.Overrides.Profile != nil || model == "" {
-		model = compatibleOption(probe.Capabilities.Models, model)
+	probe := manager.deps.Agents.Probe(ctx, profile)
+	model, effort := resolved.Fix.Model, resolved.Fix.Effort
+	if selected, ok := agent.ResolveOption(probe.Capabilities.Models, model); ok {
+		model = selected
 	}
-	if request.Overrides.Profile != nil || effort == "" {
-		effort = compatibleOption(probe.Capabilities.Efforts, effort)
+	if selected, ok := agent.ResolveOption(probe.Capabilities.Efforts, effort); ok {
+		effort = selected
 	}
-	if request.Overrides.Profile != nil || delegation == "" {
-		delegation = compatibleOption(probe.Capabilities.Delegation, delegation)
-	}
-	draftID, err := fix.NewDraftID()
+	branchSeed, err := fix.NewJobID()
 	if err != nil {
-		return FixDraft{}, err
+		return FixInput{}, err
 	}
-	branchName := renderBranch(effectiveBranchTemplate(resolved), request.Targets, draftID, resolved.Fix.Focus, manager.options.Clock())
-	deliveryMode := resolved.Delivery.DefaultMode
+	branchName := renderBranch(effectiveBranchTemplate(resolved), request.Targets, string(branchSeed), resolved.Fix.Focus, manager.options.Clock())
+	deliveryPlan := resolved.Delivery.DefaultPlan
 	if request.Delivery != nil {
-		deliveryMode = request.Delivery.Mode
+		deliveryPlan = request.Delivery.Plan
 		branchName = request.Delivery.Branch
 	}
-	deliveryTarget, err := manager.preflightDelivery(ctx, request.Workspace, deliveryMode, resolved.Delivery, branchName, false)
-	if err != nil {
-		return FixDraft{}, err
+	if request.Workspace.GitCommonDir == "" {
+		deliveryPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitLeaveUncommitted, Publish: fix.PublishLocal}
 	}
-	baseline.Contract.Goal.Focus, err = configuredFocusGoals(resolved.Fix.Focus, baseline.Contract.Targets)
+	if deliveryPlan.Workspace == fix.WorkspaceWorktree && deliveryPlan.Git == fix.GitCommitCurrent {
+		deliveryPlan.Git, deliveryPlan.Publish = fix.GitLeaveUncommitted, fix.PublishLocal
+	}
+	if deliveryPlan.Git == fix.GitCommitCurrent {
+		branchName = request.Workspace.CurrentBranch
+	} else if deliveryPlan.Git == fix.GitLeaveUncommitted {
+		branchName = ""
+	}
+	baseline.Contract.Goal.Focus, err = configuredFocusGoals(resolved.Fix.Focus, baseline.Contract.Targets, resolved.Fix.TargetScore)
 	if err != nil {
-		return FixDraft{}, err
+		return FixInput{}, err
 	}
 	instructions, err := fixprompt.Compile(fixprompt.Input{
 		Contract: baseline.Contract, AllowedScope: resolved.Fix.ChangeScope, AllowedPaths: allowedPaths,
-		ValidationPlan: resolved.Fix.ValidationPlan, BranchName: branchName, Template: resolved.Fix.PromptTemplate,
+		BranchName: branchName, Template: resolved.Fix.PromptTemplate,
 	})
 	if err != nil {
-		return FixDraft{}, err
+		return FixInput{}, err
 	}
-	draft := FixDraft{
-		ID: draftID, Revision: 1, Workspace: request.Workspace,
-		Targets: append([]fix.RepoPath(nil), request.Targets...), Baseline: baseline,
+	input := FixInput{
+		Workspace: request.Workspace,
+		Targets:   append([]fix.RepoPath(nil), request.Targets...), Baseline: baseline,
 		Preferences: resolved, Profile: cloneProfile(profile), Probe: cloneProbe(probe),
-		Model: model, Effort: effort, Delegation: delegation,
+		Model: model, Effort: effort,
 		TargetScore: resolved.Fix.TargetScore,
 		Focus:       append([]fix.MetricGoal(nil), baseline.Contract.Goal.Focus...), ChangeScope: resolved.Fix.ChangeScope,
-		AllowedPaths:              append([]fix.RepoPath(nil), allowedPaths...),
-		ValidationPlanID:          resolved.Fix.ValidationPlan,
-		ValidationReadiness:       validationReadiness,
-		ValidationReadinessByPlan: cloneValidationReadiness(validationReadinessByPlan),
-		DeliveryMode:              deliveryMode, DeliveryTarget: deliveryTarget, BranchName: branchName,
-		Instructions: instructions, Preflight: preflight,
+		AllowedPaths: append([]fix.RepoPath(nil), allowedPaths...),
+		DeliveryPlan: deliveryPlan, BranchName: branchName,
+		Instructions: instructions, PlannedPaths: append([]fix.RepoPath(nil), plannedPaths...),
 	}
-	manager.draftMu.Lock()
-	manager.prepared[draft.ID] = preparedDraft{draft: cloneSubmit(SubmitRequest{Draft: draft}).Draft, hash: immutableDraftFingerprint(draft)}
-	manager.draftMu.Unlock()
-	return draft, nil
-}
-
-func compatibleOption[T ~string](options []agent.Option[T], selected T) T {
-	if containsOption(options, selected) || len(options) == 0 {
-		return selected
-	}
-	for _, option := range options {
-		if option.Default {
-			return option.ID
-		}
-	}
-	return options[0].ID
+	return input, nil
 }
 
 func (manager *Manager) Reconfigure(ctx context.Context, limits RuntimeLimits) error {
 	if manager.closed.Load() {
 		return ErrClosed
 	}
-	if limits.MaxAgents <= 0 || limits.MaxVerifiers <= 0 || limits.MaxRetainedJobs <= 0 || limits.MaxTranscriptBytes <= 0 {
+	if limits.MaxAgents <= 0 || limits.MaxVerifiers <= 0 {
 		return errors.New("fix runtime limits must all be greater than zero")
 	}
 	response := make(chan error, 1)
@@ -391,45 +339,58 @@ func (manager *Manager) Reconfigure(ctx context.Context, limits RuntimeLimits) e
 	}
 }
 
-// ReviseDraft atomically keeps form values, the verifier contract and the
-// generated prompt in sync. The immutable safety envelope is always rebuilt
-// by fixprompt and cannot be replaced by an advanced editor.
-func ReviseDraft(draft FixDraft, edits DraftEdits) (FixDraft, error) {
-	result := cloneSubmit(SubmitRequest{Draft: draft}).Draft
-	result.TargetScore = edits.TargetScore
-	result.Focus = append([]fix.MetricGoal(nil), edits.Focus...)
-	result.ChangeScope = edits.ChangeScope
-	switch edits.ChangeScope {
+func ApplyFormValues(input FixInput, values FormValues) (FixInput, error) {
+	result := cloneFixInput(input)
+	result.TargetScore = values.TargetScore
+	result.Focus = append([]fix.MetricGoal(nil), values.Focus...)
+	result.ChangeScope = values.ChangeScope
+	switch values.ChangeScope {
 	case "targets", "targets-only":
 		result.AllowedPaths = append([]fix.RepoPath(nil), result.Targets...)
 	case "targets-and-tests":
-		result.AllowedPaths = append([]fix.RepoPath(nil), result.Preflight.AllowedPaths...)
+		result.AllowedPaths = append([]fix.RepoPath(nil), result.PlannedPaths...)
 	case "repository":
 		result.AllowedPaths = nil
 	default:
-		return FixDraft{}, fmt.Errorf("unsupported change scope %q", edits.ChangeScope)
+		return FixInput{}, fmt.Errorf("unsupported change scope %q", values.ChangeScope)
 	}
-	result.ValidationPlanID = edits.ValidationPlanID
-	result.ValidationReadiness = selectedValidationReadiness(edits.ValidationPlanID, result.ValidationReadinessByPlan)
-	result.DeliveryMode = edits.DeliveryMode
-	result.BranchName = edits.BranchName
-	result.Baseline.Contract.Goal.MaximumScore = edits.TargetScore
-	result.Baseline.Contract.Goal.Focus = append([]fix.MetricGoal(nil), edits.Focus...)
+	result.DeliveryPlan = values.DeliveryPlan
+	result.BranchName = values.BranchName
+	if values.DeliveryPlan.Git == fix.GitCommitCurrent {
+		result.BranchName = result.Workspace.CurrentBranch
+	} else if values.DeliveryPlan.Git == fix.GitLeaveUncommitted {
+		result.BranchName = ""
+	}
+	result.Baseline.Contract.Goal.MaximumScore = values.TargetScore
+	result.Baseline.Contract.Goal.Focus = append([]fix.MetricGoal(nil), values.Focus...)
 	instructions, err := fixprompt.Compile(fixprompt.Input{
-		Contract: result.Baseline.Contract, AllowedScope: edits.ChangeScope, AllowedPaths: result.AllowedPaths, ValidationPlan: edits.ValidationPlanID,
+		Contract: result.Baseline.Contract, AllowedScope: values.ChangeScope, AllowedPaths: result.AllowedPaths,
 		BranchName: result.BranchName, Template: result.Preferences.Fix.PromptTemplate,
 	})
 	if err != nil {
-		return FixDraft{}, err
+		return FixInput{}, err
 	}
 	result.Instructions = instructions
-	result.Revision++
 	return result, nil
 }
 
-func configuredFocusGoals(ids []fix.MetricID, targets []fix.TargetSnapshot) ([]fix.MetricGoal, error) {
+func measuredFocusMetrics(ids []fix.MetricID) []fix.MetricID {
+	result := make([]fix.MetricID, 0, len(ids))
+	for _, id := range ids {
+		if id != fix.MetricScore {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+func configuredFocusGoals(ids []fix.MetricID, targets []fix.TargetSnapshot, targetScore float64) ([]fix.MetricGoal, error) {
 	goals := make([]fix.MetricGoal, 0, len(ids))
 	for _, id := range ids {
+		if id == fix.MetricScore {
+			goals = append(goals, fix.MetricGoal{Metric: id, Maximum: targetScore})
+			continue
+		}
 		maximum := 0.0
 		found := false
 		for _, target := range targets {
@@ -458,10 +419,10 @@ func selectedProfile(resolved appconfig.Resolved) (agent.Profile, error) {
 			return cloneProfile(profile), nil
 		}
 	}
-	return agent.Profile{}, fmt.Errorf("prepare fix: agent profile %q is not configured", resolved.Fix.Profile)
+	return agent.Profile{}, fmt.Errorf("load fix: agent profile %q is not configured", resolved.Fix.Profile)
 }
 
-func renderBranch(template string, targets []fix.RepoPath, id fix.DraftID, focus []fix.MetricID, now time.Time) string {
+func renderBranch(template string, targets []fix.RepoPath, seed string, focus []fix.MetricID, now time.Time) string {
 	if template == "" {
 		template = "slopwatch/fix/{target-stem}-{job-short-id}"
 	}
@@ -475,7 +436,7 @@ func renderBranch(template string, targets []fix.RepoPath, id fix.DraftID, focus
 			target = target[:dot]
 		}
 	}
-	short := strings.TrimPrefix(string(id), "draft-")
+	short := strings.TrimPrefix(seed, "job-")
 	metrics := make([]string, 0, len(focus))
 	for _, metric := range focus {
 		metrics = append(metrics, sanitizeBranchPart(string(metric)))
@@ -500,59 +461,15 @@ func sanitizeBranchPart(value string) string {
 	return strings.Trim(result.String(), "-_")
 }
 
-func (manager *Manager) Submit(ctx context.Context, request SubmitRequest) (fix.JobID, error) {
-	request = cloneSubmit(request)
-	manager.draftMu.Lock()
-	expected, prepared := manager.prepared[request.Draft.ID]
-	manager.draftMu.Unlock()
-	if !prepared || expected.hash != immutableDraftFingerprint(request.Draft) {
-		return "", errors.New("submit fix: draft was not prepared by this service or its immutable fields changed")
-	}
-	reconstructed, err := reconstructPreparedDraft(expected.draft, request.Draft)
-	if err != nil {
-		return "", err
-	}
-	request.Draft = reconstructed
-	if err := validateDraft(request.Draft); err != nil {
-		return "", err
-	}
-	if manager.deps.SecretAdmission != nil {
-		// Check the exact compiled body that the adapter will send. Generated
-		// target paths and evidence are repository-controlled input too; checking
-		// only the advanced-editor fields would leave a provider-visible gap.
-		if err := manager.deps.SecretAdmission.RejectKnownSecret(ctx, request.Draft.Profile.AuthenticationRef, request.Draft.Instructions.EffectiveBody()); err != nil {
-			return "", errors.New("submit fix: agent instructions contain protected authentication material")
-		}
-	}
-	strategy, err := manager.deps.Agents.Strategy(request.Draft.Profile.Runtime)
-	if err != nil {
-		return "", err
-	}
-	request.Draft.Probe = strategy.Probe(ctx, request.Draft.Profile)
-	request.Draft.ValidationReadiness = manager.preflightSelectedValidation(ctx, request.Draft.Workspace, request.Draft.ValidationPlanID, request.Draft.Preferences.Validation)
-	preflight, err := manager.deps.Candidates.Preflight(ctx, candidate.PreflightRequest{Workspace: request.Draft.Workspace, Targets: request.Draft.Targets, CommandOutputBytes: request.Draft.Preferences.Delivery.CommandOutputBytes})
-	if err != nil {
-		return "", fmt.Errorf("submit fix preflight: %w", err)
-	}
-	preflight.AllowedPaths = append([]fix.RepoPath(nil), request.Draft.Preflight.AllowedPaths...)
-	request.Draft.Preflight = preflight
-	deliveryTarget, err := manager.preflightDelivery(ctx, request.Draft.Workspace, request.Draft.DeliveryMode, request.Draft.Preferences.Delivery, request.Draft.BranchName, false)
-	if err != nil {
-		return "", err
-	}
-	request.Draft.DeliveryTarget = deliveryTarget
-	response := make(chan submitResponse, 1)
-	call := submitCall{ctx: ctx, request: request, response: response}
+func (manager *Manager) Run(ctx context.Context, input FixInput) (fix.JobID, error) {
+	input = cloneFixInput(input)
+	response := make(chan runResponse, 1)
+	call := runCall{ctx: ctx, input: input, response: response}
 	if err := manager.send(ctx, call); err != nil {
 		return "", err
 	}
 	select {
 	case result := <-response:
-		if result.err == nil {
-			manager.draftMu.Lock()
-			delete(manager.prepared, request.Draft.ID)
-			manager.draftMu.Unlock()
-		}
 		return result.id, result.err
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -561,61 +478,20 @@ func (manager *Manager) Submit(ctx context.Context, request SubmitRequest) (fix.
 	}
 }
 
-func reconstructPreparedDraft(prepared, submitted FixDraft) (FixDraft, error) {
-	metricIDs := make([]fix.MetricID, 0, len(submitted.Focus))
-	seen := make(map[fix.MetricID]struct{}, len(submitted.Focus))
-	for _, goal := range submitted.Focus {
-		if goal.Metric == "" {
-			return FixDraft{}, errors.New("submit fix: selected focus metric is empty")
-		}
-		if _, duplicate := seen[goal.Metric]; duplicate {
-			return FixDraft{}, fmt.Errorf("submit fix: selected focus metric %q is duplicated", goal.Metric)
-		}
-		seen[goal.Metric] = struct{}{}
-		metricIDs = append(metricIDs, goal.Metric)
+func (manager *Manager) preflightDelivery(ctx context.Context, workspace fix.WorkspaceIdentity, plan fix.DeliveryPlan, config appconfig.Delivery, branch string, publication bool) (delivery.PreflightResult, error) {
+	if !plan.Valid() {
+		return delivery.PreflightResult{}, fmt.Errorf("unsupported delivery plan %+v", plan)
 	}
-	canonicalFocus, err := configuredFocusGoals(metricIDs, prepared.Baseline.Contract.Targets)
-	if err != nil {
-		return FixDraft{}, fmt.Errorf("submit fix: %w", err)
+	if plan.Git == fix.GitLeaveUncommitted {
+		return delivery.PreflightResult{}, nil
 	}
-	reconstructed, err := ReviseDraft(prepared, DraftEdits{
-		TargetScore: submitted.TargetScore,
-		Focus:       canonicalFocus, ChangeScope: submitted.ChangeScope,
-		ValidationPlanID: submitted.ValidationPlanID, DeliveryMode: submitted.DeliveryMode,
-		BranchName: submitted.BranchName,
-	})
-	if err != nil {
-		return FixDraft{}, fmt.Errorf("submit fix: revise prepared draft: %w", err)
+	if plan.Git == fix.GitCommitNewBranch && branch == "" {
+		return delivery.PreflightResult{}, errors.New("new-branch delivery requires a branch name")
 	}
-	reconstructed.Model = submitted.Model
-	reconstructed.Effort = submitted.Effort
-	reconstructed.Delegation = submitted.Delegation
-
-	consistent := submitted.TargetScore == reconstructed.TargetScore &&
-		reflect.DeepEqual(submitted.Focus, reconstructed.Focus) &&
-		submitted.ChangeScope == reconstructed.ChangeScope &&
-		reflect.DeepEqual(submitted.AllowedPaths, reconstructed.AllowedPaths) &&
-		reflect.DeepEqual(submitted.Preflight.AllowedPaths, prepared.Preflight.AllowedPaths) &&
-		submitted.ValidationPlanID == reconstructed.ValidationPlanID &&
-		reflect.DeepEqual(submitted.ValidationReadiness, reconstructed.ValidationReadiness) &&
-		submitted.DeliveryMode == reconstructed.DeliveryMode &&
-		submitted.BranchName == reconstructed.BranchName &&
-		reflect.DeepEqual(submitted.Baseline.Contract.Goal, reconstructed.Baseline.Contract.Goal) &&
-		reflect.DeepEqual(submitted.Instructions, reconstructed.Instructions)
-	if !consistent {
-		return FixDraft{}, errors.New("submit fix: draft edits are inconsistent with the prepared scope, scoring contract, or instructions")
+	if plan.Publish != fix.PublishLocal && config.Remote == "" {
+		return delivery.PreflightResult{}, errors.New("pushing requires a configured remote")
 	}
-	return reconstructed, nil
-}
-
-func (manager *Manager) preflightDelivery(ctx context.Context, workspace fix.WorkspaceIdentity, mode fix.DeliveryMode, config appconfig.Delivery, branch string, publication bool) (delivery.PreflightResult, error) {
-	if !mode.Valid() {
-		return delivery.PreflightResult{}, fmt.Errorf("unsupported delivery mode %q", mode)
-	}
-	if config.Remote == "" || branch == "" {
-		return delivery.PreflightResult{}, errors.New("branch delivery requires a remote and proposed branch")
-	}
-	if mode == fix.DeliveryModePullRequest && config.BaseBranch == "" {
+	if plan.Publish == fix.PublishPullRequest && config.BaseBranch == "" {
 		return delivery.PreflightResult{}, errors.New("pull-request delivery requires an explicit base branch")
 	}
 	preflight := manager.deps.DeliveryPreflight
@@ -625,11 +501,11 @@ func (manager *Manager) preflightDelivery(ctx context.Context, workspace fix.Wor
 	if preflight == nil {
 		return delivery.PreflightResult{}, errors.New("delivery preflight service is unavailable")
 	}
-	target, err := preflight.Preflight(ctx, delivery.PreflightRequest{Workspace: workspace, Mode: mode, Remote: config.Remote, BaseBranch: config.BaseBranch, Branch: branch, Publication: publication, CommandOutputBytes: config.CommandOutputBytes})
+	target, err := preflight.Preflight(ctx, delivery.PreflightRequest{Workspace: workspace, Plan: plan, Remote: config.Remote, BaseBranch: config.BaseBranch, Branch: branch, Publication: publication, CommandOutputBytes: config.CommandOutputBytes})
 	if err != nil {
 		return delivery.PreflightResult{}, fmt.Errorf("delivery preflight: %w", err)
 	}
-	if mode == fix.DeliveryModePullRequest {
+	if plan.Publish == fix.PublishPullRequest {
 		if config.Publisher != "github-cli" {
 			return delivery.PreflightResult{}, fmt.Errorf("pull-request publisher %q is unsupported", config.Publisher)
 		}
@@ -646,80 +522,6 @@ func (manager *Manager) preflightDelivery(ctx context.Context, workspace fix.Wor
 		}
 	}
 	return target, nil
-}
-
-func (manager *Manager) preflightValidationPlans(ctx context.Context, workspace fix.WorkspaceIdentity, plans []validation.Plan) map[string]validation.Readiness {
-	result := make(map[string]validation.Readiness, len(plans))
-	for _, plan := range plans {
-		result[plan.ID] = manager.preflightValidation(ctx, workspace, plan)
-	}
-	return result
-}
-
-func (manager *Manager) preflightSelectedValidation(ctx context.Context, workspace fix.WorkspaceIdentity, id string, plans []validation.Plan) validation.Readiness {
-	if id == "" {
-		return validation.Readiness{Ready: true}
-	}
-	for _, plan := range plans {
-		if plan.ID == id {
-			return manager.preflightValidation(ctx, workspace, plan)
-		}
-	}
-	return validation.Readiness{Required: true, Diagnostic: fmt.Sprintf("validation plan %q is unavailable", id)}
-}
-
-func (manager *Manager) preflightValidation(ctx context.Context, workspace fix.WorkspaceIdentity, plan validation.Plan) validation.Readiness {
-	if manager.deps.Validation == nil {
-		return validation.Readiness{Required: true, Diagnostic: "validation service is unavailable"}
-	}
-	result := manager.deps.Validation.Preflight(ctx, workspace, plan)
-	result.Required = true
-	if !result.Ready && result.Diagnostic == "" {
-		result.Diagnostic = "validation executor is unavailable"
-	}
-	return result
-}
-
-func selectedValidationReadiness(id string, values map[string]validation.Readiness) validation.Readiness {
-	if id == "" {
-		return validation.Readiness{Ready: true}
-	}
-	if value, ok := values[id]; ok {
-		value.Required = true
-		return value
-	}
-	return validation.Readiness{Required: true, Diagnostic: fmt.Sprintf("validation plan %q is unavailable", id)}
-}
-
-func cloneValidationReadiness(values map[string]validation.Readiness) map[string]validation.Readiness {
-	result := make(map[string]validation.Readiness, len(values))
-	for id, value := range values {
-		result[id] = value
-	}
-	return result
-}
-
-type preparedDraft struct {
-	draft FixDraft
-	hash  [sha256.Size]byte
-}
-
-func immutableDraftFingerprint(draft FixDraft) [sha256.Size]byte {
-	contract := cloneContract(draft.Baseline.Contract)
-	contract.Goal = fix.ScoringGoal{}
-	value := struct {
-		ID                        fix.DraftID
-		Workspace                 fix.WorkspaceIdentity
-		Targets                   []fix.RepoPath
-		Contract                  fix.ScoringContract
-		Preferences               appconfig.Resolved
-		Profile                   agent.Profile
-		Envelope                  string
-		Version                   string
-		ValidationReadinessByPlan map[string]validation.Readiness
-	}{draft.ID, draft.Workspace, draft.Targets, contract, cloneResolved(draft.Preferences), cloneProfile(draft.Profile), draft.Instructions.Envelope, draft.Instructions.Version, cloneValidationReadiness(draft.ValidationReadinessByPlan)}
-	encoded, _ := json.Marshal(value)
-	return sha256.Sum256(encoded)
 }
 
 func (manager *Manager) Execute(ctx context.Context, command fix.JobCommand) (CommandReceipt, error) {
@@ -752,22 +554,16 @@ func (manager *Manager) send(ctx context.Context, request any) error {
 }
 
 func (manager *Manager) Jobs(filter JobFilter) JobListSnapshot {
-	snapshot := cloneJobList(manager.current.Load().(JobListSnapshot))
-	if !filter.ActiveOnly && filter.IncludeFinished {
-		return snapshot
+	response := make(chan JobListSnapshot, 1)
+	if err := manager.send(context.Background(), jobsCall{filter: filter, response: response}); err != nil {
+		return JobListSnapshot{}
 	}
-	filtered := snapshot.Jobs[:0]
-	for _, job := range snapshot.Jobs {
-		if !filter.IncludeFinished && job.Phase == fix.PhaseCompleted {
-			continue
-		}
-		if filter.ActiveOnly && isQuiescent(job.Phase) {
-			continue
-		}
-		filtered = append(filtered, job)
+	select {
+	case result := <-response:
+		return result
+	case <-manager.done:
+		return JobListSnapshot{}
 	}
-	snapshot.Jobs = filtered
-	return snapshot
 }
 
 func (manager *Manager) Job(id fix.JobID) (fix.JobPresentation, bool) {
@@ -780,7 +576,10 @@ func (manager *Manager) Job(id fix.JobID) (fix.JobPresentation, bool) {
 }
 
 func (manager *Manager) Subscribe() Subscription {
-	return &subscription{manager: manager, closed: make(chan struct{})}
+	manager.notifyMu.Lock()
+	notify := manager.notify
+	manager.notifyMu.Unlock()
+	return &subscription{manager: manager, notify: notify, closed: make(chan struct{})}
 }
 
 func (manager *Manager) Shutdown(ctx context.Context) error {
@@ -859,48 +658,31 @@ func (manager *Manager) candidateIdentity(ctx context.Context, id fix.JobID) (fi
 	}
 }
 
-type logSnapshot struct {
-	entries   []LogEntry
-	truncated bool
+func (manager *Manager) Transcript(ctx context.Context, id fix.JobID, cursor LogCursor, limit int) (LogPage, error) {
+	response := make(chan transcriptResponse, 1)
+	if err := manager.send(ctx, transcriptCall{id: id, cursor: cursor, limit: limit, response: response}); err != nil {
+		return LogPage{}, err
+	}
+	select {
+	case result := <-response:
+		return result.page, result.err
+	case <-ctx.Done():
+		return LogPage{}, ctx.Err()
+	case <-manager.done:
+		return LogPage{}, ErrClosed
+	}
 }
 
-func (manager *Manager) Transcript(_ context.Context, id fix.JobID, cursor LogCursor, limit int) (LogPage, error) {
-	all := manager.logs.Load().(map[fix.JobID]logSnapshot)
-	snapshot, exists := all[id]
-	if !exists {
-		return LogPage{}, ErrJobNotFound
-	}
-	if limit <= 0 || limit > 500 {
-		limit = 100
-	}
-	start := max(0, min(int(cursor), len(snapshot.entries)))
-	end := min(len(snapshot.entries), start+limit)
-	return LogPage{
-		Entries: append([]LogEntry(nil), snapshot.entries[start:end]...), Next: LogCursor(end),
-		Complete: end == len(snapshot.entries), Truncated: snapshot.truncated,
-	}, nil
-}
-
-func cloneSubmit(request SubmitRequest) SubmitRequest {
-	request.Draft.Targets = append([]fix.RepoPath(nil), request.Draft.Targets...)
-	request.Draft.AllowedPaths = append([]fix.RepoPath(nil), request.Draft.AllowedPaths...)
-	request.Draft.Preflight.AllowedPaths = append([]fix.RepoPath(nil), request.Draft.Preflight.AllowedPaths...)
-	request.Draft.Preflight.TargetBlobs = cloneObjectIDs(request.Draft.Preflight.TargetBlobs)
-	request.Draft.ValidationReadinessByPlan = cloneValidationReadiness(request.Draft.ValidationReadinessByPlan)
-	request.Draft.Profile = cloneProfile(request.Draft.Profile)
-	request.Draft.Probe = cloneProbe(request.Draft.Probe)
-	request.Draft.Preferences = cloneResolved(request.Draft.Preferences)
-	request.Draft.Baseline.Contract = cloneContract(request.Draft.Baseline.Contract)
-	request.Draft.Focus = append([]fix.MetricGoal(nil), request.Draft.Focus...)
-	return request
-}
-
-func cloneObjectIDs(value map[fix.RepoPath]fix.ObjectID) map[fix.RepoPath]fix.ObjectID {
-	result := make(map[fix.RepoPath]fix.ObjectID, len(value))
-	for path, id := range value {
-		result[path] = id
-	}
-	return result
+func cloneFixInput(input FixInput) FixInput {
+	input.Targets = append([]fix.RepoPath(nil), input.Targets...)
+	input.AllowedPaths = append([]fix.RepoPath(nil), input.AllowedPaths...)
+	input.PlannedPaths = append([]fix.RepoPath(nil), input.PlannedPaths...)
+	input.Profile = cloneProfile(input.Profile)
+	input.Probe = cloneProbe(input.Probe)
+	input.Preferences = cloneResolved(input.Preferences)
+	input.Baseline.Contract = cloneContract(input.Baseline.Contract)
+	input.Focus = append([]fix.MetricGoal(nil), input.Focus...)
+	return input
 }
 
 func cloneResolved(value appconfig.Resolved) appconfig.Resolved {
@@ -913,15 +695,6 @@ func cloneResolved(value appconfig.Resolved) appconfig.Resolved {
 	result.Profiles = make([]agent.Profile, len(value.Profiles))
 	for index, profile := range value.Profiles {
 		result.Profiles[index] = cloneProfile(profile)
-	}
-	result.Validation = make([]validation.Plan, len(value.Validation))
-	for index, plan := range value.Validation {
-		result.Validation[index] = plan
-		result.Validation[index].Checks = make([]validation.Check, len(plan.Checks))
-		for checkIndex, check := range plan.Checks {
-			result.Validation[index].Checks[checkIndex] = check
-			result.Validation[index].Checks[checkIndex].Arguments = append([]string(nil), check.Arguments...)
-		}
 	}
 	return result
 }
@@ -953,7 +726,6 @@ func cloneProfile(profile agent.Profile) agent.Profile {
 func cloneProbe(probe agent.ProbeResult) agent.ProbeResult {
 	probe.Capabilities.Models = append([]agent.Option[agent.ModelID](nil), probe.Capabilities.Models...)
 	probe.Capabilities.Efforts = append([]agent.Option[agent.EffortID](nil), probe.Capabilities.Efforts...)
-	probe.Capabilities.Delegation = append([]agent.Option[agent.DelegationMode](nil), probe.Capabilities.Delegation...)
 	probe.Capabilities.Network.ToolDomains = append([]string(nil), probe.Capabilities.Network.ToolDomains...)
 	return probe
 }
@@ -968,24 +740,6 @@ func cloneStringMap(values map[string]string) map[string]string {
 
 func isQuiescent(phase fix.Phase) bool {
 	return phase == fix.PhaseFailed || phase == fix.PhaseCompleted || phase == fix.PhaseCanceled || phase == fix.PhaseDiscarded
-}
-
-func admissionPayload(draft FixDraft) json.RawMessage {
-	payload, _ := json.Marshal(struct {
-		Draft       fix.DraftID           `json:"draft"`
-		Workspace   fix.WorkspaceIdentity `json:"workspace"`
-		Targets     []fix.RepoPath        `json:"targets"`
-		Contract    fix.ScoringContract   `json:"scoring_contract"`
-		Profile     agent.ProfileID       `json:"profile"`
-		Runtime     agent.RuntimeKind     `json:"runtime"`
-		Fingerprint string                `json:"profile_fingerprint"`
-		Model       agent.ModelID         `json:"model"`
-		Effort      agent.EffortID        `json:"effort"`
-		Delegation  agent.DelegationMode  `json:"delegation"`
-		Scope       string                `json:"scope"`
-	}{draft.ID, draft.Workspace, draft.Targets, draft.Baseline.Contract, draft.Profile.ID,
-		draft.Profile.Runtime, draft.Profile.Fingerprint, draft.Model, draft.Effort, draft.Delegation, draft.ChangeScope})
-	return payload
 }
 
 func sortPresentations(values []fix.JobPresentation) {

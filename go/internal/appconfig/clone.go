@@ -2,7 +2,6 @@ package appconfig
 
 import (
 	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/validation"
 )
 
 func cloneResolved(value Resolved) Resolved {
@@ -13,7 +12,6 @@ func cloneResolved(value Resolved) Resolved {
 	}
 	result.Fix = cloneFixDefaults(value.Fix)
 	result.Profiles = cloneProfiles(value.Profiles)
-	result.Validation = cloneValidation(value.Validation)
 	return result
 }
 
@@ -29,19 +27,6 @@ func cloneProfiles(values []agent.Profile) []agent.Profile {
 		result[index].Options = make(map[string]string, len(value.Options))
 		for key, option := range value.Options {
 			result[index].Options[key] = option
-		}
-	}
-	return result
-}
-
-func cloneValidation(values []validation.Plan) []validation.Plan {
-	result := make([]validation.Plan, len(values))
-	for index, value := range values {
-		result[index] = value
-		result[index].Checks = make([]validation.Check, len(value.Checks))
-		for checkIndex, check := range value.Checks {
-			result[index].Checks[checkIndex] = check
-			result[index].Checks[checkIndex].Arguments = append(check.Arguments[:0:0], check.Arguments...)
 		}
 	}
 	return result

@@ -9,7 +9,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixapp"
 	"github.com/blater/slopwatch/internal/style"
 )
 
@@ -33,6 +35,41 @@ func TestAgentRowsUseAttentionOrderAndActiveAllFilter(t *testing.T) {
 	assertAgentJobOrder(t, model.visibleAgentJobs(), "blocked", "failed", "failed-old", "verify", "running", "completed", "completed-new")
 }
 
+func TestTerminalJobsRemainVisibleAndExplainFailure(t *testing.T) {
+	failed := agentTestJob("failed", fix.PhaseFailed, "broken.go")
+	failed.CurrentAction = "Failed"
+	failed.Issue = &fix.JobIssue{Code: "provider", Summary: "Codex connection closed unexpectedly"}
+	done := agentTestJob("done", fix.PhaseCompleted, "fixed.go")
+	model := agentTestModel(100, 16, failed, done)
+	model.agents.ShowAll = true
+
+	view := ansi.Strip(model.View())
+	if !strings.Contains(view, "Codex connection closed unexpectedly") || !strings.Contains(view, "DONE") {
+		t.Fatalf("terminal jobs are not useful in history: %q", view)
+	}
+}
+
+func TestLogsOpenFromExpandedFileOfFinishedJob(t *testing.T) {
+	job := agentTestJob("done", fix.PhaseCompleted, "fixed.go")
+	service := &fakeFixService{jobs: fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}}, log: fixapp.LogPage{
+		Entries: []fixapp.LogEntry{{At: time.Now(), Kind: agent.EventActivity, Summary: "Committed the fix"}}, Complete: true,
+	}}
+	model := agentTestModel(80, 16, job)
+	model.fixService = service
+	model.agents.ShowAll = true
+	model.agents.Expanded[job.ID] = true
+	model.agents.Selected = AgentRowID{JobID: job.ID, Path: "fixed.go"}
+
+	_, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	if command == nil || !model.hasOverlay(OverlayJobLog) {
+		t.Fatal("l did not open logs from an expanded file row")
+	}
+	model.handleJobReader(command().(jobReaderMsg))
+	if view := ansi.Strip(model.View()); !strings.Contains(view, "Committed the fix") || !strings.Contains(view, "DONE") {
+		t.Fatalf("finished job log omitted activity or result: %q", view)
+	}
+}
+
 func TestAgentCountIncludesOnlyRunningActors(t *testing.T) {
 	jobs := []fix.JobPresentation{
 		{Phase: fix.PhasePreparing, ActorCount: 4},
@@ -42,6 +79,27 @@ func TestAgentCountIncludesOnlyRunningActors(t *testing.T) {
 	}
 	if got := fixAggregateText(jobs); got != "AGENTS 4" {
 		t.Fatalf("aggregate = %q, want running actors only", got)
+	}
+}
+
+func TestAgentTimeFreezesAtTerminalJobDuration(t *testing.T) {
+	created := time.Date(2026, 8, 26, 10, 0, 0, 0, time.UTC)
+	now := created.Add(20 * time.Minute)
+	for _, test := range []struct {
+		name string
+		job  fix.JobPresentation
+		want string
+	}{
+		{name: "running", job: fix.JobPresentation{Phase: fix.PhaseRunning, CreatedAt: created}, want: "20:00"},
+		{name: "completed", job: fix.JobPresentation{Phase: fix.PhaseCompleted, CreatedAt: created, FinishedAt: created.Add(4*time.Minute + 12*time.Second)}, want: "4:12"},
+		{name: "failed", job: fix.JobPresentation{Phase: fix.PhaseFailed, CreatedAt: created, UpdatedAt: created.Add(3*time.Minute + 5*time.Second)}, want: "3:05"},
+		{name: "canceled", job: fix.JobPresentation{Phase: fix.PhaseCanceled, CreatedAt: created, FinishedAt: created.Add(2*time.Minute + 30*time.Second)}, want: "2:30"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := agentJobTime(test.job, now); got != test.want {
+				t.Fatalf("TIME = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
@@ -106,19 +164,19 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 		view := model.View()
 		assertScreenSize(t, view, size.width, size.height)
 		plain := ansi.Strip(view)
-		for _, wanted := range []string{"RUNNING", "Codex", "attempt 2", "internal/service.go"} {
+		for _, wanted := range []string{"RUNNING", "Codex", "internal/service.go"} {
 			if !strings.Contains(plain, wanted) {
 				t.Fatalf("%dx%d Agents view omitted %q: %q", size.width, size.height, wanted, plain)
 			}
+		}
+		if strings.Contains(plain, "ATTEMPT") || strings.Contains(plain, "attempt 2") {
+			t.Fatalf("%dx%d Agents view exposed retry attempt outside Activity: %q", size.width, size.height, plain)
 		}
 		if size.width == 36 {
 			if !strings.Contains(plain, "SCORE 142→91✓") {
 				t.Fatalf("compact metrics missing authoritative result: %q", plain)
 			}
 			assertCompactSelectedBlock(t, view, "internal/service.go", "SCORE 142→91✓", size.width)
-		}
-		if size.width >= 60 && size.width < 112 && !strings.Contains(plain, "ATTEMPT") {
-			t.Fatalf("medium Agents header omitted attempt column: %q", plain)
 		}
 		if size.width == 120 && (!strings.Contains(plain, "gpt-5.6") || !strings.Contains(plain, "Refactoring SQL selection predicates")) {
 			t.Fatalf("wide view omitted model/activity: %q", plain)
@@ -135,11 +193,14 @@ func TestAgentColumnsAlignAndActivityUsesResponsiveSpace(t *testing.T) {
 		model := agentTestModel(width, 20, job)
 		lines := strings.Split(ansi.Strip(model.View()), "\n")
 		header, row := lines[1], lines[2]
-		for _, title := range []string{"STATE", "ATTEMPT", "AGENT", "ACTIVITY"} {
+		for _, title := range []string{"STATE", "AGENT", "ACTIVITY"} {
 			position := strings.Index(header, title)
 			if position < 0 || strings.TrimSpace(row[position:min(len(row), position+len(title))]) == "" {
 				t.Fatalf("%d-column %s is not aligned with row content:\n%s\n%s", width, title, header, row)
 			}
+		}
+		if strings.Contains(header, "ATTEMPT") || strings.Contains(row, "attempt 2") {
+			t.Fatalf("%d-column Agents row exposed a dedicated attempt field:\n%s\n%s", width, header, row)
 		}
 		activityStart := strings.Index(header, "ACTIVITY")
 		timeStart := strings.Index(header, "TIME")

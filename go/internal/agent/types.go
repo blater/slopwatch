@@ -5,6 +5,8 @@ package agent
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/blater/slopwatch/internal/fix"
 )
@@ -13,15 +15,29 @@ type RuntimeKind string
 type ProfileID string
 type ModelID string
 type EffortID string
-type DelegationMode string
-
-const DelegationSingle DelegationMode = "single"
 
 type Option[T ~string] struct {
 	ID          T
 	Label       string
 	Description string
 	Default     bool
+}
+
+func ResolveOption[T ~string](options []Option[T], selected T) (T, bool) {
+	for _, option := range options {
+		if selected != "" && option.ID == selected {
+			return selected, true
+		}
+	}
+	for _, option := range options {
+		if option.Default {
+			return option.ID, true
+		}
+	}
+	if len(options) > 0 {
+		return options[0].ID, true
+	}
+	return "", false
 }
 
 type WriteConfinement uint8
@@ -62,13 +78,12 @@ const (
 )
 
 type Capabilities struct {
-	Models     []Option[ModelID]
-	Efforts    []Option[EffortID]
-	Delegation []Option[DelegationMode]
-	Resume     bool
-	Progress   ProgressCapability
-	Network    NetworkCapability
-	Isolation  RuntimeIsolation
+	Models    []Option[ModelID]
+	Efforts   []Option[EffortID]
+	Resume    bool
+	Progress  ProgressCapability
+	Network   NetworkCapability
+	Isolation RuntimeIsolation
 }
 
 type Profile struct {
@@ -168,16 +183,16 @@ type InstructionDocument struct {
 }
 
 func (document InstructionDocument) EffectiveBody() string {
-	result := document.Envelope + "\n\n" + document.Objective
-	if document.NextAttemptNotes != "" {
-		result += "\n\nMeasurements from the previous attempt:\n" + document.NextAttemptNotes
+	parts := make([]string, 0, 2)
+	if strings.TrimSpace(document.Envelope) != "" {
+		parts = append(parts, strings.TrimSpace(document.Envelope))
 	}
-	return result
-}
-
-type ValidationContract struct {
-	PlanID   string
-	Required bool
+	if strings.TrimSpace(document.Objective) != "" {
+		parts = append(parts, strings.TrimSpace(document.Objective))
+	}
+	return strings.NewReplacer(
+		"{previous_attempt}", document.NextAttemptNotes,
+	).Replace(strings.Join(parts, "\n\n"))
 }
 
 type RemediationTask struct {
@@ -185,20 +200,41 @@ type RemediationTask struct {
 	Goal         fix.ScoringGoal
 	Evidence     []fix.MetricEvidence
 	Instructions InstructionDocument
-	Validation   ValidationContract
+	Manifest     *TargetManifest
+}
+
+// TargetManifest carries a large selected-file list without inflating the
+// model prompt. Path points into candidate-owned private staging, not the
+// user's source tree.
+type TargetManifest struct {
+	Path  string
+	Count int
+}
+
+func (task RemediationTask) EffectivePrompt() string {
+	prompt := task.Instructions.EffectiveBody()
+	manifestPath := ""
+	manifestCount := "0"
+	if task.Manifest != nil {
+		manifestPath = task.Manifest.Path
+		manifestCount = strconv.Itoa(task.Manifest.Count)
+	}
+	return strings.NewReplacer(
+		"{target_manifest}", manifestPath,
+		"{target_manifest_count}", manifestCount,
+	).Replace(prompt)
 }
 
 type Request struct {
-	JobID      fix.JobID
-	AttemptID  fix.AttemptID
-	Workspace  fix.CandidateIdentity
-	Task       RemediationTask
-	Model      ModelID
-	Effort     EffortID
-	Delegation DelegationMode
-	Write      WritePolicy
-	Limits     Limits
-	Resume     ResumeToken
+	JobID     fix.JobID
+	AttemptID fix.AttemptID
+	Workspace fix.CandidateIdentity
+	Task      RemediationTask
+	Model     ModelID
+	Effort    EffortID
+	Write     WritePolicy
+	Limits    Limits
+	Resume    ResumeToken
 }
 
 type ResumeToken struct {

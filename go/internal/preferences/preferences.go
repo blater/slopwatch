@@ -13,22 +13,22 @@ import (
 	"github.com/blater/slopwatch/internal/fixprompt"
 	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/blater/slopwatch/internal/userdata"
 )
 
 const CurrentVersion = 1
 
 type Document struct {
-	Version             int                 `toml:"version"`
-	Appearance          Appearance          `toml:"appearance"`
-	Table               Table               `toml:"table"`
-	Interaction         Interaction         `toml:"interaction"`
-	Scoring             Scoring             `toml:"scoring"`
-	Agents              Agents              `toml:"agents"`
-	Fix                 Fix                 `toml:"fix"`
-	Concurrency         Concurrency         `toml:"concurrency"`
-	ValidationWorkspace ValidationWorkspace `toml:"validation_workspace"`
-	Validation          Validation          `toml:"validation"`
-	Delivery            Delivery            `toml:"delivery"`
+	Version     int         `toml:"version"`
+	Appearance  Appearance  `toml:"appearance"`
+	Table       Table       `toml:"table"`
+	Interaction Interaction `toml:"interaction"`
+	Scoring     Scoring     `toml:"scoring"`
+	Agents      Agents      `toml:"agents"`
+	Fix         Fix         `toml:"fix"`
+	Concurrency Concurrency `toml:"concurrency"`
+	Delivery    Delivery    `toml:"delivery"`
 }
 
 type Appearance struct {
@@ -77,92 +77,46 @@ type Fix struct {
 	Profile        string   `toml:"profile"`
 	Model          string   `toml:"model"`
 	Effort         string   `toml:"effort"`
-	Delegation     string   `toml:"delegation"`
 	PromptTemplate string   `toml:"prompt_template"`
-	ValidationPlan string   `toml:"validation_plan"`
 }
 
 type Concurrency struct {
 	MaxAgents                int   `toml:"max_agents"`
 	MaxVerifiers             int   `toml:"max_verifiers"`
-	MaxRetainedJobs          int   `toml:"max_retained_jobs"`
-	MaxTranscriptBytes       int64 `toml:"max_transcript_bytes"`
 	MaxActorsPerJob          int   `toml:"max_actors_per_job"`
 	MaxCandidatePreviewBytes int64 `toml:"max_candidate_preview_bytes"`
 	MaxCandidatePreviewLines int   `toml:"max_candidate_preview_lines"`
 }
 
-type Validation struct {
-	Plans []ValidationPlan `toml:"plans"`
-}
-
-type ValidationWorkspace struct {
-	MaxFiles                    int64  `toml:"max_files"`
-	MaxDirectories              int64  `toml:"max_directories"`
-	MaxPathBytes                int64  `toml:"max_path_bytes"`
-	MaxFileBytes                int64  `toml:"max_file_bytes"`
-	MaxTotalBytes               int64  `toml:"max_total_bytes"`
-	ContainerPIDs               int    `toml:"container_pids"`
-	ContainerMemoryBytes        int64  `toml:"container_memory_bytes"`
-	ContainerCPUMillis          int64  `toml:"container_cpu_millis"`
-	ContainerTemporaryBytes     int64  `toml:"container_temporary_bytes"`
-	ContainerWorkspaceBytes     int64  `toml:"container_workspace_bytes"`
-	ContainerNofileLimit        int64  `toml:"container_nofile_limit"`
-	ContainerGeneratedFileBytes int64  `toml:"container_generated_file_bytes"`
-	ContainerStopTimeout        string `toml:"container_stop_timeout"`
-	ContainerControlTimeout     string `toml:"container_control_timeout"`
-	ContainerSentinelTimeout    string `toml:"container_sentinel_timeout"`
-	ContainerCrashProbeTimeout  string `toml:"container_crash_probe_timeout"`
-}
-
-type ValidationPlan struct {
-	ID     string            `toml:"id"`
-	Checks []ValidationCheck `toml:"checks"`
-}
-
-type ValidationCheck struct {
-	ID               string   `toml:"id"`
-	Label            string   `toml:"label"`
-	Executable       string   `toml:"executable"`
-	Arguments        []string `toml:"arguments"`
-	WorkingDirectory string   `toml:"working_directory"`
-	Required         bool     `toml:"required"`
-	Timeout          string   `toml:"timeout"`
-	MaxOutputBytes   int64    `toml:"max_output_bytes"`
-}
-
 type Delivery struct {
-	DefaultMode              string `toml:"default_mode"`
+	Workspace                string `toml:"workspace"`
+	Git                      string `toml:"git"`
+	Publish                  string `toml:"publish"`
 	Remote                   string `toml:"remote"`
 	BaseBranch               string `toml:"base_branch"`
 	BranchTemplate           string `toml:"branch_template"`
 	Publisher                string `toml:"publisher"`
 	DraftPullRequests        bool   `toml:"draft_pull_requests"`
-	RequireValidation        bool   `toml:"require_validation"`
 	CommandOutputBytes       int64  `toml:"command_output_bytes"`
-	CommitPolicy             string `toml:"commit_policy"`
 	CommitTitleTemplate      string `toml:"commit_title_template"`
 	CommitBodyTemplate       string `toml:"commit_body_template"`
 	PullRequestTitleTemplate string `toml:"pull_request_title_template"`
 	PullRequestBodyTemplate  string `toml:"pull_request_body_template"`
-	CleanupPolicy            string `toml:"cleanup_policy"`
 }
 
 // PartialDocument retains which top-level preference groups were explicitly
 // present. It is used for repository-scoped overrides and origin metadata;
 // ordinary consumers continue using Document.
 type PartialDocument struct {
-	Version             *int                 `toml:"version,omitempty"`
-	Appearance          *Appearance          `toml:"appearance,omitempty"`
-	Table               *Table               `toml:"table,omitempty"`
-	Interaction         *Interaction         `toml:"interaction,omitempty"`
-	Scoring             *Scoring             `toml:"scoring,omitempty"`
-	Agents              *Agents              `toml:"agents,omitempty"`
-	Fix                 *Fix                 `toml:"fix,omitempty"`
-	Concurrency         *Concurrency         `toml:"concurrency,omitempty"`
-	ValidationWorkspace *ValidationWorkspace `toml:"validation_workspace,omitempty"`
-	Validation          *Validation          `toml:"validation,omitempty"`
-	Delivery            *Delivery            `toml:"delivery,omitempty"`
+	Version     *int         `toml:"version,omitempty"`
+	Appearance  *Appearance  `toml:"appearance,omitempty"`
+	Table       *Table       `toml:"table,omitempty"`
+	Interaction *Interaction `toml:"interaction,omitempty"`
+	Scoring     *Scoring     `toml:"scoring,omitempty"`
+	Agents      *Agents      `toml:"agents,omitempty"`
+	Fix         *Fix         `toml:"fix,omitempty"`
+	Concurrency *Concurrency `toml:"concurrency,omitempty"`
+	Delivery    *Delivery    `toml:"delivery,omitempty"`
 }
 
 // DefaultDocument returns a complete independent preferences document.
@@ -181,43 +135,34 @@ func DefaultDocument() Document {
 		Interaction: Interaction{TrendWindow: (10 * time.Minute).String()},
 		Scoring:     Scoring{WeightStep: 0.5, MaximumWeight: 20, Components: components},
 		Fix: Fix{
-			TargetScore: 100, ChangeScope: "targets-and-tests", Delegation: "single",
+			TargetScore: 100, Focus: []string{"score"}, ChangeScope: "repository",
 			PromptTemplate: fixprompt.DefaultTemplate,
 		},
 		Concurrency: Concurrency{
-			MaxAgents: 2, MaxVerifiers: 1, MaxRetainedJobs: 100,
-			MaxTranscriptBytes:       1024 * 1024,
+			MaxAgents:                2,
+			MaxVerifiers:             1,
 			MaxActorsPerJob:          32,
 			MaxCandidatePreviewBytes: 4 * 1024 * 1024,
 			MaxCandidatePreviewLines: 5000,
 		},
-		ValidationWorkspace: ValidationWorkspace{
-			MaxFiles: 100000, MaxDirectories: 20000, MaxPathBytes: 16 * 1024 * 1024,
-			MaxFileBytes: 64 * 1024 * 1024, MaxTotalBytes: 512 * 1024 * 1024,
-			ContainerPIDs: 256, ContainerMemoryBytes: 4 * 1024 * 1024 * 1024, ContainerCPUMillis: 2000,
-			ContainerTemporaryBytes: 1024 * 1024 * 1024, ContainerWorkspaceBytes: 1024 * 1024 * 1024,
-			ContainerNofileLimit: 1024, ContainerGeneratedFileBytes: 64 * 1024 * 1024,
-			ContainerStopTimeout: "3s", ContainerControlTimeout: "30s", ContainerSentinelTimeout: "10s", ContainerCrashProbeTimeout: "15s",
-		},
 		Delivery: Delivery{
-			DefaultMode: "branch", Remote: "origin", BaseBranch: "main",
+			Workspace: "current-files", Git: "uncommitted", Publish: "local", Remote: "origin", BaseBranch: "main",
 			BranchTemplate: "slopwatch/fix/{target-stem}-{job-short-id}", Publisher: "github-cli",
-			DraftPullRequests:  true,
-			RequireValidation:  false,
-			CommandOutputBytes: 4 * 1024 * 1024,
-			CommitPolicy:       "automatic", CommitTitleTemplate: "Refactor {targets} with Slopwatch",
-			CommitBodyTemplate: "Automated remediation for {goal}.", PullRequestTitleTemplate: "Refactor {targets} with Slopwatch",
-			PullRequestBodyTemplate: "Automated remediation for {goal}.", CleanupPolicy: "remove-worktree",
+			DraftPullRequests:   true,
+			CommandOutputBytes:  4 * 1024 * 1024,
+			CommitTitleTemplate: "Refactor {targets} with Slopwatch",
+			CommitBodyTemplate:  "Automated remediation for {goal}.", PullRequestTitleTemplate: "Refactor {targets} with Slopwatch",
+			PullRequestBodyTemplate: "Automated remediation for {goal}.",
 		},
 	}
 }
 
 func DefaultPath() (string, error) {
-	root, err := os.UserConfigDir()
+	root, err := userdata.Root()
 	if err != nil {
-		return "", fmt.Errorf("locate user configuration directory: %w", err)
+		return "", err
 	}
-	return filepath.Join(root, "slopwatch", "preferences.toml"), nil
+	return filepath.Join(root, "preferences.toml"), nil
 }
 
 func LoadOrCreate(path string, defaults Document) (Document, error) {
@@ -235,12 +180,35 @@ func LoadOrCreate(path string, defaults Document) (Document, error) {
 	value := Clone(defaults)
 	decoder := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields()
 	if err := decoder.Decode(&value); err != nil {
-		return Document{}, fmt.Errorf("decode preferences %s: %w", path, err)
+		return Recover(path, defaults)
 	}
 	if value.Version != CurrentVersion {
-		return Document{}, fmt.Errorf("preferences %s use schema version %d; supported version is %d", path, value.Version, CurrentVersion)
+		return Recover(path, defaults)
 	}
 	return value, nil
+}
+
+// Recover preserves an unreadable or invalid preferences document beside the
+// live file and replaces it with current defaults. This is deliberately a
+// reset, not schema migration or compatibility parsing.
+func Recover(path string, defaults Document) (Document, error) {
+	if err := Quarantine(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return Document{}, fmt.Errorf("preserve invalid preferences %s: %w", path, err)
+	}
+	value := Clone(defaults)
+	if err := Save(path, value); err != nil {
+		return Document{}, err
+	}
+	return value, nil
+}
+
+// Quarantine moves a bad preferences document out of the live path while
+// keeping it in the same Slopwatch directory for inspection.
+func Quarantine(path string) error {
+	if _, err := os.Lstat(path); err != nil {
+		return err
+	}
+	return replaceFile(path, path+".invalid")
 }
 
 func Save(path string, value Document) error {
@@ -313,7 +281,6 @@ func Clone(value Document) Document {
 		result.Agents.Profiles[index].Options = cloneStrings(profile.Options)
 	}
 	result.Fix.Focus = append([]string(nil), value.Fix.Focus...)
-	result.Validation.Plans = cloneValidationPlans(value.Validation.Plans)
 	return result
 }
 
@@ -363,14 +330,6 @@ func ClonePartial(value PartialDocument) PartialDocument {
 		item := *value.Concurrency
 		result.Concurrency = &item
 	}
-	if value.ValidationWorkspace != nil {
-		item := *value.ValidationWorkspace
-		result.ValidationWorkspace = &item
-	}
-	if value.Validation != nil {
-		item := Validation{Plans: cloneValidationPlans(value.Validation.Plans)}
-		result.Validation = &item
-	}
 	if value.Delivery != nil {
 		item := *value.Delivery
 		result.Delivery = &item
@@ -385,19 +344,6 @@ func cloneStrings(value map[string]string) map[string]string {
 	result := make(map[string]string, len(value))
 	for key, item := range value {
 		result[key] = item
-	}
-	return result
-}
-
-func cloneValidationPlans(value []ValidationPlan) []ValidationPlan {
-	result := make([]ValidationPlan, len(value))
-	for planIndex, plan := range value {
-		result[planIndex] = plan
-		result[planIndex].Checks = make([]ValidationCheck, len(plan.Checks))
-		for checkIndex, check := range plan.Checks {
-			result[planIndex].Checks[checkIndex] = check
-			result[planIndex].Checks[checkIndex].Arguments = append([]string(nil), check.Arguments...)
-		}
 	}
 	return result
 }

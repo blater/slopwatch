@@ -69,8 +69,6 @@ type ownershipRecord struct {
 	Allowed            []fix.RepoPath        `json:"allowed"`
 	Scope              string                `json:"scope"`
 	CommandOutputBytes int64                 `json:"command_output_bytes"`
-	MaxSeedFileBytes   int64                 `json:"max_seed_file_bytes"`
-	MaxSeedTotalBytes  int64                 `json:"max_seed_total_bytes"`
 }
 
 type seedManifest struct {
@@ -144,6 +142,7 @@ func (service *GitWorktreeService) DiscoverWorkspace(ctx context.Context, root s
 	if err != nil {
 		return fix.WorkspaceIdentity{}, fmt.Errorf("discover base commit: %w", err)
 	}
+	branch, _ := service.gitText(ctx, top, "symbolic-ref", "--quiet", "--short", "HEAD")
 	top, err = filepath.EvalSymlinks(top)
 	if err != nil {
 		return fix.WorkspaceIdentity{}, fmt.Errorf("canonicalize repository root: %w", err)
@@ -153,161 +152,7 @@ func (service *GitWorktreeService) DiscoverWorkspace(ctx context.Context, root s
 		return fix.WorkspaceIdentity{}, fmt.Errorf("canonicalize git common directory: %w", err)
 	}
 	hash := sha256.Sum256([]byte(top + "\x00" + common))
-	return fix.WorkspaceIdentity{Repository: fix.RepositoryID(hex.EncodeToString(hash[:16])), RepositoryRoot: top, AnalysisRoot: top, GitCommonDir: common, BaseCommit: fix.ObjectID(commit)}, nil
-}
-
-func (service *GitWorktreeService) Preflight(ctx context.Context, request PreflightRequest) (PreflightResult, error) {
-	ctx = withCommandOutputBytes(ctx, request.CommandOutputBytes)
-	checked := time.Now()
-	discovered, err := service.DiscoverWorkspace(ctx, request.Workspace.RepositoryRoot)
-	if err != nil {
-		return PreflightResult{CheckedAt: checked, Diagnostic: err.Error()}, err
-	}
-	if request.Workspace.Repository != "" && request.Workspace.Repository != discovered.Repository ||
-		request.Workspace.GitCommonDir != "" && request.Workspace.GitCommonDir != discovered.GitCommonDir {
-		return PreflightResult{CheckedAt: checked, Diagnostic: "repository identity changed since analysis"}, nil
-	}
-	if request.Workspace.BaseCommit != "" && request.Workspace.BaseCommit != discovered.BaseCommit {
-		return PreflightResult{CheckedAt: checked, Diagnostic: "repository HEAD changed since analysis"}, nil
-	}
-	if _, err := service.gitBytes(ctx, discovered.RepositoryRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all"); err != nil {
-		return PreflightResult{CheckedAt: checked, Diagnostic: err.Error()}, err
-	}
-	for _, state := range []string{"MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer", "index.lock"} {
-		path, pathErr := service.gitText(ctx, discovered.RepositoryRoot, "rev-parse", "--path-format=absolute", "--git-path", state)
-		if pathErr != nil {
-			return PreflightResult{CheckedAt: checked, Diagnostic: pathErr.Error()}, pathErr
-		}
-		if _, statErr := os.Lstat(path); statErr == nil {
-			return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: "repository has an in-progress Git operation: " + state}, nil
-		} else if !errors.Is(statErr, os.ErrNotExist) {
-			return PreflightResult{CheckedAt: checked, Diagnostic: statErr.Error()}, statErr
-		}
-	}
-	if reason, unsupported, err := service.unsupportedRepository(ctx, discovered); err != nil {
-		return PreflightResult{CheckedAt: checked, Diagnostic: err.Error()}, err
-	} else if unsupported {
-		return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: reason}, nil
-	}
-	blobs := make(map[fix.RepoPath]fix.ObjectID, len(request.Targets))
-	for _, target := range request.Targets {
-		if _, err := fix.ParseRepoPath(target.String()); err != nil {
-			return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("invalid target %q", target)}, nil
-		}
-		mode, err := service.gitText(ctx, discovered.RepositoryRoot, "ls-files", "--stage", "--", target.String())
-		if err != nil || mode == "" || strings.HasPrefix(mode, "120000 ") || strings.HasPrefix(mode, "160000 ") {
-			return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("target %s must be a tracked regular file", target)}, nil
-		}
-		blob, err := service.gitText(ctx, discovered.RepositoryRoot, "rev-parse", "--verify", "HEAD:"+target.String())
-		if err != nil {
-			return PreflightResult{Ready: true, CheckedAt: checked, Diagnostic: fmt.Sprintf("resolve target %s: %v", target, err)}, nil
-		}
-		blobs[target] = fix.ObjectID(blob)
-	}
-	return PreflightResult{Ready: true, Supported: true, CheckedAt: checked, TargetBlobs: blobs}, nil
-}
-
-func (service *GitWorktreeService) unsupportedRepository(ctx context.Context, workspace fix.WorkspaceIdentity) (string, bool, error) {
-	stages, err := service.gitBytes(ctx, workspace.RepositoryRoot, "ls-files", "--stage")
-	if err != nil {
-		return "", false, err
-	}
-	for _, line := range bytes.Split(stages, []byte{'\n'}) {
-		if bytes.HasPrefix(line, []byte("160000 ")) {
-			return "repositories containing Git submodules are not supported for fix jobs", true, nil
-		}
-	}
-	filters, err := service.gitBytesAllowExitOne(ctx, workspace.RepositoryRoot, "config", "--local", "--get-regexp", "^filter\\.")
-	if err != nil {
-		return "", false, err
-	}
-	if len(bytes.TrimSpace(filters)) > 0 {
-		return "repositories with local clean/smudge filters or Git LFS are not supported for fix jobs", true, nil
-	}
-	paths, err := service.gitBytes(ctx, workspace.RepositoryRoot, "ls-files", "-z")
-	if err != nil {
-		return "", false, err
-	}
-	if found, scanErr := contentTransformingAttributeDefinition(workspace, paths); scanErr != nil {
-		return "", false, scanErr
-	} else if found {
-		return "repositories with content-transforming Git attributes are not supported for fix jobs", true, nil
-	}
-	attributes, err := service.gitBytesInput(ctx, workspace.RepositoryRoot, paths, "check-attr", "-z", "--stdin", "--all")
-	if err != nil {
-		return "", false, err
-	}
-	fields := bytes.Split(attributes, []byte{0})
-	if len(fields) > 1 && (len(fields)-1)%3 != 0 {
-		return "", false, errors.New("malformed Git attribute response")
-	}
-	for index := 0; index+2 < len(fields)-1; index += 3 {
-		attribute, value := string(fields[index+1]), string(fields[index+2])
-		if isTransformingAttribute(attribute) && value != "unspecified" {
-			return "repositories with content-transforming Git attributes are not supported for fix jobs", true, nil
-		}
-	}
-	return "", false, nil
-}
-
-func contentTransformingAttributeDefinition(workspace fix.WorkspaceIdentity, tracked []byte) (bool, error) {
-	root, err := os.OpenRoot(workspace.RepositoryRoot)
-	if err != nil {
-		return false, err
-	}
-	defer root.Close()
-	for _, raw := range bytes.Split(tracked, []byte{0}) {
-		path := string(raw)
-		if path == "" || path != ".gitattributes" && !strings.HasSuffix(path, "/.gitattributes") {
-			continue
-		}
-		if _, err := fix.ParseRepoPath(path); err != nil {
-			return false, err
-		}
-		data, err := root.ReadFile(path)
-		if err != nil {
-			return false, err
-		}
-		if transformingAttributeText(data) {
-			return true, nil
-		}
-	}
-	common, err := os.OpenRoot(workspace.GitCommonDir)
-	if err != nil {
-		return false, err
-	}
-	defer common.Close()
-	data, err := common.ReadFile("info/attributes")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return false, err
-	}
-	return transformingAttributeText(data), nil
-}
-
-func transformingAttributeText(data []byte) bool {
-	for _, rawLine := range strings.Split(string(data), "\n") {
-		line := strings.TrimSpace(rawLine)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		fields := strings.Fields(line)
-		for _, raw := range fields[1:] {
-			attribute := strings.TrimLeft(strings.ToLower(raw), "-!")
-			name, _, _ := strings.Cut(attribute, "=")
-			if isTransformingAttribute(name) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func isTransformingAttribute(attribute string) bool {
-	switch strings.ToLower(attribute) {
-	case "filter", "working-tree-encoding", "text", "eol", "crlf", "ident":
-		return true
-	}
-	return false
+	return fix.WorkspaceIdentity{Repository: fix.RepositoryID(hex.EncodeToString(hash[:16])), RepositoryRoot: top, AnalysisRoot: top, GitCommonDir: common, BaseCommit: fix.ObjectID(commit), CurrentBranch: branch}, nil
 }
 
 func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareRequest) (fix.CandidateIdentity, error) {
@@ -320,16 +165,18 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 	} else if found {
 		return existing, nil
 	}
-	preflight, err := service.Preflight(ctx, PreflightRequest{Workspace: request.Workspace, Targets: request.Targets, CommandOutputBytes: request.CommandOutputBytes})
-	if err != nil {
-		return fix.CandidateIdentity{}, err
-	}
-	if !preflight.Ready || !preflight.Supported {
-		return fix.CandidateIdentity{}, fmt.Errorf("prepare candidate: %s", preflight.Diagnostic)
-	}
 	discovered, err := service.DiscoverWorkspace(ctx, request.Workspace.RepositoryRoot)
 	if err != nil {
 		return fix.CandidateIdentity{}, err
+	}
+	// Do not predict whether Git policy or repository shape will permit the
+	// operation. Attempt candidate creation and report the concrete failing
+	// command instead. Repository identity is the exception: continuing after
+	// the path resolves to a different repository could act on the wrong Git
+	// metadata and is a true technical safety boundary.
+	if request.Workspace.Repository != "" && request.Workspace.Repository != discovered.Repository ||
+		request.Workspace.GitCommonDir != "" && request.Workspace.GitCommonDir != discovered.GitCommonDir {
+		return fix.CandidateIdentity{}, errors.New("repository identity changed before candidate creation")
 	}
 	preparedRequest := request
 	preparedRequest.Workspace.Repository = discovered.Repository
@@ -361,7 +208,7 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 		return fix.CandidateIdentity{}, fmt.Errorf("persist candidate reservation: %w", err)
 	}
 	manifest, err := service.snapshotWorkingChanges(ctx, discovered.RepositoryRoot, ownership.Identity.StagingRoot,
-		request.AllowedScope, request.AllowedPaths, ownership.MaxSeedFileBytes, ownership.MaxSeedTotalBytes)
+		request.AllowedScope, request.AllowedPaths)
 	if err != nil {
 		_ = os.RemoveAll(jobRoot)
 		return fix.CandidateIdentity{}, err
@@ -428,13 +275,7 @@ func (service *GitWorktreeService) Prepare(ctx context.Context, request PrepareR
 	return identity, nil
 }
 
-func (service *GitWorktreeService) snapshotWorkingChanges(ctx context.Context, source, staging, scope string, allowed []fix.RepoPath, maxFileBytes, maxTotalBytes int64) (seedManifest, error) {
-	if maxFileBytes <= 0 {
-		maxFileBytes = service.discoveryCommandOutputBytes
-	}
-	if maxTotalBytes <= 0 {
-		maxTotalBytes = service.discoveryCommandOutputBytes
-	}
+func (service *GitWorktreeService) snapshotWorkingChanges(ctx context.Context, source, staging, scope string, allowed []fix.RepoPath) (seedManifest, error) {
 	status, err := service.gitBytes(ctx, source, "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		return seedManifest{}, fmt.Errorf("list current workspace changes: %w", err)
@@ -492,19 +333,17 @@ func (service *GitWorktreeService) snapshotWorkingChanges(ctx context.Context, s
 	}
 	sort.Slice(paths, func(i, j int) bool { return paths[i] < paths[j] })
 	manifest := seedManifest{Version: 1, Entries: make([]seedEntry, 0, len(paths))}
-	var total int64
 	for index, path := range paths {
-		entry, err := snapshotWorkingFile(ctx, sourceRoot, stagingRoot, specs[path], index, maxFileBytes, maxTotalBytes-total)
+		entry, err := snapshotWorkingFile(ctx, sourceRoot, stagingRoot, specs[path], index)
 		if err != nil {
 			return seedManifest{}, err
 		}
-		total += entry.Size
 		manifest.Entries = append(manifest.Entries, entry)
 	}
 	return manifest, nil
 }
 
-func snapshotWorkingFile(ctx context.Context, source, staging *os.Root, spec seedSpec, index int, maxFileBytes, remainingBytes int64) (seedEntry, error) {
+func snapshotWorkingFile(ctx context.Context, source, staging *os.Root, spec seedSpec, index int) (seedEntry, error) {
 	if err := ctx.Err(); err != nil {
 		return seedEntry{}, err
 	}
@@ -522,9 +361,6 @@ func snapshotWorkingFile(ctx context.Context, source, staging *os.Root, spec see
 	if !info.Mode().IsRegular() {
 		return seedEntry{}, fmt.Errorf("changed workspace path %s is not a regular file", spec.path)
 	}
-	if info.Size() > maxFileBytes || info.Size() > remainingBytes {
-		return seedEntry{}, fmt.Errorf("changed workspace file %s exceeds the configured snapshot byte limit", spec.path)
-	}
 	input, err := source.Open(name)
 	if err != nil {
 		return seedEntry{}, fmt.Errorf("open changed workspace file %s: %w", spec.path, err)
@@ -536,10 +372,7 @@ func snapshotWorkingFile(ctx context.Context, source, staging *os.Root, spec see
 		return seedEntry{}, fmt.Errorf("stage changed workspace file %s: %w", spec.path, err)
 	}
 	hash := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(output, hash), io.LimitReader(input, min(maxFileBytes, remainingBytes)+1))
-	if written > maxFileBytes || written > remainingBytes {
-		copyErr = errors.Join(copyErr, errors.New("snapshot byte limit exceeded"))
-	}
+	written, copyErr := io.Copy(io.MultiWriter(output, hash), input)
 	syncErr := output.Sync()
 	closeErr := output.Close()
 	if copyErr != nil || syncErr != nil || closeErr != nil {
@@ -766,20 +599,30 @@ func (service *GitWorktreeService) expectedOwnership(request PrepareRequest) (ow
 	}
 	sort.Slice(allowed, func(i, j int) bool { return allowed[i] < allowed[j] })
 	identity := fix.CandidateIdentity{Job: request.Job, Repository: request.Workspace.Repository, RepositoryRoot: worktree,
-		AnalysisRoot: candidateAnalysisRoot, GitCommonDir: request.Workspace.GitCommonDir, BaseCommit: request.Workspace.BaseCommit,
+		WorkspaceMode: fix.WorkspaceWorktree,
+		AnalysisRoot:  candidateAnalysisRoot, GitCommonDir: request.Workspace.GitCommonDir, BaseCommit: request.Workspace.BaseCommit,
 		StagingRoot: filepath.Join(service.stateRoot, string(request.Job), "staging")}
-	maxFileBytes, maxTotalBytes := request.MaxSeedFileBytes, request.MaxSeedTotalBytes
-	if maxFileBytes <= 0 {
-		maxFileBytes = service.discoveryCommandOutputBytes
-	}
-	if maxTotalBytes <= 0 {
-		maxTotalBytes = service.discoveryCommandOutputBytes
-	}
-	if maxFileBytes <= 0 || maxTotalBytes <= 0 || maxFileBytes > maxTotalBytes || maxFileBytes >= maxSeedByteLimit || maxTotalBytes >= maxSeedByteLimit {
-		return ownershipRecord{}, errors.New("candidate workspace snapshot byte limits are invalid")
-	}
 	return ownershipRecord{Version: 1, Identity: identity, Targets: targets, Allowed: allowed, Scope: request.AllowedScope,
-		CommandOutputBytes: request.CommandOutputBytes, MaxSeedFileBytes: maxFileBytes, MaxSeedTotalBytes: maxTotalBytes}, nil
+		CommandOutputBytes: request.CommandOutputBytes}, nil
+}
+
+func (service *GitWorktreeService) Release(ctx context.Context, identity fix.CandidateIdentity) error {
+	if _, err := service.validateIdentity(ctx, identity); err != nil {
+		return err
+	}
+	jobRoot := filepath.Join(service.stateRoot, string(identity.Job))
+	for _, name := range []string{ownershipName, reservationName, seedManifestName, seedCompletedName} {
+		if err := os.Remove(filepath.Join(jobRoot, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("release preserved worktree: %w", err)
+		}
+	}
+	if err := os.RemoveAll(filepath.Join(jobRoot, "staging")); err != nil {
+		return fmt.Errorf("release preserved worktree staging: %w", err)
+	}
+	service.mu.Lock()
+	delete(service.policies, identity.Job)
+	service.mu.Unlock()
+	return service.releaseRepository(identity.GitCommonDir, identity.Job)
 }
 
 func (service *GitWorktreeService) verifyReservedWorktree(ctx context.Context, identity fix.CandidateIdentity) error {
@@ -800,7 +643,6 @@ func (service *GitWorktreeService) verifyReservedWorktree(ctx context.Context, i
 
 func sameOwnership(left, right ownershipRecord) bool {
 	if left.Version != right.Version || left.Identity != right.Identity || left.Scope != right.Scope || left.CommandOutputBytes != right.CommandOutputBytes ||
-		left.MaxSeedFileBytes != right.MaxSeedFileBytes || left.MaxSeedTotalBytes != right.MaxSeedTotalBytes ||
 		len(left.Targets) != len(right.Targets) || len(left.Allowed) != len(right.Allowed) {
 		return false
 	}
@@ -831,71 +673,18 @@ func (service *GitWorktreeService) Diff(ctx context.Context, identity fix.Candid
 	if err != nil {
 		return DiffSnapshot{}, err
 	}
-	scope := fix.ScopeClean
 	files := make([]DiffFile, 0, len(manifest.Entries))
 	for _, changed := range manifest.Entries {
-		if !policy.allows(changed.Path) || changed.Previous != "" && !policy.allows(changed.Previous) {
-			scope = fix.ScopeViolated
-		}
 		files = append(files, DiffFile{Path: changed.Path, Previous: changed.Previous, Status: changed.Status, Mode: changed.Mode, Kind: changed.Kind, DiffHash: changed.Hash})
 	}
-	return DiffSnapshot{Files: files, Fingerprint: manifest.Fingerprint, Scope: scope}, nil
-}
-
-func (policy candidatePolicy) allows(path fix.RepoPath) bool {
-	if policy.scope == "repository" {
-		return true
-	}
-	if policy.allowed[path] {
-		return true
-	}
-	if policy.scope != "targets-and-tests" {
-		return false
-	}
-	return false
+	return DiffSnapshot{Files: files, Fingerprint: manifest.Fingerprint, Scope: fix.ScopeClean}, nil
 }
 
 func (service *GitWorktreeService) ReadFile(ctx context.Context, identity fix.CandidateIdentity, path fix.RepoPath, maximum int64) (File, error) {
 	if _, err := service.validateIdentity(ctx, identity); err != nil {
 		return File{}, err
 	}
-	if _, err := fix.ParseRepoPath(path.String()); err != nil {
-		return File{}, err
-	}
-	if maximum <= 0 {
-		return File{}, errors.New("candidate preview byte limit must be positive")
-	}
-	root, err := os.OpenRoot(identity.RepositoryRoot)
-	if err != nil {
-		return File{}, err
-	}
-	defer root.Close()
-	info, err := root.Lstat(path.String())
-	if err != nil {
-		return File{}, err
-	}
-	if !info.Mode().IsRegular() {
-		return File{}, errors.New("candidate file is not regular")
-	}
-	opened, err := root.Open(path.String())
-	if err != nil {
-		return File{}, err
-	}
-	defer opened.Close()
-	readLimit := maximum
-	if maximum < int64(^uint64(0)>>1) {
-		readLimit++
-	}
-	contents, err := io.ReadAll(io.LimitReader(opened, readLimit))
-	if err != nil {
-		return File{}, err
-	}
-	truncated := info.Size() > maximum || int64(len(contents)) > maximum
-	if truncated {
-		contents = contents[:maximum]
-	}
-	hash := sha256.Sum256(contents)
-	return File{Path: path, Contents: contents, ContentHash: hex.EncodeToString(hash[:]), Mode: uint32(info.Mode().Perm()), Truncated: truncated}, nil
+	return readCandidateFile(ctx, identity.RepositoryRoot, path, maximum)
 }
 
 func (service *GitWorktreeService) Discard(ctx context.Context, identity fix.CandidateIdentity) error {
@@ -961,7 +750,7 @@ func (service *GitWorktreeService) ReconcileDiscard(ctx context.Context, identit
 	}
 	record, err := readOwnership(jobRoot)
 	if err != nil || record.Version != 1 || record.Identity != identity {
-		return errors.New("candidate discard ownership marker does not match journal identity")
+		return errors.New("candidate discard ownership marker does not match saved identity")
 	}
 	ctx = withCommandOutputBytes(ctx, record.CommandOutputBytes)
 	if err := service.retainRepository(identity.GitCommonDir, identity.Job); err != nil {
@@ -1044,7 +833,7 @@ func (service *GitWorktreeService) validateIdentity(ctx context.Context, identit
 }
 
 // Recover re-establishes an owned candidate after process restart. Durable
-// marker policy and journal policy must agree; neither source is trusted alone.
+// marker policy and saved policy must agree; neither source is trusted alone.
 func (service *GitWorktreeService) Recover(ctx context.Context, identity fix.CandidateIdentity, targets []fix.RepoPath, scope string, allowed []fix.RepoPath) error {
 	if !validJobID(identity.Job) {
 		return errors.New("candidate identity has an invalid job ID")
@@ -1061,11 +850,11 @@ func (service *GitWorktreeService) Recover(ctx context.Context, identity fix.Can
 	wantTargets := append([]fix.RepoPath(nil), targets...)
 	sort.Slice(wantTargets, func(i, j int) bool { return wantTargets[i] < wantTargets[j] })
 	if len(record.Targets) != len(wantTargets) {
-		return errors.New("candidate journal targets do not match its ownership record")
+		return errors.New("saved candidate targets do not match its ownership record")
 	}
 	for index := range wantTargets {
 		if record.Targets[index] != wantTargets[index] {
-			return errors.New("candidate journal targets do not match its ownership record")
+			return errors.New("saved candidate targets do not match its ownership record")
 		}
 	}
 	if err := service.retainRepository(record.Identity.GitCommonDir, identity.Job); err != nil {
@@ -1092,11 +881,11 @@ func (service *GitWorktreeService) Recover(ctx context.Context, identity fix.Can
 		want.allowed[target] = true
 	}
 	if policy.scope != want.scope || len(policy.allowed) != len(want.allowed) {
-		return errors.New("candidate journal policy does not match its ownership record")
+		return errors.New("saved candidate policy does not match its ownership record")
 	}
 	for target := range want.allowed {
 		if !policy.allowed[target] {
-			return errors.New("candidate journal targets do not match its ownership record")
+			return errors.New("saved candidate targets do not match its ownership record")
 		}
 	}
 	recovered = true
@@ -1308,18 +1097,6 @@ func (service *GitWorktreeService) gitText(ctx context.Context, directory string
 }
 
 func (service *GitWorktreeService) gitBytes(ctx context.Context, directory string, arguments ...string) ([]byte, error) {
-	return service.gitBytesWithInputAndExitOne(ctx, directory, nil, false, arguments...)
-}
-
-func (service *GitWorktreeService) gitBytesInput(ctx context.Context, directory string, input []byte, arguments ...string) ([]byte, error) {
-	return service.gitBytesWithInputAndExitOne(ctx, directory, input, false, arguments...)
-}
-
-func (service *GitWorktreeService) gitBytesAllowExitOne(ctx context.Context, directory string, arguments ...string) ([]byte, error) {
-	return service.gitBytesWithInputAndExitOne(ctx, directory, nil, true, arguments...)
-}
-
-func (service *GitWorktreeService) gitBytesWithInputAndExitOne(ctx context.Context, directory string, input []byte, exitOneOK bool, arguments ...string) ([]byte, error) {
 	maximum := commandOutputBytes(ctx)
 	if maximum <= 0 {
 		return nil, errors.New("candidate Git command output budget is not configured")
@@ -1328,7 +1105,7 @@ func (service *GitWorktreeService) gitBytesWithInputAndExitOne(ctx context.Conte
 	trusted = append(trusted, arguments...)
 	result, err := service.runner.Run(ctx, isolation.Request{Executable: service.git, Arguments: trusted, Directory: directory,
 		Environment: []string{"LANG=C.UTF-8", "LC_ALL=C", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null"},
-		Stdin:       input,
+		Stdin:       nil,
 		Limits:      isolation.Limits{TerminateGrace: 2 * time.Second, MaxStdoutBytes: maximum, MaxStderrBytes: maximum}})
 	if err != nil {
 		return nil, err
@@ -1336,7 +1113,7 @@ func (service *GitWorktreeService) gitBytesWithInputAndExitOne(ctx context.Conte
 	if result.StdoutTruncated || result.StderrTruncated {
 		return nil, errors.New("Git output exceeded safety limit")
 	}
-	if !result.Successful() && !(exitOneOK && result.ExitCode == 1) {
+	if !result.Successful() {
 		return nil, fmt.Errorf("git %s failed with exit %d: %s", arguments[0], result.ExitCode, strings.TrimSpace(string(result.Stderr)))
 	}
 	return result.Stdout, nil

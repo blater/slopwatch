@@ -205,12 +205,21 @@ func agentJobPriority(job fix.JobPresentation) int {
 		return 4
 	case fix.PhaseRunning, fix.PhaseCanceling, fix.PhasePublishing, fix.PhaseReconciling:
 		return 5
-	case fix.PhaseAdmitted, fix.PhaseQueued, fix.PhasePreflight, fix.PhasePreparing:
+	case fix.PhaseQueued, fix.PhasePreflight, fix.PhasePreparing:
 		return 6
 	case fix.PhaseCompleted:
 		return 7
 	default:
 		return 8
+	}
+}
+
+func agentJobFinished(phase fix.Phase) bool {
+	switch phase {
+	case fix.PhaseFailed, fix.PhaseCompleted, fix.PhaseCanceled, fix.PhaseDiscarded:
+		return true
+	default:
+		return false
 	}
 }
 

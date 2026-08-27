@@ -14,24 +14,42 @@ import (
 
 const Version = "slopwatch-fix/v1"
 
-const DefaultTemplate = `Refactor {targets} until every file has a score of {target_score} or lower.
+const inlineTargetBytes = 8 * 1024
+
+const DefaultTemplate = `Work only inside the workspace. The named files are measurement targets, not a write allowlist.
+You may change supporting project files when needed for a coherent refactor.
+Do not create branches, commits, pushes, pull requests, waivers, suppressions, scoring configuration changes, or dead code intended to game scores.
+Slopwatch will measure the changed files and handle Git after you finish.
+
+Measurement context:
+The values in this task are Slopmark static code-quality measurements reported by Slopwatch. Each baseline line belongs to the file named at the start of that line. Lower values are better.
+SCORE is Slopmark's weighted total of the enabled measurements for that file; it is not the sum of the raw values shown.
+COG means cognitive complexity; NPATH means possible execution paths; CYCLO means cyclomatic complexity; SHALLOW is the module-shallowness penalty; GOD is responsibility concentration; coupling counts referenced types; nesting means excessive control-flow nesting; type safety counts unsafe TypeScript findings.
+
+This is a code refactor task using the 'slopmark' tool to monitor effectiveness. Refactor {targets} until every file has a score of {target_score} or lower.
 Focus on: {focus_metrics}.
-You may edit: {allowed_paths}.
+You may edit any project file needed for a coherent refactor, including creating,
+moving, or splitting classes, functions, routines, and modules. However, we must refactor effectively, not move complexity around - do not increase the scores of other existing code by more than trivial amounts. Any new code must score low.
 Current measurements:
 {baseline_scores}
-Keep observable behaviour and public APIs unchanged unless the task requires a compatible change.`
+Keep observable behaviour and public APIs unchanged unless the task requires a compatible change.
 
-const envelope = `Work only inside the workspace and files named in this task.
-Do not create branches, commits, pushes, pull requests, waivers, suppressions, scoring configuration changes, or dead code intended to game scores.
-Slopwatch will measure the changed files and handle Git after you finish.`
+Required target checklist:
+Review and address every file below; do not stop after the first. Each file must meet the requested goal before you finish.
+{target_checklist}
+
+There are {target_count} selected target files. When a target manifest path is present below, read every newline-delimited filename from it before editing and report what was done for each target.
+Target manifest: {target_manifest}
+
+Measurements from the previous attempt, when present:
+{previous_attempt}`
 
 type Input struct {
-	Contract       fix.ScoringContract
-	AllowedScope   string
-	AllowedPaths   []fix.RepoPath
-	ValidationPlan string
-	BranchName     string
-	Template       string
+	Contract     fix.ScoringContract
+	AllowedScope string
+	AllowedPaths []fix.RepoPath
+	BranchName   string
+	Template     string
 }
 
 func Compile(input Input) (agent.InstructionDocument, error) {
@@ -44,11 +62,14 @@ func Compile(input Input) (agent.InstructionDocument, error) {
 	targets := append([]fix.TargetSnapshot(nil), input.Contract.Targets...)
 	sort.Slice(targets, func(i, j int) bool { return targets[i].Path < targets[j].Path })
 	paths := make([]string, len(targets))
+	targetPaths := make([]fix.RepoPath, len(targets))
 	targetSet := make(map[fix.RepoPath]bool, len(targets))
 	for index, target := range targets {
 		paths[index] = target.Path.String()
+		targetPaths[index] = target.Path
 		targetSet[target.Path] = true
 	}
+	largeTargetList := RequiresTargetManifest(targetPaths)
 	switch input.AllowedScope {
 	case "targets", "targets-only", "targets-and-tests":
 		if len(input.AllowedPaths) == 0 {
@@ -67,7 +88,7 @@ func Compile(input Input) (agent.InstructionDocument, error) {
 	default:
 		return agent.InstructionDocument{}, fmt.Errorf("compile fix prompt: unsupported change scope %q", input.AllowedScope)
 	}
-	allowedText := "the entire repository"
+	allowedText := ""
 	if input.AllowedScope != "repository" {
 		allowed := append([]fix.RepoPath(nil), input.AllowedPaths...)
 		sort.Slice(allowed, func(i, j int) bool { return allowed[i] < allowed[j] })
@@ -77,7 +98,7 @@ func Compile(input Input) (agent.InstructionDocument, error) {
 		}
 		allowedText = strings.Join(values, ", ")
 	}
-	focusText := "overall score"
+	focusText := ""
 	if len(input.Contract.Goal.Focus) > 0 {
 		focus := append([]fix.MetricGoal(nil), input.Contract.Goal.Focus...)
 		sort.Slice(focus, func(i, j int) bool { return focus[i].Metric < focus[j].Metric })
@@ -87,32 +108,54 @@ func Compile(input Input) (agent.InstructionDocument, error) {
 		}
 		focusText = strings.Join(values, ", ")
 	}
-	validationPlan := input.ValidationPlan
-	if validationPlan == "" {
-		validationPlan = "none"
-	}
+	targetText := strings.Join(paths, ", ")
 	evidence := evidenceText(targets)
+	checklist := targetChecklist(targets)
+	if largeTargetList {
+		targetText = "{target_manifest}"
+		evidence = ""
+		checklist = ""
+	}
 	template := input.Template
 	if strings.TrimSpace(template) == "" {
 		template = DefaultTemplate
 	}
 	objective := strings.NewReplacer(
-		"{targets}", strings.Join(paths, ", "),
+		"{targets}", targetText,
 		"{target_score}", number(input.Contract.Goal.MaximumScore),
 		"{focus_metrics}", focusText,
 		"{change_scope}", input.AllowedScope,
 		"{allowed_paths}", allowedText,
-		"{baseline_scores}", strings.TrimPrefix(evidence, "Baseline evidence:\n"),
-		"{validation_plan}", validationPlan,
+		"{baseline_scores}", evidence,
+		"{target_checklist}", checklist,
+		"{target_count}", fmt.Sprintf("%d", len(targets)),
 		"{branch}", input.BranchName,
 	).Replace(template)
 	return agent.InstructionDocument{
-		Version: Version, Envelope: envelope, Objective: strings.TrimSpace(objective),
+		Version: Version, Objective: strings.TrimSpace(objective),
 	}, nil
 }
 
+// RequiresTargetManifest chooses the transport format only. It never limits,
+// truncates, or splits the selected target set.
+func RequiresTargetManifest(paths []fix.RepoPath) bool {
+	bytes := 0
+	for _, path := range paths {
+		bytes += len(path.String()) + 1
+	}
+	return bytes > inlineTargetBytes
+}
+
+func targetChecklist(targets []fix.TargetSnapshot) string {
+	lines := make([]string, 0, len(targets))
+	for _, target := range targets {
+		lines = append(lines, "- "+target.Path.String())
+	}
+	return strings.Join(lines, "\n")
+}
+
 func evidenceText(targets []fix.TargetSnapshot) string {
-	lines := []string{"Baseline evidence:"}
+	lines := make([]string, 0, len(targets))
 	for _, target := range targets {
 		line := fmt.Sprintf("- %s: SCORE %s", target.Path, number(target.Score))
 		metricIDs := make([]string, 0, len(target.Metrics))

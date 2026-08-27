@@ -5,7 +5,6 @@ import "time"
 type Phase string
 
 const (
-	PhaseAdmitted        Phase = "admitted"
 	PhaseQueued          Phase = "queued"
 	PhasePreflight       Phase = "preflight"
 	PhasePreparing       Phase = "preparing"
@@ -39,20 +38,61 @@ const (
 )
 
 type DeliveryState string
-type DeliveryMode string
+type WorkspaceMode string
+type GitMode string
+type PublishMode string
 
 const (
-	DeliveryModeBranch      DeliveryMode = "branch"
-	DeliveryModePullRequest DeliveryMode = "pull-request"
+	WorkspaceCurrent  WorkspaceMode = "current-files"
+	WorkspaceWorktree WorkspaceMode = "worktree"
+
+	GitLeaveUncommitted GitMode = "uncommitted"
+	GitCommitCurrent    GitMode = "current-branch"
+	GitCommitNewBranch  GitMode = "new-branch"
+
+	PublishLocal       PublishMode = "local"
+	PublishPush        PublishMode = "push"
+	PublishPullRequest PublishMode = "pull-request"
 )
 
-func (mode DeliveryMode) Valid() bool {
+func (mode WorkspaceMode) Valid() bool {
 	switch mode {
-	case DeliveryModeBranch, DeliveryModePullRequest:
+	case WorkspaceCurrent, WorkspaceWorktree:
 		return true
 	default:
 		return false
 	}
+}
+
+func (mode GitMode) Valid() bool {
+	switch mode {
+	case GitLeaveUncommitted, GitCommitCurrent, GitCommitNewBranch:
+		return true
+	default:
+		return false
+	}
+}
+
+func (mode PublishMode) Valid() bool {
+	switch mode {
+	case PublishLocal, PublishPush, PublishPullRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+type DeliveryPlan struct {
+	Workspace WorkspaceMode
+	Git       GitMode
+	Publish   PublishMode
+}
+
+func (plan DeliveryPlan) Valid() bool {
+	if !plan.Workspace.Valid() || !plan.Git.Valid() || !plan.Publish.Valid() {
+		return false
+	}
+	return plan.Git != GitLeaveUncommitted || plan.Publish == PublishLocal
 }
 
 const (
@@ -101,7 +141,7 @@ type FilePresentation struct {
 	VerifiedScore   *float64
 	BaselineMetrics []MetricValue
 	VerifiedMetrics []MetricValue
-	// Metrics is retained for journal compatibility. New code projects
+	// Metrics is retained for saved-state compatibility. New code projects
 	// baseline and verified values separately.
 	Metrics        []MetricValue
 	Changed        bool
@@ -111,7 +151,6 @@ type FilePresentation struct {
 
 type JobPresentation struct {
 	ID              JobID
-	Revision        uint64
 	Phase           Phase
 	Attention       Attention
 	ProfileLabel    string
@@ -132,20 +171,17 @@ type JobPresentation struct {
 	FinishedAt      time.Time
 	AllowedActions  []JobAction
 	TargetStatus    TargetStatus
-	Validation      ValidationState
 	Scope           ScopeState
 	Delivery        DeliveryState
-	DeliveryMode    DeliveryMode
+	DeliveryPlan    DeliveryPlan
 	BranchName      string
+	WorkspacePath   string
 	DiffFingerprint string
 	Issue           *JobIssue
 }
 
 type JobCommand struct {
-	RequestID        CommandID
-	JobID            JobID
-	ExpectedRevision uint64
-	Action           JobAction
-	DiffHash         string
-	Value            string
+	RequestID CommandID
+	JobID     JobID
+	Action    JobAction
 }

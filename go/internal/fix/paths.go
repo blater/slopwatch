@@ -37,10 +37,12 @@ type WorkspaceIdentity struct {
 	AnalysisRoot   string
 	GitCommonDir   string
 	BaseCommit     ObjectID
+	CurrentBranch  string
 }
 
 type CandidateIdentity struct {
 	Job            JobID
+	WorkspaceMode  WorkspaceMode
 	Repository     RepositoryID
 	RepositoryRoot string
 	AnalysisRoot   string

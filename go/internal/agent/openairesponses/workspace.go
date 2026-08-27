@@ -19,13 +19,14 @@ import (
 )
 
 type candidateTools struct {
-	canonicalRoot string
-	root          *os.Root
-	stagingRoot   string
-	staging       *os.Root
-	allowed       map[fix.RepoPath]struct{}
-	repository    bool
-	config        resolvedConfig
+	canonicalRoot  string
+	root           *os.Root
+	stagingRoot    string
+	staging        *os.Root
+	targetManifest string
+	allowed        map[fix.RepoPath]struct{}
+	repository     bool
+	config         resolvedConfig
 }
 
 type toolFault struct {
@@ -37,7 +38,7 @@ func (fault *toolFault) Error() string { return fault.message }
 
 func fault(code, message string) error { return &toolFault{code: code, message: message} }
 
-func newCandidateTools(identity fix.CandidateIdentity, policy agent.WritePolicy, config resolvedConfig) (*candidateTools, error) {
+func newCandidateTools(identity fix.CandidateIdentity, policy agent.WritePolicy, config resolvedConfig, manifest *agent.TargetManifest) (*candidateTools, error) {
 	if identity.RepositoryRoot == "" || !filepath.IsAbs(identity.RepositoryRoot) || filepath.Clean(identity.RepositoryRoot) != identity.RepositoryRoot {
 		return nil, errors.New("candidate repository root must be a clean absolute path")
 	}
@@ -81,6 +82,27 @@ func newCandidateTools(identity fix.CandidateIdentity, policy agent.WritePolicy,
 		repository:    policy.Scope == "repository",
 		config:        config,
 	}
+	if manifest != nil {
+		if manifest.Count <= 0 || manifest.Path == "" || !filepath.IsAbs(manifest.Path) || filepath.Clean(manifest.Path) != manifest.Path || !withinPath(stagingCanonical, manifest.Path) {
+			_ = root.Close()
+			_ = staging.Close()
+			return nil, errors.New("target manifest must be a file in candidate staging")
+		}
+		canonicalManifest, canonicalErr := filepath.EvalSymlinks(manifest.Path)
+		info, statErr := os.Stat(manifest.Path)
+		if canonicalErr != nil || canonicalManifest != manifest.Path || statErr != nil || !info.Mode().IsRegular() {
+			_ = root.Close()
+			_ = staging.Close()
+			return nil, errors.New("target manifest is unavailable")
+		}
+		relative, relativeErr := filepath.Rel(stagingCanonical, manifest.Path)
+		if relativeErr != nil {
+			_ = root.Close()
+			_ = staging.Close()
+			return nil, errors.New("target manifest path is invalid")
+		}
+		result.targetManifest = filepath.ToSlash(relative)
+	}
 	for _, allowed := range policy.Allowed {
 		parsed, parseErr := fix.ParseRepoPath(allowed.String())
 		if parseErr != nil || forbiddenGitPath(parsed.String()) {
@@ -91,6 +113,32 @@ func newCandidateTools(identity fix.CandidateIdentity, policy agent.WritePolicy,
 		result.allowed[parsed] = struct{}{}
 	}
 	return result, nil
+}
+
+func (tools *candidateTools) readTargetManifest(ctx context.Context) (readResult, error) {
+	if tools.targetManifest == "" {
+		return readResult{}, fault("unavailable", "no target manifest was supplied")
+	}
+	if err := ctx.Err(); err != nil {
+		return readResult{}, err
+	}
+	info, err := tools.staging.Lstat(tools.targetManifest)
+	if err != nil || !info.Mode().IsRegular() {
+		return readResult{}, fault("read_failed", "target manifest is unavailable")
+	}
+	file, err := tools.staging.Open(tools.targetManifest)
+	if err != nil {
+		return readResult{}, fault("read_failed", "target manifest could not be opened")
+	}
+	contents, readErr := io.ReadAll(file)
+	closeErr := file.Close()
+	if readErr != nil || closeErr != nil {
+		return readResult{}, fault("read_failed", "target manifest could not be read")
+	}
+	if err := ctx.Err(); err != nil {
+		return readResult{}, err
+	}
+	return readResult{Path: "target-manifest", Content: string(contents)}, nil
 }
 
 func (tools *candidateTools) Close() error {
@@ -512,6 +560,18 @@ func (tools *candidateTools) execute(ctx context.Context, call functionCall) (st
 	var value any
 	var changed *fix.RepoPath
 	switch call.Name {
+	case "read_target_manifest":
+		if err := decodeNoArguments(call.Arguments); err != nil {
+			return "", nil, err
+		}
+		var err error
+		value, err = tools.readTargetManifest(ctx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return "", nil, err
+			}
+			return encodeToolError(err), nil, nil
+		}
 	case "list_files":
 		arguments, err := decodeListArguments(call.Arguments)
 		if err != nil {

@@ -12,9 +12,6 @@ JAVA_JAR := $(STRUCTURAL_DIR)/slopslap-structural-java.jar
 JAVA_RUNTIME_BIN := $(STRUCTURAL_DIR)/java-runtime/bin/java
 GO_BIN := $(BUILD_DIR)/slopmark
 WATCH_BIN := $(BUILD_DIR)/slopwatch
-FIX_VALIDATION_BIN := $(BUILD_DIR)/fix-validation/slopmark
-FIX_VALIDATION_ARCH ?= $(shell go env GOARCH)
-FIX_VALIDATION_IMAGE ?= slopwatch-fix-validation:local
 TS_MARKER := $(TYPESCRIPT_WORK_DIR)/dist/src/cli.js
 TS_LAUNCHER := $(TYPESCRIPT_RUNTIME_DIR)/slopslap-typescript
 
@@ -31,7 +28,7 @@ GO_SOURCES := $(shell find $(ROOT)/go/cmd/slopslap-go $(ROOT)/go/internal -type 
 WATCH_SOURCES := $(shell find $(ROOT)/go/cmd/slopwatch -type f -name '*.go')
 TS_SOURCES := $(wildcard $(TYPESCRIPT_DIR)/src/*.ts) $(wildcard $(TYPESCRIPT_DIR)/test/*.ts)
 
-.PHONY: all build dev-build build-structural build-rust build-java build-go build-fix-validation-image \
+.PHONY: all build dev-build build-structural build-rust build-java build-go \
   build-typescript test test-clean test-structural test-go test-typescript clean
 
 all: build
@@ -74,18 +71,6 @@ $(WATCH_BIN): $(WATCH_SOURCES) $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopwatch
 
 build-go: $(GO_BIN) $(WATCH_BIN)
-
-$(FIX_VALIDATION_BIN): $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
-	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
-	@$(GO_ENV) GOOS=linux GOARCH=$(FIX_VALIDATION_ARCH) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopslap-go
-
-# The supplied immutable base must contain every exact executable configured
-# in installation-owned validation plans. The build itself uses no network.
-build-fix-validation-image: $(FIX_VALIDATION_BIN)
-	@test -n "$(FIX_VALIDATION_BASE)" || { echo "FIX_VALIDATION_BASE must be an image digest (name@sha256:...)" >&2; exit 2; }
-	@case "$(FIX_VALIDATION_BASE)" in *@sha256:*) ;; *) echo "FIX_VALIDATION_BASE must be immutable" >&2; exit 2;; esac
-	@docker build --network=none --build-arg BASE_IMAGE="$(FIX_VALIDATION_BASE)" -t "$(FIX_VALIDATION_IMAGE)" -f containers/fix-validation/Dockerfile .
-	@docker image inspect --format '{{.Id}}' "$(FIX_VALIDATION_IMAGE)"
 
 $(TS_MARKER): $(TS_SOURCES) $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json $(TYPESCRIPT_DIR)/tsconfig.json
 	@rm -rf $(TYPESCRIPT_WORK_DIR)

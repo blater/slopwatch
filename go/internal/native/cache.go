@@ -15,7 +15,17 @@ type analyzerCache struct {
 // EnableDefaultCache enables the shared persistent cache. Cache setup failure
 // deliberately degrades to an ordinary uncached run.
 func (analyzer *Analyzer) EnableDefaultCache() {
-	store, err := analysiscache.NewDefaultStore()
+	root, err := analysiscache.DefaultRoot()
+	if err != nil {
+		return
+	}
+	analyzer.EnableCache(root)
+}
+
+// EnableCache enables persistence at an explicitly selected child of the
+// Slopwatch user directory. Setup failure degrades to an uncached run.
+func (analyzer *Analyzer) EnableCache(root string) {
+	store, err := analysiscache.NewStore(root)
 	if err != nil {
 		return
 	}

@@ -19,7 +19,7 @@ func validateGoal(goal fix.ScoringGoal) error {
 	}
 	seen := make(map[fix.MetricID]struct{}, len(goal.Focus))
 	for _, item := range goal.Focus {
-		if _, exists := scoring.MetricDefinitionByID(scoring.MetricID(item.Metric)); !exists {
+		if _, exists := scoring.MetricDefinitionByID(scoring.MetricID(item.Metric)); !exists && item.Metric != fix.MetricScore {
 			return fmt.Errorf("unknown focus metric %q", item.Metric)
 		}
 		if math.IsNaN(item.Maximum) || math.IsInf(item.Maximum, 0) || item.Maximum < 0 {
@@ -129,6 +129,9 @@ func metricEvidence(file report.File, target fix.RepoPath, mapper pathMapper) ([
 
 func requiredMetricsComplete(values map[fix.MetricID]fix.MetricValue, goal fix.ScoringGoal) error {
 	for _, focus := range goal.Focus {
+		if focus.Metric == fix.MetricScore {
+			continue
+		}
 		if !values[focus.Metric].Complete {
 			return fmt.Errorf("focus metric %q is incomplete", focus.Metric)
 		}
@@ -155,6 +158,9 @@ func verifyFile(baseline fix.TargetSnapshot, file report.File, goal fix.ScoringG
 	focused := make(map[fix.MetricID]struct{}, len(goal.Focus))
 	for _, focus := range goal.Focus {
 		focused[focus.Metric] = struct{}{}
+		if focus.Metric == fix.MetricScore {
+			continue
+		}
 		value := metrics[focus.Metric]
 		if !value.Complete || value.Value > focus.Maximum {
 			targetMet = false

@@ -3,7 +3,6 @@ package follow
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -135,18 +134,22 @@ func TestPreferenceChangesSurviveModelRestart(t *testing.T) {
 	}
 }
 
-func TestNewRejectsSemanticallyInvalidPreferences(t *testing.T) {
+func TestNewRecoversSemanticallyInvalidPreferences(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "preferences.toml")
 	value := defaultUserPreferences()
 	value.Scoring.Components["cognitive_complexity"] = preferences.ComponentPreference{Enabled: true, Weight: 21}
 	if err := preferences.Save(path, value); err != nil {
 		t.Fatal(err)
 	}
-	_, err := New(report.Document{}, &preferenceAnalyzer{}, Options{
+	model, err := New(report.Document{}, &preferenceAnalyzer{}, Options{
 		Workspace: t.TempDir(), Targets: []string{"."}, PreferencesPath: path,
 	})
-	if err == nil || !strings.Contains(err.Error(), path) || !strings.Contains(err.Error(), "cognitive_complexity") {
-		t.Fatalf("invalid preference error = %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer model.Close()
+	if model.preferences.Scoring.Components["cognitive_complexity"].Weight > model.preferences.Scoring.MaximumWeight {
+		t.Fatalf("invalid preference was retained: %#v", model.preferences.Scoring)
 	}
 }
 

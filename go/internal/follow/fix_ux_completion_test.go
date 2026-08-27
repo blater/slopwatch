@@ -3,6 +3,7 @@ package follow
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,12 +17,12 @@ import (
 )
 
 func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
-	job := fix.JobPresentation{ID: "job-1", Revision: 2, Phase: fix.PhaseRunning, ProfileLabel: "Codex", ModelLabel: "gpt-5.6-sol", EffortLabel: "high", Goal: "SCORE <= 100", CurrentAction: "Running tests", AttemptOrdinal: 1,
+	job := fix.JobPresentation{ID: "job-1", Phase: fix.PhaseRunning, ProfileLabel: "Codex", ModelLabel: "gpt-5.6-sol", EffortLabel: "high", Goal: "SCORE <= 100", CurrentAction: "Running tests", AttemptOrdinal: 1, UpdatedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 		Actors: []fix.ActorPresentation{{ID: "primary", CurrentAction: "Editing a.go"}, {ID: "reviewer", ParentID: "primary", CurrentAction: "Reviewing"}},
 		Usage:  fix.UsagePresentation{InputTokens: 100, CachedTokens: 25, OutputTokens: 30, ReasoningTokens: 10}, UsageReported: true,
 		Targets: []fix.FilePresentation{{Path: "a.go", BaselineScore: 120}}}
 	service := &fakeFixService{
-		jobs:      fixapp.JobListSnapshot{Revision: 2, Jobs: []fix.JobPresentation{job}},
+		jobs:      fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}},
 		log:       fixapp.LogPage{Entries: []fixapp.LogEntry{{At: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), ActorID: "primary", Summary: "Read a.go"}}, Complete: true},
 		diff:      fixapp.DiffPage{Files: []candidate.DiffFile{{Path: "a.go", Status: "modified", Additions: 3, Deletions: 2}}, Complete: true},
 		candidate: candidate.File{Path: "a.go", Contents: []byte("package sample\n\x1b[31munsafe\x1b[0m\n")},
@@ -42,16 +43,16 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 			t.Fatalf("monitor missing %q: %q", want, monitor)
 		}
 	}
-	for _, unwanted := range []string{"ACTIVITY", "Read a.go", "Target status:", "Validation:", "Scope:"} {
+	for _, unwanted := range []string{"ACTIVITY", "Read a.go", "Target status:", "Scope:"} {
 		if strings.Contains(monitor, unwanted) {
 			t.Fatalf("inspect contains unwanted %q: %q", unwanted, monitor)
 		}
 	}
 	service.log.Entries = append(service.log.Entries, fixapp.LogEntry{At: time.Date(2026, 1, 1, 12, 0, 1, 0, time.UTC), Summary: "Edited a.go"})
-	job.Revision = 3
+	job.UpdatedAt = job.UpdatedAt.Add(time.Second)
 	job.CurrentAction = "Editing a.go"
-	service.jobs = fixapp.JobListSnapshot{Revision: 3, Jobs: []fix.JobPresentation{job}}
-	command = model.handleFixJobs(fixJobsMsg{revision: 3, jobs: []fix.JobPresentation{job}})
+	service.jobs = fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}}
+	command = model.handleFixJobs(fixJobsMsg{jobs: []fix.JobPresentation{job}})
 	if command == nil {
 		t.Fatal("open monitor did not schedule activity refresh on subscription advance")
 	}
@@ -115,9 +116,103 @@ func TestJobReadersConsumeEveryServicePageAndExplainConfiguredTruncation(t *test
 	if text := ansi.Strip(strings.Join(model.jobReaderContent(80, 5), "\n")); !strings.Contains(text, "configured candidate byte/line limit") || strings.Contains(text, "retained transcript") {
 		t.Fatalf("candidate truncation label=%q", text)
 	}
-	model.jobReader.kind = OverlayJobLog
-	if text := ansi.Strip(strings.Join(model.jobReaderContent(80, 5), "\n")); !strings.Contains(text, "configured transcript retention limit") {
-		t.Fatalf("log truncation label=%q", text)
+}
+
+func TestJobLogOpensAtEndFollowsUpdatesAndScrollsBothWays(t *testing.T) {
+	job := fix.JobPresentation{ID: "job-live", Phase: fix.PhaseRunning, UpdatedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}
+	entries := make([]fixapp.LogEntry, 30)
+	for index := range entries {
+		entries[index] = fixapp.LogEntry{
+			At:      time.Date(2026, 1, 1, 12, 0, index, 0, time.UTC),
+			Summary: fmt.Sprintf("entry-%02d %s", index, strings.Repeat("detail ", 20)),
+		}
+	}
+	service := &fakeFixService{
+		jobs: fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}},
+		log:  fixapp.LogPage{Entries: entries, Complete: true},
+	}
+	model := fixTestModel(service, 60, 12)
+	model.agents.Jobs = []fix.JobPresentation{job}
+	model.handleJobReader(model.openJobLog(job.ID)().(jobReaderMsg))
+
+	if !model.jobReader.follow || model.jobReader.offset != model.jobReaderMaxOffset() {
+		t.Fatalf("log did not open following its end: %+v", model.jobReader)
+	}
+	bottom := model.jobReader.offset
+	page := model.jobReaderPageSize()
+	model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlB})
+	if model.jobReader.offset != max(0, bottom-page) || model.jobReader.follow {
+		t.Fatalf("Ctrl-B did not move one page back: %+v", model.jobReader)
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlF})
+	if model.jobReader.offset != bottom || !model.jobReader.follow {
+		t.Fatalf("Ctrl-F did not move one page forward: %+v", model.jobReader)
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.jobReader.offset != 0 || model.jobReader.follow {
+		t.Fatalf("g did not jump to the top: %+v", model.jobReader)
+	}
+	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if model.jobReader.offset != bottom || !model.jobReader.follow {
+		t.Fatalf("G did not jump to the bottom and resume following: %+v", model.jobReader)
+	}
+	visible := ansi.Strip(model.View())
+	if !strings.Contains(visible, "entry-29") || !strings.Contains(visible, "entry-22") {
+		t.Fatalf("log did not show latest entry with previous entries above it: %q", visible)
+	}
+
+	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyUp})
+	pausedAt := model.jobReader.offset
+	if model.jobReader.follow {
+		t.Fatal("scrolling back did not pause live following")
+	}
+	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyRight})
+	if model.jobReader.horizontal == 0 {
+		t.Fatal("right arrow did not scroll a long log line horizontally")
+	}
+	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyLeft})
+	if model.jobReader.horizontal != 0 {
+		t.Fatalf("left arrow did not restore the horizontal position: %d", model.jobReader.horizontal)
+	}
+
+	service.log.Entries = append(service.log.Entries, fixapp.LogEntry{At: time.Now(), Summary: "new live entry"})
+	job.UpdatedAt = job.UpdatedAt.Add(time.Second)
+	refresh := model.handleFixJobs(fixJobsMsg{jobs: []fix.JobPresentation{job}})
+	if refresh == nil {
+		t.Fatal("job update did not schedule a live log refresh")
+	}
+	refreshMessage := refresh().(jobReaderMsg)
+	if !refreshMessage.increment || len(refreshMessage.lines) != 1 {
+		t.Fatalf("live refresh reloaded old transcript entries: %+v", refreshMessage)
+	}
+	model.handleJobReader(refreshMessage)
+	if model.jobReader.offset != pausedAt || model.jobReader.follow {
+		t.Fatalf("live refresh moved a paused reader: %+v", model.jobReader)
+	}
+
+	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyEnd})
+	if !model.jobReader.follow || model.jobReader.offset != model.jobReaderMaxOffset() {
+		t.Fatalf("End did not resume following at the latest entry: %+v", model.jobReader)
+	}
+	if text := ansi.Strip(model.View()); !strings.Contains(text, "new live entry") {
+		t.Fatalf("resumed log did not show the latest entry: %q", text)
+	}
+	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if model.jobReader.lines != nil {
+		t.Fatal("closing the log retained its display copy")
+	}
+}
+
+func TestJobLogDisplayDropsSubsecondTimestampNoise(t *testing.T) {
+	for input, want := range map[string]string{
+		"2026-08-27T01:41:32.92873+01:00  runtime_message": "2026-08-27T01:41:32+01:00  runtime_message",
+		"Started: 2026-08-27T01:41:32.92873+01:00":         "Started: 2026-08-27T01:41:32+01:00",
+		"Finished: 2026-08-27T01:41:32.92873+01:00":        "Finished: 2026-08-27T01:41:32+01:00",
+		"Current measurements:":                            "Current measurements:",
+	} {
+		if got := jobLogDisplayLine(input); got != want {
+			t.Errorf("jobLogDisplayLine(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 
@@ -140,9 +235,9 @@ func (service *pagedReaderFixService) Diff(_ context.Context, _ fix.JobID, reque
 }
 
 func TestJobMonitorCoalescesSubscriptionBurstsAndRejectsLateRefresh(t *testing.T) {
-	job := fix.JobPresentation{ID: "job-1", Revision: 1, Phase: fix.PhaseRunning, CurrentAction: "starting"}
+	job := fix.JobPresentation{ID: "job-1", Phase: fix.PhaseRunning, CurrentAction: "starting", UpdatedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}
 	service := &fakeFixService{
-		jobs: fixapp.JobListSnapshot{Revision: 1, Jobs: []fix.JobPresentation{job}},
+		jobs: fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}},
 		log:  fixapp.LogPage{Entries: []fixapp.LogEntry{{Summary: "first"}}, Complete: true},
 	}
 	model := fixTestModel(service, 80, 24)
@@ -150,16 +245,16 @@ func TestJobMonitorCoalescesSubscriptionBurstsAndRejectsLateRefresh(t *testing.T
 	model.agents.Jobs = []fix.JobPresentation{job}
 	initial := model.openJobMonitor(job.ID, "")
 
-	job.Revision = 2
+	job.UpdatedAt = job.UpdatedAt.Add(time.Second)
 	job.CurrentAction = "second"
-	service.jobs = fixapp.JobListSnapshot{Revision: 2, Jobs: []fix.JobPresentation{job}}
-	if command := model.handleFixJobs(fixJobsMsg{revision: 2, jobs: []fix.JobPresentation{job}}); command != nil {
+	service.jobs = fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}}
+	if command := model.handleFixJobs(fixJobsMsg{jobs: []fix.JobPresentation{job}}); command != nil {
 		t.Fatal("subscription burst started a second refresh while the initial monitor load was in flight")
 	}
-	job.Revision = 3
+	job.UpdatedAt = job.UpdatedAt.Add(time.Second)
 	job.CurrentAction = "third"
-	service.jobs = fixapp.JobListSnapshot{Revision: 3, Jobs: []fix.JobPresentation{job}}
-	if command := model.handleFixJobs(fixJobsMsg{revision: 3, jobs: []fix.JobPresentation{job}}); command != nil {
+	service.jobs = fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}}
+	if command := model.handleFixJobs(fixJobsMsg{jobs: []fix.JobPresentation{job}}); command != nil {
 		t.Fatal("subscription burst was not coalesced")
 	}
 
@@ -229,49 +324,24 @@ func TestCanceledJobUsesCanceledText(t *testing.T) {
 }
 
 func TestFixSubscriptionErrorIsRecoverable(t *testing.T) {
-	service := &fakeFixService{jobs: fixapp.JobListSnapshot{Revision: 9, Jobs: []fix.JobPresentation{{ID: "job-9", Phase: fix.PhaseRunning}}}}
+	service := &fakeFixService{jobs: fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{{ID: "job-9", Phase: fix.PhaseRunning}}}}
 	model := fixTestModel(service, 80, 24)
 	if command := model.handleFixJobs(fixJobsMsg{err: errors.New("wake failed")}); command == nil || !model.fixUpdatesStale {
 		t.Fatal("subscription error did not enter recoverable stale state")
 	}
 	generation := model.fixRetryGeneration
 	command := model.retryFixSubscription(fixRetrySubscriptionMsg{generation: generation})
-	if command == nil || model.fixUpdatesStale || model.fixRevision != 9 || service.subscriptions != 1 {
-		t.Fatalf("subscription recovery failed: stale=%t revision=%d subscriptions=%d", model.fixUpdatesStale, model.fixRevision, service.subscriptions)
+	if command == nil || model.fixUpdatesStale || service.subscriptions != 1 {
+		t.Fatalf("subscription recovery failed: stale=%t subscriptions=%d", model.fixUpdatesStale, service.subscriptions)
 	}
 }
 
 func TestFixValidationExplainsMissingBranch(t *testing.T) {
-	draft := readyFixDraft("a.go")
-	draft.DeliveryMode = "pull-request"
-	draft.BranchName = ""
-	if got := fixPreflightSummary(draft); !strings.Contains(got, "branch name") {
+	input := readyFixInput("a.go")
+	input.DeliveryPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceWorktree, Git: fix.GitCommitNewBranch, Publish: fix.PublishPullRequest}
+	input.BranchName = ""
+	if got := fixPreflightSummary(input); !strings.Contains(got, "branch name") {
 		t.Fatalf("diagnostic=%q", got)
-	}
-}
-
-func TestPullRequestFormRequiresReadyValidationPlan(t *testing.T) {
-	draft := readyFixDraft("a.go")
-	draft.DeliveryMode = "pull-request"
-	draft.BranchName = "slopwatch/fix/a"
-	draft.ValidationPlanID = ""
-	draft.Preferences.Delivery.RequireValidation = true
-	if fixDraftRunnable(draft) {
-		t.Fatal("pull-request draft was runnable without a validation plan")
-	}
-	if got := fixPreflightSummary(draft); !strings.Contains(got, "configured to require validation") {
-		t.Fatalf("diagnostic=%q", got)
-	}
-}
-
-func TestPullRequestFormAllowsOptionalValidation(t *testing.T) {
-	draft := readyFixDraft("a.go")
-	draft.DeliveryMode = "pull-request"
-	draft.BranchName = "slopwatch/fix/a"
-	draft.ValidationPlanID = ""
-	draft.Preferences.Delivery.RequireValidation = false
-	if !fixDraftRunnable(draft) {
-		t.Fatalf("pull-request draft was blocked despite optional validation: %s", fixPreflightSummary(draft))
 	}
 }
 
@@ -305,19 +375,20 @@ func TestHelpDocumentsFixAndAgentsWorkflow(t *testing.T) {
 	}
 }
 
-func TestFeatureSettingsProtectDirtyExitAndUseCompactFullScreen(t *testing.T) {
-	model := settingsModel(configConcurrency, settingsResolved(), &settingsConfigStore{resolved: settingsResolved()})
+func TestFeatureSettingsAutoSaveOnExitAndUseCompactFullScreen(t *testing.T) {
+	store := &settingsConfigStore{resolved: settingsResolved()}
+	model := settingsModel(configConcurrency, settingsResolved(), store)
 	model.width, model.height = 40, 10
 	model.settings = false
+	model.configSettings.working.Concurrency.MaxAgents++
 	model.configSettings.dirty = true
-	model.closeConfigSettings()
-	if !model.hasOverlay(OverlaySettingsDirty) || !model.configSettings.open {
-		t.Fatal("dirty settings closed without confirmation")
+	save := model.closeConfigSettings()
+	if save == nil || !model.configSettings.open || !model.configSettings.saving || model.hasOverlay(OverlaySettingsDirty) {
+		t.Fatal("dirty settings did not begin an automatic save")
 	}
-	model.configSettings.dirtyCursor = 1
-	model.handleSettingsDirtyKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if model.configSettings.open || !model.settings {
-		t.Fatal("discard did not return to Settings")
+	model.handleConfigSaved(save().(configSavedMsg))
+	if model.configSettings.open || !model.settings || store.saveCalls != 1 {
+		t.Fatal("automatic save did not return to Settings")
 	}
 
 	model = settingsModel(configConcurrency, settingsResolved(), &settingsConfigStore{})

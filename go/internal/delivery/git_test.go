@@ -17,6 +17,11 @@ import (
 
 const testDeliveryOutputBytes = int64(4 << 20)
 
+var (
+	pushNewBranch        = fix.DeliveryPlan{Workspace: fix.WorkspaceWorktree, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}
+	pullRequestNewBranch = fix.DeliveryPlan{Workspace: fix.WorkspaceWorktree, Git: fix.GitCommitNewBranch, Publish: fix.PublishPullRequest}
+)
+
 func TestGitServiceCreatesExactAbsentLocalAndRemoteRefs(t *testing.T) {
 	repository, remote := deliveryRepository(t)
 	common := strings.TrimSpace(gitResult(t, repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
@@ -37,7 +42,7 @@ func TestGitServiceCreatesExactAbsentLocalAndRemoteRefs(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := service.PublishCommit(context.Background(), Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)},
-		DiffHash: fingerprint, Branch: "slopwatch/fix/main-test", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
+		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopwatch/fix/main-test", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,8 +64,47 @@ func TestGitServiceCreatesExactAbsentLocalAndRemoteRefs(t *testing.T) {
 		t.Fatalf("remote oid = %s, want %s", remoteOID, result.Commit)
 	}
 	if _, err := service.PublishCommit(context.Background(), Request{Job: "job-other", Candidate: fix.CandidateIdentity{Job: "job-other", RepositoryRoot: repository, GitCommonDir: common},
-		DiffHash: fingerprint, Branch: "slopwatch/fix/main-test", Remote: "origin", CommitTitle: "Again", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}); err == nil {
+		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopwatch/fix/main-test", Remote: "origin", CommitTitle: "Again", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}); err == nil {
 		t.Fatal("reused existing branch")
+	}
+}
+
+func TestCurrentBranchCommitKeepsUnrelatedStagedChanges(t *testing.T) {
+	repository, _ := deliveryRepository(t)
+	if err := os.WriteFile(filepath.Join(repository, "unrelated.txt"), []byte("base\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitCommand(t, repository, "add", "unrelated.txt")
+	gitCommand(t, repository, "commit", "-q", "-m", "add unrelated")
+	base := strings.TrimSpace(gitResult(t, repository, "rev-parse", "HEAD"))
+	branch := strings.TrimSpace(gitResult(t, repository, "symbolic-ref", "--short", "HEAD"))
+	common := strings.TrimSpace(gitResult(t, repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+	if err := os.WriteFile(filepath.Join(repository, "unrelated.txt"), []byte("staged\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitCommand(t, repository, "add", "unrelated.txt")
+	if err := os.WriteFile(filepath.Join(repository, "main.go"), []byte("package fixed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewGitService(testExecutor{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitCurrent, Publish: fix.PublishLocal}
+	result, err := service.CreateCommit(t.Context(), Request{Job: "job-current", Plan: plan, Paths: []fix.RepoPath{"main.go"}, DiffHash: "verified",
+		Candidate: fix.CandidateIdentity{Job: "job-current", WorkspaceMode: fix.WorkspaceCurrent, RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)},
+		Branch:    branch, CommitTitle: "Fix main", CommandOutputBytes: testDeliveryOutputBytes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Commit == "" || result.LocalRef != "refs/heads/"+branch {
+		t.Fatalf("current branch result = %+v", result)
+	}
+	if names := gitResult(t, repository, "show", "--format=", "--name-only", "HEAD"); !strings.Contains(names, "main.go") || strings.Contains(names, "unrelated.txt") {
+		t.Fatalf("current branch commit files = %q", names)
+	}
+	if staged := gitResult(t, repository, "diff", "--cached", "--name-only"); !strings.Contains(staged, "unrelated.txt") || strings.Contains(staged, "main.go") {
+		t.Fatalf("staged files after current branch commit = %q", staged)
 	}
 }
 
@@ -78,7 +122,7 @@ func TestCanceledLocalRefCreationIsReconciledExactly(t *testing.T) {
 	}
 	identity, _ := remoteIdentity(remote)
 	request := Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)},
-		DiffHash: fingerprint, Branch: "slopwatch/fix/canceled-local", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}
+		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopwatch/fix/canceled-local", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}
 	committed, err := normal.CreateCommit(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -106,12 +150,12 @@ func TestPullRequestPreflightRequiresResolvableBase(t *testing.T) {
 	service, _ := NewGitService(testExecutor{})
 	workspace := fix.WorkspaceIdentity{RepositoryRoot: repository}
 	for _, base := range []string{"", "does-not-exist"} {
-		_, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Mode: fix.DeliveryModePullRequest, Remote: "origin", BaseBranch: base, Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
+		_, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: base, Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
 		if err == nil {
 			t.Fatalf("base %q accepted", base)
 		}
 	}
-	if _, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Mode: fix.DeliveryModePullRequest, Remote: "origin", BaseBranch: "HEAD", Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes}); err == nil || !strings.Contains(err.Error(), "github.com") {
+	if _, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: "HEAD", Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes}); err == nil || !strings.Contains(err.Error(), "github.com") {
 		t.Fatalf("local remote accepted for pull request: %v", err)
 	}
 }
@@ -130,7 +174,7 @@ func TestPullRequestPreflightRequiresLiteralBaseOnAdmittedRemote(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			service := &GitService{git: "/usr/bin/git", runner: remoteBasePreflightExecutor(test.remoteBase)}
 			result, err := service.Preflight(t.Context(), PreflightRequest{Workspace: fix.WorkspaceIdentity{RepositoryRoot: "/repo"},
-				Mode: fix.DeliveryModePullRequest, Remote: "origin", BaseBranch: test.base, Branch: "slopwatch/fix/test", Publication: true, CommandOutputBytes: testDeliveryOutputBytes})
+				Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: test.base, Branch: "slopwatch/fix/test", Publication: true, CommandOutputBytes: testDeliveryOutputBytes})
 			if test.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantError) {
 					t.Fatalf("Preflight() error = %v", err)
@@ -178,8 +222,8 @@ func TestDeliveryRejectsOptionLikeRemoteAliasBeforeGitExecution(t *testing.T) {
 		t.Fatal("unsafe remote alias reached Git")
 		return isolation.Result{}, nil
 	})}
-	_, err := service.Preflight(t.Context(), PreflightRequest{Workspace: fix.WorkspaceIdentity{RepositoryRoot: "/repo"}, Mode: fix.DeliveryModeBranch,
-		Remote: "--upload-pack=touch-pwn", Branch: "slopwatch/fix/test"})
+	_, err := service.Preflight(t.Context(), PreflightRequest{Workspace: fix.WorkspaceIdentity{RepositoryRoot: "/repo"}, Plan: pushNewBranch,
+		Remote: "--upload-pack=touch-pwn", Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
 	if err == nil || !strings.Contains(err.Error(), "safe configured remote alias") {
 		t.Fatalf("unsafe remote alias error=%v", err)
 	}
@@ -199,8 +243,8 @@ func TestDeliveryRejectsCredentialBearingAndUnsupportedRemoteURLsWithoutEcho(t *
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			gitCommand(t, repository, "remote", "set-url", "--push", "origin", test.remoteURL)
-			_, err := service.Preflight(t.Context(), PreflightRequest{Workspace: fix.WorkspaceIdentity{RepositoryRoot: repository}, Mode: fix.DeliveryModeBranch,
-				Remote: "origin", Branch: "slopwatch/fix/test"})
+			_, err := service.Preflight(t.Context(), PreflightRequest{Workspace: fix.WorkspaceIdentity{RepositoryRoot: repository}, Plan: pushNewBranch,
+				Remote: "origin", Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
 			if err == nil || test.secret != "" && strings.Contains(err.Error(), test.secret) {
 				t.Fatalf("unsafe URL error=%v", err)
 			}
@@ -244,7 +288,7 @@ func TestDeliveryRejectsHostileGitHubPortAndChangedLocalRemote(t *testing.T) {
 	}
 	gitCommand(t, repository, "remote", "set-url", "--push", "origin", secondRemote)
 	_, err = service.CreateCommit(t.Context(), Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository,
-		GitCommonDir: common, BaseCommit: fix.ObjectID(base)}, DiffHash: fingerprint, Branch: "slopwatch/fix/remote-changed", Remote: "origin",
+		GitCommonDir: common, BaseCommit: fix.ObjectID(base)}, DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopwatch/fix/remote-changed", Remote: "origin",
 		ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
 	if err == nil || !strings.Contains(err.Error(), "identity changed") {
 		t.Fatalf("changed local remote accepted: %v", err)
@@ -303,7 +347,7 @@ func containsArgumentPair(arguments []string, key, value string) bool {
 	return false
 }
 
-func TestGitServiceRejectsAttributesAddedAfterPreflight(t *testing.T) {
+func TestGitServiceLetsGitHandleAttributesAtRuntime(t *testing.T) {
 	repository, remote := deliveryRepository(t)
 	common := strings.TrimSpace(gitResult(t, repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
 	base := strings.TrimSpace(gitResult(t, repository, "rev-parse", "HEAD"))
@@ -322,12 +366,12 @@ func TestGitServiceRejectsAttributesAddedAfterPreflight(t *testing.T) {
 	if identityErr != nil {
 		t.Fatal(identityErr)
 	}
-	_, err = service.CreateCommit(context.Background(), Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)}, DiffHash: fingerprint, Branch: "slopwatch/fix/attrs", Remote: "origin", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
-	if err == nil || !strings.Contains(err.Error(), "content-transforming") {
-		t.Fatalf("late transforming attribute accepted: %v", err)
+	result, err := service.CreateCommit(context.Background(), Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)}, DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go", ".gitattributes"}, Branch: "slopwatch/fix/attrs", Remote: "origin", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
+	if err != nil || result.Commit == "" {
+		t.Fatalf("Git could not apply configured attributes at runtime: result=%+v err=%v", result, err)
 	}
 	if head := strings.TrimSpace(gitResult(t, repository, "rev-parse", "HEAD")); head != base {
-		t.Fatalf("rejected publication moved HEAD: %s", head)
+		t.Fatalf("publication moved HEAD: %s", head)
 	}
 }
 

@@ -79,8 +79,7 @@ func (strategy *Strategy) capabilities(endpoint string) agent.Capabilities {
 	}
 	return agent.Capabilities{
 		Models: cloneOptions(strategy.config.models), Efforts: cloneOptions(strategy.config.efforts),
-		Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Label: "Single agent", Default: true}},
-		Resume:     false, Progress: agent.ProgressStructured,
+		Resume: false, Progress: agent.ProgressStructured,
 		Network: agent.NetworkCapability{TransportRequired: true, ToolNetwork: false, ToolDomains: domains},
 		Isolation: agent.RuntimeIsolation{
 			Writes: agent.CandidateTreeAndGitMetadataProtected, SensitiveReadsDenied: true,
@@ -230,17 +229,20 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 	}
 	endpoint := strategy.config.endpoint
 	capabilities := strategy.capabilities(endpoint)
-	if !hasOption(capabilities.Models, request.Model) || !hasOption(capabilities.Efforts, request.Effort) || request.Delegation != agent.DelegationSingle || request.Resume.Reference != "" {
+	model, modelOK := agent.ResolveOption(capabilities.Models, request.Model)
+	effort, effortOK := agent.ResolveOption(capabilities.Efforts, request.Effort)
+	if !modelOK || !effortOK || request.Resume.Reference != "" {
 		result.Failure = agent.FailureUnsupportedCapability
-		result.Diagnostic = "requested Responses API model, effort, delegation, or resume mode is unavailable"
+		result.Diagnostic = "requested Responses API model, effort, or resume mode is unavailable"
 		return result
 	}
+	request.Model, request.Effort = model, effort
 	ctx := parent
 	secret, err := strategy.resolveSecret(ctx, profile.AuthenticationRef)
 	if err != nil {
 		return canceledOr(result, ctx, agent.FailureUnauthenticated, "Responses API authentication reference could not be resolved")
 	}
-	tools, err := newCandidateTools(request.Workspace, request.Write, config)
+	tools, err := newCandidateTools(request.Workspace, request.Write, config, request.Task.Manifest)
 	if err != nil {
 		result.Failure = agent.FailureUnsupportedCapability
 		result.Diagnostic = err.Error()
@@ -253,15 +255,14 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 		result.Diagnostic = "agent progress sink rejected the start event"
 		return result
 	}
-	prompt := request.Task.Instructions.EffectiveBody()
-	developer, err := inputMessage("developer", prompt)
+	prompt := request.Task.EffectivePrompt()
+	user, err := inputMessage("user", prompt)
 	if err != nil {
 		result.Failure = agent.FailureProtocol
 		result.Diagnostic = "agent instructions could not be encoded"
 		return result
 	}
-	user, _ := inputMessage("user", "Apply the requested remediation using only the supplied candidate tools. Finish with a concise summary.")
-	history := []json.RawMessage{developer, user}
+	history := []json.RawMessage{user}
 	if contextSize(history) > config.maxContextBytes {
 		result.Failure = agent.FailureProtocol
 		result.Diagnostic = "agent instructions exceed the configured context limit"
@@ -287,7 +288,7 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 			return result
 		}
 		requestBody := apiRequest{
-			Model: string(request.Model), Input: history, Tools: functionTools(), ToolChoice: "auto", ParallelToolCalls: false,
+			Model: string(request.Model), Input: history, Tools: functionTools(request.Task.Manifest != nil), ToolChoice: "auto", ParallelToolCalls: false,
 			Reasoning: reasoningRequest{Effort: string(request.Effort)}, MaxOutputTokens: config.maxOutputTokens,
 			Store: false, Truncation: "disabled",
 		}
@@ -563,15 +564,6 @@ func readBounded(reader io.Reader, maximum int64) ([]byte, bool, error) {
 		return nil, true, nil
 	}
 	return payload, false, nil
-}
-
-func hasOption[T ~string](options []agent.Option[T], wanted T) bool {
-	for _, option := range options {
-		if option.ID == wanted {
-			return true
-		}
-	}
-	return false
 }
 
 func canceledOr(result agent.Result, ctx context.Context, fallback agent.FailureClass, diagnostic string) agent.Result {

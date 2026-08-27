@@ -121,8 +121,10 @@ func merge(model *Model, result analysisResult) {
 	model.mergeDocument(result)
 	model.rebuildWeightedDocument()
 	model.document.SortAndRank()
+	model.pruneMarkedFiles()
 	now := time.Now()
 	model.mergeRows(result, oldScores, oldRanks, now, result.full && len(oldScores) == 0)
+	model.refreshDisplayFiles()
 	model.restoreSelection()
 }
 
@@ -420,18 +422,7 @@ func sourceScrollLines(model *Model, direction string) int {
 
 func handleColumnKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	items := columnNames()
-	switch name {
-	case "esc", "escape", "q", "enter":
-		model.columns = false
-		if model.columnsFromSettings {
-			model.columnsFromSettings = false
-			model.settings = true
-		}
-	case "up", "k":
-		model.columnCursor = max(0, model.columnCursor-1)
-	case "down", "j":
-		model.columnCursor = min(len(items)-1, model.columnCursor+1)
-	case " ":
+	if isToggleKey(name) {
 		key := items[model.columnCursor].key
 		model.visible[key] = !model.visible[key]
 		if !model.visible[key] && model.sortKey == key {
@@ -449,6 +440,19 @@ func handleColumnKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		if key == "typesafety" {
 			return model, model.syncTypeScriptTypes()
 		}
+		return model, nil
+	}
+	switch name {
+	case "esc", "escape", "q":
+		model.columns = false
+		if model.columnsFromSettings {
+			model.columnsFromSettings = false
+			model.settings = true
+		}
+	case "up", "k":
+		model.columnCursor = max(0, model.columnCursor-1)
+	case "down", "j":
+		model.columnCursor = min(len(items)-1, model.columnCursor+1)
 	}
 	return model, nil
 }

@@ -42,17 +42,8 @@ func agentsTopLine(model Model) string {
 	if model.repositoryIdentity != "" {
 		right = cleanAgentText(model.repositoryIdentity) + "  " + right
 	}
-	usable := max(0, model.width-1)
-	left = truncate(left, usable)
-	rightWidth := max(0, usable-lipgloss.Width(left)-1)
-	right = truncateLeft(right, rightWidth)
-	gap := max(0, usable-lipgloss.Width(left)-lipgloss.Width(right))
-	plain := left + strings.Repeat(" ", gap) + right
-	if model.width > 0 {
-		plain += " "
-	}
-	return lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).
-		Render(padANSI(truncate(plain, model.width), model.width))
+	left = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(left)
+	return renderTableTitleLine(left, right, model.width)
 }
 
 func fixAggregateText(jobs []fix.JobPresentation) string {
@@ -79,9 +70,9 @@ func agentsHeader(model Model) string {
 	}
 	line := " AGENTS · " + filter
 	if tier == ResponsiveFull && model.width >= 112 {
-		line = renderAgentFullColumns(model.width, "", "STATE", "ATTEMPT", "AGENT", "GOAL", "TARGETS", "ACTIVITY", "TIME")
+		line = renderAgentFullColumns(model.width, "", "STATE", "AGENT", "GOAL", "TARGETS", "ACTIVITY", "TIME")
 	} else if tier != ResponsiveCompact {
-		line = renderAgentMediumColumns(model.width, "", "STATE", "ATTEMPT", "AGENT", "ACTIVITY", "TIME")
+		line = renderAgentMediumColumns(model.width, "", "STATE", "AGENT", "ACTIVITY", "TIME")
 	}
 	return lipgloss.NewStyle().Foreground(style.TextHeader).Background(style.SurfaceHeader).Bold(true).
 		Render(padANSI(truncate(line, model.width), model.width))
@@ -201,31 +192,43 @@ func renderAgentJob(job fix.JobPresentation, expanded bool, tier ResponsiveTier,
 	}
 	badges := agentBadges(job)
 	if tier == ResponsiveCompact {
-		first := strings.Join(nonemptyStrings(disclosure, state, agent, agentAttemptText(job)), "  ")
-		second := "  " + strings.Join(nonemptyStrings(cleanAgentText(job.CurrentAction), targets, badges), " · ")
+		first := strings.Join(nonemptyStrings(disclosure, state, agent), "  ")
+		second := "  " + strings.Join(nonemptyStrings(agentActivityText(job), targets, badges), " · ")
 		return []string{truncate(first, width), truncate(second, width)}
 	}
 	if tier == ResponsiveMedium || width < 112 {
-		activity := cleanAgentText(job.CurrentAction)
+		activity := agentActivityText(job)
 		if activity == "" {
 			activity = goal
 		}
-		return []string{renderAgentMediumColumns(width, disclosure, state, agentAttemptText(job), agent, activity, agentJobTime(job, time.Now()))}
+		return []string{renderAgentMediumColumns(width, disclosure, state, agent, activity, agentJobTime(job, time.Now()))}
 	}
-	activity := cleanAgentText(job.CurrentAction)
+	activity := agentActivityText(job)
 	if activity == "" {
 		activity = "-"
 	}
-	return []string{renderAgentFullColumns(width, disclosure, state, agentAttemptText(job), agent, goal, targets, activity, agentJobTime(job, time.Now()))}
+	return []string{renderAgentFullColumns(width, disclosure, state, agent, goal, targets, activity, agentJobTime(job, time.Now()))}
 }
 
-func renderAgentFullColumns(width int, disclosure, state, attempt, agent, goal, targets, activity, elapsed string) string {
-	const stateWidth, attemptWidth, agentWidth, goalWidth, targetsWidth, timeWidth = 11, 11, 18, 16, 8, 6
-	fixed := 3 + stateWidth + attemptWidth + agentWidth + goalWidth + targetsWidth + timeWidth + 6
+func agentActivityText(job fix.JobPresentation) string {
+	if job.Phase == fix.PhaseFailed && job.Issue != nil {
+		reason := strings.TrimSpace(job.Issue.Detail)
+		if reason == "" {
+			reason = job.Issue.Summary
+		}
+		if reason = cleanAgentText(reason); reason != "" {
+			return reason
+		}
+	}
+	return cleanAgentText(job.CurrentAction)
+}
+
+func renderAgentFullColumns(width int, disclosure, state, agent, goal, targets, activity, elapsed string) string {
+	const stateWidth, agentWidth, goalWidth, targetsWidth, timeWidth = 11, 18, 16, 8, 6
+	fixed := 3 + stateWidth + agentWidth + goalWidth + targetsWidth + timeWidth + 5
 	activityWidth := max(1, width-fixed)
 	return agentColumn(disclosure, 3, false) +
 		agentColumn(state, stateWidth, false) + " " +
-		agentColumn(attempt, attemptWidth, false) + " " +
 		agentColumn(agent, agentWidth, false) + " " +
 		agentColumn(goal, goalWidth, false) + " " +
 		agentColumn(targets, targetsWidth, false) + " " +
@@ -233,13 +236,12 @@ func renderAgentFullColumns(width int, disclosure, state, attempt, agent, goal, 
 		agentColumn(elapsed, timeWidth, true)
 }
 
-func renderAgentMediumColumns(width int, disclosure, state, attempt, agent, activity, elapsed string) string {
-	const stateWidth, attemptWidth, agentWidth, timeWidth = 9, 9, 12, 6
-	fixed := 3 + stateWidth + attemptWidth + agentWidth + timeWidth + 4
+func renderAgentMediumColumns(width int, disclosure, state, agent, activity, elapsed string) string {
+	const stateWidth, agentWidth, timeWidth = 9, 12, 6
+	fixed := 3 + stateWidth + agentWidth + timeWidth + 3
 	activityWidth := max(1, width-fixed)
 	return agentColumn(disclosure, 3, false) +
 		agentColumn(state, stateWidth, false) + " " +
-		agentColumn(attempt, attemptWidth, false) + " " +
 		agentColumn(agent, agentWidth, false) + " " +
 		agentColumn(activity, activityWidth, false) + " " +
 		agentColumn(elapsed, timeWidth, true)
@@ -445,7 +447,7 @@ func agentPhaseText(job fix.JobPresentation) string {
 		return "FAILED"
 	}
 	switch job.Phase {
-	case fix.PhaseAdmitted, fix.PhaseQueued:
+	case fix.PhaseQueued:
 		return "QUEUED"
 	case fix.PhasePreflight:
 		return "PREFLIGHT"
@@ -501,22 +503,19 @@ func agentBadges(job fix.JobPresentation) string {
 	return strings.Join(badges, " · ")
 }
 
-func agentAttemptText(job fix.JobPresentation) string {
-	if job.AttemptOrdinal <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("attempt %d", job.AttemptOrdinal)
-}
-
 func agentJobTime(job fix.JobPresentation, now time.Time) string {
-	start := job.CreatedAt
-	if job.Phase == fix.PhaseCompleted && !job.FinishedAt.IsZero() {
-		start = job.FinishedAt
-	}
-	if start.IsZero() {
+	if job.CreatedAt.IsZero() {
 		return "-"
 	}
-	duration := now.Sub(start)
+	end := now
+	if agentJobFinished(job.Phase) {
+		if !job.FinishedAt.IsZero() {
+			end = job.FinishedAt
+		} else if !job.UpdatedAt.IsZero() {
+			end = job.UpdatedAt
+		}
+	}
+	duration := end.Sub(job.CreatedAt)
 	if duration < 0 {
 		duration = 0
 	}
@@ -560,11 +559,12 @@ func agentsFooter(model Model) string {
 			}
 			leftItems = append(leftItems, hintItem{"Enter", "expand"}, hintItem{"i", "inspect"}, hintItem{"d", "diff"}, hintItem{"l", "logs"})
 		} else {
-			leftItems = append(leftItems, hintItem{"Enter", "inspect"}, hintItem{"v", "view"}, hintItem{"d", "diff"}, hintItem{"i", "metrics"})
+			leftItems = append(leftItems, hintItem{"Enter", "inspect"}, hintItem{"v", "view"}, hintItem{"d", "diff"}, hintItem{"l", "logs"}, hintItem{"i", "metrics"})
 		}
 	}
 	if model.agents.FindEditing {
-		return truncateANSI(hintRow(style.SurfaceFooter, hintItem{"Enter", "apply"}, hintItem{"Esc", "cancel"})+" "+model.agentFindInput.View(), model.width)
+		input := style.InputField(model.agentFindInput.View(), max(8, min(24, model.width/3)))
+		return truncateANSI(hintRow(style.SurfaceFooter, hintItem{"Enter", "apply"}, hintItem{"Esc", "cancel"})+" "+input, model.width)
 	}
 	filterLabel := "all"
 	if model.agents.ShowAll {

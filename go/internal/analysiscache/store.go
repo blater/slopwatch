@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/blater/slopwatch/internal/userdata"
 )
 
 const envelopeMagic = "slopwatch-analysis-cache"
@@ -36,34 +38,14 @@ type Store struct {
 
 var processWorkspaceLocks sync.Map // map[canonical store root + ViewKey]*sync.Mutex
 
-// DefaultRoot returns the per-user cache location without creating it.
-// XDG_CACHE_HOME is honored only when it is an absolute, usable path;
-// otherwise the cross-platform default is ~/.cache/slopwatch.
+// DefaultRoot returns the analysis directory beneath Slopwatch's single
+// per-user data root without creating it.
 func DefaultRoot() (string, error) {
-	xdg := os.Getenv("XDG_CACHE_HOME")
-	if validAbsolutePath(xdg) {
-		return cacheRoot(xdg, "")
-	}
-	home, err := os.UserHomeDir()
+	root, err := userdata.Root()
 	if err != nil {
-		return "", fmt.Errorf("locate user home: %w", err)
+		return "", err
 	}
-	return cacheRoot("", home)
-}
-
-func cacheRoot(xdg, home string) (string, error) {
-	base := xdg
-	if !validAbsolutePath(base) {
-		if !validAbsolutePath(home) {
-			return "", fmt.Errorf("user home is not an absolute path")
-		}
-		base = filepath.Join(filepath.Clean(home), ".cache")
-	}
-	return filepath.Join(filepath.Clean(base), "slopwatch"), nil
-}
-
-func validAbsolutePath(path string) bool {
-	return strings.TrimSpace(path) != "" && filepath.IsAbs(path) && !strings.ContainsRune(path, '\x00')
+	return filepath.Join(root, "analysis"), nil
 }
 
 // NewDefaultStore opens the default per-user cache.

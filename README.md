@@ -259,11 +259,11 @@ written a lot, so I think it was quite proud of this one:
 
  Install the Codex CLI, run `codex login`, then highlight a file and press `x`.
  Codex sign-in supports ChatGPT accounts and is the built-in default; it does
- not require an OpenAI API key. The Fix form lets you choose the score target, one or more
- focus metrics, change scope, agent profile, model, effort, delegation mode,
- validation plan, delivery workflow and branch name. Advanced mode replaces the
- editable task body while retaining Slopwatch's locked scoring and write-scope
- envelope.
+ not require an OpenAI API key. The Fix form lets you choose the score target,
+ one or more focus metrics, allowed edit scope, agent profile, model, effort,
+ delivery workflow and branch name. The global master prompt is editable in
+ Fix Defaults and is the complete prompt sent to the agent; Slopwatch only
+ substitutes its documented data placeholders.
 
  The alternative `OpenAI Responses API — API key` profile uses
  `env:OPENAI_API_KEY`; API usage is billed separately from ChatGPT. That adapter
@@ -271,52 +271,32 @@ written a lot, so I think it was quite proud of this one:
  writes pass through Slopwatch-controlled tools. Slopwatch never silently falls
  back between the Codex/ChatGPT and direct API-key routes. Codex uses its local
  App Server with a workspace-write sandbox, streamed activity and per-job
- `turn/interrupt` cancellation; it works natively without Docker.
+ `turn/interrupt` cancellation.
 
- Fix jobs use detached Git worktrees, so multiple non-overlapping jobs can run
- at once and new jobs can be submitted while others are active. Press `Tab` to
+ Fix can edit the current files—including a dirty Git tree or a folder outside
+ source control—or use a separate worktree. Git is optional. Commit, push and
+ pull request are separate choices; local changes are the default. Press `Tab` to
  switch between Files and Agents, or `A` to jump to Agents. Expand a job to see
  its targets and compact metric state; `C` cancels only the selected eligible
  job. Agent completion is not treated as success: Slopwatch freshly analyzes
- the candidate, continues automatically until the target is met, then commits
- and pushes the configured branch and optionally creates a pull request.
+ the candidate and continues automatically until the target is met.
 
  Settings lists its sections alphabetically. Agents presents one row per
  provider, marks unavailable integrations and highlights the active one.
  Selecting a provider opens a provider-specific connection dialog and starts
  an automatic readiness check; only a successful connection becomes active.
  Connection settings store only provider-owned login state or authentication
- references such as `env:OPENAI_API_KEY`, never the credential itself. Pull-request
- publication can optionally require a ready validation plan. Operational
+ references such as `env:OPENAI_API_KEY`, never the credential itself. Operational
  constraints are visible settings: concurrency, retention and actor limits are
  global; provider turn/tool/token/file/context budgets belong to the selected
- agent profile; validation time/output limits belong to each trusted check, and
- candidate workspace file/directory/byte ceilings are visible in Validation.
+ agent profile.
  Model turns, tool calls and token checks default to no Slopwatch-imposed cap,
  active attempts have no wall-clock timeout or attempt cap, and Cancel is the
- only job action. The hardened Docker
- validation executor is enabled only when
- `SLOPWATCH_FIX_CONTAINER_IMAGE` names an immutable image digest and
- `SLOPWATCH_FIX_DOCKER_HOST` names an explicit local `unix://` daemon socket;
- `SLOPWATCH_FIX_DOCKER_EXECUTABLE` must name the canonical absolute path of a
- non-writable Docker CLI outside the repository, and
- `SLOPWATCH_FIX_EXECUTABLE_MAP` must be a JSON object mapping each trusted host
- validation executable to its exact absolute path in the image (for example
- `{"/usr/bin/go":"/usr/local/go/bin/go"}`). These environment variables are a
- temporary typed installation bridge until the properties-file PR lands;
- adapters and services never read them directly. If any property is absent or
- invalid, validation is safely unavailable without adding a Docker dependency
- to normal fixes. Build the installation image with
- `make build-fix-validation-image FIX_VALIDATION_BASE=name@sha256:...`; its
- immutable base must already contain the absolute executables named by the
- trusted validation plans. The target performs no package installation or
- network access and prints the resulting image ID. See the detailed
- [agent-assisted fix plan](docs/agent-fix-plan.md) for the image and confinement
- contract.
+ only job action.
 
  Pull-request delivery (draft or ready for review, as configured) additionally requires
  `SLOPWATCH_FIX_GH_EXECUTABLE` to name the canonical absolute path of a
- non-writable GitHub CLI outside the repository. Slopwatch checks `gh`
- authorization and the exact `github.com/owner/repository` target before job
- admission and again before publication; it does not select either CLI from the
- ambient `PATH`.
+ non-writable GitHub CLI outside the repository. Slopwatch resolves `gh`
+ authorization and the exact `github.com/owner/repository` target when selected
+ publication actually runs; it does not block Fix preparation or admission and
+ does not select either CLI from the ambient `PATH`.

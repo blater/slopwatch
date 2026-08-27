@@ -2,72 +2,9 @@ package analysiscache
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
 )
-
-func TestCacheRootResolution(t *testing.T) {
-	t.Parallel()
-	home := filepath.Join(string(filepath.Separator), "users", "ada")
-	absXDG := filepath.Join(string(filepath.Separator), "var", "cache", "ada")
-	tests := []struct {
-		name string
-		xdg  string
-		home string
-		want string
-	}{
-		{"unset", "", home, filepath.Join(home, ".cache", "slopwatch")},
-		{"absolute xdg", absXDG, home, filepath.Join(absXDG, "slopwatch")},
-		{"absolute xdg needs no home", absXDG, "", filepath.Join(absXDG, "slopwatch")},
-		{"relative xdg falls back", "relative/cache", home, filepath.Join(home, ".cache", "slopwatch")},
-		{"nul xdg falls back", string([]byte{'/', 'x', 0, 'y'}), home, filepath.Join(home, ".cache", "slopwatch")},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, err := cacheRoot(test.xdg, test.home)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != test.want {
-				t.Fatalf("cacheRoot() = %q, want %q", got, test.want)
-			}
-		})
-	}
-}
-
-func TestDefaultRootUsesXDGOrDotCacheFallback(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	xdg := filepath.Join(t.TempDir(), "xdg")
-	t.Setenv("XDG_CACHE_HOME", xdg)
-	got, err := DefaultRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := filepath.Join(xdg, "slopwatch"); got != want {
-		t.Fatalf("DefaultRoot with XDG = %q, want %q", got, want)
-	}
-	t.Setenv("XDG_CACHE_HOME", "relative/cache")
-	got, err = DefaultRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := filepath.Join(home, ".cache", "slopwatch"); got != want {
-		t.Fatalf("DefaultRoot fallback = %q, want %q", got, want)
-	}
-}
-
-func TestCacheRootRejectsInvalidFallbackHome(t *testing.T) {
-	t.Parallel()
-	for _, home := range []string{"", "relative", string([]byte{'/', 'x', 0, 'y'})} {
-		if _, err := cacheRoot("relative-xdg", home); err == nil {
-			t.Fatalf("cacheRoot accepted invalid home %q", home)
-		}
-	}
-}
 
 func TestUnitKeyIsCanonicalAndCorrectnessSensitive(t *testing.T) {
 	t.Parallel()

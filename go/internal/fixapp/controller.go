@@ -1,120 +1,38 @@
 package fixapp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"math"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopwatch/internal/appconfig"
 	"github.com/blater/slopwatch/internal/candidate"
 	"github.com/blater/slopwatch/internal/delivery"
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/fixanalysis"
+	"github.com/blater/slopwatch/internal/fixprompt"
 	"github.com/blater/slopwatch/internal/jobstore"
 	"github.com/blater/slopwatch/internal/publisher"
-	"github.com/blater/slopwatch/internal/validation"
+	"github.com/blater/slopwatch/internal/sourcepath"
 )
-
-func validateInitialJournal(records []jobstore.Record) error {
-	seen := make(map[fix.JobID]uint64)
-	for index, stored := range records {
-		if stored.Version != jobstore.RecordVersion || stored.Sequence != uint64(index+1) {
-			return fmt.Errorf("fix journal record %d has invalid version or sequence", index+1)
-		}
-		if stored.JobID == "" || stored.Revision == 0 || stored.Kind == "" {
-			return fmt.Errorf("fix journal record %d is incomplete", index+1)
-		}
-		var envelope journalEnvelope
-		if err := decodeStrict(stored.Data, &envelope); err != nil {
-			return fmt.Errorf("decode fix journal record %d: %w", index+1, err)
-		}
-		if envelope.Presentation.ID != stored.JobID || envelope.Presentation.Revision != stored.Revision {
-			return fmt.Errorf("fix journal record %d identity/revision mismatch", index+1)
-		}
-		previous, exists := seen[stored.JobID]
-		if !exists && stored.Kind != "admitted" && stored.Kind != "checkpoint" {
-			return fmt.Errorf("fix journal job %s does not begin with admission or checkpoint", stored.JobID)
-		}
-		if exists && stored.Revision < previous {
-			return fmt.Errorf("fix journal job %s revision regressed", stored.JobID)
-		}
-		seen[stored.JobID] = stored.Revision
-		if envelope.Candidate != nil && envelope.Candidate.Job != stored.JobID {
-			return fmt.Errorf("fix journal job %s candidate identity mismatch", stored.JobID)
-		}
-		ordinal := envelope.Presentation.AttemptOrdinal
-		if ordinal < 0 {
-			return fmt.Errorf("fix journal job %s contains invalid attempt counters", stored.JobID)
-		}
-		if len(envelope.NextAttemptNotes) > 504 || strings.ContainsRune(envelope.NextAttemptNotes, '\x00') {
-			return fmt.Errorf("fix journal job %s contains invalid next-attempt notes", stored.JobID)
-		}
-		if envelope.Transcript != nil {
-			if transcriptBytes(envelope.Transcript.Entries) == math.MaxInt64 && len(envelope.Transcript.Entries) > 0 {
-				return fmt.Errorf("fix journal job %s contains an unencodable or oversized transcript", stored.JobID)
-			}
-			for _, entry := range envelope.Transcript.Entries {
-				if len(entry.Summary) > 504 || strings.ContainsRune(entry.Summary, '\x00') {
-					return fmt.Errorf("fix journal job %s contains an invalid transcript entry", stored.JobID)
-				}
-			}
-		}
-		for requestID, receipt := range envelope.Commands {
-			if requestID == "" || receipt.RequestID != requestID || receipt.JobID != stored.JobID || !receipt.Accepted {
-				return fmt.Errorf("fix journal job %s contains an invalid command receipt", stored.JobID)
-			}
-		}
-		if stored.Kind == "agent_event" {
-			var entry LogEntry
-			if err := decodeStrict(envelope.Payload, &entry); err != nil || len(entry.Summary) > 504 || strings.ContainsRune(entry.Summary, '\x00') {
-				return fmt.Errorf("fix journal job %s contains an invalid agent event", stored.JobID)
-			}
-		}
-		if stored.Kind == "command_applied" || stored.Kind == "command_intent" {
-			var command fix.JobCommand
-			if err := decodeStrict(envelope.Payload, &command); err != nil || command.RequestID == "" || command.JobID != stored.JobID {
-				return fmt.Errorf("fix journal job %s contains an invalid command payload", stored.JobID)
-			}
-		}
-	}
-	return nil
-}
-
-func decodeStrict(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("multiple JSON values")
-		}
-		return err
-	}
-	return nil
-}
 
 func (manager *Manager) run() {
 	state := &controllerState{
 		jobs: map[fix.JobID]*jobRecord{}, reservations: map[string]fix.JobID{},
 	}
 	manager.restore(state)
-	if err := manager.pruneFinished(state, false); err != nil {
-		manager.journalFailed = true
-	}
-	manager.publish(state)
 	close(manager.ready)
+	sharedRefresh := time.NewTicker(time.Second)
+	defer sharedRefresh.Stop()
 	defer func() {
 		manager.closed.Store(true)
-		manager.publish(state)
 		closeErr := errors.Join(manager.deps.Store.Close(), manager.deps.Candidates.Close())
 		manager.notifyMu.Lock()
 		close(manager.notify)
@@ -134,39 +52,46 @@ func (manager *Manager) run() {
 		select {
 		case request := <-manager.requests:
 			switch value := request.(type) {
-			case submitCall:
-				manager.handleSubmit(state, value)
+			case runCall:
+				manager.handleRun(state, value)
 			case commandCall:
 				manager.handleCommand(state, value)
 			case candidateCall:
 				record, found := state.jobs[value.id]
 				if found && record.candidate != nil {
 					value.response <- candidateResponse{identity: *record.candidate,
-						previewBytes: record.draft.Preferences.Concurrency.MaxCandidatePreviewBytes,
-						previewLines: record.draft.Preferences.Concurrency.MaxCandidatePreviewLines, ok: true}
+						previewBytes: record.input.Preferences.Concurrency.MaxCandidatePreviewBytes,
+						previewLines: record.input.Preferences.Concurrency.MaxCandidatePreviewLines, ok: true}
 				} else {
 					value.response <- candidateResponse{}
 				}
+			case jobsCall:
+				value.response <- jobList(state, value.filter)
+			case transcriptCall:
+				value.response <- manager.transcriptPage(state, value.id, value.cursor, value.limit)
 			case shutdownCall:
 				manager.handleShutdown(state, value)
 			case reconfigureCall:
 				manager.handleReconfigure(state, value)
 			}
 		case update := <-manager.events:
-			if update.barrier != nil {
-				manager.flushTranscript(state, update.job, update.attempt)
+			if update.prompt != nil {
+				manager.handlePrompt(state, update.job, update.attempt, *update.prompt)
+			} else if update.barrier != nil {
 				close(update.barrier)
 			} else {
 				manager.handleEvent(state, update.event)
 			}
 		case result := <-manager.results:
 			manager.handleResult(state, result)
+		case <-sharedRefresh.C:
+			manager.refreshSharedJobs(state)
 		}
 	}
 }
 
 func (manager *Manager) handleReconfigure(state *controllerState, call reconfigureCall) {
-	if state.shuttingDown || manager.journalFailed {
+	if state.shuttingDown {
 		call.response <- ErrClosed
 		return
 	}
@@ -176,174 +101,71 @@ func (manager *Manager) handleReconfigure(state *controllerState, call reconfigu
 	}
 	manager.options.MaxAgents = call.limits.MaxAgents
 	manager.options.MaxVerifiers = call.limits.MaxVerifiers
-	manager.options.MaxRetainedJobs = call.limits.MaxRetainedJobs
-	manager.options.MaxTranscriptBytes = call.limits.MaxTranscriptBytes
-	for _, record := range state.jobs {
-		var trimmed bool
-		record.logs, record.logBytes, trimmed = trimTranscript(record.logs, call.limits.MaxTranscriptBytes)
-		if trimmed {
-			record.truncated = true
-			manager.changedRecord(state, record)
-		}
-	}
-	manager.publish(state)
 	call.response <- nil
 }
 
-func (manager *Manager) handleSubmit(state *controllerState, call submitCall) {
-	if state.shuttingDown || manager.journalFailed {
-		call.response <- submitResponse{err: ErrClosed}
+func (manager *Manager) handleRun(state *controllerState, call runCall) {
+	if state.shuttingDown {
+		call.response <- runResponse{err: ErrClosed}
 		return
 	}
 	if err := call.ctx.Err(); err != nil {
-		call.response <- submitResponse{err: err}
+		call.response <- runResponse{err: err}
 		return
 	}
-	draft := call.request.Draft
-	if err := validateDraft(draft); err != nil {
-		call.response <- submitResponse{err: err}
+	admission, err := manager.deps.Store.Lock("job-admission")
+	if err != nil {
+		call.response <- runResponse{err: fmt.Errorf("start fix: %w", err)}
 		return
 	}
-	if err := manager.pruneFinished(state, true); err != nil {
-		call.response <- submitResponse{err: fmt.Errorf("prune finished fix jobs: %w", err)}
-		return
-	}
-	retained := 0
-	for _, record := range state.jobs {
-		if record.presentation.Phase != fix.PhaseDiscarded {
-			retained++
-		}
-	}
-	if retained >= manager.options.MaxRetainedJobs {
-		call.response <- submitResponse{err: fmt.Errorf("fix job retention limit %d reached while every retained job is still active or owns a worktree", manager.options.MaxRetainedJobs)}
-		return
-	}
-	for _, target := range draft.Targets {
-		key := reservationKey(draft.Workspace, target)
+	defer admission.Close()
+	manager.refreshSharedJobs(state)
+	input := call.input
+	for _, key := range reservationKeys(input) {
 		if owner, exists := state.reservations[key]; exists {
-			call.response <- submitResponse{err: fmt.Errorf("%w: %s is owned by %s", ErrTargetReserved, target, owner)}
+			call.response <- runResponse{err: fmt.Errorf("%w: selected files overlap running job %s", ErrTargetReserved, owner)}
 			return
 		}
 	}
 	id, err := fix.NewJobID()
 	if err != nil {
-		call.response <- submitResponse{err: err}
+		call.response <- runResponse{err: err}
+		return
+	}
+	runLock, err := manager.deps.Store.Lock(id)
+	if err != nil {
+		call.response <- runResponse{err: fmt.Errorf("start fix job: %w", err)}
 		return
 	}
 	now := manager.options.Clock()
 	presentation := fix.JobPresentation{
-		ID: id, Revision: 1, Phase: fix.PhaseQueued, Attention: fix.AttentionNone,
-		ProfileLabel: draft.Profile.Label, ProfileID: string(draft.Profile.ID), ModelLabel: string(draft.Model), EffortLabel: string(draft.Effort),
-		Goal: goalLabel(draft), Targets: baselineTargets(draft.Baseline.Contract), CurrentAction: "Waiting for an agent slot",
+		ID: id, Phase: fix.PhaseQueued, Attention: fix.AttentionNone,
+		ProfileLabel: input.Profile.Label, ProfileID: string(input.Profile.ID), ModelLabel: string(input.Model), EffortLabel: string(input.Effort),
+		Goal: goalLabel(input), Targets: baselineTargets(input.Baseline.Contract), CurrentAction: "Waiting for an agent slot",
 		AttemptOrdinal: 1,
 		CreatedAt:      now, UpdatedAt: now, TargetStatus: fix.ScorePending,
-		Validation: fix.ValidationNotRun, Scope: fix.ScopeUnknown, Delivery: fix.DeliveryNone,
-		DeliveryMode: draft.DeliveryMode, BranchName: draft.BranchName,
+		Scope: fix.ScopeUnknown, Delivery: fix.DeliveryNone,
+		DeliveryPlan: input.DeliveryPlan, BranchName: input.BranchName,
 	}
-	record := &jobRecord{draft: cloneSubmit(SubmitRequest{Draft: draft}).Draft, presentation: presentation, commands: map[fix.CommandID]CommandReceipt{}}
+	record := &jobRecord{input: cloneFixInput(input), presentation: presentation, commands: map[fix.CommandID]CommandReceipt{}, runLock: runLock, runsHere: true}
 	manager.refreshActions(record)
-	if err := manager.appendRecord(call.ctx, record, "admitted", admissionPayload(draft)); err != nil {
-		call.response <- submitResponse{err: fmt.Errorf("persist fix admission: %w", err)}
+	if err := manager.saveRecord(call.ctx, record); err != nil {
+		_ = runLock.Close()
+		call.response <- runResponse{err: fmt.Errorf("persist fix start: %w", err)}
 		return
 	}
 	state.jobs[id] = record
 	state.order = append(state.order, id)
-	for _, target := range draft.Targets {
-		state.reservations[reservationKey(draft.Workspace, target)] = id
+	manager.logJobStart(record)
+	for _, key := range reservationKeys(input) {
+		state.reservations[key] = id
 	}
 	manager.changed(state)
-	call.response <- submitResponse{id: id}
-}
-
-func (manager *Manager) pruneFinished(state *controllerState, reserveAdmissionSlot bool) error {
-	kept := make([]fix.JobID, 0, len(state.order))
-	removed := make(map[fix.JobID]*jobRecord)
-	needed := len(state.jobs) - manager.options.MaxRetainedJobs
-	if reserveAdmissionSlot {
-		needed++
-	}
-	for _, id := range state.order {
-		record := state.jobs[id]
-		terminal := record != nil && record.candidate == nil &&
-			(record.presentation.Phase == fix.PhaseCompleted || record.presentation.Phase == fix.PhaseCanceled || record.presentation.Phase == fix.PhaseFailed)
-		if record != nil && (record.presentation.Phase == fix.PhaseDiscarded || needed > 0 && terminal) {
-			removed[id] = record
-			delete(state.jobs, id)
-			needed--
-			continue
-		}
-		kept = append(kept, id)
-	}
-	if len(removed) == 0 {
-		return nil
-	}
-	oldOrder := state.order
-	state.order = kept
-	if err := manager.compact(state); err != nil {
-		state.order = oldOrder
-		for id, record := range removed {
-			state.jobs[id] = record
-		}
-		return err
-	}
-	return nil
-}
-
-func validateDraft(draft FixDraft) error {
-	if draft.ID == "" || draft.Workspace.RepositoryRoot == "" || len(draft.Targets) == 0 {
-		return errors.New("submit fix: draft is incomplete")
-	}
-	if !draft.Preflight.Ready || !draft.Preflight.Supported {
-		return fmt.Errorf("submit fix: workspace preflight failed: %s", draft.Preflight.Diagnostic)
-	}
-	if draft.DeliveryMode == fix.DeliveryModePullRequest && strings.TrimSpace(draft.Preferences.Delivery.BaseBranch) == "" {
-		return errors.New("submit fix: pull-request delivery requires an explicit base branch")
-	}
-	if draft.DeliveryMode == fix.DeliveryModePullRequest && draft.Preferences.Delivery.RequireValidation && strings.TrimSpace(draft.ValidationPlanID) == "" {
-		return errors.New("submit fix: pull-request delivery requires a ready validation plan")
-	}
-	if draft.ValidationReadiness.Required && !draft.ValidationReadiness.Ready {
-		diagnostic := draft.ValidationReadiness.Diagnostic
-		if diagnostic == "" {
-			diagnostic = "validation executor is unavailable"
-		}
-		return fmt.Errorf("submit fix: required validation is unavailable: %s", diagnostic)
-	}
-	if math.IsNaN(draft.TargetScore) || math.IsInf(draft.TargetScore, 0) || draft.TargetScore < 0 || draft.Baseline.Contract.Goal.MaximumScore != draft.TargetScore {
-		return errors.New("submit fix: score goal is invalid or inconsistent")
-	}
-	if len(draft.Baseline.Contract.Targets) != len(draft.Targets) || draft.Instructions.Envelope == "" {
-		return errors.New("submit fix: scoring contract or safety envelope is incomplete")
-	}
-	for index, target := range draft.Targets {
-		if draft.Baseline.Contract.Targets[index].Path != target || !draft.Baseline.Contract.Targets[index].Complete {
-			return errors.New("submit fix: scoring contract targets do not match the prepared targets")
-		}
-	}
-	if draft.Probe.State != agent.ProbeReady {
-		return fmt.Errorf("submit fix: agent profile is %s: %s", draft.Probe.State, draft.Probe.Diagnostic)
-	}
-	if !draft.Probe.Capabilities.Isolation.EligibleForMutation() {
-		return errors.New("submit fix: agent runtime did not prove required write, read, auth, and crash confinement")
-	}
-	if !containsOption(draft.Probe.Capabilities.Models, draft.Model) || !containsOption(draft.Probe.Capabilities.Efforts, draft.Effort) ||
-		!containsOption(draft.Probe.Capabilities.Delegation, draft.Delegation) {
-		return errors.New("submit fix: selected model, effort, or delegation mode is unsupported by this profile")
-	}
-	return nil
-}
-
-func containsOption[T ~string](values []agent.Option[T], selected T) bool {
-	for _, value := range values {
-		if value.ID == selected {
-			return true
-		}
-	}
-	return false
+	call.response <- runResponse{id: id}
 }
 
 func (manager *Manager) schedule(state *controllerState) {
-	if state.shuttingDown || manager.journalFailed {
+	if state.shuttingDown {
 		return
 	}
 	for state.agentsRunning < manager.options.MaxAgents {
@@ -360,30 +182,34 @@ func (manager *Manager) schedule(state *controllerState) {
 		record.actors = map[string]bool{}
 		record.presentation.ActorCount = 0
 		record.presentation.Phase = fix.PhasePreparing
-		record.presentation.CurrentAction = "Creating isolated candidate worktree"
+		if record.input.DeliveryPlan.Workspace == fix.WorkspaceCurrent {
+			record.presentation.CurrentAction = "Preparing current files"
+		} else {
+			record.presentation.CurrentAction = "Creating worktree"
+		}
 		record.presentation.Attention = fix.AttentionNone
 		record.presentation.Issue = nil
 		ctx, cancel := context.WithCancel(context.Background())
 		record.cancel = cancel
 		state.agentsRunning++
 		if record.candidate == nil {
-			if !manager.bump(state, record, "candidate_prepare_started", nil) {
+			if !manager.bump(state, record) {
 				state.agentsRunning--
 				record.cancel = nil
 				cancel()
 				continue
 			}
-			go manager.runCandidatePrepare(ctx, record.draft, record.presentation.ID, attempt)
+			go manager.runCandidatePrepare(ctx, record.input, record.presentation.ID, attempt)
 			continue
 		}
 		record.presentation.CurrentAction = "Starting agent"
-		if !manager.bump(state, record, "agent_started", nil) {
+		if !manager.bump(state, record) {
 			state.agentsRunning--
 			record.cancel = nil
 			cancel()
 			continue
 		}
-		go manager.runAgent(ctx, record.draft, record.nextAttemptNotes, record.presentation.ID, attempt, *record.candidate)
+		go manager.runAgent(ctx, record.input, record.nextAttemptNotes, record.presentation.ID, attempt, *record.candidate)
 	}
 	for state.verifiersRunning < manager.options.MaxVerifiers {
 		record := firstInPhase(state, fix.PhaseWaitingVerifier)
@@ -391,24 +217,23 @@ func (manager *Manager) schedule(state *controllerState) {
 			break
 		}
 		record.presentation.Phase = fix.PhaseVerifying
-		record.presentation.CurrentAction = "Re-analyzing candidate and running validation"
+		record.presentation.CurrentAction = "Re-analyzing candidate"
 		ctx, cancel := context.WithCancel(context.Background())
 		record.cancel = cancel
 		state.verifiersRunning++
-		if !manager.bump(state, record, "verification_started", nil) {
+		if !manager.bump(state, record) {
 			state.verifiersRunning--
 			record.cancel = nil
 			cancel()
 			continue
 		}
-		go manager.runVerifier(ctx, record.draft, record.presentation.ID, record.attempt, *record.candidate)
+		go manager.runVerifier(ctx, record.input, record.presentation.ID, record.attempt, *record.candidate)
 	}
 }
 
-func (manager *Manager) runCandidatePrepare(ctx context.Context, draft FixDraft, job fix.JobID, attempt fix.AttemptID) {
-	identity, err := manager.deps.Candidates.Prepare(ctx, candidate.PrepareRequest{Job: job, Workspace: draft.Workspace,
-		Targets: draft.Targets, AllowedScope: draft.ChangeScope, AllowedPaths: draft.AllowedPaths, CommandOutputBytes: draft.Preferences.Delivery.CommandOutputBytes,
-		MaxSeedFileBytes: draft.Preferences.ValidationWorkspace.MaxFileBytes, MaxSeedTotalBytes: draft.Preferences.ValidationWorkspace.MaxTotalBytes})
+func (manager *Manager) runCandidatePrepare(ctx context.Context, input FixInput, job fix.JobID, attempt fix.AttemptID) {
+	identity, err := manager.deps.Candidates.Prepare(ctx, candidate.PrepareRequest{Job: job, Workspace: input.Workspace,
+		Mode: input.DeliveryPlan.Workspace, Targets: input.Targets, AllowedScope: input.ChangeScope, AllowedPaths: input.AllowedPaths, CommandOutputBytes: input.Preferences.Delivery.CommandOutputBytes})
 	if err != nil {
 		err = fmt.Errorf("prepare candidate: %w", err)
 	}
@@ -424,34 +249,45 @@ func candidatePointer(identity fix.CandidateIdentity, err error) *fix.CandidateI
 
 func firstInPhase(state *controllerState, phase fix.Phase) *jobRecord {
 	for _, id := range state.order {
-		if record := state.jobs[id]; record != nil && record.presentation.Phase == phase {
+		if record := state.jobs[id]; record != nil && !record.runsElsewhere && record.presentation.Phase == phase {
 			return record
 		}
 	}
 	return nil
 }
 
-func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, nextAttemptNotes string, job fix.JobID, attempt fix.AttemptID, identity fix.CandidateIdentity) {
+func (manager *Manager) runAgent(ctx context.Context, input FixInput, nextAttemptNotes string, job fix.JobID, attempt fix.AttemptID, identity fix.CandidateIdentity) {
 	select {
 	case manager.events <- agentUpdate{event: agent.Event{JobID: job, AttemptID: attempt, At: manager.options.Clock(), Kind: agent.EventActivity, Summary: "Candidate ready; starting agent"}}:
 	case <-manager.done:
 		return
 	}
-	strategy, err := manager.deps.Agents.Strategy(draft.Profile.Runtime)
+	strategy, err := manager.deps.Agents.Strategy(input.Profile.Runtime)
 	if err != nil {
 		manager.finishAgentWorker(job, attempt, workerResult{kind: workerAgent, job: job, attempt: attempt, candidate: &identity, err: err})
 		return
 	}
-	instructions := draft.Instructions
+	instructions := input.Instructions
 	instructions.NextAttemptNotes = nextAttemptNotes
-	request := agent.Request{
-		JobID: job, AttemptID: attempt, Workspace: identity, Model: draft.Model, Effort: draft.Effort, Delegation: draft.Delegation,
-		Task: agent.RemediationTask{Targets: cloneContract(draft.Baseline.Contract).Targets, Goal: draft.Baseline.Contract.Goal,
-			Instructions: instructions, Validation: agent.ValidationContract{PlanID: draft.ValidationPlanID, Required: draft.ValidationPlanID != ""}},
-		Write:  agent.WritePolicy{Allowed: append([]fix.RepoPath(nil), draft.AllowedPaths...), Scope: draft.ChangeScope},
-		Limits: agent.Limits{MaxActors: draft.Preferences.Concurrency.MaxActorsPerJob},
+	manifest, err := prepareTargetManifest(identity, input.Targets)
+	if err != nil {
+		manager.finishAgentWorker(job, attempt, workerResult{kind: workerAgent, job: job, attempt: attempt, candidate: &identity, err: fmt.Errorf("prepare target manifest: %w", err)})
+		return
 	}
-	result := strategy.Execute(ctx, draft.Profile, request, agent.EventSinkFunc(func(event agent.Event) error {
+	request := agent.Request{
+		JobID: job, AttemptID: attempt, Workspace: identity, Model: input.Model, Effort: input.Effort,
+		Task: agent.RemediationTask{Targets: cloneContract(input.Baseline.Contract).Targets, Goal: input.Baseline.Contract.Goal,
+			Instructions: instructions, Manifest: manifest},
+		Write:  agent.WritePolicy{Allowed: append([]fix.RepoPath(nil), input.AllowedPaths...), Scope: input.ChangeScope},
+		Limits: agent.Limits{MaxActors: input.Preferences.Concurrency.MaxActorsPerJob},
+	}
+	prompt := request.Task.EffectivePrompt()
+	select {
+	case manager.events <- agentUpdate{job: job, attempt: attempt, prompt: &prompt}:
+	case <-manager.done:
+		return
+	}
+	result := strategy.Execute(ctx, input.Profile, request, agent.EventSinkFunc(func(event agent.Event) error {
 		if event.JobID != job || event.AttemptID != attempt {
 			return errors.New("agent event identity mismatch")
 		}
@@ -467,6 +303,36 @@ func (manager *Manager) runAgent(ctx context.Context, draft FixDraft, nextAttemp
 	diff, inventoryErr := manager.deps.Candidates.Diff(ctx, identity)
 	manager.finishAgentWorker(job, attempt, workerResult{kind: workerAgent, job: job, attempt: attempt, candidate: &identity, agent: result,
 		diff: diff, inventoryErr: inventoryErr})
+}
+
+func prepareTargetManifest(identity fix.CandidateIdentity, targets []fix.RepoPath) (*agent.TargetManifest, error) {
+	if !fixprompt.RequiresTargetManifest(targets) {
+		return nil, nil
+	}
+	if identity.StagingRoot == "" || !filepath.IsAbs(identity.StagingRoot) {
+		return nil, errors.New("candidate staging is unavailable")
+	}
+	directory := filepath.Join(identity.StagingRoot, "agent-input")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(directory, 0o700); err != nil {
+		return nil, err
+	}
+	paths := append([]fix.RepoPath(nil), targets...)
+	sort.Slice(paths, func(i, j int) bool { return paths[i] < paths[j] })
+	lines := make([]string, len(paths))
+	for index, path := range paths {
+		lines[index] = path.String()
+	}
+	manifestPath := filepath.Join(directory, "targets.txt")
+	if err := os.WriteFile(manifestPath, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(manifestPath, 0o600); err != nil {
+		return nil, err
+	}
+	return &agent.TargetManifest{Path: manifestPath, Count: len(paths)}, nil
 }
 
 func (manager *Manager) finishAgentWorker(job fix.JobID, attempt fix.AttemptID, result workerResult) {
@@ -487,76 +353,78 @@ func (manager *Manager) finishAgentWorker(job fix.JobID, attempt fix.AttemptID, 
 	}
 }
 
-func (manager *Manager) runVerifier(ctx context.Context, draft FixDraft, job fix.JobID, attempt fix.AttemptID, identity fix.CandidateIdentity) {
+func (manager *Manager) runVerifier(ctx context.Context, input FixInput, job fix.JobID, attempt fix.AttemptID, identity fix.CandidateIdentity) {
 	diff, err := manager.deps.Candidates.Diff(ctx, identity)
 	if err != nil {
 		manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, err: fmt.Errorf("inventory candidate diff: %w", err)}
 		return
 	}
-	verified, err := manager.deps.Analysis.Verify(ctx, fixanalysis.VerificationRequest{Candidate: identity, Contract: draft.Baseline.Contract})
+	verified, err := manager.deps.Analysis.Verify(ctx, fixanalysis.VerificationRequest{Candidate: identity, Contract: input.Baseline.Contract})
 	if err != nil {
 		manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, err: fmt.Errorf("verify candidate scores: %w", err)}
 		return
 	}
-	var validationResult validation.Result
-	if draft.ValidationPlanID != "" {
-		plan, found := validationPlan(draft, draft.ValidationPlanID)
-		if !found || manager.deps.Validation == nil {
-			manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, verify: verified, err: errors.New("required validation plan is unavailable")}
-			return
-		}
-		validationResult, err = manager.deps.Validation.Validate(ctx, identity, plan)
-		if err != nil {
-			manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, verify: verified, err: fmt.Errorf("validate candidate: %w", err)}
-			return
-		}
-	}
 	finalDiff, err := manager.deps.Candidates.Diff(ctx, identity)
 	if err != nil {
-		manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, verify: verified, validation: validationResult, err: fmt.Errorf("re-inventory candidate after verification: %w", err)}
+		manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, verify: verified, err: fmt.Errorf("re-inventory candidate after verification: %w", err)}
 		return
 	}
 	if finalDiff.Fingerprint != diff.Fingerprint {
-		manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: finalDiff, verify: verified, validation: validationResult, err: errors.New("candidate changed during analysis or validation")}
+		manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: finalDiff, verify: verified, err: errors.New("candidate changed during analysis")}
 		return
 	}
-	manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: finalDiff, verify: verified, validation: validationResult}
+	manager.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: finalDiff, verify: verified}
 }
 
-func publicationRequests(draft FixDraft, job fix.JobID, identity fix.CandidateIdentity, diffHash string, delivered delivery.Result) (delivery.Request, publisher.Request) {
-	commitTitle := renderPublicationTemplate(draft.Preferences.Delivery.CommitTitleTemplate, "Refactor {targets} with Slopwatch", draft, job)
-	commitBody := renderPublicationTemplate(draft.Preferences.Delivery.CommitBodyTemplate, "Automated remediation for {goal}.", draft, job)
-	prTitle := renderPublicationTemplate(draft.Preferences.Delivery.PullRequestTitleTemplate, commitTitle, draft, job)
-	prBody := renderPublicationTemplate(draft.Preferences.Delivery.PullRequestBodyTemplate, commitBody, draft, job)
-	request := delivery.Request{Job: job, Candidate: identity, DiffHash: diffHash, Branch: draft.BranchName,
-		Remote: draft.Preferences.Delivery.Remote, CommitTitle: commitTitle, CommitBody: commitBody,
-		ExpectedRemoteHost: draft.DeliveryTarget.RemoteHost, HostRepository: draft.DeliveryTarget.HostRepository,
-		ExpectedRemoteIdentity: draft.DeliveryTarget.RemoteIdentity, CommandOutputBytes: draft.Preferences.Delivery.CommandOutputBytes}
+func publicationRequests(input FixInput, job fix.JobID, identity fix.CandidateIdentity, diffHash string, paths []fix.RepoPath, delivered delivery.Result) (delivery.Request, publisher.Request) {
+	commitTitle := renderPublicationTemplate(input.Preferences.Delivery.CommitTitleTemplate, "Refactor {targets} with Slopwatch", input, job)
+	commitBody := renderPublicationTemplate(input.Preferences.Delivery.CommitBodyTemplate, "Automated remediation for {goal}.", input, job)
+	prTitle := renderPublicationTemplate(input.Preferences.Delivery.PullRequestTitleTemplate, commitTitle, input, job)
+	prBody := renderPublicationTemplate(input.Preferences.Delivery.PullRequestBodyTemplate, commitBody, input, job)
+	request := delivery.Request{Job: job, Candidate: identity, DiffHash: diffHash, Plan: input.DeliveryPlan, Paths: append([]fix.RepoPath(nil), paths...), Branch: input.BranchName,
+		Remote: input.Preferences.Delivery.Remote, CommitTitle: commitTitle, CommitBody: commitBody,
+		ExpectedRemoteHost: input.DeliveryTarget.RemoteHost, HostRepository: input.DeliveryTarget.HostRepository,
+		ExpectedRemoteIdentity: input.DeliveryTarget.RemoteIdentity, CommandOutputBytes: input.Preferences.Delivery.CommandOutputBytes}
 	pullRequest := publisher.Request{Job: job, Repository: identity.Repository, Candidate: identity, HostRepository: delivered.Repository,
-		Remote: draft.Preferences.Delivery.Remote, BaseBranch: draft.Preferences.Delivery.BaseBranch, HeadBranch: draft.BranchName,
-		Commit: delivered.Commit, Title: prTitle, Body: prBody, Draft: draft.Preferences.Delivery.DraftPullRequests,
-		CommandOutputBytes: draft.Preferences.Delivery.CommandOutputBytes}
+		Remote: input.Preferences.Delivery.Remote, BaseBranch: input.Preferences.Delivery.BaseBranch, HeadBranch: input.BranchName,
+		Commit: delivered.Commit, Title: prTitle, Body: prBody, Draft: input.Preferences.Delivery.DraftPullRequests,
+		CommandOutputBytes: input.Preferences.Delivery.CommandOutputBytes}
 	return request, pullRequest
 }
 
-func renderPublicationTemplate(template, fallback string, draft FixDraft, job fix.JobID) string {
+func renderPublicationTemplate(template, fallback string, input FixInput, job fix.JobID) string {
 	if strings.TrimSpace(template) == "" {
 		template = fallback
 	}
-	return strings.NewReplacer("{targets}", targetLabel(draft.Targets), "{goal}", goalLabel(draft), "{branch}", draft.BranchName, "{job}", string(job)).Replace(template)
+	return strings.NewReplacer("{targets}", targetLabel(input.Targets), "{goal}", goalLabel(input), "{branch}", input.BranchName, "{job}", string(job)).Replace(template)
 }
 
-func (manager *Manager) runPublicationStep(ctx context.Context, step publicationStep, draft FixDraft, job fix.JobID, attempt fix.AttemptID,
-	identity fix.CandidateIdentity, diffHash string, delivered delivery.Result, published publisher.Result) {
-	request, pullRequest := publicationRequests(draft, job, identity, diffHash, delivered)
+func (manager *Manager) runPublicationStep(ctx context.Context, step publicationStep, input FixInput, job fix.JobID, attempt fix.AttemptID,
+	identity fix.CandidateIdentity, diffHash string, paths []fix.RepoPath, delivered delivery.Result, published publisher.Result) {
 	var err error
+	target := input.DeliveryTarget
+	if step == publicationCommit {
+		latest, inventoryErr := manager.deps.Candidates.Diff(ctx, identity)
+		if inventoryErr != nil {
+			err = fmt.Errorf("check files before commit: %w", inventoryErr)
+		} else if latest.Fingerprint != diffHash {
+			err = errors.New("files changed after verification")
+		}
+		current, preflightErr := manager.preflightDelivery(ctx, input.Workspace, input.DeliveryPlan, input.Preferences.Delivery, input.BranchName, true)
+		if err == nil {
+			err = preflightErr
+		}
+		if err == nil && target != (delivery.PreflightResult{}) && current != target {
+			err = errors.New("delivery target changed since publication began")
+		}
+		if err == nil {
+			target = current
+			input.DeliveryTarget = current
+		}
+	}
+	request, pullRequest := publicationRequests(input, job, identity, diffHash, paths, delivered)
 	switch step {
 	case publicationCommit:
-		var current delivery.PreflightResult
-		current, err = manager.preflightDelivery(ctx, draft.Workspace, draft.DeliveryMode, draft.Preferences.Delivery, draft.BranchName, true)
-		if err == nil && current != draft.DeliveryTarget {
-			err = errors.New("delivery target changed since admission")
-		}
 		if err == nil {
 			delivered, err = manager.deps.Delivery.CreateCommit(ctx, request)
 		}
@@ -581,7 +449,7 @@ func (manager *Manager) runPublicationStep(ctx context.Context, step publication
 			published, err = manager.deps.Publisher.Create(ctx, pullRequest)
 		}
 	}
-	manager.results <- workerResult{kind: workerPublish, step: step, job: job, attempt: attempt, delivery: delivered, published: published, err: err}
+	manager.results <- workerResult{kind: workerPublish, job: job, attempt: attempt, delivery: delivered, deliveryTarget: target, published: published, err: err}
 }
 
 func targetLabel(targets []fix.RepoPath) string {
@@ -592,15 +460,6 @@ func targetLabel(targets []fix.RepoPath) string {
 		return targets[0].String()
 	}
 	return fmt.Sprintf("%d files", len(targets))
-}
-
-func validationPlan(draft FixDraft, id string) (validation.Plan, bool) {
-	for _, plan := range draft.Preferences.Validation {
-		if plan.ID == id {
-			return plan, true
-		}
-	}
-	return validation.Plan{}, false
 }
 
 func (manager *Manager) handleResult(state *controllerState, result workerResult) {
@@ -637,6 +496,13 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 		manager.changed(state)
 		return
 	}
+	if result.kind == workerAgent {
+		if reference := strings.TrimSpace(result.agent.SessionReference); reference != "" && !containsText(record.agentReferences, reference) {
+			record.agentReferences = append(record.agentReferences, reference)
+		}
+		detail := nonempty(result.agent.Summary, result.agent.Diagnostic, string(result.agent.Status))
+		manager.appendJobText(record.presentation.ID, fmt.Sprintf("%s  %-16s %s\n", manager.options.Clock().Format(time.RFC3339Nano), "agent_result", cleanLogText(detail)))
+	}
 	if result.kind == workerPublish {
 		manager.handlePublicationResult(state, record, result)
 		return
@@ -649,10 +515,10 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 		if errors.Is(result.err, context.Canceled) && record.presentation.Issue != nil && record.presentation.Issue.Code == "interrupted" {
 			record.presentation.Phase = fix.PhaseFailed
 			record.presentation.Attention = fix.AttentionInfo
-			record.presentation.CurrentAction = "Stopped during worktree cleanup"
-			record.presentation.Issue = &fix.JobIssue{Code: "cleanup_interrupted", Summary: "Worktree cleanup stopped during shutdown"}
+			record.presentation.CurrentAction = "Stopped while finishing"
+			record.presentation.Issue = &fix.JobIssue{Code: "cleanup_interrupted", Summary: "Finishing stopped during shutdown"}
 			manager.releaseReservations(state, record)
-			manager.bump(state, record, "worktree_cleanup_interrupted", nil)
+			manager.bump(state, record)
 			return
 		}
 		record.presentation.Phase = fix.PhaseCompleted
@@ -664,13 +530,13 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 			record.presentation.Attention = fix.AttentionNone
 			record.presentation.CurrentAction = "Done"
 			record.presentation.Issue = nil
-			manager.bump(state, record, "worktree_removed", nil)
+			manager.bump(state, record)
 			return
 		}
 		record.presentation.Attention = fix.AttentionInfo
 		record.presentation.CurrentAction = "Done; worktree cleanup failed"
 		record.presentation.Issue = &fix.JobIssue{Code: "cleanup_failed", Summary: sanitizeSummary(result.err.Error())}
-		manager.bump(state, record, "worktree_cleanup_failed", nil)
+		manager.bump(state, record)
 		return
 	}
 	if record.presentation.Phase == fix.PhaseCanceling && result.kind != workerDiscard {
@@ -685,16 +551,14 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 			record.presentation.Phase = fix.PhaseDiscarded
 			record.presentation.Attention = fix.AttentionNone
 			record.presentation.CurrentAction = "Candidate discarded"
-			kind := "discarded"
 			if wasCanceled {
 				record.presentation.Phase = fix.PhaseCanceled
 				record.presentation.CurrentAction = "Canceled"
-				kind = "canceled"
 			}
 			record.presentation.FinishedAt = manager.options.Clock()
 			manager.releaseReservations(state, record)
 			manager.reconcileConflicts(state)
-			manager.bump(state, record, kind, nil)
+			manager.bump(state, record)
 			return
 		}
 		if record.presentation.Issue != nil && record.presentation.Issue.Code == "canceled" {
@@ -705,7 +569,7 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 			record.presentation.FinishedAt = manager.options.Clock()
 			manager.releaseReservations(state, record)
 			manager.reconcileConflicts(state)
-			manager.bump(state, record, "cancel_cleanup_failed", nil)
+			manager.bump(state, record)
 			return
 		}
 		if errors.Is(result.err, context.Canceled) {
@@ -713,7 +577,7 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 			record.presentation.Attention = fix.AttentionError
 			record.presentation.CurrentAction = "Discard interrupted; candidate state will be reconciled"
 			record.presentation.Issue = &fix.JobIssue{Code: "discard_interrupted", Summary: "Candidate discard was interrupted"}
-			manager.bump(state, record, "discard_interrupted", nil)
+			manager.bump(state, record)
 			return
 		}
 		manager.failRecord(state, record, "discard_failed", result.err)
@@ -735,33 +599,49 @@ func (manager *Manager) handleResult(state *controllerState, result workerResult
 		}
 		record.presentation.Phase = fix.PhaseWaitingVerifier
 		record.presentation.CurrentAction = "Waiting for a verifier slot"
-		manager.bump(state, record, "agent_completed", nil)
+		manager.bump(state, record)
 	case workerVerifier:
 		manager.applyVerification(record, result)
 		manager.reconcileConflicts(state)
-		if record.presentation.Scope == fix.ScopeViolated {
-			manager.failRecord(state, record, "scope_violated", errors.New("agent changed files outside the allowed scope"))
-			return
-		}
-		if record.presentation.TargetStatus != fix.TargetMet || record.presentation.Validation == fix.ValidationFailed {
+		if record.presentation.TargetStatus != fix.TargetMet {
 			record.presentation.AttemptOrdinal++
 			record.presentation.Phase = fix.PhaseQueued
 			record.presentation.Attention = fix.AttentionNone
-			record.presentation.CurrentAction = "Continuing refactor toward the target"
+			retryActivity := fmt.Sprintf("Retry attempt %d queued: target score not met", record.presentation.AttemptOrdinal)
+			record.presentation.CurrentAction = retryActivity
+			retryEntry := LogEntry{At: manager.options.Clock(), Kind: agent.EventActivity, Summary: retryActivity}
+			record.logs = append(record.logs, retryEntry)
+			manager.appendJobText(record.presentation.ID, formatJobActivity(retryEntry))
 			record.presentation.Issue = nil
 			record.presentation.TargetStatus = fix.ScorePending
-			record.presentation.Validation = fix.ValidationNotRun
-			manager.bump(state, record, "verification_continuing", nil)
+			manager.bump(state, record)
 			return
 		}
 		record.presentation.Phase = fix.PhasePublishing
 		record.presentation.Attention = fix.AttentionNone
-		record.presentation.CurrentAction = "Committing verified changes"
+		if record.input.DeliveryPlan.Git == fix.GitLeaveUncommitted {
+			record.presentation.CurrentAction = "Finishing"
+		} else {
+			record.presentation.CurrentAction = "Committing changes"
+		}
 		record.presentation.Issue = nil
-		if manager.bump(state, record, "verification_completed", nil) {
-			manager.startNextPublication(state, record)
+		if manager.bump(state, record) {
+			if record.input.DeliveryPlan.Git == fix.GitLeaveUncommitted {
+				manager.startCandidateCleanup(state, record, *record.candidate)
+			} else {
+				manager.startNextPublication(state, record)
+			}
 		}
 	}
+}
+
+func containsText(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func (manager *Manager) finishCancellation(state *controllerState, record *jobRecord) {
@@ -773,12 +653,12 @@ func (manager *Manager) finishCancellation(state *controllerState, record *jobRe
 		record.presentation.CurrentAction = "Canceled"
 		record.presentation.FinishedAt = manager.options.Clock()
 		manager.reconcileConflicts(state)
-		manager.bump(state, record, "canceled", nil)
+		manager.bump(state, record)
 		return
 	}
 	record.presentation.Phase = fix.PhaseDiscarding
-	record.presentation.CurrentAction = "Canceling; removing isolated worktree"
-	if !manager.bump(state, record, "cancel_cleanup_started", nil) {
+	record.presentation.CurrentAction = "Canceling; cleaning up"
+	if !manager.bump(state, record) {
 		return
 	}
 	manager.startCandidateDiscard(state, record, *record.candidate)
@@ -788,11 +668,11 @@ func (manager *Manager) startCandidateDiscard(state *controllerState, record *jo
 	if manager.deps.Candidates == nil {
 		record.presentation.Phase = fix.PhaseCanceled
 		record.presentation.Attention = fix.AttentionInfo
-		record.presentation.CurrentAction = "Canceled; isolated worktree cleanup unavailable"
+		record.presentation.CurrentAction = "Canceled; cleanup unavailable"
 		record.presentation.FinishedAt = manager.options.Clock()
 		manager.releaseReservations(state, record)
 		manager.reconcileConflicts(state)
-		manager.bump(state, record, "cancel_cleanup_unavailable", nil)
+		manager.bump(state, record)
 		return
 	}
 	state.otherRunning++
@@ -808,14 +688,20 @@ func (manager *Manager) startCandidateCleanup(state *controllerState, record *jo
 	state.otherRunning++
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
 	record.cancel = cleanupCancel
+	preserve := record.input.DeliveryPlan.Workspace == fix.WorkspaceWorktree && record.input.DeliveryPlan.Git == fix.GitLeaveUncommitted
 	go func(job fix.JobID, attempt fix.AttemptID) {
-		err := manager.deps.Candidates.Discard(cleanupCtx, identity)
+		var err error
+		if preserve {
+			err = manager.deps.Candidates.Release(cleanupCtx, identity)
+		} else {
+			err = manager.deps.Candidates.Discard(cleanupCtx, identity)
+		}
 		manager.results <- workerResult{kind: workerCleanup, job: job, attempt: attempt, err: err}
 	}(record.presentation.ID, record.attempt)
 }
 
 // handleCandidatePrepared is the durable boundary between trusted candidate
-// construction and untrusted runtime launch. The identity is journaled before
+// construction and untrusted runtime launch. The identity is saved before
 // any adapter can execute.
 func (manager *Manager) handleCandidatePrepared(state *controllerState, record *jobRecord, result workerResult) {
 	record.cancel = nil
@@ -835,8 +721,9 @@ func (manager *Manager) handleCandidatePrepared(state *controllerState, record *
 	}
 	identity := *result.candidate
 	record.candidate = &identity
+	record.presentation.WorkspacePath = identity.RepositoryRoot
 	record.presentation.CurrentAction = "Candidate prepared; recording ownership"
-	if !manager.bump(state, record, "candidate_prepared", nil) {
+	if !manager.bump(state, record) {
 		state.agentsRunning--
 		return
 	}
@@ -851,19 +738,19 @@ func (manager *Manager) handleCandidatePrepared(state *controllerState, record *
 		record.presentation.Attention = fix.AttentionError
 		record.presentation.CurrentAction = "Interrupted during shutdown; candidate retained for recovery"
 		record.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "Job was interrupted"}
-		manager.bump(state, record, "interrupted", nil)
+		manager.bump(state, record)
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	record.cancel = cancel
 	record.presentation.CurrentAction = "Starting agent"
-	if !manager.bump(state, record, "agent_started", nil) {
+	if !manager.bump(state, record) {
 		state.agentsRunning--
 		record.cancel = nil
 		cancel()
 		return
 	}
-	go manager.runAgent(ctx, record.draft, record.nextAttemptNotes, record.presentation.ID, record.attempt, identity)
+	go manager.runAgent(ctx, record.input, record.nextAttemptNotes, record.presentation.ID, record.attempt, identity)
 }
 
 func workerPhaseMatches(kind workerKind, phase fix.Phase) bool {
@@ -898,7 +785,7 @@ func (manager *Manager) applyDiffInventory(record *jobRecord, diff candidate.Dif
 	record.presentation.DiffFingerprint = diff.Fingerprint
 	record.diffPaths = make(map[fix.RepoPath]bool, len(diff.Files)*2)
 	files := make(map[fix.RepoPath]fix.FilePresentation, len(record.presentation.Targets)+len(diff.Files))
-	for _, file := range baselineTargets(record.draft.Baseline.Contract) {
+	for _, file := range baselineTargets(record.input.Baseline.Contract) {
 		if prior, ok := existing[file.Path]; ok {
 			file.VerifiedScore = prior.VerifiedScore
 			file.VerifiedMetrics = append([]fix.MetricValue(nil), prior.VerifiedMetrics...)
@@ -906,16 +793,15 @@ func (manager *Manager) applyDiffInventory(record *jobRecord, diff candidate.Dif
 		}
 		files[file.Path] = file
 	}
-	allowed := make(map[fix.RepoPath]bool, len(record.draft.AllowedPaths))
-	for _, path := range record.draft.AllowedPaths {
-		allowed[path] = true
-	}
 	for _, file := range diff.Files {
 		if file.Path != "" {
 			record.diffPaths[file.Path] = true
 		}
 		if file.Previous != "" {
 			record.diffPaths[file.Previous] = true
+		}
+		if !sourcepath.IsSourceFile(file.Path.String()) {
+			continue
 		}
 		projected, exists := files[file.Path]
 		if !exists {
@@ -927,10 +813,6 @@ func (manager *Manager) applyDiffInventory(record *jobRecord, diff candidate.Dif
 		projected.Changed = true
 		projected.ChangeStatus = file.Status
 		projected.PreviousPath = file.Previous
-		if record.draft.ChangeScope != "repository" && (!allowed[file.Path] || file.Previous != "" && !allowed[file.Previous]) {
-			projected.Classification = "violation"
-			projected.ScopeViolation = true
-		}
 		files[file.Path] = projected
 	}
 	paths := make([]string, 0, len(files))
@@ -948,6 +830,9 @@ func (manager *Manager) handlePublicationResult(state *controllerState, record *
 	record.cancel = nil
 	record.publicationStep = ""
 	record.delivery = result.delivery
+	if result.deliveryTarget != (delivery.PreflightResult{}) {
+		record.input.DeliveryTarget = result.deliveryTarget
+	}
 	record.published = result.published
 	if result.delivery.Ambiguous || result.published.Ambiguous {
 		record.presentation.Delivery = fix.DeliveryAmbiguous
@@ -964,14 +849,14 @@ func (manager *Manager) handlePublicationResult(state *controllerState, record *
 			record.presentation.Attention = fix.AttentionNone
 			record.presentation.CurrentAction = "Checking canceled delivery"
 			record.presentation.Issue = &fix.JobIssue{Code: "publication_canceled", Summary: "Cancellation stopped publication after an external change may have occurred"}
-			if manager.bump(state, record, "publication_canceled", publicationPayload(record, result.step)) {
+			if manager.bump(state, record) {
 				manager.startNextPublication(state, record)
 			}
 			return
 		}
 		// Persist every known local and remote side effect before the isolated
 		// workspace is eligible for cleanup.
-		if !manager.bump(state, record, "publication_canceled", publicationPayload(record, result.step)) {
+		if !manager.bump(state, record) {
 			return
 		}
 		manager.finishCancellation(state, record)
@@ -983,29 +868,20 @@ func (manager *Manager) handlePublicationResult(state *controllerState, record *
 			record.presentation.Issue = &fix.JobIssue{Code: "publication_ambiguous", Summary: "Publication state is ambiguous", Detail: result.err.Error()}
 			record.presentation.Phase = fix.PhaseFailed
 			record.presentation.CurrentAction = "Publication requires reconciliation"
-			manager.bump(state, record, "publication_ambiguous", publicationPayload(record, result.step))
+			manager.bump(state, record)
 			return
 		}
 		manager.failRecord(state, record, "publication_failed", result.err)
 		return
 	}
-	if !manager.bump(state, record, "publication_step_completed", publicationPayload(record, result.step)) {
+	if !manager.bump(state, record) {
 		return
 	}
 	manager.startNextPublication(state, record)
 }
 
-func publicationPayload(record *jobRecord, step publicationStep) json.RawMessage {
-	return mustJSON(map[string]any{"step": step, "commit": record.delivery.Commit, "local_ref": record.delivery.LocalRef,
-		"remote_ref": record.delivery.RemoteRef, "repository": record.delivery.Repository, "pushed": record.delivery.Pushed, "pull_request": record.published.ProviderID,
-		"ambiguous": record.delivery.Ambiguous || record.published.Ambiguous})
-}
-
 func (manager *Manager) applyVerification(record *jobRecord, result workerResult) {
 	manager.applyDiffInventory(record, result.diff)
-	if result.diff.Scope == fix.ScopeViolated {
-		record.presentation.Attention = fix.AttentionBlocking
-	}
 	for index := range record.presentation.Targets {
 		for _, verified := range result.verify.Files {
 			if record.presentation.Targets[index].Path != verified.Path {
@@ -1023,15 +899,7 @@ func (manager *Manager) applyVerification(record *jobRecord, result workerResult
 		record.presentation.TargetStatus = fix.TargetNotMet
 		record.presentation.Attention = fix.AttentionError
 	}
-	if record.draft.ValidationPlanID == "" {
-		record.presentation.Validation = fix.ValidationNotConfigured
-	} else if result.validation.Passed && result.validation.Stable() {
-		record.presentation.Validation = fix.ValidationPassed
-	} else {
-		record.presentation.Validation = fix.ValidationFailed
-		record.presentation.Attention = fix.AttentionError
-	}
-	if record.presentation.TargetStatus == fix.TargetNotMet || record.presentation.Validation == fix.ValidationFailed {
+	if record.presentation.TargetStatus == fix.TargetNotMet {
 		record.nextAttemptNotes = nextAttemptNotes(record, result)
 	} else {
 		record.nextAttemptNotes = ""
@@ -1047,23 +915,17 @@ func nextAttemptNotes(record *jobRecord, result workerResult) string {
 			diagnostics = append(diagnostics, diagnostic)
 		}
 	}
-	if record.presentation.Validation == fix.ValidationFailed {
-		parts = append(parts, "validation failed")
-		if diagnostic := boundedRetryDiagnostic(result.validation.Diagnostic); diagnostic != "" {
-			diagnostics = append(diagnostics, diagnostic)
-		}
-	}
 	for _, verified := range result.verify.Files {
-		measurements := []string{fmt.Sprintf("SCORE %.1f/%.1f", verified.Score, record.draft.TargetScore)}
+		measurements := []string{fmt.Sprintf("SCORE %.1f/%.1f", verified.Score, record.input.TargetScore)}
 		seen := map[fix.MetricID]bool{}
-		for _, focus := range record.draft.Focus {
+		for _, focus := range record.input.Focus {
 			if metric, ok := verified.Metrics[focus.Metric]; ok {
 				measurements = append(measurements, fmt.Sprintf("%s %.1f/%.1f", metricLabel(metric, focus.Metric), metric.Value, focus.Maximum))
 				seen[focus.Metric] = true
 			}
 		}
-		regressionIDs := make([]fix.MetricID, 0, len(record.draft.Baseline.Contract.Goal.AllowedRegression))
-		for metric := range record.draft.Baseline.Contract.Goal.AllowedRegression {
+		regressionIDs := make([]fix.MetricID, 0, len(record.input.Baseline.Contract.Goal.AllowedRegression))
+		for metric := range record.input.Baseline.Contract.Goal.AllowedRegression {
 			if !seen[metric] {
 				regressionIDs = append(regressionIDs, metric)
 			}
@@ -1074,7 +936,7 @@ func nextAttemptNotes(record *jobRecord, result workerResult) string {
 			if !ok {
 				continue
 			}
-			limit := regressionLimit(record.draft.Baseline.Contract, verified.Path, id)
+			limit := regressionLimit(record.input.Baseline.Contract, verified.Path, id)
 			measurements = append(measurements, fmt.Sprintf("%s %.1f/%.1f", metricLabel(metric, id), metric.Value, limit))
 		}
 		line := fmt.Sprintf("%s: %s", verified.Path, strings.Join(measurements, ", "))
@@ -1111,69 +973,14 @@ func boundedRetryDiagnostic(value string) string {
 	return sanitizeSummary(value)
 }
 
-// transcriptBytes is the exact sum of the JSON-encoded LogEntry values kept
-// for one job. Array punctuation and journal envelope metadata are not charged:
-// the preference governs retained transcript entries, not storage framing.
-func transcriptBytes(entries []LogEntry) int64 {
-	var total int64
-	for _, entry := range entries {
-		encoded, err := json.Marshal(entry)
-		if err != nil {
-			// LogEntry contains only JSON-safe fields. If that invariant is ever
-			// broken, treat the entry as unretainable instead of undercounting it.
-			return math.MaxInt64
-		}
-		size := int64(len(encoded))
-		if total > math.MaxInt64-size {
-			return math.MaxInt64
-		}
-		total += size
+func (manager *Manager) handlePrompt(state *controllerState, job fix.JobID, attempt fix.AttemptID, prompt string) {
+	record := state.jobs[job]
+	if record == nil || record.attempt != attempt || (record.presentation.Phase != fix.PhasePreparing && record.presentation.Phase != fix.PhaseRunning) {
+		return
 	}
-	return total
-}
-
-func trimTranscript(entries []LogEntry, maximum int64) ([]LogEntry, int64, bool) {
-	total := transcriptBytes(entries)
-	start := 0
-	for start < len(entries) && total > maximum {
-		encoded, err := json.Marshal(entries[start])
-		if err != nil {
-			return nil, 0, true
-		}
-		total -= int64(len(encoded))
-		start++
-	}
-	if start == 0 {
-		return entries, total, false
-	}
-	return append([]LogEntry(nil), entries[start:]...), total, true
-}
-
-func appendTranscript(entries []LogEntry, retainedBytes int64, entry LogEntry, maximum int64) ([]LogEntry, int64, bool) {
-	encoded, err := json.Marshal(entry)
-	if err != nil {
-		return entries, retainedBytes, true
-	}
-	size := int64(len(encoded))
-	if retainedBytes > math.MaxInt64-size {
-		retainedBytes = math.MaxInt64
-	} else {
-		retainedBytes += size
-	}
-	entries = append(entries, entry)
-	start := 0
-	for start < len(entries) && retainedBytes > maximum {
-		removed, marshalErr := json.Marshal(entries[start])
-		if marshalErr != nil {
-			return nil, 0, true
-		}
-		retainedBytes -= int64(len(removed))
-		start++
-	}
-	if start == 0 {
-		return entries, retainedBytes, false
-	}
-	return append([]LogEntry(nil), entries[start:]...), retainedBytes, true
+	manager.logJobPrompt(job, attempt, prompt)
+	record.logs = append(record.logs, LogEntry{At: manager.options.Clock(), Kind: "prompt", Summary: cleanLogText(prompt)})
+	manager.changedRecord(state, record)
 }
 
 func (manager *Manager) handleEvent(state *controllerState, event agent.Event) {
@@ -1190,7 +997,7 @@ func (manager *Manager) handleEvent(state *controllerState, event agent.Event) {
 	if event.Kind == agent.EventWarning {
 		record.presentation.WarningCount++
 	}
-	if event.Kind == agent.EventFileChanged && event.Path != "" {
+	if event.Kind == agent.EventFileChanged && event.Path != "" && sourcepath.IsSourceFile(event.Path.String()) {
 		found := false
 		for index := range record.presentation.Targets {
 			if record.presentation.Targets[index].Path == event.Path {
@@ -1204,7 +1011,7 @@ func (manager *Manager) handleEvent(state *controllerState, event agent.Event) {
 		}
 	}
 	if event.ActorID != "" {
-		actorLimit := record.draft.Preferences.Concurrency.MaxActorsPerJob
+		actorLimit := record.input.Preferences.Concurrency.MaxActorsPerJob
 		if record.actors == nil {
 			record.actors = map[string]bool{}
 		}
@@ -1238,41 +1045,39 @@ func (manager *Manager) handleEvent(state *controllerState, event agent.Event) {
 			record.presentation.Usage.ReasoningTokens += event.Usage.ReasoningTokens
 		}
 	}
-	entry := LogEntry{At: event.At, Kind: event.Kind, Summary: sanitizeSummary(event.Summary), ActorID: sanitizeSummary(event.ActorID), ParentActorID: sanitizeSummary(event.ParentActorID)}
+	entry := LogEntry{At: event.At, Kind: event.Kind, Summary: cleanLogText(event.Summary), ActorID: sanitizeSummary(event.ActorID), ParentActorID: sanitizeSummary(event.ParentActorID)}
 	if event.Usage != nil {
 		usage := *event.Usage
 		entry.Usage = &usage
 	}
-	var trimmed bool
-	record.logs, record.logBytes, trimmed = appendTranscript(record.logs, record.logBytes, entry, manager.options.MaxTranscriptBytes)
-	if trimmed {
-		record.truncated = true
-	}
-	record.eventsSinceCheckpoint++
-	if record.eventsSinceCheckpoint >= manager.options.TranscriptCheckpointEvents {
-		manager.flushTranscript(state, event.JobID, event.AttemptID)
-	} else {
-		manager.changedRecord(state, record)
-	}
+	record.logs = append(record.logs, entry)
+	manager.appendJobText(record.presentation.ID, formatJobActivity(entry))
+	manager.changedRecord(state, record)
 }
 
-func (manager *Manager) flushTranscript(state *controllerState, job fix.JobID, attempt fix.AttemptID) {
-	record := state.jobs[job]
-	if record == nil || record.attempt != attempt || record.eventsSinceCheckpoint == 0 {
-		return
+func cleanLogText(value string) string {
+	value = strings.ReplaceAll(value, "\x00", "")
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	return strings.ReplaceAll(value, "\r", "\n")
+}
+
+func formatJobActivity(entry LogEntry) string {
+	actor := ""
+	if entry.ActorID != "" {
+		actor = " [" + entry.ActorID + "]"
 	}
-	record.eventsSinceCheckpoint = 0
-	manager.bump(state, record, "transcript_checkpoint", nil)
+	text := strings.ReplaceAll(entry.Summary, "\n", "\n    ")
+	return fmt.Sprintf("%s  %-16s%s %s\n", entry.At.Format(time.RFC3339Nano), entry.Kind, actor, text)
 }
 
 func (manager *Manager) handleCommand(state *controllerState, call commandCall) {
-	if manager.journalFailed {
-		call.response <- commandResponse{err: errors.New("fix job journal is unavailable")}
-		return
-	}
 	record := state.jobs[call.command.JobID]
 	if record == nil {
 		call.response <- commandResponse{err: ErrJobNotFound}
+		return
+	}
+	if record.runsElsewhere {
+		call.response <- commandResponse{err: errors.New("job is running in another Slopwatch window")}
 		return
 	}
 	if receipt, exists := record.commands[call.command.RequestID]; exists {
@@ -1284,16 +1089,8 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 		call.response <- commandResponse{err: errors.New("job command requires request id")}
 		return
 	}
-	if call.command.ExpectedRevision != 0 && call.command.ExpectedRevision != record.presentation.Revision {
-		call.response <- commandResponse{err: ErrStaleRevision}
-		return
-	}
 	if !hasAction(record.presentation.AllowedActions, call.command.Action) {
 		call.response <- commandResponse{err: ErrActionNotAllowed}
-		return
-	}
-	if err := manager.appendRecord(call.ctx, record, "command_intent", mustJSON(call.command)); err != nil {
-		call.response <- commandResponse{err: fmt.Errorf("persist job command intent: %w", err)}
 		return
 	}
 	previousPresentation := clonePresentation(record.presentation)
@@ -1315,7 +1112,7 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 			reconcileCanceled = true
 		} else if record.candidate != nil {
 			record.presentation.Phase = fix.PhaseDiscarding
-			record.presentation.CurrentAction = "Canceling; removing isolated worktree"
+			record.presentation.CurrentAction = "Canceling; cleaning up"
 			identity := *record.candidate
 			discardIdentity = &identity
 		} else {
@@ -1325,18 +1122,18 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 			record.presentation.FinishedAt = manager.options.Clock()
 		}
 	}
-	record.presentation.Revision++
 	record.presentation.UpdatedAt = manager.options.Clock()
 	manager.refreshActions(record)
-	if err := manager.appendRecord(call.ctx, record, "command_applied", mustJSON(call.command)); err != nil {
+	receipt := CommandReceipt{RequestID: call.command.RequestID, JobID: call.command.JobID, Accepted: true}
+	record.commands[call.command.RequestID] = receipt
+	if err := manager.saveRecord(call.ctx, record); err != nil {
 		record.presentation = previousPresentation
 		record.canceled = previousCanceled
+		delete(record.commands, call.command.RequestID)
 		manager.changed(state)
-		call.response <- commandResponse{err: fmt.Errorf("persist applied job command: %w", err)}
+		call.response <- commandResponse{err: fmt.Errorf("persist job command: %w", err)}
 		return
 	}
-	receipt := CommandReceipt{RequestID: call.command.RequestID, JobID: call.command.JobID, Accepted: true, Revision: record.presentation.Revision}
-	record.commands[call.command.RequestID] = receipt
 	manager.releaseReservations(state, record)
 	manager.reconcileConflicts(state)
 	manager.changed(state)
@@ -1361,7 +1158,7 @@ func (manager *Manager) handleShutdown(state *controllerState, call shutdownCall
 	for _, record := range state.jobs {
 		if record.cancel != nil {
 			// Shutdown interrupts work; it is not a user cancellation. Keep the
-			// current phase so the returned worker result is journaled normally and
+			// current phase so the returned worker result is saved normally and
 			// any candidate or publication state remains recoverable on restart.
 			record.presentation.CurrentAction = "Stopping for shutdown"
 			record.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "Job was interrupted by shutdown"}
@@ -1378,14 +1175,6 @@ func (manager *Manager) handleShutdown(state *controllerState, call shutdownCall
 func (manager *Manager) startNextPublication(state *controllerState, record *jobRecord) {
 	if manager.deps.Delivery == nil || record.candidate == nil {
 		manager.failRecord(state, record, "publication_unavailable", errors.New("publication service or candidate is unavailable"))
-		return
-	}
-	if policy := record.draft.Preferences.Delivery.CommitPolicy; policy != "" && policy != "automatic" {
-		manager.failRecord(state, record, "publication_policy", fmt.Errorf("unsupported commit policy %q", policy))
-		return
-	}
-	if policy := record.draft.Preferences.Delivery.CleanupPolicy; policy != "" && policy != "remove-worktree" {
-		manager.failRecord(state, record, "publication_policy", fmt.Errorf("unsupported cleanup policy %q", policy))
 		return
 	}
 	var step publicationStep
@@ -1417,18 +1206,33 @@ func (manager *Manager) startNextPublication(state *controllerState, record *job
 			step = publicationLocalRef
 			record.presentation.Phase = fix.PhasePublishing
 			record.presentation.CurrentAction = "Creating absent local branch"
+		case record.input.DeliveryPlan.Publish == fix.PublishLocal:
+			if manager.deps.Candidates == nil {
+				record.presentation.Phase = fix.PhaseCompleted
+				record.presentation.CurrentAction = "Done"
+				record.presentation.FinishedAt = manager.options.Clock()
+				manager.releaseReservations(state, record)
+				manager.bump(state, record)
+				return
+			}
+			record.presentation.Phase = fix.PhasePublishing
+			record.presentation.CurrentAction = "Finishing"
+			if manager.bump(state, record) {
+				manager.startCandidateCleanup(state, record, *record.candidate)
+			}
+			return
 		case !record.delivery.Pushed:
 			step = publicationRemoteRef
 			record.presentation.Phase = fix.PhasePublishing
 			record.presentation.CurrentAction = "Creating and verifying absent remote branch"
-		case record.draft.DeliveryMode == fix.DeliveryModePullRequest && record.published.Ambiguous:
+		case record.input.DeliveryPlan.Publish == fix.PublishPullRequest && record.published.Ambiguous:
 			step = publicationPRReconcile
 			record.presentation.Phase = fix.PhaseReconciling
 			record.presentation.CurrentAction = "Reconciling exact pull request identity"
-		case record.draft.DeliveryMode == fix.DeliveryModePullRequest && record.published.URL == "":
+		case record.input.DeliveryPlan.Publish == fix.PublishPullRequest && record.published.URL == "":
 			step = publicationPullRequest
 			record.presentation.Phase = fix.PhasePublishing
-			record.presentation.CurrentAction = "Creating or reconciling draft pull request"
+			record.presentation.CurrentAction = "Creating or reconciling input pull request"
 		default:
 			if manager.deps.Candidates == nil {
 				record.presentation.Phase = fix.PhaseCompleted
@@ -1436,13 +1240,13 @@ func (manager *Manager) startNextPublication(state *controllerState, record *job
 				record.presentation.CurrentAction = "Done"
 				record.presentation.FinishedAt = manager.options.Clock()
 				manager.releaseReservations(state, record)
-				manager.bump(state, record, "delivery_completed", publicationPayload(record, step))
+				manager.bump(state, record)
 				return
 			}
 			record.presentation.Phase = fix.PhasePublishing
 			record.presentation.Attention = fix.AttentionNone
-			record.presentation.CurrentAction = "Removing worktree"
-			if manager.bump(state, record, "delivery_completed", publicationPayload(record, step)) {
+			record.presentation.CurrentAction = "Finishing"
+			if manager.bump(state, record) {
 				manager.startCandidateCleanup(state, record, *record.candidate)
 			}
 			return
@@ -1452,16 +1256,25 @@ func (manager *Manager) startNextPublication(state *controllerState, record *job
 	record.cancel = cancel
 	record.publicationStep = step
 	state.otherRunning++
-	if !manager.bump(state, record, "publication_step_started", mustJSON(map[string]any{"step": step})) {
+	if !manager.bump(state, record) {
 		state.otherRunning--
 		record.cancel = nil
 		cancel()
 		return
 	}
-	draft := cloneSubmit(SubmitRequest{Draft: record.draft}).Draft
+	input := cloneFixInput(record.input)
 	identity := *record.candidate
 	delivered, published := record.delivery, record.published
-	go manager.runPublicationStep(ctx, step, draft, record.presentation.ID, record.attempt, identity, record.diffHash, delivered, published)
+	go manager.runPublicationStep(ctx, step, input, record.presentation.ID, record.attempt, identity, record.diffHash, sortedDiffPaths(record.diffPaths), delivered, published)
+}
+
+func sortedDiffPaths(values map[fix.RepoPath]bool) []fix.RepoPath {
+	result := make([]fix.RepoPath, 0, len(values))
+	for path := range values {
+		result = append(result, path)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	return result
 }
 
 func (manager *Manager) failRecord(state *controllerState, record *jobRecord, code string, err error) {
@@ -1470,150 +1283,162 @@ func (manager *Manager) failRecord(state *controllerState, record *jobRecord, co
 	record.presentation.CurrentAction = "Failed"
 	record.presentation.Issue = &fix.JobIssue{Code: code, Summary: sanitizeSummary(err.Error())}
 	manager.releaseReservations(state, record)
-	manager.bump(state, record, code, mustJSON(map[string]string{"error": sanitizeSummary(err.Error())}))
+	manager.bump(state, record)
 }
 
-func (manager *Manager) bump(state *controllerState, record *jobRecord, kind string, data json.RawMessage) bool {
-	record.presentation.Revision++
+func (manager *Manager) bump(state *controllerState, record *jobRecord) bool {
 	record.presentation.UpdatedAt = manager.options.Clock()
 	manager.refreshActions(record)
-	if err := manager.appendRecord(context.Background(), record, kind, data); err != nil {
+	if err := manager.saveRecord(context.Background(), record); err != nil {
 		if record.cancel != nil {
 			record.cancel()
 		}
 		record.presentation.Phase = fix.PhaseFailed
 		record.presentation.Attention = fix.AttentionBlocking
-		record.presentation.Issue = &fix.JobIssue{Code: "journal_failed", Summary: "Job journal failed", Detail: err.Error()}
+		record.presentation.Issue = &fix.JobIssue{Code: "state_save_failed", Summary: "Job state could not be saved", Detail: err.Error()}
 		manager.changed(state)
 		return false
 	}
 	manager.changed(state)
-	return !manager.journalFailed
+	return true
 }
 
 func (manager *Manager) changedRecord(state *controllerState, record *jobRecord) {
-	record.presentation.Revision++
 	record.presentation.UpdatedAt = manager.options.Clock()
 	manager.refreshActions(record)
+	if !record.runsElsewhere && manager.deps.Store != nil {
+		_ = manager.saveRecord(context.Background(), record)
+	}
 	manager.changed(state)
 }
 
 func (manager *Manager) changed(state *controllerState) {
-	state.globalRevision++
-	if !manager.journalFailed && manager.journalRecords >= len(state.jobs)+manager.options.JournalCompactRecords {
-		if err := manager.compact(state); err != nil {
-			manager.journalFailed = true
-			for _, record := range state.jobs {
-				if record.cancel != nil {
-					record.cancel()
-				}
-				if !isQuiescent(record.presentation.Phase) {
-					record.presentation.Phase = fix.PhaseFailed
-					record.presentation.Attention = fix.AttentionBlocking
-					record.presentation.CurrentAction = "Paused because durable checkpoint failed"
-					record.presentation.Issue = &fix.JobIssue{Code: "journal_failed", Summary: "Job journal checkpoint failed", Detail: sanitizeSummary(err.Error())}
-					record.presentation.Revision++
-				}
-			}
+	for _, record := range state.jobs {
+		manager.logJobResult(record)
+		if isQuiescent(record.presentation.Phase) && record.runLock != nil {
+			_ = record.runLock.Close()
+			record.runLock = nil
 		}
 	}
-	manager.publish(state)
 	manager.notifyMu.Lock()
 	close(manager.notify)
 	manager.notify = make(chan struct{})
 	manager.notifyMu.Unlock()
 }
 
-func (manager *Manager) publish(state *controllerState) {
+func jobList(state *controllerState, filter JobFilter) JobListSnapshot {
 	presentations := make([]fix.JobPresentation, 0, len(state.jobs))
-	logValues := make(map[fix.JobID]logSnapshot, len(state.jobs))
 	for _, id := range state.order {
 		if record := state.jobs[id]; record != nil {
+			if !filter.IncludeFinished && record.presentation.Phase == fix.PhaseCompleted {
+				continue
+			}
+			if filter.ActiveOnly && isQuiescent(record.presentation.Phase) {
+				continue
+			}
 			presentations = append(presentations, clonePresentation(record.presentation))
-			logValues[id] = logSnapshot{entries: append([]LogEntry(nil), record.logs...), truncated: record.truncated}
 		}
 	}
 	sortPresentations(presentations)
-	manager.current.Store(JobListSnapshot{Revision: state.globalRevision, Jobs: presentations})
-	manager.logs.Store(logValues)
+	return JobListSnapshot{Jobs: presentations}
 }
 
-func (manager *Manager) appendRecord(ctx context.Context, record *jobRecord, kind string, data json.RawMessage) error {
-	if manager.journalFailed {
-		return errors.New("fix job journal is unavailable")
+func (manager *Manager) transcriptPage(state *controllerState, id fix.JobID, cursor LogCursor, limit int) transcriptResponse {
+	record := state.jobs[id]
+	if record == nil {
+		return transcriptResponse{err: ErrJobNotFound}
 	}
-	envelope := manager.journalEnvelope(record, kind, data)
-	encoded, err := json.Marshal(envelope)
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	if manager.options.JobIndexPath != "" {
+		contents, err := os.ReadFile(manager.jobTextLogPath(id))
+		if err == nil {
+			lines := strings.Split(strings.TrimSuffix(strings.ReplaceAll(string(contents), "\r\n", "\n"), "\n"), "\n")
+			if len(lines) == 1 && lines[0] == "" {
+				lines = nil
+			}
+			start := max(0, min(int(cursor), len(lines)))
+			end := min(len(lines), start+limit)
+			entries := make([]LogEntry, 0, end-start)
+			for _, line := range lines[start:end] {
+				entries = append(entries, LogEntry{Text: line})
+			}
+			return transcriptResponse{page: LogPage{Entries: entries, Next: LogCursor(end), Complete: end == len(lines)}}
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return transcriptResponse{err: err}
+		}
+	}
+	start := max(0, min(int(cursor), len(record.logs)))
+	end := min(len(record.logs), start+limit)
+	return transcriptResponse{page: LogPage{
+		Entries: append([]LogEntry(nil), record.logs[start:end]...), Next: LogCursor(end), Complete: end == len(record.logs),
+	}}
+}
+
+func (manager *Manager) saveRecord(ctx context.Context, record *jobRecord) error {
+	state := manager.storedJobState(record)
+	encoded, err := json.Marshal(state)
 	if err != nil {
 		return err
 	}
-	_, err = manager.deps.Store.Append(ctx, jobstore.Record{At: manager.options.Clock(), JobID: record.presentation.ID,
-		Revision: record.presentation.Revision, Kind: kind, Data: encoded})
-	if err == nil {
-		manager.journalRecords++
-	}
-	return err
+	return manager.deps.Store.Save(ctx, jobstore.Record{JobID: record.presentation.ID, UpdatedAt: record.presentation.UpdatedAt, State: encoded})
 }
 
-func (manager *Manager) journalEnvelope(record *jobRecord, kind string, data json.RawMessage) journalEnvelope {
+func (manager *Manager) storedJobState(record *jobRecord) storedJobState {
 	diffPaths := make([]fix.RepoPath, 0, len(record.diffPaths))
 	for path := range record.diffPaths {
 		diffPaths = append(diffPaths, path)
 	}
 	sort.Slice(diffPaths, func(i, j int) bool { return diffPaths[i] < diffPaths[j] })
-	envelope := journalEnvelope{Payload: data, Presentation: clonePresentation(record.presentation), Draft: cloneSubmit(SubmitRequest{Draft: record.draft}).Draft,
+	return storedJobState{Presentation: clonePresentation(record.presentation), Input: storedJobInputFrom(record.input),
 		Candidate: record.candidate, DiffHash: record.diffHash, DiffPaths: diffPaths, BaseScope: record.baseScope,
 		Delivery: record.delivery, Published: record.published, Canceled: record.canceled,
-		PublicationStep: record.publicationStep, Attempt: record.attempt, NextAttemptNotes: record.nextAttemptNotes, Commands: cloneReceipts(record.commands)}
-	if kind != "agent_event" {
-		envelope.Transcript = &transcriptCheckpoint{Entries: append([]LogEntry(nil), record.logs...), Truncated: record.truncated}
-	}
-	return envelope
+		PublicationStep: record.publicationStep, Attempt: record.attempt, Commands: cloneReceipts(record.commands)}
 }
 
-func (manager *Manager) compact(state *controllerState) error {
-	records := make([]jobstore.Record, 0, len(state.order))
-	for _, id := range state.order {
-		record := state.jobs[id]
-		if record == nil {
-			continue
-		}
-		envelope := manager.journalEnvelope(record, "checkpoint", nil)
-		encoded, err := json.Marshal(envelope)
-		if err != nil {
-			return fmt.Errorf("encode job checkpoint: %w", err)
-		}
-		records = append(records, jobstore.Record{At: manager.options.Clock(), JobID: id,
-			Revision: record.presentation.Revision, Kind: "checkpoint", Data: encoded})
-	}
-	if err := manager.deps.Store.Compact(context.Background(), records); err != nil {
-		return fmt.Errorf("compact fix job journal: %w", err)
-	}
-	manager.journalRecords = len(records)
-	return nil
+type storedJobState struct {
+	Presentation    fix.JobPresentation              `json:"presentation"`
+	Input           storedJobInput                   `json:"input"`
+	Candidate       *fix.CandidateIdentity           `json:"candidate,omitempty"`
+	DiffHash        string                           `json:"diff_hash,omitempty"`
+	DiffPaths       []fix.RepoPath                   `json:"diff_paths,omitempty"`
+	BaseScope       fix.ScopeState                   `json:"base_scope,omitempty"`
+	Delivery        delivery.Result                  `json:"delivery,omitempty"`
+	Published       publisher.Result                 `json:"published,omitempty"`
+	Canceled        bool                             `json:"canceled,omitempty"`
+	PublicationStep publicationStep                  `json:"publication_step,omitempty"`
+	Attempt         fix.AttemptID                    `json:"attempt,omitempty"`
+	Commands        map[fix.CommandID]CommandReceipt `json:"commands,omitempty"`
 }
 
-type journalEnvelope struct {
-	Payload          json.RawMessage                  `json:"payload,omitempty"`
-	Presentation     fix.JobPresentation              `json:"presentation"`
-	Draft            FixDraft                         `json:"draft"`
-	Candidate        *fix.CandidateIdentity           `json:"candidate,omitempty"`
-	DiffHash         string                           `json:"diff_hash,omitempty"`
-	DiffPaths        []fix.RepoPath                   `json:"diff_paths,omitempty"`
-	BaseScope        fix.ScopeState                   `json:"base_scope,omitempty"`
-	Delivery         delivery.Result                  `json:"delivery,omitempty"`
-	Published        publisher.Result                 `json:"published,omitempty"`
-	Canceled         bool                             `json:"canceled,omitempty"`
-	PublicationStep  publicationStep                  `json:"publication_step,omitempty"`
-	Attempt          fix.AttemptID                    `json:"attempt,omitempty"`
-	NextAttemptNotes string                           `json:"next_attempt_notes,omitempty"`
-	Commands         map[fix.CommandID]CommandReceipt `json:"commands,omitempty"`
-	Transcript       *transcriptCheckpoint            `json:"transcript,omitempty"`
+type storedJobInput struct {
+	Workspace           fix.WorkspaceIdentity    `json:"workspace"`
+	Targets             []fix.RepoPath           `json:"targets"`
+	TargetScore         float64                  `json:"target_score"`
+	ChangeScope         string                   `json:"change_scope"`
+	AllowedPaths        []fix.RepoPath           `json:"allowed_paths"`
+	DeliveryPlan        fix.DeliveryPlan         `json:"delivery_plan"`
+	DeliveryTarget      delivery.PreflightResult `json:"delivery_target"`
+	BranchName          string                   `json:"branch_name"`
+	DeliveryPreferences appconfig.Delivery       `json:"delivery_preferences"`
 }
 
-type transcriptCheckpoint struct {
-	Entries   []LogEntry `json:"entries,omitempty"`
-	Truncated bool       `json:"truncated,omitempty"`
+func storedJobInputFrom(input FixInput) storedJobInput {
+	return storedJobInput{
+		Workspace: input.Workspace, Targets: append([]fix.RepoPath(nil), input.Targets...), TargetScore: input.TargetScore,
+		ChangeScope: input.ChangeScope, AllowedPaths: append([]fix.RepoPath(nil), input.AllowedPaths...), DeliveryPlan: input.DeliveryPlan,
+		DeliveryTarget: input.DeliveryTarget, BranchName: input.BranchName, DeliveryPreferences: input.Preferences.Delivery,
+	}
+}
+
+func (input storedJobInput) fixInput() FixInput {
+	return FixInput{
+		Workspace: input.Workspace, Targets: append([]fix.RepoPath(nil), input.Targets...), TargetScore: input.TargetScore,
+		ChangeScope: input.ChangeScope, AllowedPaths: append([]fix.RepoPath(nil), input.AllowedPaths...), DeliveryPlan: input.DeliveryPlan,
+		DeliveryTarget: input.DeliveryTarget, BranchName: input.BranchName, Preferences: appconfig.Resolved{Delivery: input.DeliveryPreferences},
+	}
 }
 
 func cloneReceipts(source map[fix.CommandID]CommandReceipt) map[fix.CommandID]CommandReceipt {
@@ -1627,67 +1452,66 @@ func cloneReceipts(source map[fix.CommandID]CommandReceipt) map[fix.CommandID]Co
 	return result
 }
 
+func jobRecordFromStored(stored jobstore.Record) (*jobRecord, bool) {
+	var envelope storedJobState
+	if json.Unmarshal(stored.State, &envelope) != nil || envelope.Presentation.ID == "" {
+		return nil, false
+	}
+	record := &jobRecord{
+		presentation: clonePresentation(envelope.Presentation), input: envelope.Input.fixInput(), attempt: envelope.Attempt,
+		commands: cloneReceipts(envelope.Commands), diffHash: envelope.DiffHash, baseScope: envelope.BaseScope,
+		delivery: envelope.Delivery, published: envelope.Published, canceled: envelope.Canceled,
+		publicationStep: envelope.PublicationStep, storedAt: stored.UpdatedAt,
+		resultLogged: isQuiescent(envelope.Presentation.Phase),
+	}
+	if record.commands == nil {
+		record.commands = map[fix.CommandID]CommandReceipt{}
+	}
+	if record.presentation.AttemptOrdinal <= 0 {
+		record.presentation.AttemptOrdinal = 1
+	}
+	if envelope.Candidate != nil {
+		identity := *envelope.Candidate
+		record.candidate = &identity
+	}
+	record.diffPaths = make(map[fix.RepoPath]bool, len(envelope.DiffPaths))
+	for _, path := range envelope.DiffPaths {
+		record.diffPaths[path] = true
+	}
+	return record, true
+}
+
 func (manager *Manager) restore(state *controllerState) {
 	var resumeDelivery []*jobRecord
 	for _, stored := range manager.initial {
-		var envelope journalEnvelope
-		if json.Unmarshal(stored.Data, &envelope) != nil || envelope.Presentation.ID == "" {
+		record, ok := jobRecordFromStored(stored)
+		if !ok {
 			continue
 		}
-		record := state.jobs[stored.JobID]
-		if record == nil {
-			record = &jobRecord{commands: map[fix.CommandID]CommandReceipt{}}
-			state.jobs[stored.JobID] = record
-			state.order = append(state.order, stored.JobID)
-		}
-		record.presentation = clonePresentation(envelope.Presentation)
-		record.draft = cloneSubmit(SubmitRequest{Draft: envelope.Draft}).Draft
-		record.attempt = envelope.Attempt
-		record.nextAttemptNotes = envelope.NextAttemptNotes
-		if record.presentation.AttemptOrdinal <= 0 {
-			record.presentation.AttemptOrdinal = 1
-		}
-		if envelope.Candidate != nil {
-			identity := *envelope.Candidate
-			record.candidate = &identity
-		}
-		record.diffHash = envelope.DiffHash
-		record.baseScope = envelope.BaseScope
-		record.diffPaths = make(map[fix.RepoPath]bool, len(envelope.DiffPaths))
-		for _, path := range envelope.DiffPaths {
-			record.diffPaths[path] = true
-		}
-		record.delivery = envelope.Delivery
-		record.published = envelope.Published
-		record.canceled = envelope.Canceled
-		record.publicationStep = envelope.PublicationStep
-		if envelope.Commands != nil {
-			record.commands = cloneReceipts(envelope.Commands)
-		}
-		if envelope.Transcript != nil {
-			record.logs = append([]LogEntry(nil), envelope.Transcript.Entries...)
-			var trimmed bool
-			record.logs, record.logBytes, trimmed = trimTranscript(record.logs, manager.options.MaxTranscriptBytes)
-			record.truncated = envelope.Transcript.Truncated || trimmed
-		}
-		if stored.Kind == "agent_event" {
-			var entry LogEntry
-			if json.Unmarshal(envelope.Payload, &entry) == nil {
-				var trimmed bool
-				record.logs, record.logBytes, trimmed = appendTranscript(record.logs, record.logBytes, entry, manager.options.MaxTranscriptBytes)
-				if trimmed {
-					record.truncated = true
-				}
-			}
-		}
-		if stored.Kind == "command_applied" {
-			var command fix.JobCommand
-			if json.Unmarshal(envelope.Payload, &command) == nil && command.RequestID != "" {
-				record.commands[command.RequestID] = CommandReceipt{RequestID: command.RequestID, JobID: command.JobID, Accepted: true, Revision: stored.Revision}
-			}
-		}
+		id := record.presentation.ID
+		state.jobs[id] = record
+		state.order = append(state.order, id)
 	}
 	for _, record := range state.jobs {
+		if !isQuiescent(record.presentation.Phase) {
+			runLock, err := manager.deps.Store.Lock(record.presentation.ID)
+			if errors.Is(err, jobstore.ErrJobRunning) {
+				record.runsElsewhere = true
+				for _, key := range reservationKeys(record.input) {
+					state.reservations[key] = record.presentation.ID
+				}
+				continue
+			}
+			if err != nil {
+				record.presentation.Phase = fix.PhaseFailed
+				record.presentation.Attention = fix.AttentionError
+				record.presentation.CurrentAction = "Could not check running job"
+				record.presentation.Issue = &fix.JobIssue{Code: "job_lock", Summary: sanitizeSummary(err.Error())}
+				continue
+			}
+			record.runLock = runLock
+			record.runsHere = true
+		}
 		resumeAfterRestart := record.presentation.Phase == fix.PhasePublishing ||
 			record.presentation.Phase == fix.PhaseReconciling ||
 			(record.presentation.Phase == fix.PhaseFailed && (record.delivery.Ambiguous || record.published.Ambiguous))
@@ -1708,14 +1532,13 @@ func (manager *Manager) restore(state *controllerState) {
 			}
 		}
 		if record.candidate == nil && record.presentation.Phase != fix.PhaseDiscarded {
-			request := candidate.PrepareRequest{Job: record.presentation.ID, Workspace: record.draft.Workspace, Targets: record.draft.Targets,
-				AllowedScope: record.draft.ChangeScope, AllowedPaths: record.draft.AllowedPaths, CommandOutputBytes: record.draft.Preferences.Delivery.CommandOutputBytes,
-				MaxSeedFileBytes: record.draft.Preferences.ValidationWorkspace.MaxFileBytes, MaxSeedTotalBytes: record.draft.Preferences.ValidationWorkspace.MaxTotalBytes}
+			request := candidate.PrepareRequest{Job: record.presentation.ID, Workspace: record.input.Workspace, Targets: record.input.Targets,
+				Mode: record.input.DeliveryPlan.Workspace, AllowedScope: record.input.ChangeScope, AllowedPaths: record.input.AllowedPaths, CommandOutputBytes: record.input.Preferences.Delivery.CommandOutputBytes}
 			identity, found, err := manager.deps.Candidates.DiscoverPrepared(context.Background(), request)
 			if err != nil {
 				if cancelRecovery {
 					record.presentation.Attention = fix.AttentionInfo
-					record.presentation.CurrentAction = "Canceled; isolated worktree cleanup could not be checked"
+					record.presentation.CurrentAction = "Canceled; cleanup could not be checked"
 					record.presentation.Issue = &fix.JobIssue{Code: "cancel_cleanup", Summary: sanitizeSummary(err.Error())}
 				} else {
 					record.presentation.Phase = fix.PhaseFailed
@@ -1725,14 +1548,12 @@ func (manager *Manager) restore(state *controllerState) {
 				}
 			} else if found {
 				record.candidate = &identity
-				record.presentation.Revision++
 				record.presentation.UpdatedAt = manager.options.Clock()
-				if err := manager.appendRecord(context.Background(), record, "candidate_prepared_recovered", nil); err != nil {
-					manager.journalFailed = true
+				if err := manager.saveRecord(context.Background(), record); err != nil {
 					record.presentation.Phase = fix.PhaseFailed
 					record.presentation.Attention = fix.AttentionBlocking
-					record.presentation.CurrentAction = "Recovered candidate could not be journaled"
-					record.presentation.Issue = &fix.JobIssue{Code: "journal_failed", Summary: "Candidate recovery was not durably recorded", Detail: sanitizeSummary(err.Error())}
+					record.presentation.CurrentAction = "Recovered candidate could not be saved"
+					record.presentation.Issue = &fix.JobIssue{Code: "state_save_failed", Summary: "Candidate recovery was not saved", Detail: sanitizeSummary(err.Error())}
 				}
 			}
 		}
@@ -1746,22 +1567,16 @@ func (manager *Manager) restore(state *controllerState) {
 					record.diffHash, record.diffPaths = "", nil
 				} else {
 					record.presentation.Attention = fix.AttentionInfo
-					record.presentation.CurrentAction = "Canceled; isolated worktree cleanup will retry on startup"
+					record.presentation.CurrentAction = "Canceled; cleanup will retry on startup"
 					record.presentation.Issue = &fix.JobIssue{Code: "cancel_cleanup", Summary: sanitizeSummary(err.Error())}
 				}
 			}
 			if record.presentation.FinishedAt.IsZero() {
 				record.presentation.FinishedAt = manager.options.Clock()
 			}
-			record.presentation.Revision++
 			record.presentation.UpdatedAt = manager.options.Clock()
 			manager.refreshActions(record)
-			if err := manager.appendRecord(context.Background(), record, "cancel_recovered", nil); err != nil {
-				manager.journalFailed = true
-			}
-			if state.globalRevision < GlobalRevision(record.presentation.Revision) {
-				state.globalRevision = GlobalRevision(record.presentation.Revision)
-			}
+			_ = manager.saveRecord(context.Background(), record)
 			continue
 		}
 		cleanupRecovery := record.presentation.Issue != nil &&
@@ -1775,7 +1590,6 @@ func (manager *Manager) restore(state *controllerState) {
 			if record.presentation.FinishedAt.IsZero() {
 				record.presentation.FinishedAt = manager.options.Clock()
 			}
-			kind := "worktree_cleanup_recovered"
 			if err == nil {
 				record.candidate = nil
 				record.diffHash, record.diffPaths = "", nil
@@ -1783,20 +1597,13 @@ func (manager *Manager) restore(state *controllerState) {
 				record.presentation.CurrentAction = "Done"
 				record.presentation.Issue = nil
 			} else {
-				kind = "worktree_cleanup_failed"
 				record.presentation.Attention = fix.AttentionInfo
 				record.presentation.CurrentAction = "Done; worktree cleanup failed"
 				record.presentation.Issue = &fix.JobIssue{Code: "cleanup_failed", Summary: sanitizeSummary(err.Error())}
 			}
-			record.presentation.Revision++
 			record.presentation.UpdatedAt = manager.options.Clock()
 			manager.refreshActions(record)
-			if err := manager.appendRecord(context.Background(), record, kind, nil); err != nil {
-				manager.journalFailed = true
-			}
-			if state.globalRevision < GlobalRevision(record.presentation.Revision) {
-				state.globalRevision = GlobalRevision(record.presentation.Revision)
-			}
+			_ = manager.saveRecord(context.Background(), record)
 			continue
 		}
 		if record.candidate != nil {
@@ -1809,14 +1616,13 @@ func (manager *Manager) restore(state *controllerState) {
 					record.presentation.Attention = fix.AttentionNone
 					record.presentation.CurrentAction = "Candidate discard recovered"
 					record.presentation.FinishedAt = manager.options.Clock()
-					record.presentation.Revision++
 				} else {
 					record.presentation.Phase = fix.PhaseFailed
 					record.presentation.Attention = fix.AttentionBlocking
 					record.presentation.CurrentAction = "Candidate discard recovery failed"
 					record.presentation.Issue = &fix.JobIssue{Code: "discard_recovery", Summary: sanitizeSummary(err.Error())}
 				}
-			} else if err := manager.deps.Candidates.Recover(context.Background(), *record.candidate, record.draft.Targets, record.draft.ChangeScope, record.draft.AllowedPaths); err != nil {
+			} else if err := manager.deps.Candidates.Recover(context.Background(), *record.candidate, record.input.Targets, record.input.ChangeScope, record.input.AllowedPaths); err != nil {
 				record.presentation.Phase = fix.PhaseFailed
 				record.presentation.Attention = fix.AttentionError
 				record.presentation.CurrentAction = "Candidate recovery failed"
@@ -1835,19 +1641,15 @@ func (manager *Manager) restore(state *controllerState) {
 			record.presentation.Attention = fix.AttentionError
 			record.presentation.CurrentAction = "Interrupted by previous shutdown"
 			record.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "Job stopped during the previous shutdown"}
-			record.presentation.Revision++
 		}
 		manager.refreshActions(record)
-		if record.presentation.Issue != nil && (record.presentation.Issue.Code == "candidate_recovery" || record.presentation.Issue.Code == "candidate_inventory" || record.presentation.Issue.Code == "candidate_discovery" || record.presentation.Issue.Code == "discard_recovery" || record.presentation.Issue.Code == "journal_failed") {
+		if record.presentation.Issue != nil && (record.presentation.Issue.Code == "candidate_recovery" || record.presentation.Issue.Code == "candidate_inventory" || record.presentation.Issue.Code == "candidate_discovery" || record.presentation.Issue.Code == "discard_recovery" || record.presentation.Issue.Code == "state_save_failed") {
 			record.presentation.AllowedActions = nil
 		}
 		if record.presentation.Phase != fix.PhaseFailed && record.presentation.Phase != fix.PhaseCompleted && record.presentation.Phase != fix.PhaseCanceled && record.presentation.Phase != fix.PhaseDiscarded {
-			for _, target := range record.draft.Targets {
-				state.reservations[reservationKey(record.draft.Workspace, target)] = record.presentation.ID
+			for _, key := range reservationKeys(record.input) {
+				state.reservations[key] = record.presentation.ID
 			}
-		}
-		if state.globalRevision < GlobalRevision(record.presentation.Revision) {
-			state.globalRevision = GlobalRevision(record.presentation.Revision)
 		}
 		if resumeAfterRestart && record.candidate != nil &&
 			(record.presentation.Issue == nil || record.presentation.Issue.Code == "interrupted" ||
@@ -1858,32 +1660,132 @@ func (manager *Manager) restore(state *controllerState) {
 		}
 	}
 	manager.reconcileConflicts(state)
+	for _, record := range state.jobs {
+		manager.logJobResult(record)
+	}
 	for _, record := range resumeDelivery {
 		manager.startNextPublication(state, record)
 	}
 	manager.initial = nil
 }
 
+func (manager *Manager) refreshSharedJobs(state *controllerState) {
+	storedJobs, err := manager.deps.Store.Load(context.Background())
+	if err != nil {
+		return
+	}
+	changed := false
+	for _, stored := range storedJobs {
+		fresh, ok := jobRecordFromStored(stored)
+		if !ok {
+			continue
+		}
+		id := fresh.presentation.ID
+		current := state.jobs[id]
+		if current != nil && current.runsHere {
+			continue
+		}
+		if current != nil && !stored.UpdatedAt.After(current.storedAt) && !(current.runsElsewhere && !isQuiescent(current.presentation.Phase)) {
+			continue
+		}
+		if !isQuiescent(fresh.presentation.Phase) {
+			runLock, lockErr := manager.deps.Store.Lock(id)
+			if errors.Is(lockErr, jobstore.ErrJobRunning) {
+				fresh.runsElsewhere = true
+			} else if lockErr != nil {
+				continue
+			} else {
+				latest, found := manager.latestSharedJob(id)
+				if found {
+					fresh = latest
+				}
+				if !isQuiescent(fresh.presentation.Phase) {
+					fresh.runLock = runLock
+					fresh.runsHere = true
+					fresh.presentation.Phase = fix.PhaseFailed
+					fresh.presentation.Attention = fix.AttentionError
+					fresh.presentation.CurrentAction = "Interrupted"
+					fresh.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "The Slopwatch process running this job stopped"}
+					fresh.presentation.FinishedAt = manager.options.Clock()
+					fresh.presentation.UpdatedAt = fresh.presentation.FinishedAt
+					manager.refreshActions(fresh)
+					_ = manager.saveRecord(context.Background(), fresh)
+				} else {
+					_ = runLock.Close()
+				}
+			}
+		}
+		state.jobs[id] = fresh
+		if current == nil {
+			state.order = append(state.order, id)
+		}
+		changed = true
+	}
+	if !changed {
+		return
+	}
+	state.reservations = map[string]fix.JobID{}
+	for _, record := range state.jobs {
+		if !isQuiescent(record.presentation.Phase) {
+			for _, key := range reservationKeys(record.input) {
+				state.reservations[key] = record.presentation.ID
+			}
+		}
+	}
+	manager.changed(state)
+}
+
+func (manager *Manager) latestSharedJob(id fix.JobID) (*jobRecord, bool) {
+	storedJobs, err := manager.deps.Store.Load(context.Background())
+	if err != nil {
+		return nil, false
+	}
+	for _, stored := range storedJobs {
+		fresh, ok := jobRecordFromStored(stored)
+		if ok && fresh.presentation.ID == id {
+			return fresh, true
+		}
+	}
+	return nil, false
+}
+
 func (manager *Manager) reconcileConflicts(state *controllerState) {
-	// Jobs run in independent worktrees and deliver to independent branches.
+	// A target can belong to only one running job, regardless of workspace or Git result.
 	// Overlapping files are therefore not a user-action state.
 }
 
 func (manager *Manager) releaseReservations(state *controllerState, record *jobRecord) {
-	for _, target := range record.draft.Targets {
-		key := reservationKey(record.draft.Workspace, target)
+	for _, key := range reservationKeys(record.input) {
 		if state.reservations[key] == record.presentation.ID {
 			delete(state.reservations, key)
 		}
 	}
 }
 
-func reservationKey(workspace fix.WorkspaceIdentity, target fix.RepoPath) string {
-	repository := string(workspace.Repository)
-	if repository == "" {
-		repository = workspace.RepositoryRoot
+func reservationKeys(input FixInput) []string {
+	paths := input.Targets
+	if input.DeliveryPlan.Workspace == fix.WorkspaceCurrent {
+		// Current-files agents may perform repository-wide supporting refactors,
+		// so two of them must never mutate the same workspace concurrently.
+		return []string{reservationRoot(input.Workspace) + "\x00*"}
 	}
-	return repository + "\x00" + target.String()
+	keys := make([]string, 0, len(paths))
+	for _, path := range paths {
+		keys = append(keys, reservationRoot(input.Workspace)+"\x00"+path.String())
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func reservationKey(workspace fix.WorkspaceIdentity, target fix.RepoPath) string {
+	return reservationRoot(workspace) + "\x00" + target.String()
+}
+
+func reservationRoot(workspace fix.WorkspaceIdentity) string {
+	if workspace.Repository != "" {
+		return string(workspace.Repository)
+	}
+	return workspace.RepositoryRoot
 }
 
 func baselineTargets(contract fix.ScoringContract) []fix.FilePresentation {
@@ -1903,8 +1805,8 @@ func metricValues(values map[fix.MetricID]fix.MetricValue) []fix.MetricValue {
 	return result
 }
 
-func goalLabel(draft FixDraft) string {
-	return fmt.Sprintf("score ≤ %.1f", draft.TargetScore)
+func goalLabel(input FixInput) string {
+	return fmt.Sprintf("score ≤ %.1f", input.TargetScore)
 }
 
 func allowedActions(value fix.JobPresentation) []fix.JobAction {
@@ -1956,14 +1858,6 @@ func clonePresentation(value fix.JobPresentation) fix.JobPresentation {
 	return result
 }
 
-func cloneJobList(value JobListSnapshot) JobListSnapshot {
-	result := JobListSnapshot{Revision: value.Revision, Jobs: make([]fix.JobPresentation, len(value.Jobs))}
-	for index, job := range value.Jobs {
-		result.Jobs[index] = clonePresentation(job)
-	}
-	return result
-}
-
 func nonempty(values ...string) string {
 	for _, value := range values {
 		if value != "" {
@@ -1981,7 +1875,206 @@ func sanitizeSummary(value string) string {
 	return value
 }
 
-func mustJSON(value any) json.RawMessage {
-	encoded, _ := json.Marshal(value)
-	return encoded
+type jobIndexEntry struct {
+	Job       fix.JobID         `json:"job"`
+	LogFile   string            `json:"log_file"`
+	StartedAt time.Time         `json:"started_at"`
+	Targets   []fix.RepoPath    `json:"targets"`
+	Profile   string            `json:"profile"`
+	Runtime   agent.RuntimeKind `json:"runtime"`
+	Model     agent.ModelID     `json:"model"`
+	Effort    agent.EffortID    `json:"effort"`
+	Score     float64           `json:"target_score"`
+	Metrics   []fix.MetricGoal  `json:"metrics,omitempty"`
+	Scope     string            `json:"may_edit"`
+	Delivery  fix.DeliveryPlan  `json:"delivery"`
+	Branch    string            `json:"branch,omitempty"`
+	End       *jobIndexEnd      `json:"end,omitempty"`
+}
+
+type jobIndexEnd struct {
+	At              time.Time             `json:"at"`
+	Status          fix.Phase             `json:"status"`
+	Result          string                `json:"result"`
+	Error           string                `json:"error,omitempty"`
+	FilesTouched    []jobIndexTouchedFile `json:"files_touched,omitempty"`
+	AgentReferences []string              `json:"agent_references,omitempty"`
+	Tokens          fix.UsagePresentation `json:"tokens,omitempty"`
+	Git             fix.DeliveryState     `json:"git,omitempty"`
+}
+
+type jobIndexTouchedFile struct {
+	Path   fix.RepoPath `json:"path"`
+	Change string       `json:"change,omitempty"`
+}
+
+func (manager *Manager) logJobStart(record *jobRecord) {
+	if record == nil || manager.options.JobIndexPath == "" {
+		return
+	}
+	startedAt := record.presentation.CreatedAt
+	if startedAt.IsZero() {
+		startedAt = manager.options.Clock()
+	}
+	manager.startJobTextLog(record, startedAt)
+	manager.writeJobIndex(manager.indexEntry(record, startedAt))
+}
+
+func (manager *Manager) logJobResult(record *jobRecord) {
+	if record == nil || record.resultLogged || !isQuiescent(record.presentation.Phase) {
+		return
+	}
+	record.resultLogged = true
+	finishedAt := record.presentation.FinishedAt
+	if finishedAt.IsZero() {
+		finishedAt = manager.options.Clock()
+	}
+	entry := manager.indexEntry(record, record.presentation.CreatedAt)
+	entry.End = &jobIndexEnd{At: finishedAt, Status: record.presentation.Phase, Result: record.presentation.CurrentAction,
+		FilesTouched: touchedFiles(record.presentation.Targets), AgentReferences: append([]string(nil), record.agentReferences...),
+		Tokens: record.presentation.Usage, Git: record.presentation.Delivery}
+	if record.presentation.Issue != nil {
+		entry.End.Error = nonempty(record.presentation.Issue.Detail, record.presentation.Issue.Summary)
+	}
+	manager.appendJobText(record.presentation.ID, formatJobEnd(entry.End))
+	manager.writeJobIndex(entry)
+}
+
+func (manager *Manager) indexEntry(record *jobRecord, startedAt time.Time) jobIndexEntry {
+	if startedAt.IsZero() {
+		startedAt = manager.options.Clock()
+	}
+	return jobIndexEntry{
+		Job: record.presentation.ID, LogFile: manager.jobTextLogPath(record.presentation.ID), StartedAt: startedAt,
+		Targets: append([]fix.RepoPath(nil), record.input.Targets...), Profile: string(record.input.Profile.ID), Runtime: record.input.Profile.Runtime,
+		Model: record.input.Model, Effort: record.input.Effort, Score: record.input.TargetScore,
+		Metrics: append([]fix.MetricGoal(nil), record.input.Focus...), Scope: record.input.ChangeScope,
+		Delivery: record.input.DeliveryPlan, Branch: record.input.BranchName,
+	}
+}
+
+func touchedFiles(files []fix.FilePresentation) []jobIndexTouchedFile {
+	result := make([]jobIndexTouchedFile, 0)
+	for _, file := range files {
+		if file.Changed && sourcepath.IsSourceFile(file.Path.String()) {
+			result = append(result, jobIndexTouchedFile{Path: file.Path, Change: file.ChangeStatus})
+		}
+	}
+	return result
+}
+
+func (manager *Manager) jobTextLogPath(job fix.JobID) string {
+	if manager.options.JobIndexPath == "" || job == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(manager.options.JobIndexPath), "fix-jobs", string(job)+".log")
+}
+
+func (manager *Manager) startJobTextLog(record *jobRecord, startedAt time.Time) {
+	path := manager.jobTextLogPath(record.presentation.ID)
+	if path == "" {
+		return
+	}
+	var text strings.Builder
+	fmt.Fprintf(&text, "SLOPWATCH FIX JOB\nJob: %s\nStarted: %s\nAgent: %s\nRuntime: %s\nModel: %s\nEffort: %s\nTarget score: %g\nMay edit: %s\nDelivery: workspace=%s git=%s publish=%s\n",
+		record.presentation.ID, startedAt.Format(time.RFC3339Nano), record.input.Profile.ID, record.input.Profile.Runtime,
+		record.input.Model, record.input.Effort, record.input.TargetScore, record.input.ChangeScope,
+		record.input.DeliveryPlan.Workspace, record.input.DeliveryPlan.Git, record.input.DeliveryPlan.Publish)
+	if record.input.BranchName != "" {
+		fmt.Fprintf(&text, "Branch: %s\n", record.input.BranchName)
+	}
+	text.WriteString("Files:\n")
+	for _, target := range record.input.Targets {
+		fmt.Fprintf(&text, "  %s\n", target)
+	}
+	text.WriteByte('\n')
+	manager.jobLogMu.Lock()
+	defer manager.jobLogMu.Unlock()
+	if os.MkdirAll(filepath.Dir(path), 0o700) != nil {
+		return
+	}
+	_ = os.WriteFile(path, []byte(text.String()), 0o600)
+}
+
+func (manager *Manager) logJobPrompt(job fix.JobID, attempt fix.AttemptID, prompt string) {
+	manager.appendJobText(job, fmt.Sprintf("PROMPT %s\n%s\nEND PROMPT\n\n", attempt, cleanLogText(prompt)))
+}
+
+func (manager *Manager) appendJobText(job fix.JobID, text string) {
+	path := manager.jobTextLogPath(job)
+	if path == "" || text == "" {
+		return
+	}
+	manager.jobLogMu.Lock()
+	defer manager.jobLogMu.Unlock()
+	if os.MkdirAll(filepath.Dir(path), 0o700) != nil {
+		return
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	_, _ = file.WriteString(text)
+	_ = file.Close()
+}
+
+func formatJobEnd(end *jobIndexEnd) string {
+	var text strings.Builder
+	fmt.Fprintf(&text, "\nRESULT\nFinished: %s\nStatus: %s\nResult: %s\n", end.At.Format(time.RFC3339Nano), end.Status, cleanLogText(end.Result))
+	if end.Error != "" {
+		fmt.Fprintf(&text, "Error: %s\n", cleanLogText(end.Error))
+	}
+	if len(end.AgentReferences) > 0 {
+		fmt.Fprintf(&text, "Agent references: %s\n", strings.Join(end.AgentReferences, ", "))
+	}
+	text.WriteString("Files touched:\n")
+	for _, file := range end.FilesTouched {
+		fmt.Fprintf(&text, "  %s %s\n", file.Change, file.Path)
+	}
+	return text.String()
+}
+
+func (manager *Manager) writeJobIndex(entry jobIndexEntry) {
+	path := manager.options.JobIndexPath
+	if path == "" {
+		return
+	}
+	manager.jobLogMu.Lock()
+	defer manager.jobLogMu.Unlock()
+	entries := []jobIndexEntry{}
+	if contents, err := os.ReadFile(path); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(contents)), "\n") {
+			var existing jobIndexEntry
+			if json.Unmarshal([]byte(line), &existing) == nil && existing.Job != "" {
+				entries = append(entries, existing)
+			}
+		}
+	}
+	replaced := false
+	for index := range entries {
+		if entries[index].Job == entry.Job {
+			if entry.End != nil {
+				entries[index].End = entry.End
+			} else {
+				entries[index] = entry
+			}
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		entries = append(entries, entry)
+	}
+	var output strings.Builder
+	encoder := json.NewEncoder(&output)
+	encoder.SetEscapeHTML(false)
+	for _, value := range entries {
+		if encoder.Encode(value) != nil {
+			return
+		}
+	}
+	if os.MkdirAll(filepath.Dir(path), 0o700) != nil {
+		return
+	}
+	_ = os.WriteFile(path, []byte(output.String()), 0o600)
 }

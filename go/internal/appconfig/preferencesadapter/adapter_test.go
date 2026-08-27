@@ -8,13 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/preferences"
-	"github.com/blater/slopwatch/internal/validation"
 )
 
 func TestResolveDefaultsAndCreatesUserPreferences(t *testing.T) {
@@ -35,31 +33,6 @@ func TestResolveDefaultsAndCreatesUserPreferences(t *testing.T) {
 	}
 }
 
-func TestValidationWorkspaceLimitsRoundTripAsVisibleUserPolicy(t *testing.T) {
-	t.Parallel()
-	adapter, _, workspace := newTestAdapter(t)
-	initial, err := adapter.Resolve(t.Context(), workspace, appconfig.SessionOverrides{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	limits := initial.ValidationWorkspace
-	limits.MaxFiles = 12345
-	limits.MaxDirectories = 2345
-	limits.MaxPathBytes = 345678
-	limits.MaxFileBytes = 456789
-	limits.MaxTotalBytes = 567890
-	saved, err := adapter.Save(t.Context(), workspace, appconfig.ScopeUser, appconfig.Patch{ValidationWorkspace: &limits}, initial.Revision)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if saved.Resolved.ValidationWorkspace != limits || saved.Resolved.Origins["validation_workspace.max_total_bytes"] != appconfig.OriginUser {
-		t.Fatalf("saved workspace policy=%#v origins=%#v", saved.Resolved.ValidationWorkspace, saved.Resolved.Origins)
-	}
-	if _, err := adapter.Save(t.Context(), workspace, appconfig.ScopeRepository, appconfig.Patch{ValidationWorkspace: &limits}, saved.Revision); err == nil || !strings.Contains(err.Error(), "user-owned validation workspace") {
-		t.Fatalf("repository workspace policy override error=%v", err)
-	}
-}
-
 func TestUserRoundTripReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
 	adapter, _, workspace := newTestAdapter(t)
@@ -74,28 +47,22 @@ func TestUserRoundTripReturnsDeepCopies(t *testing.T) {
 	fixDefaults := initial.Fix
 	fixDefaults.Profile = "primary"
 	fixDefaults.Focus = []fix.MetricID{"cog", "coupling"}
-	fixDefaults.ValidationPlan = "go"
-	plans := []validation.Plan{{ID: "go", Checks: []validation.Check{{
-		ID: "test", Executable: "go", Arguments: []string{"test", "./..."},
-		Required: true, Timeout: time.Minute, MaxOutputBytes: 4096,
-	}}}}
 	saved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{
-		Profiles: &profiles, Fix: &fixDefaults, Validation: &plans,
+		Profiles: &profiles, Fix: &fixDefaults,
 	}, initial.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Resolved.Fix.Profile != "primary" || saved.Resolved.Fix.ValidationPlan != "go" || saved.Resolved.Origins["agents"] != appconfig.OriginUser {
+	if saved.Resolved.Fix.Profile != "primary" || saved.Resolved.Origins["agents"] != appconfig.OriginUser {
 		t.Fatalf("saved = %#v", saved.Resolved)
 	}
 	saved.Resolved.Profiles[0].Options["sandbox"] = "mutated"
-	saved.Resolved.Validation[0].Checks[0].Arguments[0] = "mutated"
 	saved.Resolved.Fix.Focus[0] = "npath"
 	again, err := adapter.Resolve(context.Background(), workspace, appconfig.SessionOverrides{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.Profiles[0].Options["sandbox"] != "strict" || again.Validation[0].Checks[0].Arguments[0] != "test" || again.Fix.Focus[0] != "cog" {
+	if again.Profiles[0].Options["sandbox"] != "strict" || again.Fix.Focus[0] != "cog" {
 		t.Fatalf("resolved values alias a prior snapshot: %#v", again)
 	}
 }
@@ -184,12 +151,7 @@ func TestRepositoryScopeCannotPersistCommandsOrSecrets(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "cannot register agent profiles") {
 		t.Fatalf("repository profile Save() error = %v", err)
 	}
-	plans := []validation.Plan{{ID: "bad", Checks: []validation.Check{{ID: "run", Executable: "sh"}}}}
-	_, err = adapter.Save(context.Background(), workspace, appconfig.ScopeRepository, appconfig.Patch{Validation: &plans}, initial.Revision)
-	if err == nil || !strings.Contains(err.Error(), "cannot define executable checks") {
-		t.Fatalf("repository validation Save() error = %v", err)
-	}
-	repositoryPath := filepath.Join(workspace.RepositoryRoot, ".slopwatch", "preferences.toml")
+	repositoryPath, _ := adapter.repositoryPreferencesPath(workspace)
 	if err := os.MkdirAll(filepath.Dir(repositoryPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -197,35 +159,11 @@ func TestRepositoryScopeCannotPersistCommandsOrSecrets(t *testing.T) {
 	if err := os.WriteFile(repositoryPath, []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := adapter.Resolve(context.Background(), workspace, appconfig.SessionOverrides{}); err == nil || !strings.Contains(err.Error(), "cannot register agent profiles") {
-		t.Fatalf("repository literal command/secret Resolve() error = %v", err)
+	if _, err := adapter.Resolve(context.Background(), workspace, appconfig.SessionOverrides{}); err != nil {
+		t.Fatalf("invalid repository preferences disabled resolution: %v", err)
 	}
-}
-
-func TestRepositorySelectsTrustedUserValidationPlanByID(t *testing.T) {
-	t.Parallel()
-	adapter, _, workspace := newTestAdapter(t)
-	initial, err := adapter.Resolve(context.Background(), workspace, appconfig.SessionOverrides{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	plans := []validation.Plan{{ID: "go", Checks: []validation.Check{{
-		ID: "test", Executable: "go", Arguments: []string{"test", "./..."},
-		Timeout: time.Minute, MaxOutputBytes: 1024,
-	}}}}
-	userSaved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Validation: &plans}, initial.Revision)
-	if err != nil {
-		t.Fatal(err)
-	}
-	selection := []validation.Plan{{ID: "go"}}
-	repositorySaved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeRepository, appconfig.Patch{Validation: &selection}, userSaved.Revision)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if repositorySaved.Resolved.Origins["validation"] != appconfig.OriginRepository ||
-		len(repositorySaved.Resolved.Validation) != 1 || len(repositorySaved.Resolved.Validation[0].Checks) != 1 ||
-		repositorySaved.Resolved.Validation[0].Checks[0].Executable != "go" {
-		t.Fatalf("repository selection = %#v", repositorySaved.Resolved)
+	if _, err := os.Stat(repositoryPath + ".invalid"); err != nil {
+		t.Fatalf("invalid repository preferences were not set aside: %v", err)
 	}
 }
 
@@ -262,10 +200,10 @@ func TestRepositoryNarrowingIsApplied(t *testing.T) {
 	userFix.Focus = []fix.MetricID{"cog"}
 	userFix.ChangeScope = "repository"
 	userConcurrency := appconfig.Concurrency{
-		MaxAgents: 8, MaxVerifiers: 4, MaxRetainedJobs: 500, MaxTranscriptBytes: 8 << 20, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 8 << 20, MaxCandidatePreviewLines: 10000,
+		MaxAgents: 8, MaxVerifiers: 4, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 8 << 20, MaxCandidatePreviewLines: 10000,
 	}
 	userDelivery := initial.Delivery
-	userDelivery.DefaultMode = fix.DeliveryModePullRequest
+	userDelivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitNewBranch, Publish: fix.PublishPullRequest}
 	userSaved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{
 		Fix: &userFix, Concurrency: &userConcurrency, Delivery: &userDelivery,
 	}, initial.Revision)
@@ -278,10 +216,10 @@ func TestRepositoryNarrowingIsApplied(t *testing.T) {
 	repositoryFix.Focus = []fix.MetricID{"cog", "coupling"}
 	repositoryFix.ChangeScope = "targets-only"
 	repositoryConcurrency := appconfig.Concurrency{
-		MaxAgents: 3, MaxVerifiers: 2, MaxRetainedJobs: 200, MaxTranscriptBytes: 2 << 20, MaxActorsPerJob: 16, MaxCandidatePreviewBytes: 2 << 20, MaxCandidatePreviewLines: 2000,
+		MaxAgents: 3, MaxVerifiers: 2, MaxActorsPerJob: 16, MaxCandidatePreviewBytes: 2 << 20, MaxCandidatePreviewLines: 2000,
 	}
 	repositoryDelivery := userDelivery
-	repositoryDelivery.DefaultMode = fix.DeliveryModeBranch
+	repositoryDelivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceWorktree, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}
 	saved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeRepository, appconfig.Patch{
 		Fix: &repositoryFix, Concurrency: &repositoryConcurrency, Delivery: &repositoryDelivery,
 	}, userSaved.Revision)
@@ -290,7 +228,7 @@ func TestRepositoryNarrowingIsApplied(t *testing.T) {
 	}
 	if saved.Resolved.Fix.TargetScore != 80 || saved.Resolved.Fix.ChangeScope != "targets-only" ||
 		saved.Resolved.Concurrency != repositoryConcurrency ||
-		saved.Resolved.Delivery.DefaultMode != fix.DeliveryModeBranch {
+		saved.Resolved.Delivery.DefaultPlan != repositoryDelivery.DefaultPlan {
 		t.Fatalf("repository narrowing was not applied: %#v", saved.Resolved)
 	}
 	for _, key := range []string{"fix", "concurrency", "delivery"} {
@@ -308,7 +246,7 @@ func TestRepositoryBroadeningAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 	inherited.Fix.Focus = []fix.MetricID{"cog"}
-	inherited.Fix.ValidationPlan = "trusted"
+	inherited.Fix.ChangeScope = "targets-and-tests"
 
 	fixOverride := func(change func(*appconfig.FixDefaults)) preferences.PartialDocument {
 		candidate := inherited.Fix
@@ -339,26 +277,22 @@ func TestRepositoryBroadeningAllowlist(t *testing.T) {
 		{"profile", "user-owned fix profile", fixOverride(func(value *appconfig.FixDefaults) { value.Profile = "repository-profile" })},
 		{"model", "user-owned fix model", fixOverride(func(value *appconfig.FixDefaults) { value.Model = "repository-model" })},
 		{"effort", "user-owned fix effort", fixOverride(func(value *appconfig.FixDefaults) { value.Effort = "repository-effort" })},
-		{"delegation", "user-owned fix delegation", fixOverride(func(value *appconfig.FixDefaults) { value.Delegation = "team" })},
 		{"prompt", "user-owned fix prompt", fixOverride(func(value *appconfig.FixDefaults) { value.PromptTemplate = "repository-prompt" })},
-		{"validation removal", "remove inherited fix validation", fixOverride(func(value *appconfig.FixDefaults) { value.ValidationPlan = "" })},
 		{"agent slots", "concurrency max agents", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxAgents++ })},
 		{"verifier slots", "concurrency max verifiers", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxVerifiers++ })},
-		{"retained jobs", "concurrency retained jobs", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxRetainedJobs++ })},
-		{"transcript bytes", "concurrency transcript bytes", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxTranscriptBytes++ })},
 		{"actors per job", "concurrency actors per job", concurrencyOverride(func(value *appconfig.Concurrency) { value.MaxActorsPerJob++ })},
-		{"delivery mode", "delivery mode", deliveryOverride(func(value *appconfig.Delivery) { value.DefaultMode = fix.DeliveryModePullRequest })},
+		{"delivery plan", "delivery plan", deliveryOverride(func(value *appconfig.Delivery) {
+			value.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitCurrent, Publish: fix.PublishPullRequest}
+		})},
 		{"delivery remote", "user-owned delivery remote", deliveryOverride(func(value *appconfig.Delivery) { value.Remote = "upstream" })},
 		{"delivery base", "user-owned delivery base", deliveryOverride(func(value *appconfig.Delivery) { value.BaseBranch = "develop" })},
 		{"delivery branch template", "user-owned delivery branch template", deliveryOverride(func(value *appconfig.Delivery) { value.BranchTemplate = "repo/{job-short-id}" })},
 		{"delivery publisher", "user-owned delivery publisher", deliveryOverride(func(value *appconfig.Delivery) { value.Publisher = "other" })},
 		{"published pull request", "draft pull request policy", deliveryOverride(func(value *appconfig.Delivery) { value.DraftPullRequests = false })},
-		{"commit policy", "user-owned delivery commit policy", deliveryOverride(func(value *appconfig.Delivery) { value.CommitPolicy = "always" })},
 		{"commit title", "user-owned delivery commit title", deliveryOverride(func(value *appconfig.Delivery) { value.CommitTitleTemplate = "repo title" })},
 		{"commit body", "user-owned delivery commit body", deliveryOverride(func(value *appconfig.Delivery) { value.CommitBodyTemplate = "repo body" })},
 		{"pull request title", "user-owned delivery pull request title", deliveryOverride(func(value *appconfig.Delivery) { value.PullRequestTitleTemplate = "repo title" })},
 		{"pull request body", "user-owned delivery pull request body", deliveryOverride(func(value *appconfig.Delivery) { value.PullRequestBodyTemplate = "repo body" })},
-		{"cleanup policy", "user-owned delivery cleanup policy", deliveryOverride(func(value *appconfig.Delivery) { value.CleanupPolicy = "delete" })},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -380,13 +314,16 @@ func TestRepositoryBroadeningFromFileIsRejected(t *testing.T) {
 	candidate := initial.Concurrency
 	candidate.MaxAgents++
 	preference := appConcurrencyToPreference(candidate)
-	repositoryPath := filepath.Join(workspace.RepositoryRoot, ".slopwatch", "preferences.toml")
+	repositoryPath, _ := adapter.repositoryPreferencesPath(workspace)
 	if err := preferences.SavePartial(repositoryPath, preferences.PartialDocument{Concurrency: &preference}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = adapter.Resolve(context.Background(), workspace, appconfig.SessionOverrides{})
-	if err == nil || !strings.Contains(err.Error(), "cannot broaden concurrency max agents") {
-		t.Fatalf("Resolve() error = %v", err)
+	resolved, err := adapter.Resolve(context.Background(), workspace, appconfig.SessionOverrides{})
+	if err != nil {
+		t.Fatalf("invalid repository preferences disabled resolution: %v", err)
+	}
+	if resolved.Concurrency != initial.Concurrency {
+		t.Fatalf("invalid repository preferences changed effective configuration: %#v", resolved.Concurrency)
 	}
 }
 
@@ -415,21 +352,15 @@ func TestRepositoryBroadeningPatchIsNotPersisted(t *testing.T) {
 func TestLargePositiveOperationalValuesAreAccepted(t *testing.T) {
 	t.Parallel()
 	const (
-		largeSlots      = 10_000
-		largeRetained   = 1_000_000
-		largeTranscript = int64(1 << 50)
-		largeOutput     = int64(1 << 48)
+		largeSlots  = 10_000
+		largeLines  = 1_000_000
+		largeOutput = int64(1 << 48)
 	)
-	largeTimeout := (10_000 * time.Hour).String()
 	defaults := preferences.DefaultDocument()
 	defaults.Concurrency = preferences.Concurrency{
 		MaxAgents: largeSlots, MaxVerifiers: largeSlots,
-		MaxRetainedJobs: largeRetained, MaxTranscriptBytes: largeTranscript, MaxActorsPerJob: largeSlots,
-		MaxCandidatePreviewBytes: largeOutput, MaxCandidatePreviewLines: largeRetained,
+		MaxActorsPerJob: largeSlots, MaxCandidatePreviewBytes: largeOutput, MaxCandidatePreviewLines: largeLines,
 	}
-	defaults.Validation.Plans = []preferences.ValidationPlan{{ID: "test", Checks: []preferences.ValidationCheck{{
-		ID: "test", Executable: "go", Timeout: largeTimeout, MaxOutputBytes: largeOutput,
-	}}}}
 	adapter, err := New(Options{UserPath: filepath.Join(t.TempDir(), "preferences.toml"), Defaults: defaults})
 	if err != nil {
 		t.Fatal(err)
@@ -439,9 +370,7 @@ func TestLargePositiveOperationalValuesAreAccepted(t *testing.T) {
 		t.Fatalf("large positive values were rejected: %v", err)
 	}
 	if resolved.Concurrency.MaxAgents != largeSlots || resolved.Concurrency.MaxVerifiers != largeSlots ||
-		resolved.Concurrency.MaxRetainedJobs != largeRetained || resolved.Concurrency.MaxTranscriptBytes != largeTranscript ||
-		resolved.Concurrency.MaxActorsPerJob != largeSlots ||
-		resolved.Validation[0].Checks[0].Timeout != 10_000*time.Hour || resolved.Validation[0].Checks[0].MaxOutputBytes != largeOutput {
+		resolved.Concurrency.MaxActorsPerJob != largeSlots || resolved.Concurrency.MaxCandidatePreviewBytes != largeOutput {
 		t.Fatalf("large positive values were not preserved: %#v", resolved)
 	}
 }
@@ -532,12 +461,11 @@ func TestOriginsIdentifyProfileOptionsAndListEntries(t *testing.T) {
 	profiles := []agent.Profile{{ID: "primary", Label: "Codex", Runtime: "codex", Executable: "codex", AuthenticationRef: "provider-owned", Options: map[string]string{"sandbox": "strict"}}}
 	fixDefaults := initial.Fix
 	fixDefaults.Focus = []fix.MetricID{"cog"}
-	plans := []validation.Plan{{ID: "go", Checks: []validation.Check{{ID: "test", Executable: "go", Arguments: []string{"test", "./..."}, Timeout: time.Minute, MaxOutputBytes: 1024}}}}
-	saved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Profiles: &profiles, Fix: &fixDefaults, Validation: &plans}, initial.Revision)
+	saved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Profiles: &profiles, Fix: &fixDefaults}, initial.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"agents.primary", "agents.primary.executable", "agents.primary.options.sandbox", "fix.focus.cog", "validation.go", "validation.go.checks.test"} {
+	for _, key := range []string{"agents.primary", "agents.primary.executable", "agents.primary.options.sandbox", "fix.focus.cog"} {
 		if got := saved.Resolved.Origins[key]; got != appconfig.OriginUser {
 			t.Errorf("origin[%q] = %q, want user", key, got)
 		}

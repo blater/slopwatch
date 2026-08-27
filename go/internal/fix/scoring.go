@@ -2,6 +2,8 @@ package fix
 
 type MetricID string
 
+const MetricScore MetricID = "score"
+
 type MetricValue struct {
 	ID       MetricID
 	Label    string
@@ -44,12 +46,3 @@ type ScoringContract struct {
 	Goal            ScoringGoal
 	RequireComplete bool
 }
-
-type ValidationState string
-
-const (
-	ValidationNotConfigured ValidationState = "not_configured"
-	ValidationNotRun        ValidationState = "not_run"
-	ValidationPassed        ValidationState = "passed"
-	ValidationFailed        ValidationState = "failed"
-)

@@ -1,7 +1,5 @@
-// Package isolation runs untrusted agent processes behind a self-reexec
-// supervisor. Presence of the runner is not itself proof that a platform
-// contains every descendant; mutation eligibility is reported separately by
-// Conformance.
+// Package isolation runs supervised child processes with bounded output and
+// per-process cancellation.
 package isolation
 
 import (
@@ -24,32 +22,13 @@ type Limits struct {
 	MaxStderrBytes int64
 }
 
-// WorkspaceLimits are caller-selected candidate inventory/copy ceilings. The
-// same values must be used by host-side validation fingerprinting and the
-// confined workspace copy so neither boundary introduces a hidden lower cap.
-type WorkspaceLimits struct {
-	MaxFiles       int64
-	MaxDirectories int64
-	MaxPathBytes   int64
-	MaxFileBytes   int64
-	MaxTotalBytes  int64
-}
-
-func (limits WorkspaceLimits) Validate() error {
-	if limits.MaxFiles <= 0 || limits.MaxDirectories <= 0 || limits.MaxPathBytes <= 0 || limits.MaxFileBytes <= 0 || limits.MaxTotalBytes <= 0 {
-		return errors.New("workspace limits require positive file, directory, path, per-file, and total-byte ceilings")
-	}
-	return nil
-}
-
 type Request struct {
-	Executable      string
-	Arguments       []string
-	Directory       string
-	Environment     []string
-	Stdin           []byte
-	Limits          Limits
-	WorkspaceLimits WorkspaceLimits
+	Executable  string
+	Arguments   []string
+	Directory   string
+	Environment []string
+	Stdin       []byte
+	Limits      Limits
 }
 
 type Result struct {
@@ -83,93 +62,4 @@ type Executor interface {
 type StreamingExecutor interface {
 	Executor
 	RunStreaming(context.Context, Request, func([]byte)) (Result, error)
-}
-
-type Gate string
-
-const (
-	GateCandidateWrite       Gate = "candidate_write"
-	GateOutsideWriteDenied   Gate = "outside_write_denied"
-	GateGitMetadataDenied    Gate = "git_metadata_denied"
-	GateSensitiveReadsDenied Gate = "sensitive_reads_denied"
-	GateToolNetworkPolicy    Gate = "tool_network_policy"
-	GateTransportAuth        Gate = "transport_auth"
-	GateCrashContainment     Gate = "crash_containment"
-)
-
-// Conformance contains measured guarantees, never inferred capabilities.
-type Conformance struct {
-	CandidateWrite       bool
-	OutsideWriteDenied   bool
-	GitMetadataDenied    bool
-	SensitiveReadsDenied bool
-	ToolNetworkPolicy    bool
-	TransportAuth        bool
-	CrashContainment     bool
-	Diagnostic           string
-}
-
-func (value Conformance) MutationEligible() bool {
-	return value.CandidateWrite && value.OutsideWriteDenied &&
-		value.GitMetadataDenied && value.SensitiveReadsDenied &&
-		value.ToolNetworkPolicy && value.TransportAuth &&
-		value.CrashContainment
-}
-
-func (value Conformance) FailedGates() []Gate {
-	gates := make([]Gate, 0, 7)
-	checks := []struct {
-		gate Gate
-		ok   bool
-	}{
-		{GateCandidateWrite, value.CandidateWrite},
-		{GateOutsideWriteDenied, value.OutsideWriteDenied},
-		{GateGitMetadataDenied, value.GitMetadataDenied},
-		{GateSensitiveReadsDenied, value.SensitiveReadsDenied},
-		{GateToolNetworkPolicy, value.ToolNetworkPolicy},
-		{GateTransportAuth, value.TransportAuth},
-		{GateCrashContainment, value.CrashContainment},
-	}
-	for _, check := range checks {
-		if !check.ok {
-			gates = append(gates, check.gate)
-		}
-	}
-	return gates
-}
-
-type ConformanceRequest struct {
-	Executable            string
-	ProfileArguments      []string
-	ProfileFingerprint    string
-	CandidateRoot         string
-	GitCommonDir          string
-	OutsideRoot           string
-	SensitiveRoots        []string
-	TransportAuthVerified bool
-	Limits                Limits
-}
-
-type Checker interface {
-	Check(context.Context, ConformanceRequest) Conformance
-}
-
-type CheckerFunc func(context.Context, ConformanceRequest) Conformance
-
-func (function CheckerFunc) Check(ctx context.Context, request ConformanceRequest) Conformance {
-	return function(ctx, request)
-}
-
-// DenyAllChecker is the safe default until a platform-specific executable
-// conformance suite has established every required boundary.
-type DenyAllChecker struct {
-	Diagnostic string
-}
-
-func (checker DenyAllChecker) Check(context.Context, ConformanceRequest) Conformance {
-	diagnostic := checker.Diagnostic
-	if diagnostic == "" {
-		diagnostic = "runtime confinement has not been proven on this platform"
-	}
-	return Conformance{Diagnostic: diagnostic}
 }

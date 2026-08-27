@@ -46,7 +46,17 @@ func loadUserPreferences(path string) (userprefs.Document, time.Duration, error)
 	}
 	trendWindow, err := validateUserPreferences(value)
 	if err != nil {
-		return userprefs.Document{}, 0, fmt.Errorf("validate preferences %s: %w", path, err)
+		if path == "" {
+			return userprefs.Document{}, 0, fmt.Errorf("validate built-in preferences: %w", err)
+		}
+		value, err = userprefs.Recover(path, defaultUserPreferences())
+		if err != nil {
+			return userprefs.Document{}, 0, err
+		}
+		trendWindow, err = validateUserPreferences(value)
+		if err != nil {
+			return userprefs.Document{}, 0, fmt.Errorf("validate built-in preferences: %w", err)
+		}
 	}
 	return value, trendWindow, nil
 }

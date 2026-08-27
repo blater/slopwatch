@@ -16,6 +16,7 @@ const (
 	OverlaySettings
 	OverlayConfigSettings
 	OverlayFixForm
+	OverlayTargetScoreEditor
 	OverlayPromptEditor
 	OverlayJobMonitor
 	OverlayJobLog

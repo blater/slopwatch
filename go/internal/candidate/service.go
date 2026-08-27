@@ -4,25 +4,9 @@ package candidate
 
 import (
 	"context"
-	"time"
 
 	"github.com/blater/slopwatch/internal/fix"
 )
-
-type PreflightRequest struct {
-	Workspace          fix.WorkspaceIdentity
-	Targets            []fix.RepoPath
-	CommandOutputBytes int64
-}
-
-type PreflightResult struct {
-	Ready        bool
-	Supported    bool
-	Diagnostic   string
-	CheckedAt    time.Time
-	TargetBlobs  map[fix.RepoPath]fix.ObjectID
-	AllowedPaths []fix.RepoPath
-}
 
 // ScopePlanner freezes the exact repository-relative paths admitted by a
 // named change scope before a job is submitted.
@@ -33,6 +17,7 @@ type ScopePlanner interface {
 type PrepareRequest struct {
 	Job       fix.JobID
 	Workspace fix.WorkspaceIdentity
+	Mode      fix.WorkspaceMode
 	Targets   []fix.RepoPath
 	// AllowedScope is a closed policy name such as "targets" or
 	// "targets-and-tests". It is interpreted by the trusted candidate service,
@@ -40,8 +25,6 @@ type PrepareRequest struct {
 	AllowedScope       string
 	AllowedPaths       []fix.RepoPath
 	CommandOutputBytes int64
-	MaxSeedFileBytes   int64
-	MaxSeedTotalBytes  int64
 }
 
 type DiffFile struct {
@@ -72,7 +55,6 @@ type File struct {
 }
 
 type Service interface {
-	Preflight(context.Context, PreflightRequest) (PreflightResult, error)
 	Prepare(context.Context, PrepareRequest) (fix.CandidateIdentity, error)
 	DiscoverPrepared(context.Context, PrepareRequest) (fix.CandidateIdentity, bool, error)
 	Diff(context.Context, fix.CandidateIdentity) (DiffSnapshot, error)
@@ -82,5 +64,7 @@ type Service interface {
 	// ownership marker, or confirms that the exact owned candidate is gone.
 	ReconcileDiscard(context.Context, fix.CandidateIdentity) error
 	Discard(context.Context, fix.CandidateIdentity) error
+	// Release ends Slopwatch ownership without deleting a preserved workspace.
+	Release(context.Context, fix.CandidateIdentity) error
 	Close() error
 }

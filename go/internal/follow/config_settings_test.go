@@ -20,7 +20,6 @@ import (
 	"github.com/blater/slopwatch/internal/fixprompt"
 	userprefs "github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/style"
-	"github.com/blater/slopwatch/internal/validation"
 )
 
 func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
@@ -52,6 +51,8 @@ func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
 		t.Fatal("Tab escaped the feature settings overlay")
 	}
 	result.configSettings.cursor = 1
+	result.configSettings.working.Delivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}
+	result.configSettings.cursor = 4 // Remote in the expanded delivery form.
 	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.configSettings.editing {
@@ -74,10 +75,10 @@ func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
 	}
 }
 
-func TestLegacyDashboardDefaultsCarryValidFeatureDefaults(t *testing.T) {
+func TestDashboardDefaultsCarryValidFeatureDefaults(t *testing.T) {
 	t.Parallel()
 	value := defaultUserPreferences()
-	if value.Fix.TargetScore != 100 || value.Fix.ChangeScope != "targets-and-tests" ||
+	if value.Fix.TargetScore != 100 || value.Fix.ChangeScope != "repository" ||
 		value.Concurrency.MaxAgents != 2 || value.Delivery.Publisher != "github-cli" {
 		t.Fatalf("dashboard defaults lost feature properties: %#v", value)
 	}
@@ -114,10 +115,9 @@ func TestFeatureSettingsValidateBeforeAsyncSave(t *testing.T) {
 	resolved.Concurrency.MaxAgents = 0
 	model := settingsModel(configConcurrency, resolved, &settingsConfigStore{resolved: settingsResolved()})
 	model.configSettings.dirty = true
-	updated, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	result := updated.(*Model)
-	if command != nil || !strings.Contains(result.configSettings.status, "Cannot save") {
-		t.Fatalf("invalid save status=%q command=%v", result.configSettings.status, command)
+	command := model.saveConfigSettings()
+	if command != nil || !strings.Contains(model.configSettings.status, "Cannot save") {
+		t.Fatalf("invalid save status=%q command=%v", model.configSettings.status, command)
 	}
 }
 
@@ -127,7 +127,7 @@ func TestFeatureSettingsSaveReportsConflictAndServiceErrors(t *testing.T) {
 		err  error
 		want string
 	}{
-		"conflict": {fmt.Errorf("wrapped: %w", appconfig.ErrRevisionConflict), "Save conflict"},
+		"conflict": {fmt.Errorf("wrapped: %w", appconfig.ErrRevisionConflict), "Save failed: settings changed elsewhere"},
 		"service":  {errors.New("disk unavailable"), "Save failed: disk unavailable"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -136,13 +136,12 @@ func TestFeatureSettingsSaveReportsConflictAndServiceErrors(t *testing.T) {
 			model := settingsModel(configConcurrency, settingsResolved(), store)
 			model.configSettings.working.Concurrency.MaxAgents++
 			model.configSettings.dirty = true
-			updated, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-			result := updated.(*Model)
-			if command == nil || store.saveCalls != 0 || !result.configSettings.saving {
+			command := model.saveConfigSettings()
+			if command == nil || store.saveCalls != 0 || !model.configSettings.saving {
 				t.Fatal("save did not remain asynchronous")
 			}
-			updated, _ = result.Update(command())
-			result = updated.(*Model)
+			updated, _ := model.Update(command())
+			result := updated.(*Model)
 			if result.configSettings.saving || !strings.Contains(result.configSettings.status, test.want) || store.saveCalls != 1 {
 				t.Fatalf("save result status=%q calls=%d", result.configSettings.status, store.saveCalls)
 			}
@@ -150,6 +149,33 @@ func TestFeatureSettingsSaveReportsConflictAndServiceErrors(t *testing.T) {
 				t.Fatalf("save contract = revision %d workspace %+v scope %q", store.expected, store.workspace, store.scope)
 			}
 		})
+	}
+}
+
+func TestFixDefaultsSaveEachChangeAndDoNotOfferReload(t *testing.T) {
+	resolved := settingsResolved()
+	store := &settingsConfigStore{resolved: resolved}
+	model := settingsModel(configFix, resolved, store)
+	model.configSettings.cursor = 0
+
+	updated, save := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(*Model)
+	if save == nil || !model.configSettings.saving || model.configSettings.working.Fix.TargetScore != 105 {
+		t.Fatalf("target score change was not saved automatically: %+v", model.configSettings)
+	}
+	model.handleConfigSaved(save().(configSavedMsg))
+	if store.saveCalls != 1 || model.configSettings.dirty || model.configSettings.working.Fix.TargetScore != 105 {
+		t.Fatalf("automatic save did not settle: calls=%d state=%+v", store.saveCalls, model.configSettings)
+	}
+
+	before := model.configSettings.working.Fix.TargetScore
+	_, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if command != nil || model.configSettings.loading || model.configSettings.working.Fix.TargetScore != before {
+		t.Fatal("Fix Defaults retained a reload key")
+	}
+	footer := model.configSettingsFooter()
+	if strings.Contains(footer, "save") || strings.Contains(footer, "reload") {
+		t.Fatalf("Fix Defaults footer still exposes manual persistence: %q", footer)
 	}
 }
 
@@ -548,12 +574,12 @@ func TestFixSettingsProfileCycleClearsForeignRuntimeChoices(t *testing.T) {
 		{ID: "codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"},
 		{ID: "api", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY"},
 	}
-	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort, resolved.Fix.Delegation = "codex", "codex-model", "high", agent.DelegationMode("team")
+	resolved.Fix.Profile, resolved.Fix.Model, resolved.Fix.Effort = "codex", "codex-model", "high"
 
 	if !adjustFixSetting(&resolved, 2, 1, map[agent.ProfileID]agent.ProbeResult{}) {
 		t.Fatal("Fix Settings profile row did not change")
 	}
-	if resolved.Fix.Profile != "api" || resolved.Fix.Model != "" || resolved.Fix.Effort != "" || resolved.Fix.Delegation != agent.DelegationSingle {
+	if resolved.Fix.Profile != "api" || resolved.Fix.Model != "" || resolved.Fix.Effort != "" {
 		t.Fatalf("Fix Settings retained choices belonging to the previous runtime: %#v", resolved.Fix)
 	}
 }
@@ -602,12 +628,13 @@ func TestAPIBackedAgentProfileSavesAndReloadsWithoutExecutable(t *testing.T) {
 		t.Fatalf("saved API profile=%#v", got)
 	}
 
-	reload := model.reloadConfigSettings()
-	if reload == nil {
-		t.Fatal("reload did not remain asynchronous")
+	reopened := &Model{configStore: store, configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"}}
+	reload := reopened.openConfigSettings(configAgents)
+	if reload == nil || !reopened.configSettings.loading {
+		t.Fatal("reopening settings did not load fresh configuration")
 	}
-	model.handleConfigResolved(reload().(configResolvedMsg))
-	got := model.configSettings.working.Profiles
+	reopened.handleConfigResolved(reload().(configResolvedMsg))
+	got := reopened.configSettings.working.Profiles
 	if len(got) != 1 || got[0].ID != "gpt" || got[0].AuthenticationRef != "env:OPENAI_API_KEY" || got[0].Executable != "" {
 		t.Fatalf("reloaded API profile=%#v", got)
 	}
@@ -663,9 +690,8 @@ func (*readyMultiRuntimeProfileServices) Probe(_ context.Context, profile agent.
 		Runtime: profile.Runtime, State: agent.ProbeReady,
 		Authentication: agent.Authentication{Label: "Authenticated"},
 		Capabilities: agent.Capabilities{
-			Models:     []agent.Option[agent.ModelID]{{ID: model, Default: true}},
-			Efforts:    []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
-			Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Default: true}},
+			Models:  []agent.Option[agent.ModelID]{{ID: model, Default: true}},
+			Efforts: []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
 			Isolation: agent.RuntimeIsolation{
 				Writes: agent.CandidateTreeEnforced, ProviderManagedCancellation: true,
 			},
@@ -704,10 +730,9 @@ func (*repairableChoiceProfileServices) Probe(_ context.Context, profile agent.P
 	return agent.ProbeResult{
 		Runtime: profile.Runtime, State: agent.ProbeReady,
 		Capabilities: agent.Capabilities{
-			Models:     []agent.Option[agent.ModelID]{{ID: "choice-model", Default: true}},
-			Efforts:    []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
-			Delegation: []agent.Option[agent.DelegationMode]{{ID: agent.DelegationSingle, Default: true}},
-			Isolation:  agent.RuntimeIsolation{Writes: agent.CandidateTreeEnforced, ProviderManagedCancellation: true},
+			Models:    []agent.Option[agent.ModelID]{{ID: "choice-model", Default: true}},
+			Efforts:   []agent.Option[agent.EffortID]{{ID: "high", Default: true}},
+			Isolation: agent.RuntimeIsolation{Writes: agent.CandidateTreeEnforced, ProviderManagedCancellation: true},
 		},
 	}
 }
@@ -716,15 +741,18 @@ func TestFeatureSettingsRenderAllSectionsAtResponsiveSizes(t *testing.T) {
 	t.Parallel()
 	sections := map[configSettingsKind]string{
 		configAgents: "AGENTS", configFix: "FIX DEFAULTS", configConcurrency: "CONCURRENCY & RETENTION",
-		configValidation: "VALIDATION", configDelivery: "GIT & PULL REQUESTS",
+		configDelivery: "GIT & PULL REQUESTS",
 	}
 	for _, size := range [][2]int{{40, 10}, {72, 16}, {120, 30}} {
 		for kind, heading := range sections {
 			model := settingsModel(kind, settingsResolved(), &settingsConfigStore{})
 			model.width, model.height = size[0], size[1]
 			text := ansi.Strip(model.configSettingsView())
-			if !strings.Contains(text, heading) || kind == configAgents && !strings.Contains(text, "Enter select") || kind != configAgents && !strings.Contains(text, "save") {
+			if !strings.Contains(text, heading) || kind == configAgents && !strings.Contains(text, "Enter select") {
 				t.Fatalf("%s at %dx%d = %q", kind, size[0], size[1], text)
+			}
+			if kind == configFix && (strings.Contains(text, "s save") || strings.Contains(text, "r reload")) {
+				t.Fatalf("Fix Defaults still advertises manual persistence at %dx%d: %q", size[0], size[1], text)
 			}
 		}
 	}
@@ -745,32 +773,9 @@ func TestCompactSettingsEditorKeepsApplyAndCancelFooterVisible(t *testing.T) {
 	}
 }
 
-func TestSettingsKeepTrustedCommandsAndMasterPromptClear(t *testing.T) {
+func TestSettingsKeepDeliveryAndMasterPromptClear(t *testing.T) {
 	resolved := settingsResolved()
 	resolved.Fix.PromptTemplate = fixprompt.DefaultTemplate
-	resolved.Delivery.CleanupPolicy = "remove-worktree"
-	resolved.Delivery.CommitPolicy = "automatic"
-	resolved.Validation = []validation.Plan{{ID: "release", Checks: []validation.Check{{
-		ID: "test", Label: "Go test", Executable: "/usr/bin/go", Arguments: []string{"test", "./..."},
-		WorkingDirectory: "module", Required: true, Timeout: 10 * time.Minute, MaxOutputBytes: 4096,
-	}}}}
-	resolved.Origins["validation.release.checks.test"] = appconfig.OriginRepository
-
-	validationModel := settingsModel(configValidation, resolved, &settingsConfigStore{})
-	validationModel.configSettings.cursor = 18 // trusted command row
-	validationText := ansi.Strip(strings.Join(validationModel.configSettingsLines(100), "\n"))
-	for _, wanted := range []string{"Go test command", "/usr/bin/go", `"./..."`, "installation-owned", "working dir", "module"} {
-		if !strings.Contains(validationText, wanted) {
-			t.Fatalf("validation settings hid %q: %q", wanted, validationText)
-		}
-	}
-	if footer := validationModel.configSettingsFooter(); !strings.Contains(footer, "Read-only in this release") {
-		t.Fatalf("trusted command footer implied editing: %q", footer)
-	}
-	validationModel.configSettings.cursor = 20 // timeout row
-	if footer := validationModel.configSettingsFooter(); !strings.Contains(footer, "Enter edit") {
-		t.Fatalf("editable validation limit footer=%q", footer)
-	}
 
 	deliveryModel := settingsModel(configDelivery, resolved, &settingsConfigStore{})
 	deliveryText := ansi.Strip(strings.Join(deliveryModel.configSettingsLines(100), "\n"))
@@ -781,21 +786,53 @@ func TestSettingsKeepTrustedCommandsAndMasterPromptClear(t *testing.T) {
 	}
 
 	fixModel := settingsModel(configFix, resolved, &settingsConfigStore{})
-	fixModel.configSettings.cursor = 6
-	if text := ansi.Strip(strings.Join(fixModel.configSettingsLines(100), "\n")); !strings.Contains(text, "Agent prompt") || !strings.Contains(text, "[x] SCORE") {
-		t.Fatalf("master prompt or score metric missing: %q", text)
+	fixModel.configSettings.cursor = fixSettingsPromptRow
+	fixText := ansi.Strip(strings.Join(fixModel.configSettingsLines(75), "\n"))
+	if !strings.Contains(fixText, "Agent prompt") || !strings.Contains(fixText, "[x] SCORE") {
+		t.Fatalf("master prompt or score metric missing: %q", fixText)
+	}
+	if strings.Count(fixText, "Focus metrics") != 1 || strings.Contains(fixText, "Focus metric ") || strings.Contains(fixText, "Change scope") || !strings.Contains(fixText, "May edit") {
+		t.Fatalf("Fix settings grouping or labels are wrong: %q", fixText)
+	}
+	gridRows := 0
+	for _, line := range strings.Split(fixText, "\n") {
+		if strings.Count(line, "[") == 3 {
+			gridRows++
+		}
+	}
+	if gridRows != 3 {
+		t.Fatalf("focus metrics are not an aligned 3x3 grid: %q", fixText)
 	}
 	if text := ansi.Strip(strings.Join(fixModel.configSettingsLines(100), "\n")); strings.Contains(text, "Master template used") || strings.Contains(text, "Built-in default") {
 		t.Fatalf("Fix settings contain an explanatory hint: %q", text)
 	}
 }
 
+func TestSavingTargetScoreKeepsModelAndEffortChoicesStable(t *testing.T) {
+	resolved := settingsResolved()
+	model := settingsModel(configFix, resolved, &settingsConfigStore{})
+	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady, Capabilities: agent.Capabilities{
+		Models:  []agent.Option[agent.ModelID]{{ID: "gpt", Label: "GPT"}, {ID: "mini", Label: "Mini"}},
+		Efforts: []agent.Option[agent.EffortID]{{ID: "high", Label: "High"}, {ID: "medium", Label: "Medium"}},
+	}}
+	if !model.configChoiceField(3) || !model.configChoiceField(4) {
+		t.Fatal("model and effort did not start as dropdowns")
+	}
+	command := model.handleConfigSaved(configSavedMsg{generation: model.configSettings.generation, saved: appconfig.Saved{Revision: resolved.Revision + 1, Resolved: resolved}})
+	if command != nil || !model.configChoiceField(3) || !model.configChoiceField(4) {
+		t.Fatal("saving an unrelated FIX DEFAULT caused agent choices to disappear or re-probe")
+	}
+}
+
 func TestFixDefaultsEditTheMasterPrompt(t *testing.T) {
 	model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{})
-	model.configSettings.cursor = 6
+	model.configSettings.cursor = fixSettingsPromptRow
 	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
 	if !model.hasOverlay(OverlayPromptEditor) || !strings.Contains(ansi.Strip(model.View()), "MASTER AGENT PROMPT") {
 		t.Fatalf("master prompt editor did not open: %q", ansi.Strip(model.View()))
+	}
+	if model.configSettings.prompt.ShowLineNumbers || model.configSettings.prompt.Prompt != "" || strings.Contains(ansi.Strip(model.View()), "┃") {
+		t.Fatalf("master prompt did not use a plain text box: %q", ansi.Strip(model.View()))
 	}
 	const prompt = "Refactor {targets} until SCORE is no more than {target_score}."
 	model.configSettings.prompt.SetValue(prompt)
@@ -805,11 +842,36 @@ func TestFixDefaultsEditTheMasterPrompt(t *testing.T) {
 	}
 }
 
+func TestFixDefaultsChoicesOpenAsAnchoredMenusWithoutReflow(t *testing.T) {
+	model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{resolved: settingsResolved()})
+	model.configSettings.cursor = 1 // May edit.
+	closed := model.configSettingsLines(68)
+	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if !model.configSettings.choiceOpen {
+		t.Fatal("Enter did not open the May edit dropdown")
+	}
+	open := model.configSettingsLines(68)
+	if strings.Join(closed, "\n") != strings.Join(open, "\n") {
+		t.Fatalf("opening a settings dropdown reflowed its form rows: closed=%q open=%q", ansi.Strip(strings.Join(closed, "\n")), ansi.Strip(strings.Join(open, "\n")))
+	}
+	view := ansi.Strip(model.configSettingsView())
+	for _, choice := range []string{"Selected files", "Selected files + related tests", "Any file in the project"} {
+		if !strings.Contains(view, choice) {
+			t.Fatalf("settings dropdown omitted %q despite available dialog space: %q", choice, view)
+		}
+	}
+	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyDown})
+	_, save := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if save == nil || model.configSettings.choiceOpen || model.configSettings.working.Fix.ChangeScope != "repository" {
+		t.Fatalf("settings dropdown selection was not applied and saved: %+v", model.configSettings)
+	}
+}
+
 func TestMasterPromptEmptyErrorIsVisible(t *testing.T) {
 	for _, size := range []struct{ width, height int }{{36, 6}, {80, 24}} {
 		model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{})
 		model.width, model.height = size.width, size.height
-		model.configSettings.cursor = 6
+		model.configSettings.cursor = fixSettingsPromptRow
 		model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
 		model.configSettings.prompt.SetValue("   ")
 		model.handleMasterPromptKey(tea.KeyMsg{Type: tea.KeyCtrlS})
@@ -823,6 +885,7 @@ func TestMasterPromptEmptyErrorIsVisible(t *testing.T) {
 
 func TestDeliverySettingsDoNotSilentlyClipOrganisationBranchTemplate(t *testing.T) {
 	resolved := settingsResolved()
+	resolved.Delivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}
 	store := &settingsConfigStore{resolved: resolved}
 	model := &Model{width: 80, height: 24, configStore: store, configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"}}
 	load := model.openConfigSettings(configDelivery)
@@ -840,119 +903,6 @@ func TestDeliverySettingsDoNotSilentlyClipOrganisationBranchTemplate(t *testing.
 	}
 	if got := model.configSettings.working.Delivery.BranchTemplate; got != template {
 		t.Fatalf("committed branch template = %q, want %q", got, template)
-	}
-}
-
-func TestValidationWorkspaceConstraintsAreVisibleAndEditable(t *testing.T) {
-	resolved := settingsResolved()
-	resolved.Origins["validation_workspace.max_files"] = appconfig.OriginUser
-	model := settingsModel(configValidation, resolved, &settingsConfigStore{})
-	text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n"))
-	for _, wanted := range []string{"Workspace files", "100000", "Workspace directories", "Workspace path bytes", "Largest file bytes", "Workspace total bytes", "Container processes", "Container memory bytes", "Container CPU millis", "Container /tmp bytes", "Container workspace bytes", "Container open files", "Generated file bytes", "Container stop timeout", "Docker control timeout", "Safety sentinel timeout", "Crash probe timeout"} {
-		if !strings.Contains(text, wanted) {
-			t.Fatalf("validation workspace settings hid %q: %q", wanted, text)
-		}
-	}
-	if footer := model.configSettingsFooter(); !strings.Contains(footer, "Enter edit") {
-		t.Fatalf("workspace constraint was not editable: %q", footer)
-	}
-	model.beginConfigText()
-	model.configSettings.input.SetValue("120000")
-	if err := model.commitConfigText(); err != nil {
-		t.Fatal(err)
-	}
-	if model.configSettings.working.ValidationWorkspace.MaxFiles != 120000 {
-		t.Fatalf("workspace files=%d", model.configSettings.working.ValidationWorkspace.MaxFiles)
-	}
-	patch := configSettingsPatch(configValidation, model.configSettings.working)
-	if patch.ValidationWorkspace == nil || patch.ValidationWorkspace.MaxFiles != 120000 {
-		t.Fatalf("validation workspace patch=%#v", patch.ValidationWorkspace)
-	}
-	model.configSettings.cursor = 13 // Docker control timeout.
-	model.beginConfigText()
-	model.configSettings.input.SetValue("45s")
-	if err := model.commitConfigText(); err != nil || model.configSettings.working.ValidationWorkspace.ContainerControlTimeout != 45*time.Second {
-		t.Fatalf("control timeout=%s err=%v", model.configSettings.working.ValidationWorkspace.ContainerControlTimeout, err)
-	}
-}
-
-func TestValidationSettingsReportRestartOnlyForStartupPolicyChanges(t *testing.T) {
-	t.Parallel()
-
-	t.Run("workspace and container policy", func(t *testing.T) {
-		t.Parallel()
-		resolved := settingsResolved()
-		store := &settingsConfigStore{resolved: resolved}
-		model := settingsModel(configValidation, resolved, store)
-		model.configSettings.working.ValidationWorkspace.MaxFiles++
-		model.configSettings.dirty = true
-
-		command := model.saveConfigSettings()
-		if command == nil {
-			t.Fatal("workspace policy save did not remain asynchronous")
-		}
-		message := command().(configSavedMsg)
-		if !message.restartRequired {
-			t.Fatal("workspace policy save did not report restart requirement")
-		}
-		model.handleConfigSaved(message)
-		if !strings.Contains(model.configSettings.status, "Saved for next start") || !strings.Contains(model.configSettings.status, "restart Slopwatch") {
-			t.Fatalf("workspace policy save status=%q", model.configSettings.status)
-		}
-	})
-
-	t.Run("validation plan policy", func(t *testing.T) {
-		t.Parallel()
-		resolved := settingsResolved()
-		store := &settingsConfigStore{resolved: resolved}
-		model := settingsModel(configValidation, resolved, store)
-		model.configSettings.working.Validation[0].Checks[0].Timeout = time.Minute
-		model.configSettings.dirty = true
-
-		command := model.saveConfigSettings()
-		if command == nil {
-			t.Fatal("validation plan save did not remain asynchronous")
-		}
-		message := command().(configSavedMsg)
-		if message.restartRequired {
-			t.Fatal("live validation plan save incorrectly reported restart requirement")
-		}
-		model.handleConfigSaved(message)
-		if model.configSettings.status != "Saved" {
-			t.Fatalf("validation plan save status=%q, want live Saved status", model.configSettings.status)
-		}
-	})
-}
-
-func TestValidationPolicySaveAndReturnLeavesFixBlockedUntilRestart(t *testing.T) {
-	resolved := settingsResolved()
-	store := &settingsConfigStore{resolved: resolved}
-	service := &fakeFixService{draft: readyFixDraft("a.go")}
-	model := fixTestModel(service, 80, 24)
-	model.configStore = store
-	model.configWorkspace = fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"}
-	prepare := model.openFixForSelected()
-	model.handleFixPrepared(prepare().(fixPreparedMsg))
-
-	load := model.openConfigSettings(configValidation)
-	model.handleConfigResolved(load().(configResolvedMsg))
-	model.configSettings.returnToFix = true
-	model.overlays.Push(OverlayConfigSettings, OverlayCaller{MainView: MainViewFiles, Overlay: OverlayFixForm})
-	model.configSettings.working.ValidationWorkspace.MaxFiles++
-	model.configSettings.dirty = true
-	model.configSettings.closeAfterSave = true
-	service.prepareErr = errors.New("prepare fix: validation workspace or container settings changed after Slopwatch started; restart Slopwatch before preparing another Fix so the saved policy is enforced")
-
-	save := model.saveConfigSettings()
-	message := save().(configSavedMsg)
-	reprepare := model.handleConfigSaved(message)
-	if reprepare == nil || model.configSettings.open {
-		t.Fatalf("save-and-return did not close Settings and recheck Fix: open=%t command=%v", model.configSettings.open, reprepare)
-	}
-	model.handleFixPrepared(reprepare().(fixPreparedMsg))
-	if !model.hasOverlay(OverlayFixForm) || model.fixDialog.loading || model.fixDialog.statusText != "Preparation failed" ||
-		!strings.Contains(model.fixDialog.errorText, "restart Slopwatch") || !strings.Contains(model.fixDialog.errorText, "saved policy is enforced") {
-		t.Fatalf("Fix was not persistently restart-blocked after policy save: %+v", model.fixDialog)
 	}
 }
 
@@ -1001,12 +951,6 @@ func (store *settingsConfigStore) Save(_ context.Context, workspace fix.Workspac
 	if patch.Concurrency != nil {
 		resolved.Concurrency = *patch.Concurrency
 	}
-	if patch.Validation != nil {
-		resolved.Validation = cloneConfigValidation(*patch.Validation)
-	}
-	if patch.ValidationWorkspace != nil {
-		resolved.ValidationWorkspace = *patch.ValidationWorkspace
-	}
 	resolved.Revision++
 	store.resolved = cloneConfigResolved(resolved)
 	return appconfig.Saved{Revision: resolved.Revision, Resolved: resolved}, nil
@@ -1030,19 +974,16 @@ func settingsResolved() appconfig.Resolved {
 		SchemaVersion: 1, Revision: 7,
 		Origins: map[string]appconfig.Origin{
 			"agents": appconfig.OriginUser, "fix": appconfig.OriginBuiltIn, "concurrency": appconfig.OriginUser,
-			"validation": appconfig.OriginUser, "delivery": appconfig.OriginBuiltIn,
+			"delivery": appconfig.OriginBuiltIn,
 		},
 		Fix: appconfig.FixDefaults{
-			TargetScore: 100, ChangeScope: "targets-and-tests", Profile: "codex", Delegation: "single", PromptTemplate: fixprompt.DefaultTemplate,
+			TargetScore: 100, Focus: []fix.MetricID{fix.MetricScore}, ChangeScope: "targets-and-tests", Profile: "codex", PromptTemplate: fixprompt.DefaultTemplate,
 		},
-		Concurrency: appconfig.Concurrency{MaxAgents: 2, MaxVerifiers: 1, MaxRetainedJobs: 100, MaxTranscriptBytes: 1024 * 1024, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 4 << 20, MaxCandidatePreviewLines: 5000},
-		ValidationWorkspace: appconfig.ValidationWorkspace{MaxFiles: 100000, MaxDirectories: 20000, MaxPathBytes: 16 << 20, MaxFileBytes: 64 << 20, MaxTotalBytes: 512 << 20,
-			ContainerPIDs: 256, ContainerMemoryBytes: 4 << 30, ContainerCPUMillis: 2000, ContainerTemporaryBytes: 1 << 30, ContainerWorkspaceBytes: 1 << 30,
-			ContainerNofileLimit: 1024, ContainerGeneratedFileBytes: 64 << 20, ContainerStopTimeout: 3 * time.Second, ContainerControlTimeout: 30 * time.Second,
-			ContainerSentinelTimeout: 10 * time.Second, ContainerCrashProbeTimeout: 15 * time.Second},
+		Concurrency: appconfig.Concurrency{MaxAgents: 2, MaxVerifiers: 1, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 4 << 20, MaxCandidatePreviewLines: 5000},
 		Profiles:    []agent.Profile{{ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"}},
-		Validation:  []validation.Plan{{ID: "go-test", Checks: []validation.Check{{ID: "test", Executable: "go"}}}},
-		Delivery:    appconfig.Delivery{DefaultMode: "branch", Remote: "origin", BranchTemplate: "slopwatch/fix-{job}", Publisher: "github-cli", DraftPullRequests: true, CommitPolicy: "automatic", CleanupPolicy: "remove-worktree"},
+		Delivery: appconfig.Delivery{DefaultPlan: fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitLeaveUncommitted, Publish: fix.PublishLocal}, Remote: "origin", BaseBranch: "main",
+			BranchTemplate: "slopwatch/fix-{job}", Publisher: "github-cli", DraftPullRequests: true, CommandOutputBytes: 4 << 20,
+			CommitTitleTemplate: "Refactor {targets}", CommitBodyTemplate: "Fix {goal}", PullRequestTitleTemplate: "Refactor {targets}", PullRequestBodyTemplate: "Fix {goal}"},
 		TrendWindow: 10 * time.Minute,
 	}
 }

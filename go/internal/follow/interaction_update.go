@@ -34,11 +34,11 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 		return handleSourceLoaded(model, message)
 	case sourceHighlighted:
 		return handleSourceHighlighted(model, message)
-	case fixPreparedMsg:
-		model.handleFixPrepared(message)
+	case fixLoadedMsg:
+		model.handleFixLoaded(message)
 		return model, nil
-	case fixSubmittedMsg:
-		model.handleFixSubmitted(message)
+	case fixStartedMsg:
+		model.handleFixStarted(message)
 		return model, nil
 	case fixTargetPreferenceSavedMsg:
 		return model, model.handleFixTargetPreferenceSaved(message)
@@ -52,8 +52,7 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	case jobMonitorMsg:
 		return model, model.handleJobMonitor(message)
 	case jobReaderMsg:
-		model.handleJobReader(message)
-		return model, nil
+		return model, model.handleJobReader(message)
 	case shutdownCompleteMsg:
 		return model, model.handleShutdownComplete(message)
 	case tea.KeyMsg:
@@ -82,8 +81,7 @@ func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.C
 	model.ensureAgentVisible()
 	model.clampAgentHorizontalOffset()
 	if model.hasOverlay(OverlayPromptEditor) {
-		model.configSettings.prompt.SetWidth(max(1, model.width))
-		model.configSettings.prompt.SetHeight(max(1, model.height-2))
+		model.resizeMasterPromptTextBox()
 	}
 	model.clampDetailOffset()
 	if model.sourceView {
