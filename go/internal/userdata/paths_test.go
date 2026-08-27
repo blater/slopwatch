@@ -12,11 +12,11 @@ func TestRootKeepsAllUserDataInOnePlatformLocation(t *testing.T) {
 	for _, test := range []struct {
 		name, goos, xdg, want string
 	}{
-		{"linux xdg", "linux", xdg, filepath.Join(xdg, "slopwatch")},
-		{"linux standard fallback", "linux", "", filepath.Join(home, ".config", "slopwatch")},
-		{"linux ignores relative xdg", "linux", "relative", filepath.Join(home, ".config", "slopwatch")},
-		{"darwin", "darwin", xdg, filepath.Join(home, ".slopwatch")},
-		{"windows", "windows", xdg, filepath.Join(home, ".slopwatch")},
+		{"linux xdg", "linux", xdg, filepath.Join(xdg, "slopmochi")},
+		{"linux standard fallback", "linux", "", filepath.Join(home, ".config", "slopmochi")},
+		{"linux ignores relative xdg", "linux", "relative", filepath.Join(home, ".config", "slopmochi")},
+		{"darwin", "darwin", xdg, filepath.Join(home, ".slopmochi")},
+		{"windows", "windows", xdg, filepath.Join(home, ".slopmochi")},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := root(test.goos, test.xdg, home)

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	workspacefs "github.com/blater/slopwatch/internal/workspace"
+	workspacefs "github.com/blater/slopmochi/internal/workspace"
 )
 
 var knownConfigurationFiles = []string{

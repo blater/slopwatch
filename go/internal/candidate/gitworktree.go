@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/gitmanifest"
-	"github.com/blater/slopwatch/internal/isolation"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/gitmanifest"
+	"github.com/blater/slopmochi/internal/isolation"
 )
 
 type GitWorktreeConfig struct {

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopmochi/internal/report"
 )
 
 func TestActiveCatalogMakesTypeScriptTypesOptInWithoutMutatingSource(t *testing.T) {

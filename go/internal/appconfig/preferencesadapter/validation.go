@@ -8,11 +8,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/preferences"
-	"github.com/blater/slopwatch/internal/scoring"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/preferences"
+	"github.com/blater/slopmochi/internal/scoring"
 )
 
 var environmentName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)

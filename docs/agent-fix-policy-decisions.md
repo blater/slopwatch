@@ -5,10 +5,10 @@ Status: owner direction incorporated.
 ## Non-configurable correctness boundaries
 
 - An agent receives targets, measurements and preferences through the typed
-  harness request. It does not read Slopwatch caches or preference files.
+  harness request. It does not read Slopmochi caches or preference files.
 - The baseline measures the selected contents as they exist when the job is
   prepared; it is not defined by, or required to match, Git `HEAD`.
-- Slopwatch measures the result; provider completion text is not a score.
+- Slopmochi measures the result; provider completion text is not a score.
 - Policy diagnostics are warnings. Preparation and admission do not try to
   predict every condition that may affect execution or delivery; operations
   run and report concrete failures when they occur. Only malformed requests or
@@ -22,7 +22,7 @@ Status: owner direction incorporated.
 | Area | Behaviour |
 | --- | --- |
 | Authentication | Codex is first and defaults to its provider-owned ChatGPT/API-key login. OpenAI API is a separate explicit choice. There is no silent fallback. |
-| Duration | No Slopwatch attempt timeout and no inactivity disconnect. Readiness timeout and post-cancel grace are preferences-file-only adapter settings. |
+| Duration | No Slopmochi attempt timeout and no inactivity disconnect. Readiness timeout and post-cancel grace are preferences-file-only adapter settings. |
 | Iteration | The agent is automatically called again with fresh measurements until the target is met or the job is canceled/fails. There is no attempt cap. |
 | Concurrency | Agent and verifier counts are user-configurable. New jobs may be submitted while others run. |
 | Persistence | Each job has one plain JSON state document. Transcripts and configurable persistence limits are excluded. |

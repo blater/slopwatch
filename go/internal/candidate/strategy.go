@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 // StrategyService keeps candidate location policy out of the controller.

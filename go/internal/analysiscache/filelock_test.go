@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	lockHelperEnvironment = "SLOPWATCH_FILELOCK_HELPER"
-	lockRootEnvironment   = "SLOPWATCH_FILELOCK_ROOT"
-	lockGateEnvironment   = "SLOPWATCH_FILELOCK_GATE"
-	lockIDEnvironment     = "SLOPWATCH_FILELOCK_ID"
+	lockHelperEnvironment = "SLOPMOCHI_FILELOCK_HELPER"
+	lockRootEnvironment   = "SLOPMOCHI_FILELOCK_ROOT"
+	lockGateEnvironment   = "SLOPMOCHI_FILELOCK_GATE"
+	lockIDEnvironment     = "SLOPMOCHI_FILELOCK_ID"
 )
 
 func TestGenerationCommitUsesCrossProcessLock(t *testing.T) {

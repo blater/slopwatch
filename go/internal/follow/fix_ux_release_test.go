@@ -8,9 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixapp"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixapp"
 )
 
 func TestCompactJobInspectScrollsSummaryAndActorsWithoutLogs(t *testing.T) {
@@ -109,7 +109,7 @@ func TestDeliveryAndBranchEditsDoNotRequireSpeculativeRecheck(t *testing.T) {
 
 	model.fixDialog.cursor = fixFieldBranch
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	model.fixDialog.branch.SetValue("slopwatch/fix/edited")
+	model.fixDialog.branch.SetValue("slopmochi/fix/edited")
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
 	if !model.fixDialogRunnable() {
 		t.Fatal("branch edit created a speculative readiness gate")

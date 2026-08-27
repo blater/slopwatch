@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/sourcepath"
+	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopmochi/internal/sourcepath"
 )
 
 var ErrUnsupported = errors.New("native analyzer path is not yet supported")

@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/blater/slopwatch/internal/fix"
+import "github.com/blater/slopmochi/internal/fix"
 
 type ResultStatus string
 

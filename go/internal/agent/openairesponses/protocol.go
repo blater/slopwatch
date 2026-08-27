@@ -69,7 +69,7 @@ func functionTools(hasTargetManifest bool) []toolDefinition {
 	if hasTargetManifest {
 		tools = append(tools, toolDefinition{
 			Type: "function", Name: "read_target_manifest",
-			Description: "Read the complete newline-delimited selected target list supplied by Slopwatch.",
+			Description: "Read the complete newline-delimited selected target list supplied by Slopmochi.",
 			Parameters:  objectSchema(map[string]any{}), Strict: true,
 		})
 	}
@@ -200,7 +200,7 @@ type parsedOutput struct {
 func decodeAPIResponse(payload []byte) (apiResponse, parsedOutput, error) {
 	var response apiResponse
 	// The response envelope is intentionally forward-compatible: provider
-	// metadata evolves independently of Slopwatch. Security-sensitive output
+	// metadata evolves independently of Slopmochi. Security-sensitive output
 	// items and tool calls below remain strict and deny unknown shapes.
 	if err := json.Unmarshal(payload, &response); err != nil {
 		return apiResponse{}, parsedOutput{}, errors.New("Responses API returned malformed JSON")

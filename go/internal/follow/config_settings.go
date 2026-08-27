@@ -16,12 +16,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixapp"
-	"github.com/blater/slopwatch/internal/scoring"
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixapp"
+	"github.com/blater/slopmochi/internal/scoring"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 type configSettingsKind string
@@ -81,10 +81,10 @@ type agentProviderChoice struct {
 }
 
 var agentProviderChoices = []agentProviderChoice{
-	{Label: "Claude CLI", Runtime: "claude-cli", Unavailable: "The Claude CLI adapter is not included in this Slopwatch build."},
-	{Label: "Claude API", Runtime: "anthropic-api", Unavailable: "The Claude API adapter is not included in this Slopwatch build."},
+	{Label: "Claude CLI", Runtime: "claude-cli", Unavailable: "The Claude CLI adapter is not included in this Slopmochi build."},
+	{Label: "Claude API", Runtime: "anthropic-api", Unavailable: "The Claude API adapter is not included in this Slopmochi build."},
 	{Label: "Codex", Runtime: "codex-cli"},
-	{Label: "Grok", Runtime: "grok-api", Unavailable: "The Grok adapter is not included in this Slopwatch build."},
+	{Label: "Grok", Runtime: "grok-api", Unavailable: "The Grok adapter is not included in this Slopmochi build."},
 	{Label: "OpenAI API", Runtime: "openai-responses"},
 }
 
@@ -1702,7 +1702,7 @@ func (model Model) agentConnectionLines(width int) ([]string, int, int) {
 	}
 	descriptor, descriptorErr := model.profileDescriptor(agent.Profile{Runtime: choice.Runtime})
 	if descriptorErr != nil {
-		message := nonemptySetting(choice.Unavailable, "This agent adapter is not available in this Slopwatch build.")
+		message := nonemptySetting(choice.Unavailable, "This agent adapter is not available in this Slopmochi build.")
 		lines := wrappedDisabledConfigLines(message, width)
 		return lines, 0, max(0, len(lines)-1)
 	}

@@ -1,8 +1,8 @@
 package nativeadapter
 
 import (
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixanalysis"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixanalysis"
 )
 
 func cloneGoal(value fix.ScoringGoal) fix.ScoringGoal {

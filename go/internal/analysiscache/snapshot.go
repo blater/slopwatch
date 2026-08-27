@@ -45,7 +45,7 @@ func materializeSnapshot(ctx context.Context, files []SnapshotFile, load func(Sn
 	if contextErr := ctx.Err(); contextErr != nil {
 		return "", nil, contextErr
 	}
-	root, err = os.MkdirTemp("", "slopwatch-snapshot-*")
+	root, err = os.MkdirTemp("", "slopmochi-snapshot-*")
 	if err != nil {
 		return "", nil, fmt.Errorf("create analysis snapshot: %w", err)
 	}

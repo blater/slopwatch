@@ -2,11 +2,11 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source_repository="${SLOPWATCH_SOURCE_REPOSITORY:-blater/slopwatch}"
-tap_repository="${SLOPWATCH_TAP_REPOSITORY:-blater/homebrew-tap}"
-version="${SLOPWATCH_RELEASE_VERSION:-}"
+source_repository="${SLOPMOCHI_SOURCE_REPOSITORY:-blater/slopmochi}"
+tap_repository="${SLOPMOCHI_TAP_REPOSITORY:-blater/homebrew-tap}"
+version="${SLOPMOCHI_RELEASE_VERSION:-}"
 dist_dir="$script_dir/dist"
-formula_path="$dist_dir/Formula/slopwatch.rb"
+formula_path="$dist_dir/Formula/slopmochi.rb"
 local_mode=false
 
 die() {
@@ -15,28 +15,28 @@ die() {
 }
 
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
-  die "SLOPWATCH_RELEASE_VERSION must use X.Y.Z numeric format."
+  die "SLOPMOCHI_RELEASE_VERSION must use X.Y.Z numeric format."
 case "${1:-}" in
   "") ;;
   local) local_mode=true ;;
-  *) die "Usage: SLOPWATCH_RELEASE_VERSION=X.Y.Z ./util/build_brew [local]" ;;
+  *) die "Usage: SLOPMOCHI_RELEASE_VERSION=X.Y.Z ./util/build_brew [local]" ;;
 esac
 if (($# > 1)); then
-  die "Usage: SLOPWATCH_RELEASE_VERSION=X.Y.Z ./util/build_brew [local]"
+  die "Usage: SLOPMOCHI_RELEASE_VERSION=X.Y.Z ./util/build_brew [local]"
 fi
 if [[ "$local_mode" == false ]]; then
   command -v gh >/dev/null 2>&1 || die "gh is required."
 fi
 
-archive_name="slopwatch-${version}-darwin-arm64.tar.gz"
+archive_name="slopmochi-${version}-darwin-arm64.tar.gz"
 archive_path="$dist_dir/$archive_name"
 [[ -f "$archive_path" ]] || die "$archive_path does not exist."
 checksum="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
 mkdir -p "$(dirname "$formula_path")"
 
 cat > "$formula_path" <<FORMULA
-class Slopwatch < Formula
-  desc "Native code-quality scoring and live slopwatch dashboard"
+class Slopmochi < Formula
+  desc "Native code-quality scoring and live slopmochi dashboard"
   homepage "https://github.com/$source_repository"
   url "https://github.com/$source_repository/releases/download/v$version/$archive_name"
   version "$version"
@@ -50,12 +50,12 @@ class Slopwatch < Formula
   def install
     libexec.install "build", "analyzers", "component-catalog.json"
     bin.write_exec_script libexec/"build/slopmark"
-    bin.write_exec_script libexec/"build/slopwatch"
+    bin.write_exec_script libexec/"build/slopmochi"
   end
 
   test do
     assert_match "usage: slopmark", shell_output("#{bin}/slopmark --help 2>&1")
-    assert_match "usage: slopmark", shell_output("#{bin}/slopwatch --help 2>&1")
+    assert_match "usage: slopmark", shell_output("#{bin}/slopmochi --help 2>&1")
   end
 end
 FORMULA
@@ -65,13 +65,13 @@ if [[ "$local_mode" == true ]]; then
   printf 'Created local Homebrew formula: %s\n' "$formula_path"
   exit 0
 fi
-temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/slopwatch-brew.XXXXXX")"
+temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/slopmochi-brew.XXXXXX")"
 trap 'rm -rf "$temporary_dir"' EXIT
 tap_worktree="$temporary_dir/homebrew-tap"
 gh repo clone "$tap_repository" "$tap_worktree"
 mkdir -p "$tap_worktree/Formula"
-cp "$formula_path" "$tap_worktree/Formula/slopwatch.rb"
-git -C "$tap_worktree" add Formula/slopwatch.rb
+cp "$formula_path" "$tap_worktree/Formula/slopmochi.rb"
+git -C "$tap_worktree" add Formula/slopmochi.rb
 
 if git -C "$tap_worktree" diff --cached --quiet; then
   printf 'Homebrew tap is already current.\n'
@@ -82,6 +82,6 @@ github_login="$(gh api user --jq .login)"
 git -C "$tap_worktree" \
   -c user.name="${GIT_AUTHOR_NAME:-$github_login}" \
   -c user.email="${GIT_AUTHOR_EMAIL:-$github_login@users.noreply.github.com}" \
-  commit -m "slopwatch $version"
+  commit -m "slopmochi $version"
 git -C "$tap_worktree" push origin HEAD
-printf 'Published Homebrew formula for SlopWatch %s.\n' "$version"
+printf 'Published Homebrew formula for Slopmochi %s.\n' "$version"

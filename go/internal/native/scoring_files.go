@@ -1,6 +1,6 @@
 package native
 
-import "github.com/blater/slopwatch/internal/report"
+import "github.com/blater/slopmochi/internal/report"
 
 func scoreFile(path, language string, descriptors []componentDescriptor, observations map[string]map[string][]observation, coverage map[string]map[string]string, passScore *float64) (report.File, error) {
 	file := report.File{Path: path, Language: language, Complete: true, Components: map[string]report.Component{}, Coverage: map[string]string{}, Axes: map[string]float64{}, ObservedAxes: map[string]float64{}}

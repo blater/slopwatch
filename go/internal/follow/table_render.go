@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 func renderTable(model Model) string {
@@ -55,7 +55,7 @@ func tableTopParts(model Model) (topLeft, topRight, bottomLeft, bottomRight stri
 	logoStyle := lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceTop).Bold(true)
 	const logo = "૮(˶ᵔ ᵕ ᵔ˶)ა"
 	topLeft = logoStyle.Render(logo)
-	bottomLeft = logoStyle.Width(lipgloss.Width(logo)).Align(lipgloss.Center).Render("botMochi")
+	bottomLeft = logoStyle.Width(lipgloss.Width(logo)).Align(lipgloss.Center).Render("slopMochi")
 	if model.analyzing {
 		status = model.scanningIndicator(model.freshnessStatus())
 	} else if status != "" {

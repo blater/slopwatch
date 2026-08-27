@@ -3,7 +3,7 @@ package follow
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 func (model *Model) toggleMarkMode() {

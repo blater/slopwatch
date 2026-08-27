@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/gitmanifest"
-	"github.com/blater/slopwatch/internal/isolation"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/gitmanifest"
+	"github.com/blater/slopmochi/internal/isolation"
 )
 
 // GitService implements an exact-ref, create-only publication workflow. It
@@ -222,7 +222,7 @@ func (service *GitService) CreateCommit(ctx context.Context, request Request) (R
 	}
 	title := strings.TrimSpace(request.CommitTitle)
 	if title == "" {
-		title = "Refactor with Slopwatch"
+		title = "Refactor with Slopmochi"
 	}
 	commitArguments := []string{"commit-tree", tree, "-p", string(request.Candidate.BaseCommit), "-m", title}
 	if body := strings.TrimSpace(request.CommitBody); body != "" {
@@ -276,7 +276,7 @@ func (service *GitService) createCurrentBranchCommit(ctx context.Context, reques
 	}
 	title := strings.TrimSpace(request.CommitTitle)
 	if title == "" {
-		title = "Refactor with Slopwatch"
+		title = "Refactor with Slopmochi"
 	}
 	commitArguments := []string{"commit-tree", tree, "-p", head, "-m", title}
 	if body := strings.TrimSpace(request.CommitBody); body != "" {
@@ -304,7 +304,7 @@ func (service *GitService) createCurrentBranchCommit(ctx context.Context, reques
 }
 
 func privateIndexPath(root string) (string, error) {
-	file, err := os.CreateTemp(filepath.Dir(root), ".slopwatch-publish-index-")
+	file, err := os.CreateTemp(filepath.Dir(root), ".slopmochi-publish-index-")
 	if err != nil {
 		return "", fmt.Errorf("reserve private publication index: %w", err)
 	}
@@ -760,7 +760,7 @@ func (service *GitService) gitBytesInputEnv(ctx context.Context, root string, ex
 		"-c", "credential.helper=", "-c", "credential.interactive=never", "-c", "core.askPass=",
 		"-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "protocol.ext.allow=never", "-c", "core.sshCommand=ssh", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"}
 	trusted = append(trusted, arguments...)
-	environment := []string{"LANG=C.UTF-8", "LC_ALL=C", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=Slopwatch", "GIT_AUTHOR_EMAIL=slopwatch@localhost", "GIT_COMMITTER_NAME=Slopwatch", "GIT_COMMITTER_EMAIL=slopwatch@localhost"}
+	environment := []string{"LANG=C.UTF-8", "LC_ALL=C", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=Slopmochi", "GIT_AUTHOR_EMAIL=slopmochi@localhost", "GIT_COMMITTER_NAME=Slopmochi", "GIT_COMMITTER_EMAIL=slopmochi@localhost"}
 	environment = append(environment, extraEnvironment...)
 	result, err := service.runner.Run(ctx, isolation.Request{Executable: service.git, Arguments: trusted, Directory: root,
 		Environment: environment,

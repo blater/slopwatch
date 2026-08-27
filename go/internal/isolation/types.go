@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const SupervisorArgument = "__slopwatch_agent_supervisor_v1"
+const SupervisorArgument = "__slopmochi_agent_supervisor_v1"
 
 var (
 	ErrInvalidRequest     = errors.New("invalid isolated process request")

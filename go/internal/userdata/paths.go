@@ -1,4 +1,4 @@
-// Package userdata is the single authority for Slopwatch's per-user files.
+// Package userdata is the single authority for Slopmochi's per-user files.
 // Preferences, caches, job state, worktrees, and other durable runtime state
 // must all be children of Root.
 package userdata
@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// Root returns the Slopwatch per-user directory without creating it. Linux
-// follows the XDG configuration standard; other platforms use ~/.slopwatch so
+// Root returns the Slopmochi per-user directory without creating it. Linux
+// follows the XDG configuration standard; other platforms use ~/.slopmochi so
 // application files are kept together rather than spread across OS-specific
 // cache and application-support directories.
 func Root() (string, error) {
@@ -33,9 +33,9 @@ func root(goos, xdgConfig, home string) (string, error) {
 		if !validAbsolutePath(base) {
 			base = filepath.Join(home, ".config")
 		}
-		return filepath.Join(filepath.Clean(base), "slopwatch"), nil
+		return filepath.Join(filepath.Clean(base), "slopmochi"), nil
 	}
-	return filepath.Join(home, ".slopwatch"), nil
+	return filepath.Join(home, ".slopmochi"), nil
 }
 
 func validAbsolutePath(path string) bool {

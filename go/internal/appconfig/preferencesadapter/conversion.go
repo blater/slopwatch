@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/preferences"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/preferences"
 )
 
 func documentToResolved(value preferences.Document) (appconfig.Resolved, error) {

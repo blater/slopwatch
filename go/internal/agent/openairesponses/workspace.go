@@ -14,8 +14,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 type candidateTools struct {
@@ -483,7 +483,7 @@ func randomTemporaryName(parent string) (string, error) {
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return "", err
 	}
-	name := ".slopwatch-agent-" + hex.EncodeToString(nonce[:]) + ".tmp"
+	name := ".slopmochi-agent-" + hex.EncodeToString(nonce[:]) + ".tmp"
 	if parent == "." {
 		return name, nil
 	}

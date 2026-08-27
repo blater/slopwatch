@@ -3,7 +3,7 @@ package scoring
 import (
 	"testing"
 
-	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopmochi/internal/report"
 )
 
 func TestMetricAggregationsPreserveDashboardSemantics(t *testing.T) {

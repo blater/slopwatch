@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopmochi/internal/agent"
 )
 
 func TestDegradedAgentIsWarningAndRuntimeAttemptRemainsAvailable(t *testing.T) {
@@ -78,7 +78,7 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 
 	model.fixDialog.input.TargetScore = 70
 	model.fixDialog.focus["cog"] = true
-	model.fixDialog.branch.SetValue("slopwatch/fix/preserved")
+	model.fixDialog.branch.SetValue("slopmochi/fix/preserved")
 	model.fixDialog.cursor = fixFieldEffort
 	if !model.syncFixInput() {
 		t.Fatalf("could not establish edited input: %s", model.fixDialog.errorText)
@@ -96,13 +96,13 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 		t.Fatalf("settings did not return to Fix and reprepare: open=%t overlays=%d command nil=%t", model.configSettings.open, model.overlays.Len(), reprepare == nil)
 	}
 	if !model.fixDialog.loading || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||
-		model.fixDialog.branch.Value() != "slopwatch/fix/preserved" {
+		model.fixDialog.branch.Value() != "slopmochi/fix/preserved" {
 		t.Fatalf("Fix edits changed before reprepare: %+v", model.fixDialog)
 	}
 
 	model.handleFixLoaded(reprepare().(fixLoadedMsg))
 	if model.fixDialog.loading || !model.fixDialogRunnable() || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||
-		model.fixDialog.input.BranchName != "slopwatch/fix/preserved" {
+		model.fixDialog.input.BranchName != "slopmochi/fix/preserved" {
 		t.Fatalf("reprepared Fix lost edits or readiness: %+v", model.fixDialog)
 	}
 }

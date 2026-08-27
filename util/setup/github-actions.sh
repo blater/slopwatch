@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source_repository="${SLOPWATCH_SOURCE_REPOSITORY:-blater/slopwatch}"
-tap_repository="${SLOPWATCH_TAP_REPOSITORY:-blater/homebrew-tap}"
+source_repository="${SLOPMOCHI_SOURCE_REPOSITORY:-blater/slopmochi}"
+tap_repository="${SLOPMOCHI_TAP_REPOSITORY:-blater/homebrew-tap}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(cd "$script_dir/../.." && pwd)"
 

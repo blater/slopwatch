@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/naming"
+	"github.com/blater/slopmochi/internal/naming"
 )
 
 type requestedComponent struct {

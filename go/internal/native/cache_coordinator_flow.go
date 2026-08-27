@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/blater/slopwatch/internal/analysiscache"
-	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/unitplan"
+	"github.com/blater/slopmochi/internal/analysiscache"
+	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopmochi/internal/unitplan"
 )
 
 type persistentCacheState struct {

@@ -14,12 +14,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixprompt"
-	userprefs "github.com/blater/slopwatch/internal/preferences"
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixprompt"
+	userprefs "github.com/blater/slopmochi/internal/preferences"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
@@ -982,7 +982,7 @@ func settingsResolved() appconfig.Resolved {
 		Concurrency: appconfig.Concurrency{MaxAgents: 2, MaxVerifiers: 1, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 4 << 20, MaxCandidatePreviewLines: 5000},
 		Profiles:    []agent.Profile{{ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"}},
 		Delivery: appconfig.Delivery{DefaultPlan: fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitLeaveUncommitted, Publish: fix.PublishLocal}, Remote: "origin", BaseBranch: "main",
-			BranchTemplate: "slopwatch/fix-{job}", Publisher: "github-cli", DraftPullRequests: true, CommandOutputBytes: 4 << 20,
+			BranchTemplate: "slopmochi/fix-{job}", Publisher: "github-cli", DraftPullRequests: true, CommandOutputBytes: 4 << 20,
 			CommitTitleTemplate: "Refactor {targets}", CommitBodyTemplate: "Fix {goal}", PullRequestTitleTemplate: "Refactor {targets}", PullRequestBodyTemplate: "Fix {goal}"},
 		TrendWindow: 10 * time.Minute,
 	}

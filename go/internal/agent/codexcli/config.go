@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopmochi/internal/agent"
 )
 
 const RuntimeKind agent.RuntimeKind = "codex-cli"

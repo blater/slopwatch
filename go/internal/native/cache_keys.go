@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/blater/slopwatch/internal/analysiscache"
-	"github.com/blater/slopwatch/internal/unitplan"
+	"github.com/blater/slopmochi/internal/analysiscache"
+	"github.com/blater/slopmochi/internal/unitplan"
 )
 
 func analysisCatalogDigest(catalog catalogDocument) (analysiscache.Digest, error) {

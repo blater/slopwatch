@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/unitplan"
+	"github.com/blater/slopmochi/internal/unitplan"
 )
 
 func filterPlannedUnits(units []unitplan.Unit, discovered map[string][]string, selected []string, includeTests bool) []plannedCacheUnit {

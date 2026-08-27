@@ -14,12 +14,12 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/candidate"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixapp"
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/candidate"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixapp"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 // FixService is the narrow application boundary consumed by follow mode. It

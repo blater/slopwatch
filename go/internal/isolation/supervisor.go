@@ -26,8 +26,8 @@ func SupervisorMain(arguments []string) (handled bool, exitCode int) {
 }
 
 func serveSupervisor() int {
-	control := os.NewFile(3, "slopwatch-supervisor-control")
-	requestFile := os.NewFile(4, "slopwatch-supervisor-request")
+	control := os.NewFile(3, "slopmochi-supervisor-control")
+	requestFile := os.NewFile(4, "slopmochi-supervisor-request")
 	if control == nil || requestFile == nil {
 		fmt.Fprintln(os.Stderr, ErrSupervisorProtocol)
 		return 125

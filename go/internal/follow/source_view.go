@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 func openSourceView(model *Model) tea.Cmd {

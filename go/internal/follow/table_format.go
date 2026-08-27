@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/scoring"
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopmochi/internal/scoring"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 func metricColour(key string, value float64, exists bool) lipgloss.Color {

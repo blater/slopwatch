@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 func TestCompileAppliesTheSavedMasterTemplateDeterministically(t *testing.T) {
@@ -61,7 +61,7 @@ func TestDefaultTemplateContainsTheCompleteAgentInstructions(t *testing.T) {
 		"Primary refactoring guardrail — these rules take precedence", "do not game or merely redistribute Slopmark measurements",
 		"numbered, part, or function shards", "cohesive, meaningfully named module",
 		"do not apply a cosmetic quick fix; state the limitation explicitly in your final response",
-		"Work only inside the workspace", "Slopwatch will measure", "Measurement context:",
+		"Work only inside the workspace", "Slopmochi will measure", "Measurement context:",
 		"Slopmark static code-quality measurements", "SCORE is Slopmark's weighted total",
 		"This is a code refactor task using the 'slopmark' tool to monitor effectiveness",
 		"Improve responsibilities and abstractions rather than moving complexity around.",

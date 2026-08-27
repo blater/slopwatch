@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopmochi/internal/report"
 )
 
 type observation struct {

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/isolation"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/isolation"
 )
 
 const testCandidateCommandOutputBytes = int64(4 << 20)

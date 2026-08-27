@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )

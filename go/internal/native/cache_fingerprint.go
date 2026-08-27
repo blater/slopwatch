@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/analysiscache"
-	"github.com/blater/slopwatch/internal/unitplan"
+	"github.com/blater/slopmochi/internal/analysiscache"
+	"github.com/blater/slopmochi/internal/unitplan"
 )
 
 // dependencyGraphFingerprints computes one compact Merkle identity per unit.

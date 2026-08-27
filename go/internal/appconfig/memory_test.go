@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 func TestMemorySnapshotsAreIndependentAndRevisionChecked(t *testing.T) {

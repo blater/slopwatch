@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 func TestMainTableGAndShiftGJumpWithoutFooterHint(t *testing.T) {

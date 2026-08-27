@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 const (
@@ -36,7 +36,7 @@ var (
 	providerKeyPattern      = regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{8,}\b`)
 )
 
-// Strategy adapts Codex App Server to Slopwatch's provider-neutral agent
+// Strategy adapts Codex App Server to Slopmochi's provider-neutral agent
 // contract. Each probe and each fix attempt owns its App Server process, so
 // concurrent jobs and job-scoped cancellation remain naturally isolated.
 type Strategy struct {
@@ -52,7 +52,7 @@ func New() *Strategy {
 func (*Strategy) ProfileDescriptor() agent.ProfileDescriptor {
 	return agent.ProfileDescriptor{
 		Runtime: RuntimeKind, Label: "Codex",
-		ConnectionInstructions: "Run `codex login`, then complete the browser sign-in. Slopwatch uses the resulting Codex-managed session and does not store the credential.",
+		ConnectionInstructions: "Run `codex login`, then complete the browser sign-in. Slopmochi uses the resulting Codex-managed session and does not store the credential.",
 		DocumentationURL:       "https://developers.openai.com/codex/auth",
 		Fields: []agent.ProfileField{
 			{Key: "executable", Label: "Executable", Kind: agent.ProfileFieldExecutable, Required: true, Default: "codex", PreferencesOnly: true},
@@ -183,7 +183,7 @@ func (strategy *Strategy) Execute(ctx context.Context, profile agent.Profile, re
 	}
 	if err := client.Request(ctx, "thread/start", map[string]any{
 		"cwd": root, "model": string(request.Model), "approvalPolicy": "never",
-		"sandbox": "workspace-write", "ephemeral": true, "serviceName": "slopwatch",
+		"sandbox": "workspace-write", "ephemeral": true, "serviceName": "slopmochi",
 	}, &thread); err != nil {
 		return failedExecution(result, ctx, agent.FailureProvider, err)
 	}
@@ -390,7 +390,7 @@ func initializeAppServer(ctx context.Context, client *appServerClient) (string, 
 		UserAgent string `json:"userAgent"`
 	}
 	if err := client.Request(ctx, "initialize", map[string]any{"clientInfo": map[string]any{
-		"name": "slopwatch", "title": "Slopwatch", "version": "0.1.0",
+		"name": "slopmochi", "title": "Slopmochi", "version": "0.1.0",
 	}}, &response); err != nil {
 		return "", err
 	}

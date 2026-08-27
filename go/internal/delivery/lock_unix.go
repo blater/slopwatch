@@ -12,7 +12,7 @@ import (
 type deliveryLock struct{ file *os.File }
 
 func acquireDeliveryLock(commonDir string) (*deliveryLock, error) {
-	path := filepath.Join(commonDir, "slopwatch-fix.lock")
+	path := filepath.Join(commonDir, "slopmochi-fix.lock")
 	descriptor, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0o600)
 	if err != nil {
 		return nil, err

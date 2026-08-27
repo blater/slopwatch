@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 func TestProfileDescriptorKeepsOperationalDetailsInPreferences(t *testing.T) {
@@ -646,7 +646,7 @@ func TestCodexAppServerHelper(t *testing.T) {
 		fmt.Fprintln(os.Stderr, "unexpected App Server launch constraint")
 		os.Exit(2)
 	}
-	serveFakeAppServer(os.Getenv("SLOPWATCH_FAKE_MODE"), os.Getenv("SLOPWATCH_FAKE_CAPTURE"))
+	serveFakeAppServer(os.Getenv("SLOPMOCHI_FAKE_MODE"), os.Getenv("SLOPMOCHI_FAKE_CAPTURE"))
 	os.Exit(0)
 }
 
@@ -794,7 +794,7 @@ func serveFakeAppServer(mode, capture string) {
 func fakeAppServerExecutable(t *testing.T, mode, capture string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "codex")
-	script := "#!/bin/sh\nSLOPWATCH_FAKE_MODE=" + shellQuote(mode) + " SLOPWATCH_FAKE_CAPTURE=" + shellQuote(capture) + " exec " + shellQuote(os.Args[0]) + " -test.run=TestCodexAppServerHelper -- \"$@\"\n"
+	script := "#!/bin/sh\nSLOPMOCHI_FAKE_MODE=" + shellQuote(mode) + " SLOPMOCHI_FAKE_CAPTURE=" + shellQuote(capture) + " exec " + shellQuote(os.Args[0]) + " -test.run=TestCodexAppServerHelper -- \"$@\"\n"
 	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -855,8 +855,8 @@ func waitForCapturedMethod(t *testing.T, path, method string) {
 }
 
 func startFakeDescendant(capture string) {
-	command := exec.Command("sh", "-c", `trap 'exit 0' TERM; printf '%s' "$$" > "$SLOPWATCH_CHILD_PID"; printf ready > "$SLOPWATCH_CHILD_READY"; while :; do sleep 1; done`)
-	command.Env = append(os.Environ(), "SLOPWATCH_CHILD_READY="+capture+".ready", "SLOPWATCH_CHILD_PID="+capture+".pid")
+	command := exec.Command("sh", "-c", `trap 'exit 0' TERM; printf '%s' "$$" > "$SLOPMOCHI_CHILD_PID"; printf ready > "$SLOPMOCHI_CHILD_READY"; while :; do sleep 1; done`)
+	command.Env = append(os.Environ(), "SLOPMOCHI_CHILD_READY="+capture+".ready", "SLOPMOCHI_CHILD_PID="+capture+".pid")
 	if command.Start() != nil {
 		return
 	}
@@ -870,8 +870,8 @@ func startFakeDescendant(capture string) {
 }
 
 func startTermIgnoringDescendant(capture string) {
-	command := exec.Command("sh", "-c", `trap '' TERM; printf '%s' "$$" > "$SLOPWATCH_CHILD_PID"; while :; do printf x >> "$SLOPWATCH_CHILD_WRITES"; sleep 0.01; done`)
-	command.Env = append(os.Environ(), "SLOPWATCH_CHILD_PID="+capture+".pid", "SLOPWATCH_CHILD_WRITES="+capture+".writes")
+	command := exec.Command("sh", "-c", `trap '' TERM; printf '%s' "$$" > "$SLOPMOCHI_CHILD_PID"; while :; do printf x >> "$SLOPMOCHI_CHILD_WRITES"; sleep 0.01; done`)
+	command.Env = append(os.Environ(), "SLOPMOCHI_CHILD_PID="+capture+".pid", "SLOPMOCHI_CHILD_WRITES="+capture+".writes")
 	if command.Start() != nil {
 		return
 	}

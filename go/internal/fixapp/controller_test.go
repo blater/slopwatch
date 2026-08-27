@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/candidate"
-	"github.com/blater/slopwatch/internal/delivery"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixanalysis"
-	"github.com/blater/slopwatch/internal/jobstore"
-	"github.com/blater/slopwatch/internal/publisher"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/candidate"
+	"github.com/blater/slopmochi/internal/delivery"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixanalysis"
+	"github.com/blater/slopmochi/internal/jobstore"
+	"github.com/blater/slopmochi/internal/publisher"
 )
 
 var (
@@ -67,7 +67,7 @@ func TestJobLogContainsStartAndResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, wanted := range []string{"SLOPWATCH FIX JOB", "PROMPT attempt-one", record.input.Instructions.EffectiveBody(), "Status: completed", "thread-one", "M a.go"} {
+	for _, wanted := range []string{"SLOPMOCHI FIX JOB", "PROMPT attempt-one", record.input.Instructions.EffectiveBody(), "Status: completed", "thread-one", "M a.go"} {
 		if !strings.Contains(string(logContents), wanted) {
 			t.Fatalf("job text log omitted %q: %s", wanted, logContents)
 		}
@@ -168,7 +168,7 @@ func TestManagerRunsJobsConcurrentlyAndStartsMoreWhileRunning(t *testing.T) {
 	waitForPhase(t, manager, third, fix.PhaseCompleted)
 }
 
-func TestMultipleSlopwatchProcessesShareJobProgressAndStartJobs(t *testing.T) {
+func TestMultipleSlopmochiProcessesShareJobProgressAndStartJobs(t *testing.T) {
 	directory := t.TempDir()
 	firstStore, err := jobstore.Open(directory)
 	if err != nil {
@@ -460,7 +460,7 @@ func TestPublicationRunsAsSavedSagaSteps(t *testing.T) {
 	defer shutdownManager(t, manager)
 	input := prepare(t, manager, "one.go")
 	input, err := ApplyFormValues(input, FormValues{TargetScore: input.TargetScore, Focus: input.Focus, ChangeScope: input.ChangeScope,
-		DeliveryPlan: testPushPlan, BranchName: "slopwatch/fix/one-test"})
+		DeliveryPlan: testPushPlan, BranchName: "slopmochi/fix/one-test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,10 +490,10 @@ func TestAmbiguousPullRequestUsesDistinctReconciliationStep(t *testing.T) {
 	manager := &Manager{deps: Dependencies{Store: store, Delivery: &fakeDeliverySaga{}, Publisher: pullRequests}, options: Options{Clock: time.Now},
 		results: make(chan workerResult, 4), notify: make(chan struct{})}
 	record := &jobRecord{
-		input:        FixInput{DeliveryPlan: testPRPlan, BranchName: "slopwatch/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin", BaseBranch: "main"}}},
+		input:        FixInput{DeliveryPlan: testPRPlan, BranchName: "slopmochi/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin", BaseBranch: "main"}}},
 		presentation: fix.JobPresentation{ID: job, Phase: fix.PhasePublishing}, attempt: attempt,
 		candidate: &fix.CandidateIdentity{Job: job, RepositoryRoot: "/candidate"}, commands: map[fix.CommandID]CommandReceipt{},
-		delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopwatch/fix/test", RemoteRef: "refs/heads/slopwatch/fix/test", Repository: "owner/repo", Pushed: true},
+		delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopmochi/fix/test", RemoteRef: "refs/heads/slopmochi/fix/test", Repository: "owner/repo", Pushed: true},
 		published: publisher.Result{ProviderID: "unverified", URL: "https://github.com/owner/repo/pull/99", Ambiguous: true},
 	}
 	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}}
@@ -515,10 +515,10 @@ func TestCanceledPullRequestReconciliationReleasesJobWithoutHidingAmbiguity(t *t
 		reconcileResult: publisher.Result{ProviderID: "18", URL: "https://github.com/owner/repo/pull/18", Draft: true}}
 	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Candidates: fakeCandidates{}, Delivery: &fakeDeliverySaga{}, Publisher: pullRequests}, options: Options{Clock: time.Now},
 		results: make(chan workerResult, 4), notify: make(chan struct{})}
-	record := &jobRecord{input: FixInput{DeliveryPlan: testPRPlan, BranchName: "slopwatch/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin", BaseBranch: "main"}}},
+	record := &jobRecord{input: FixInput{DeliveryPlan: testPRPlan, BranchName: "slopmochi/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin", BaseBranch: "main"}}},
 		presentation: fix.JobPresentation{ID: job, Phase: fix.PhasePublishing}, attempt: attempt,
 		candidate: &fix.CandidateIdentity{Job: job, RepositoryRoot: "/candidate"}, commands: map[fix.CommandID]CommandReceipt{},
-		delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopwatch/fix/test", RemoteRef: "refs/heads/slopwatch/fix/test", Repository: "owner/repo", Pushed: true},
+		delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopmochi/fix/test", RemoteRef: "refs/heads/slopmochi/fix/test", Repository: "owner/repo", Pushed: true},
 		published: publisher.Result{URL: "https://github.com/owner/repo/pull/99", Ambiguous: true}}
 	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}}
 	manager.startNextPublication(state, record)
@@ -543,7 +543,7 @@ func TestCancelDuringAmbiguousLocalRefReconcilesBeforeCleanup(t *testing.T) {
 	saga := &resolvingDeliverySaga{}
 	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Candidates: fakeCandidates{}, Delivery: saga}, options: Options{Clock: time.Now},
 		results: make(chan workerResult, 4), notify: make(chan struct{})}
-	record := &jobRecord{input: FixInput{DeliveryPlan: testPushPlan, BranchName: "slopwatch/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin"}}},
+	record := &jobRecord{input: FixInput{DeliveryPlan: testPushPlan, BranchName: "slopmochi/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin"}}},
 		presentation: fix.JobPresentation{ID: job, Phase: fix.PhaseCanceling}, attempt: attempt, canceled: true,
 		candidate: &fix.CandidateIdentity{Job: job, RepositoryRoot: "/candidate"}, commands: map[fix.CommandID]CommandReceipt{}}
 	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, reservations: map[string]fix.JobID{}}
@@ -562,7 +562,7 @@ func TestRestartedAmbiguousPullRequestReconcilesBeforeCompleting(t *testing.T) {
 	dependencies := seed.deps
 	shutdownManager(t, seed)
 	input.DeliveryPlan = testPRPlan
-	input.BranchName = "slopwatch/fix/test"
+	input.BranchName = "slopmochi/fix/test"
 	input.Preferences.Delivery.Remote = "origin"
 	input.Preferences.Delivery.BaseBranch = "main"
 	job, _ := fix.NewJobID()
@@ -570,7 +570,7 @@ func TestRestartedAmbiguousPullRequestReconcilesBeforeCompleting(t *testing.T) {
 	presentation := fix.JobPresentation{ID: job, Phase: fix.PhaseFailed, Issue: &fix.JobIssue{Code: "publication_ambiguous", Summary: "Delivery state is ambiguous"}, CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	store := jobstore.NewMemory()
 	checkpoint, _ := json.Marshal(storedJobState{Presentation: presentation, Input: storedJobInputFrom(input), Candidate: &identity,
-		Delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopwatch/fix/test", RemoteRef: "refs/heads/slopwatch/fix/test", Repository: "owner/repo", Pushed: true},
+		Delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopmochi/fix/test", RemoteRef: "refs/heads/slopmochi/fix/test", Repository: "owner/repo", Pushed: true},
 		Published: publisher.Result{URL: "https://github.com/owner/repo/pull/99", Ambiguous: true}})
 	if err := store.Save(t.Context(), jobstore.Record{JobID: job, UpdatedAt: presentation.UpdatedAt, State: checkpoint}); err != nil {
 		t.Fatal(err)
@@ -594,7 +594,7 @@ func TestRestartPreservesCanceledAmbiguousDeliveryAndOnlyReconciles(t *testing.T
 	dependencies := seed.deps
 	shutdownManager(t, seed)
 	input.DeliveryPlan = testPRPlan
-	input.BranchName = "slopwatch/fix/test"
+	input.BranchName = "slopmochi/fix/test"
 	input.Preferences.Delivery.Remote = "origin"
 	input.Preferences.Delivery.BaseBranch = "main"
 	job, _ := fix.NewJobID()
@@ -602,7 +602,7 @@ func TestRestartPreservesCanceledAmbiguousDeliveryAndOnlyReconciles(t *testing.T
 	presentation := fix.JobPresentation{ID: job, Phase: fix.PhaseReconciling, Issue: &fix.JobIssue{Code: "publication_canceled", Summary: "Checking canceled delivery"}, CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	store := jobstore.NewMemory()
 	checkpoint, _ := json.Marshal(storedJobState{Presentation: presentation, Input: storedJobInputFrom(input), Candidate: &identity, Canceled: true,
-		Delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopwatch/fix/test", RemoteRef: "refs/heads/slopwatch/fix/test", Repository: "owner/repo", Pushed: true},
+		Delivery:  delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopmochi/fix/test", RemoteRef: "refs/heads/slopmochi/fix/test", Repository: "owner/repo", Pushed: true},
 		Published: publisher.Result{URL: "https://github.com/owner/repo/pull/99", Ambiguous: true}})
 	if err := store.Save(t.Context(), jobstore.Record{JobID: job, UpdatedAt: presentation.UpdatedAt, State: checkpoint}); err != nil {
 		t.Fatal(err)
@@ -627,14 +627,14 @@ func TestRestartReconcilesCanceledInFlightDeliveryStepBeforeCleanup(t *testing.T
 			input := prepare(t, seed, "one.go")
 			dependencies := seed.deps
 			shutdownManager(t, seed)
-			input.BranchName = "slopwatch/fix/test"
+			input.BranchName = "slopmochi/fix/test"
 			input.Preferences.Delivery.Remote = "origin"
 			job, _ := fix.NewJobID()
 			identity := fix.CandidateIdentity{Job: job, Repository: input.Workspace.Repository, RepositoryRoot: "/candidate/" + string(job), AnalysisRoot: "/candidate/" + string(job), BaseCommit: input.Workspace.BaseCommit}
 			presentation := fix.JobPresentation{ID: job, Phase: fix.PhaseCanceling, Issue: &fix.JobIssue{Code: "canceled", Summary: "Job canceled"}, CreatedAt: time.Now(), UpdatedAt: time.Now()}
 			delivered := delivery.Result{Commit: "abc"}
 			if step == publicationRemoteRef || step == publicationPullRequest {
-				delivered.LocalRef = "refs/heads/slopwatch/fix/test"
+				delivered.LocalRef = "refs/heads/slopmochi/fix/test"
 			}
 			if step == publicationPullRequest {
 				input.DeliveryPlan = testPRPlan
@@ -674,14 +674,14 @@ func TestCancelFailedAmbiguousDeliveryReconcilesBeforeCleanup(t *testing.T) {
 			pullRequests := &recordingPublisher{reconcileResult: publisher.Result{ProviderID: "20", URL: "https://github.com/owner/repo/pull/20"}}
 			manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory(), Candidates: fakeCandidates{}, Delivery: saga, Publisher: pullRequests},
 				options: Options{Clock: time.Now}, results: make(chan workerResult, 4), notify: make(chan struct{})}
-			record := &jobRecord{input: FixInput{DeliveryPlan: plan, BranchName: "slopwatch/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin", BaseBranch: "main"}}},
+			record := &jobRecord{input: FixInput{DeliveryPlan: plan, BranchName: "slopmochi/fix/test", Preferences: appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin", BaseBranch: "main"}}},
 				presentation: fix.JobPresentation{ID: job, Phase: fix.PhaseFailed, AllowedActions: []fix.JobAction{fix.ActionCancel}, Issue: &fix.JobIssue{Code: "publication_ambiguous"}},
 				attempt:      attempt, candidate: &fix.CandidateIdentity{Job: job, RepositoryRoot: "/candidate"}, commands: map[fix.CommandID]CommandReceipt{},
-				delivery: delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopwatch/fix/test", Repository: "owner/repo", Pushed: true}}
+				delivery: delivery.Result{Commit: "abc", LocalRef: "refs/heads/slopmochi/fix/test", Repository: "owner/repo", Pushed: true}}
 			if plan.Publish == fix.PublishPush {
 				record.delivery.Ambiguous = true
 			} else {
-				record.delivery.RemoteRef = "refs/heads/slopwatch/fix/test"
+				record.delivery.RemoteRef = "refs/heads/slopmochi/fix/test"
 				record.published = publisher.Result{URL: "https://github.com/owner/repo/pull/99", Ambiguous: true}
 			}
 			state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, reservations: map[string]fix.JobID{}}
@@ -746,7 +746,7 @@ func TestPullRequestRunDefersMissingBaseBranchToPublication(t *testing.T) {
 	manager, _ := newTestManager(t, 1)
 	defer shutdownManager(t, manager)
 	input := prepare(t, manager, "one.go")
-	input, err := ApplyFormValues(input, FormValues{TargetScore: input.TargetScore, Focus: input.Focus, ChangeScope: input.ChangeScope, DeliveryPlan: testPRPlan, BranchName: "slopwatch/fix/test"})
+	input, err := ApplyFormValues(input, FormValues{TargetScore: input.TargetScore, Focus: input.Focus, ChangeScope: input.ChangeScope, DeliveryPlan: testPRPlan, BranchName: "slopmochi/fix/test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1212,7 +1212,7 @@ func (saga *fakeDeliverySaga) CreateCommit(_ context.Context, _ delivery.Request
 }
 func (saga *fakeDeliverySaga) CreateLocalRef(_ context.Context, _ delivery.Request, result delivery.Result) (delivery.Result, error) {
 	saga.record("local")
-	result.LocalRef = "refs/heads/slopwatch/fix/one-test"
+	result.LocalRef = "refs/heads/slopmochi/fix/one-test"
 	return result, nil
 }
 func (saga *fakeDeliverySaga) CreateRemoteRef(_ context.Context, _ delivery.Request, result delivery.Result) (delivery.Result, error) {

@@ -1,5 +1,5 @@
 {
-  "name": "Slopwatch Light",
+  "name": "Slopmochi Light",
   "type": "light",
   "colors": {"editor.foreground": "#182734", "editor.background": "#f5f9fb"},
   "tokenColors": [

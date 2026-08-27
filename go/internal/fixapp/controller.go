@@ -11,16 +11,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/candidate"
-	"github.com/blater/slopwatch/internal/delivery"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixanalysis"
-	"github.com/blater/slopwatch/internal/fixprompt"
-	"github.com/blater/slopwatch/internal/jobstore"
-	"github.com/blater/slopwatch/internal/publisher"
-	"github.com/blater/slopwatch/internal/sourcepath"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/candidate"
+	"github.com/blater/slopmochi/internal/delivery"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixanalysis"
+	"github.com/blater/slopmochi/internal/fixprompt"
+	"github.com/blater/slopmochi/internal/jobstore"
+	"github.com/blater/slopmochi/internal/publisher"
+	"github.com/blater/slopmochi/internal/sourcepath"
 )
 
 func (manager *Manager) run() {
@@ -377,7 +377,7 @@ func (manager *Manager) runVerifier(ctx context.Context, input FixInput, job fix
 }
 
 func publicationRequests(input FixInput, job fix.JobID, identity fix.CandidateIdentity, diffHash string, paths []fix.RepoPath, delivered delivery.Result) (delivery.Request, publisher.Request) {
-	commitTitle := renderPublicationTemplate(input.Preferences.Delivery.CommitTitleTemplate, "Refactor {targets} with Slopwatch", input, job)
+	commitTitle := renderPublicationTemplate(input.Preferences.Delivery.CommitTitleTemplate, "Refactor {targets} with Slopmochi", input, job)
 	commitBody := renderPublicationTemplate(input.Preferences.Delivery.CommitBodyTemplate, "Automated remediation for {goal}.", input, job)
 	prTitle := renderPublicationTemplate(input.Preferences.Delivery.PullRequestTitleTemplate, commitTitle, input, job)
 	prBody := renderPublicationTemplate(input.Preferences.Delivery.PullRequestBodyTemplate, commitBody, input, job)
@@ -1077,7 +1077,7 @@ func (manager *Manager) handleCommand(state *controllerState, call commandCall) 
 		return
 	}
 	if record.runsElsewhere {
-		call.response <- commandResponse{err: errors.New("job is running in another Slopwatch window")}
+		call.response <- commandResponse{err: errors.New("job is running in another Slopmochi window")}
 		return
 	}
 	if receipt, exists := record.commands[call.command.RequestID]; exists {
@@ -1705,7 +1705,7 @@ func (manager *Manager) refreshSharedJobs(state *controllerState) {
 					fresh.presentation.Phase = fix.PhaseFailed
 					fresh.presentation.Attention = fix.AttentionError
 					fresh.presentation.CurrentAction = "Interrupted"
-					fresh.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "The Slopwatch process running this job stopped"}
+					fresh.presentation.Issue = &fix.JobIssue{Code: "interrupted", Summary: "The Slopmochi process running this job stopped"}
 					fresh.presentation.FinishedAt = manager.options.Clock()
 					fresh.presentation.UpdatedAt = fresh.presentation.FinishedAt
 					manager.refreshActions(fresh)
@@ -1976,7 +1976,7 @@ func (manager *Manager) startJobTextLog(record *jobRecord, startedAt time.Time) 
 		return
 	}
 	var text strings.Builder
-	fmt.Fprintf(&text, "SLOPWATCH FIX JOB\nJob: %s\nStarted: %s\nAgent: %s\nRuntime: %s\nModel: %s\nEffort: %s\nTarget score: %g\nMay edit: %s\nDelivery: workspace=%s git=%s publish=%s\n",
+	fmt.Fprintf(&text, "SLOPMOCHI FIX JOB\nJob: %s\nStarted: %s\nAgent: %s\nRuntime: %s\nModel: %s\nEffort: %s\nTarget score: %g\nMay edit: %s\nDelivery: workspace=%s git=%s publish=%s\n",
 		record.presentation.ID, startedAt.Format(time.RFC3339Nano), record.input.Profile.ID, record.input.Profile.Runtime,
 		record.input.Model, record.input.Effort, record.input.TargetScore, record.input.ChangeScope,
 		record.input.DeliveryPlan.Workspace, record.input.DeliveryPlan.Git, record.input.DeliveryPlan.Publish)

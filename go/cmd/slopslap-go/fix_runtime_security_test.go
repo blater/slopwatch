@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blater/slopwatch/internal/agent/codexcli"
-	"github.com/blater/slopwatch/internal/agent/openairesponses"
-	"github.com/blater/slopwatch/internal/preferences"
+	"github.com/blater/slopmochi/internal/agent/codexcli"
+	"github.com/blater/slopmochi/internal/agent/openairesponses"
+	"github.com/blater/slopmochi/internal/preferences"
 )
 
 func TestBuiltInOpenAIDefaultUsesCodexAccountLoginAndKeepsAPIKeyAlternative(t *testing.T) {

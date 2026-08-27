@@ -15,8 +15,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 type Strategy struct {
@@ -48,7 +48,7 @@ func (strategy *Strategy) ProfileDescriptor() agent.ProfileDescriptor {
 	fields = append(fields, strategy.config.profileFields()...)
 	return agent.ProfileDescriptor{
 		Runtime: RuntimeKind, Label: "OpenAI API",
-		ConnectionInstructions: "Set the named environment variable before starting Slopwatch. The API key is read at runtime and is never stored in preferences.",
+		ConnectionInstructions: "Set the named environment variable before starting Slopmochi. The API key is read at runtime and is never stored in preferences.",
 		DocumentationURL:       "https://platform.openai.com/api-keys",
 		Fields:                 fields,
 	}
@@ -204,7 +204,7 @@ func availableConfiguredModels(payload []byte, configured []agent.Option[agent.M
 
 func authenticationRemediation(reference string) string {
 	if name, ok := strings.CutPrefix(reference, "env:"); ok && environmentName.MatchString(name) {
-		return "Set environment variable " + name + " before launching Slopwatch"
+		return "Set environment variable " + name + " before launching Slopmochi"
 	}
 	return "Responses API authentication reference is not available from this installation's secret resolver"
 }

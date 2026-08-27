@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/blater/slopwatch/internal/sourcepath"
-	workspacefs "github.com/blater/slopwatch/internal/workspace"
+	"github.com/blater/slopmochi/internal/sourcepath"
+	workspacefs "github.com/blater/slopmochi/internal/workspace"
 )
 
 var testDirectories = map[string]bool{

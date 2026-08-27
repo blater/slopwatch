@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixanalysis"
-	"github.com/blater/slopwatch/internal/native"
-	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixanalysis"
+	"github.com/blater/slopmochi/internal/native"
+	"github.com/blater/slopmochi/internal/report"
 )
 
 type Config struct {

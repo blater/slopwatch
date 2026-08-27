@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 type metricInfo struct {

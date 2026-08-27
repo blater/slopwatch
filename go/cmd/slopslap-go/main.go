@@ -14,12 +14,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/blater/slopwatch/internal/follow"
-	"github.com/blater/slopwatch/internal/isolation"
-	"github.com/blater/slopwatch/internal/native"
-	"github.com/blater/slopwatch/internal/preferences"
-	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/userdata"
+	"github.com/blater/slopmochi/internal/follow"
+	"github.com/blater/slopmochi/internal/isolation"
+	"github.com/blater/slopmochi/internal/native"
+	"github.com/blater/slopmochi/internal/preferences"
+	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopmochi/internal/userdata"
 )
 
 type stringList []string

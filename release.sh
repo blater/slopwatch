@@ -2,8 +2,8 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source_repository="${SLOPWATCH_SOURCE_REPOSITORY:-blater/slopwatch}"
-tap_repository="${SLOPWATCH_TAP_REPOSITORY:-blater/homebrew-tap}"
+source_repository="${SLOPMOCHI_SOURCE_REPOSITORY:-blater/slopmochi}"
+tap_repository="${SLOPMOCHI_TAP_REPOSITORY:-blater/homebrew-tap}"
 
 die() {
   printf 'Error: %s\n' "$*" >&2
@@ -27,7 +27,7 @@ Usage: ./release.sh X.Y.Z
 
 Run this script locally from a clean working tree. It pushes the current branch,
 creates and pushes the release tag, then monitors the tag-triggered GitHub
-Release workflow. After that workflow publishes the SlopWatch bundle, the
+Release workflow. After that workflow publishes the Slopmochi bundle, the
 script verifies the GitHub release and Homebrew tap update.
 USAGE
 }
@@ -126,7 +126,7 @@ done
 gh run watch "$run_id" --repo "$source_repository" --exit-status || \
   die "The release workflow failed: https://github.com/$source_repository/actions/runs/$run_id"
 
-archive="slopwatch-${version}-darwin-arm64.tar.gz"
+archive="slopmochi-${version}-darwin-arm64.tar.gz"
 release_assets="$(
   gh release view "$tag" --repo "$source_repository" --json assets --jq '.assets[].name'
 )" || die "Could not inspect GitHub release $tag."
@@ -136,7 +136,7 @@ for asset in "$archive" SHA256SUMS; do
 done
 
 formula="$(
-  gh api "repos/$tap_repository/contents/Formula/slopwatch.rb?ref=main" \
+  gh api "repos/$tap_repository/contents/Formula/slopmochi.rb?ref=main" \
     --jq '.content' | base64 --decode
 )" || die "Could not inspect the Homebrew tap formula."
 grep -Fq "/releases/download/$tag/$archive" <<< "$formula" || \
@@ -145,4 +145,4 @@ grep -Fq "version \"$version\"" <<< "$formula" || \
   die "The Homebrew tap does not report version $version."
 
 printf 'Release complete: https://github.com/%s/releases/tag/%s\n' "$source_repository" "$tag"
-printf 'Install: brew install blater/tap/slopwatch\n'
+printf 'Install: brew install blater/tap/slopmochi\n'

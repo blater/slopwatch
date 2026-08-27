@@ -3,7 +3,7 @@ package unitplan
 import (
 	"strings"
 
-	"github.com/blater/slopwatch/internal/sourcepath"
+	"github.com/blater/slopmochi/internal/sourcepath"
 )
 
 type javaModule struct {

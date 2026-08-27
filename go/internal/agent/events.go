@@ -3,7 +3,7 @@ package agent
 import (
 	"time"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 type EventKind string

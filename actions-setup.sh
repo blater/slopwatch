@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source_repository="${SLOPWATCH_SOURCE_REPOSITORY:-blater/slopwatch}"
+source_repository="${SLOPMOCHI_SOURCE_REPOSITORY:-blater/slopmochi}"
 token_was_provided=false
 
 die() {

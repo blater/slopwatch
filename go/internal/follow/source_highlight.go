@@ -10,7 +10,7 @@ import (
 	"github.com/andersonpem/gopher-textmate/render"
 	textmatetheme "github.com/andersonpem/gopher-textmate/theme"
 
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 // The grammars are embedded so the installed binary has no runtime asset or

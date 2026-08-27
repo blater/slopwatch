@@ -1,4 +1,4 @@
-// Package preferences owns the versioned, user-editable Slopwatch preferences
+// Package preferences owns the versioned, user-editable Slopmochi preferences
 // document and its durable storage lifecycle.
 package preferences
 
@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/blater/slopwatch/internal/fixprompt"
-	"github.com/blater/slopwatch/internal/scoring"
+	"github.com/blater/slopmochi/internal/fixprompt"
+	"github.com/blater/slopmochi/internal/scoring"
 	"github.com/pelletier/go-toml/v2"
 
-	"github.com/blater/slopwatch/internal/userdata"
+	"github.com/blater/slopmochi/internal/userdata"
 )
 
 const CurrentVersion = 1
@@ -147,11 +147,11 @@ func DefaultDocument() Document {
 		},
 		Delivery: Delivery{
 			Workspace: "current-files", Git: "uncommitted", Publish: "local", Remote: "origin", BaseBranch: "main",
-			BranchTemplate: "slopwatch/fix/{target-stem}-{job-short-id}", Publisher: "github-cli",
+			BranchTemplate: "slopmochi/fix/{target-stem}-{job-short-id}", Publisher: "github-cli",
 			DraftPullRequests:   true,
 			CommandOutputBytes:  4 * 1024 * 1024,
-			CommitTitleTemplate: "Refactor {targets} with Slopwatch",
-			CommitBodyTemplate:  "Automated remediation for {goal}.", PullRequestTitleTemplate: "Refactor {targets} with Slopwatch",
+			CommitTitleTemplate: "Refactor {targets} with Slopmochi",
+			CommitBodyTemplate:  "Automated remediation for {goal}.", PullRequestTitleTemplate: "Refactor {targets} with Slopmochi",
 			PullRequestBodyTemplate: "Automated remediation for {goal}.",
 		},
 	}
@@ -203,7 +203,7 @@ func Recover(path string, defaults Document) (Document, error) {
 }
 
 // Quarantine moves a bad preferences document out of the live path while
-// keeping it in the same Slopwatch directory for inspection.
+// keeping it in the same Slopmochi directory for inspection.
 func Quarantine(path string) error {
 	if _, err := os.Lstat(path); err != nil {
 		return err
@@ -259,7 +259,7 @@ func save(path string, value any) error {
 	if err != nil {
 		return fmt.Errorf("encode preferences: %w", err)
 	}
-	header := []byte("# Slopwatch preferences. Managed by the dashboard; manual edits are read at launch.\n# CLI options override matching values for that run.\n")
+	header := []byte("# Slopmochi preferences. Managed by the dashboard; manual edits are read at launch.\n# CLI options override matching values for that run.\n")
 	data = append(header, data...)
 	if err := writeAtomic(path, data); err != nil {
 		return fmt.Errorf("write preferences %s: %w", path, err)

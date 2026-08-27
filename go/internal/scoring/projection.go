@@ -3,7 +3,7 @@ package scoring
 import (
 	"math"
 
-	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopmochi/internal/report"
 )
 
 // Policy is an immutable scoring-policy snapshot. Missing values resolve to

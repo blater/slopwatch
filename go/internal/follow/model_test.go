@@ -16,8 +16,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 type settingsAnalyzer struct {
@@ -205,10 +205,10 @@ func TestTableTopBarSplitsBrandBranchAndWorkspaceAcrossTwoLines(t *testing.T) {
 	if !strings.HasSuffix(lines[1], "/workspace ") {
 		t.Fatalf("second title line does not show the workspace: %q", lines[1])
 	}
-	brandStart := strings.Index(lines[1], "botMochi")
-	wantStart := (lipgloss.Width("૮(˶ᵔ ᵕ ᵔ˶)ა") - lipgloss.Width("botMochi")) / 2
+	brandStart := strings.Index(lines[1], "slopMochi")
+	wantStart := (lipgloss.Width("૮(˶ᵔ ᵕ ᵔ˶)ა") - lipgloss.Width("slopMochi")) / 2
 	if brandStart < 0 || lipgloss.Width(lines[1][:brandStart]) != wantStart {
-		t.Fatalf("botMochi is not centered below the logo: %q", lines[1])
+		t.Fatalf("slopMochi is not centered below the logo: %q", lines[1])
 	}
 }
 

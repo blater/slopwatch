@@ -13,7 +13,7 @@ import (
 type repositoryLock struct{ file *os.File }
 
 func acquireRepositoryOwnership(commonDir string) (*repositoryLock, error) {
-	path := filepath.Join(commonDir, "slopwatch-fix-owner.lock")
+	path := filepath.Join(commonDir, "slopmochi-fix-owner.lock")
 	descriptor, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open repository ownership lease: %w", err)
@@ -27,7 +27,7 @@ func acquireRepositoryOwnership(commonDir string) (*repositoryLock, error) {
 }
 
 func acquireRepositoryLock(commonDir string) (*repositoryLock, error) {
-	path := filepath.Join(commonDir, "slopwatch-fix.lock")
+	path := filepath.Join(commonDir, "slopmochi-fix.lock")
 	descriptor, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open repository fix lock: %w", err)

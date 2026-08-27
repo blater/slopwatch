@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopmochi/internal/report"
 )
 
 func TestCountScoringPreservesEveryFindingAsStructuredEvidence(t *testing.T) {

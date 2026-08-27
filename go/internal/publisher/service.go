@@ -5,7 +5,7 @@ package publisher
 import (
 	"context"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 type Request struct {

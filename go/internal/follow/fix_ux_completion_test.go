@@ -11,9 +11,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopwatch/internal/candidate"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixapp"
+	"github.com/blater/slopmochi/internal/candidate"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixapp"
 )
 
 func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {

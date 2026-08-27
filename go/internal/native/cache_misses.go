@@ -1,6 +1,6 @@
 package native
 
-import "github.com/blater/slopwatch/internal/unitplan"
+import "github.com/blater/slopmochi/internal/unitplan"
 
 // prepareMissPaths walks each language's combined missing-unit closure once.
 // runMissingUnits already invokes one analyzer batch per language, so storing

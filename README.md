@@ -1,14 +1,16 @@
-# Slopwatch
+# SlopMochi
+
+!(docs/slopmochi1.png)
 
 Slop causes us humans painful extra cognitive load, while agents have DEEP slop tolerance.
 But we do see them drop in performance as slop causes reasoning chains to lengthen,
 evidence to conflict, distraction to increase. Planning becomes more elaborate with more subtasks,
 they start overlooking constraints more often, forgetting goals, and prioritising irrelvancies.
 
-*Slopwatch* is a quality management tool a window into code health.
+*SlopMochi* is a quality management tool a window into code health.
 Use it to keep an eye on what is creeping upwards, request and trigger refactors, and to see how refactors are progressing.
 
-The bundled *slopmark* utility supplies slopwatch with quality metrics. It finds design and abstraction smells in Go, Java, TypeScript, and Rust, giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
+The bundled *slopmark* utility supplies slopmochi with quality metrics. It finds design and abstraction smells in Go, Java, TypeScript, and Rust, giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
 
 It can also be run by agents (it has an mcp server) and lets you give them *one clear and simple KPI* to stop the descent to slop.
 Give them a simple rule: keep the score under target, pass the gates, and rework anything over it until it is clean.
@@ -16,12 +18,12 @@ Give them a simple rule: keep the score under target, pass the gates, and rework
 
 ## Install and usage
 
-The Homebrew package includes the `slopmark` analyzer and `slopwatch` live dashboard:
+The Homebrew package includes the `slopmark` analyzer and `slopmochi` live dashboard:
 
 ```sh
 brew tap blater/tap
 
-brew install slopwatch
+brew install slopmochi
 ```
 You'll probably need to run brew trust to trust this tap, if you prefer not to, then you can also build from source.
 
@@ -29,18 +31,18 @@ You'll probably need to run brew trust to trust this tap, if you prefer not to, 
 For a source checkout:
 
 ```sh
-git clone https://github.com/blater/slopwatch.git
-cd slopwatch
+git clone https://github.com/blater/slopmochi.git
+cd slopmochi
 make build
 ```
 The TypeScript analyzer requires Node.js 22 or newer. Homebrew installs that runtime dependency automatically.
 
 ## Usage
 
-Open the live dashboard with `slopwatch [TARGET ...]`
+Open the live dashboard with `slopmochi [TARGET ...]`
 e.g. to scan and show a project in the current directory:
 ```sh
-slopwatch .
+slopmochi .
 ```
 ![Slopmark follow-mode dashboard](docs/follow-mode.svg)
 
@@ -69,9 +71,9 @@ Supported source file extensions are `.go`, `.java`, `.ts`, `.tsx`, `.mts`, `.ct
 | --- | --- | --- |
 | `-c`, `--compact` | Show only score and path in text output | `slopmark --compact .` |
 | `-f`, `--follow` | Open the live, scrollable ranking dashboard | `slopmark --follow --limit 100 .` |
-| `--trend-window DURATION` | Set the follow-mode movement and edit-highlight window | `slopwatch --trend-window 30m .` |
+| `--trend-window DURATION` | Set the follow-mode movement and edit-highlight window | `slopmochi --trend-window 30m .` |
 | `--include-tests` | Include test source files | `slopmark --include-tests .` |
-| `--follow-symlinks` | Follow symlinks found inside target directories; an explicitly named symlink target is always followed | `slopwatch --follow-symlinks src` |
+| `--follow-symlinks` | Follow symlinks found inside target directories; an explicitly named symlink target is always followed | `slopmochi --follow-symlinks src` |
 | `--typescript-types` | Enable slower compiler-aware TypeScript type-safety analysis | `slopmark --typescript-types .` |
 | `--limit NUMBER` | Return at most this many ranked files | `slopmark --limit 20 .` |
 | `--pass-score SCORE` | Pass files scoring at or below this value | `slopmark --pass-score 100 .` |
@@ -253,7 +255,7 @@ trigger, and `-` means unavailable.
 
 ## Agent-assisted fixes
 
-You can highlight files in the slopwatch file browser and request an agent to lower its score.
+You can highlight files in the slopmochi file browser and request an agent to lower its score.
 I'll write up a proper description, but in the meantime, enjoy Codex's slop description - it has
 written a lot, so I think it was quite proud of this one:
 
@@ -262,13 +264,13 @@ written a lot, so I think it was quite proud of this one:
  not require an OpenAI API key. The Fix form lets you choose the score target,
  one or more focus metrics, allowed edit scope, agent profile, model, effort,
  delivery workflow and branch name. The global master prompt is editable in
- Fix Defaults and is the complete prompt sent to the agent; Slopwatch only
+ Fix Defaults and is the complete prompt sent to the agent; SlopMochi only
  substitutes its documented data placeholders.
 
  The alternative `OpenAI Responses API — API key` profile uses
  `env:OPENAI_API_KEY`; API usage is billed separately from ChatGPT. That adapter
  has no shell, process, Git or ambient filesystem access: candidate reads and
- writes pass through Slopwatch-controlled tools. Slopwatch never silently falls
+ writes pass through SlopMochi-controlled tools. SlopMochi never silently falls
  back between the Codex/ChatGPT and direct API-key routes. Codex uses its local
  App Server with a workspace-write sandbox, streamed activity and per-job
  `turn/interrupt` cancellation.
@@ -278,7 +280,7 @@ written a lot, so I think it was quite proud of this one:
  pull request are separate choices; local changes are the default. Press `Tab` to
  switch between Files and Agents, or `A` to jump to Agents. Expand a job to see
  its targets and compact metric state; `C` cancels only the selected eligible
- job. Agent completion is not treated as success: Slopwatch freshly analyzes
+ job. Agent completion is not treated as success: SlopMochi freshly analyzes
  the candidate and continues automatically until the target is met.
 
  Settings lists its sections alphabetically. Agents presents one row per
@@ -290,13 +292,13 @@ written a lot, so I think it was quite proud of this one:
  constraints are visible settings: concurrency, retention and actor limits are
  global; provider turn/tool/token/file/context budgets belong to the selected
  agent profile.
- Model turns, tool calls and token checks default to no Slopwatch-imposed cap,
+ Model turns, tool calls and token checks default to no SlopMochi-imposed cap,
  active attempts have no wall-clock timeout or attempt cap, and Cancel is the
  only job action.
 
  Pull-request delivery (draft or ready for review, as configured) additionally requires
- `SLOPWATCH_FIX_GH_EXECUTABLE` to name the canonical absolute path of a
- non-writable GitHub CLI outside the repository. Slopwatch resolves `gh`
+ `SLOPMOCHI_FIX_GH_EXECUTABLE` to name the canonical absolute path of a
+ non-writable GitHub CLI outside the repository. SlopMochi resolves `gh`
  authorization and the exact `github.com/owner/repository` target when selected
  publication actually runs; it does not block Fix preparation or admission and
  does not select either CLI from the ambient `PATH`.

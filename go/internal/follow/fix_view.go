@@ -5,11 +5,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixapp"
-	"github.com/blater/slopwatch/internal/scoring"
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixapp"
+	"github.com/blater/slopmochi/internal/scoring"
+	"github.com/blater/slopmochi/internal/style"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -366,7 +366,7 @@ func (model Model) shutdownView(base string) string {
 		lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
 		return joinScreenLines(lines[:model.height])
 	}
-	return model.overlay(base, style.Popup("ACTIVE FIX JOBS", []string{status, "Running jobs do not detach from Slopwatch."}, footer, min(64, max(32, model.width-4))))
+	return model.overlay(base, style.Popup("ACTIVE FIX JOBS", []string{status, "Running jobs do not detach from Slopmochi."}, footer, min(64, max(32, model.width-4))))
 }
 
 func (model Model) fixDialogPopup() string {

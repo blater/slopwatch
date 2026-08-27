@@ -4,8 +4,8 @@ import (
 	"context"
 	"sort"
 
-	"github.com/blater/slopwatch/internal/analysiscache"
-	"github.com/blater/slopwatch/internal/unitplan"
+	"github.com/blater/slopmochi/internal/analysiscache"
+	"github.com/blater/slopmochi/internal/unitplan"
 )
 
 func (analyzer *Analyzer) prepareCacheUnits(ctx context.Context, catalog catalogDocument, all []unitplan.Unit, active []plannedCacheUnit, options Options) (cachePreparation, error) {

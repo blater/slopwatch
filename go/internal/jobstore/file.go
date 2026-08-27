@@ -11,7 +11,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 // File stores each job as a plain JSON file in one directory.

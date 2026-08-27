@@ -2,7 +2,7 @@
 // agent-assisted remediation jobs.
 package fix
 
-import "github.com/blater/slopwatch/internal/naming"
+import "github.com/blater/slopmochi/internal/naming"
 
 type JobID string
 type AttemptID string

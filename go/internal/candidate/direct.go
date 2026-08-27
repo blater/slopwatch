@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 // DirectService lets the agent work in the user's current files. Its private
@@ -326,7 +326,7 @@ func scanDirectFiles(ctx context.Context, root string) ([]directEntry, error) {
 
 func ignoredDirectDirectory(name string) bool {
 	switch name {
-	case ".git", ".hg", ".svn", ".slopwatch":
+	case ".git", ".hg", ".svn", ".slopmochi":
 		return true
 	}
 	return false

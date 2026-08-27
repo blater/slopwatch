@@ -1,9 +1,9 @@
 package preferencesadapter
 
 import (
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 func cloneResolved(value appconfig.Resolved) appconfig.Resolved {

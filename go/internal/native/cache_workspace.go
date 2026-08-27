@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/blater/slopwatch/internal/analysiscache"
+	"github.com/blater/slopmochi/internal/analysiscache"
 )
 
 type workspaceHashResult struct {

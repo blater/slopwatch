@@ -8,9 +8,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/scoring"
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/scoring"
+	"github.com/blater/slopmochi/internal/style"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -30,7 +30,7 @@ func agentsTableView(model Model) string {
 }
 
 func agentsTopLine(model Model) string {
-	logo := "-=[slopwatch]=-"
+	logo := "-=[slopmochi]=-"
 	left := logo + "  " + fixAggregateText(model.agents.Jobs)
 	if model.fixUpdatesStale {
 		left += " · UPDATES STALE"

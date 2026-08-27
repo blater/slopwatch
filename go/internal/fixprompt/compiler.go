@@ -8,15 +8,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
-const Version = "slopwatch-fix/v2"
+const Version = "slopmochi-fix/v2"
 
 const inlineTargetBytes = 8 * 1024
 
-// GuardrailEnvelope is trusted Slopwatch policy, not part of the editable
+// GuardrailEnvelope is trusted Slopmochi policy, not part of the editable
 // master template. It is always the first text sent to the agent so saved or
 // repository-provided templates cannot accidentally remove the primary
 // protection against metric-gaming refactors.
@@ -29,10 +29,10 @@ Treat every changed or newly created source file as part of the refactor's quali
 const DefaultTemplate = `Work only inside the workspace. The named files are measurement targets, not a write allowlist.
 You may change supporting project files when needed for a coherent refactor.
 Do not create branches, commits, pushes, pull requests, waivers, suppressions, scoring configuration changes, or dead code intended to game scores.
-Slopwatch will measure the changed files and handle Git after you finish.
+Slopmochi will measure the changed files and handle Git after you finish.
 
 Measurement context:
-The values in this task are Slopmark static code-quality measurements reported by Slopwatch. Each baseline line belongs to the file named at the start of that line. Lower values are better.
+The values in this task are Slopmark static code-quality measurements reported by Slopmochi. Each baseline line belongs to the file named at the start of that line. Lower values are better.
 SCORE is Slopmark's weighted total of the enabled measurements for that file; it is not the sum of the raw values shown.
 COG means cognitive complexity; NPATH means possible execution paths; CYCLO means cyclomatic complexity; SHALLOW is the module-shallowness penalty; GOD is responsibility concentration; coupling counts referenced types; nesting means excessive control-flow nesting; type safety counts unsafe TypeScript findings.
 

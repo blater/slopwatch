@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopmochi/internal/report"
 )
 
 const (

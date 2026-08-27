@@ -1,6 +1,6 @@
 package scoring
 
-import "github.com/blater/slopwatch/internal/report"
+import "github.com/blater/slopmochi/internal/report"
 
 // MetricID is a stable verifier and dashboard metric identifier.
 type MetricID string

@@ -2,7 +2,7 @@
 
 ## Status and intent
 
-Slopwatch previously contained a product-specific command runner tied to fix jobs. It was removed because the product did not yet have clear user journeys for defining, selecting, and interpreting local commands. Presenting that runner as “validation” also implied a partial CI system without the workflow, discoverability, or value needed to justify one.
+Slopmochi previously contained a product-specific command runner tied to fix jobs. It was removed because the product did not yet have clear user journeys for defining, selecting, and interpreting local commands. Presenting that runner as “validation” also implied a partial CI system without the workflow, discoverability, or value needed to justify one.
 
 This note preserves the reusable engineering ideas so a future, generic command engine can be rebuilt when concrete use-cases exist. It is a design record, not a dormant feature specification. Nothing in the running application should depend on it.
 
@@ -136,7 +136,7 @@ Other platforms need an equivalent ownership primitive rather than pretending pr
 
 ### Optional container backend
 
-If a future use-case needs container confinement, implement it as a separately selectable adapter. Do not make Docker, a particular image, or container configuration a Slopwatch startup dependency.
+If a future use-case needs container confinement, implement it as a separately selectable adapter. Do not make Docker, a particular image, or container configuration a Slopmochi startup dependency.
 
 The former design used an immutable, digest-pinned image and a trusted PID 1 supervisor. The host created a container with direct argv and these defenses:
 
@@ -212,7 +212,7 @@ The minimum effective suite should cover behavior, not a second fake implementat
 - workspace-copy limits and special-file rejection work at boundaries;
 - a backend contract suite runs against every real adapter that can run in the current environment.
 
-Container-specific tests, if that adapter returns, should verify command construction, exact-label cleanup, cancel/kill/wait ordering, unknown request-field rejection, immutable executable probing, orphan reconciliation, and the descendant escape probe. Environment-dependent integration tests must skip clearly when the backend is absent; ordinary Slopwatch build, install, startup, and tests must never require Docker.
+Container-specific tests, if that adapter returns, should verify command construction, exact-label cleanup, cancel/kill/wait ordering, unknown request-field rejection, immutable executable probing, orphan reconciliation, and the descendant escape probe. Environment-dependent integration tests must skip clearly when the backend is absent; ordinary Slopmochi build, install, startup, and tests must never require Docker.
 
 ## Decisions deferred until real use-cases exist
 

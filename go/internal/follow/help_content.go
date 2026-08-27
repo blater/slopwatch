@@ -71,7 +71,7 @@ var mainScreenHelp = []helpEntry{
 	{label: "Page up", description: "Page Up or Ctrl-B moves up by one screen."},
 	{label: "Path scroll", description: "Left and Right reveal horizontally clipped file paths."},
 	{label: "Previous match", description: "N selects the previous result for the current search."},
-	{label: "Quit", description: "q or Ctrl-C exits when idle. With active fixes, Slopwatch confirms cancel-all and visibly joins them before exit."},
+	{label: "Quit", description: "q or Ctrl-C exits when idle. With active fixes, Slopmochi confirms cancel-all and visibly joins them before exit."},
 	{label: "Settings", description: "s opens alphabetically ordered settings. Agents shows provider availability, highlights the active provider, and automatically checks connections in provider-specific dialogs."},
 	{label: "Sort", description: "o chooses the sort field and direction."},
 	{label: "View source", description: "v opens the selected file with syntax highlighting."},

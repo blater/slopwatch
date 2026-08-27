@@ -77,12 +77,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          stage="$RUNNER_TEMP/slopwatch-stage"
+          stage="$RUNNER_TEMP/slopmochi-stage"
           mkdir -p \
             "$stage/build" \
             "$stage/analyzers/structural" \
             dist
-          cp build/slopmark build/slopwatch "$stage/build/"
+          cp build/slopmark build/slopmochi "$stage/build/"
           cp -R build/typescript "$stage/build/"
           cp \
             analyzers/structural/slopslap-structural \
@@ -91,7 +91,7 @@ jobs:
             "$stage/analyzers/structural/"
           cp -R analyzers/structural/java-runtime "$stage/analyzers/structural/"
           cp component-catalog.json LICENSE "$stage/"
-          archive="dist/slopwatch-${VERSION}-darwin-arm64.tar.gz"
+          archive="dist/slopmochi-${VERSION}-darwin-arm64.tar.gz"
           tar -C "$stage" -czf "$archive" .
           shasum -a 256 "$archive" > dist/SHA256SUMS
 
@@ -99,10 +99,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          unpack="$RUNNER_TEMP/slopwatch-unpack"
-          source="$RUNNER_TEMP/slopwatch-smoke"
+          unpack="$RUNNER_TEMP/slopmochi-unpack"
+          source="$RUNNER_TEMP/slopmochi-smoke"
           mkdir -p "$unpack" "$source"
-          tar -xzf "dist/slopwatch-${VERSION}-darwin-arm64.tar.gz" -C "$unpack"
+          tar -xzf "dist/slopmochi-${VERSION}-darwin-arm64.tar.gz" -C "$unpack"
           cat > "$source/main.go" <<'GO'
           package smoke
           import "fmt"
@@ -160,7 +160,7 @@ jobs:
             exit 1
           }
           "$unpack/build/slopmark" --help >/dev/null
-          "$unpack/build/slopwatch" --help >/dev/null
+          "$unpack/build/slopmochi" --help >/dev/null
 
       - name: Create or update GitHub release
         env:
@@ -173,14 +173,14 @@ jobs:
           else
             gh release create "$RELEASE_TAG" dist/* \
               --verify-tag \
-              --title "SlopWatch $VERSION" \
+              --title "Slopmochi $VERSION" \
               --generate-notes
           fi
 
       - name: Update Homebrew tap
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          SLOPWATCH_RELEASE_VERSION: ${{ env.VERSION }}
+          SLOPMOCHI_RELEASE_VERSION: ${{ env.VERSION }}
         run: |
           gh auth setup-git --hostname github.com --force
           ./util/build_brew

@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopmochi/internal/agent"
 )
 
 const RuntimeKind agent.RuntimeKind = "openai-responses"
@@ -194,10 +194,10 @@ var profileLimitFields = []struct {
 	description string
 	value       func(resolvedConfig) int64
 }{
-	{"max_turns", "Model turns", "0 means no Slopwatch turn budget; cancellation remains available.", func(v resolvedConfig) int64 { return int64(v.maxTurns) }},
-	{"max_tool_calls", "Tool calls", "0 means no Slopwatch tool-call budget.", func(v resolvedConfig) int64 { return int64(v.maxToolCalls) }},
+	{"max_turns", "Model turns", "0 means no Slopmochi turn budget; cancellation remains available.", func(v resolvedConfig) int64 { return int64(v.maxTurns) }},
+	{"max_tool_calls", "Tool calls", "0 means no Slopmochi tool-call budget.", func(v resolvedConfig) int64 { return int64(v.maxToolCalls) }},
 	{"max_output_tokens", "Output tokens / turn", "0 leaves the per-turn output budget to the provider/model.", func(v resolvedConfig) int64 { return int64(v.maxOutputTokens) }},
-	{"max_context_tokens", "Input tokens / turn", "0 disables Slopwatch's usage-based token check.", func(v resolvedConfig) int64 { return v.maxContextTokens }},
+	{"max_context_tokens", "Input tokens / turn", "0 disables Slopmochi's usage-based token check.", func(v resolvedConfig) int64 { return v.maxContextTokens }},
 	{"max_response_bytes", "Response bytes / job", "Cumulative provider response bytes accepted for one job.", func(v resolvedConfig) int64 { return v.maxResponseBytes }},
 	{"max_probe_bytes", "Probe catalog bytes", "Maximum model-catalog response accepted by Test/Probe; this never times an active job.", func(v resolvedConfig) int64 { return v.maxProbeBytes }},
 	{"max_request_bytes", "Request bytes / turn", "Maximum encoded request size sent on one model turn.", func(v resolvedConfig) int64 { return v.maxRequestBytes }},

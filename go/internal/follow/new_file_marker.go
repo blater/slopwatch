@@ -3,7 +3,7 @@ package follow
 import (
 	"time"
 
-	"github.com/blater/slopwatch/internal/style"
+	"github.com/blater/slopmochi/internal/style"
 
 	"github.com/charmbracelet/lipgloss"
 )

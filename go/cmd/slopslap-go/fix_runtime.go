@@ -9,20 +9,20 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/agent/codexcli"
-	"github.com/blater/slopwatch/internal/agent/openairesponses"
-	"github.com/blater/slopwatch/internal/appconfig"
-	"github.com/blater/slopwatch/internal/appconfig/preferencesadapter"
-	"github.com/blater/slopwatch/internal/candidate"
-	"github.com/blater/slopwatch/internal/delivery"
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixanalysis/nativeadapter"
-	"github.com/blater/slopwatch/internal/fixapp"
-	"github.com/blater/slopwatch/internal/isolation"
-	"github.com/blater/slopwatch/internal/jobstore"
-	"github.com/blater/slopwatch/internal/preferences"
-	"github.com/blater/slopwatch/internal/publisher/ghcli"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/agent/codexcli"
+	"github.com/blater/slopmochi/internal/agent/openairesponses"
+	"github.com/blater/slopmochi/internal/appconfig"
+	"github.com/blater/slopmochi/internal/appconfig/preferencesadapter"
+	"github.com/blater/slopmochi/internal/candidate"
+	"github.com/blater/slopmochi/internal/delivery"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/fixanalysis/nativeadapter"
+	"github.com/blater/slopmochi/internal/fixapp"
+	"github.com/blater/slopmochi/internal/isolation"
+	"github.com/blater/slopmochi/internal/jobstore"
+	"github.com/blater/slopmochi/internal/preferences"
+	"github.com/blater/slopmochi/internal/publisher/ghcli"
 )
 
 type fixFeature struct {
@@ -57,7 +57,7 @@ func buildFixFeature(ctx context.Context, workspace, installationRoot, preferenc
 	// discovered repository identity before any job can be admitted.
 	identity := fix.WorkspaceIdentity{RepositoryRoot: analysisRoot, AnalysisRoot: analysisRoot}
 	registry := agent.NewRegistry()
-	// Codex follows the same deep-client integration as t3code: Slopwatch owns
+	// Codex follows the same deep-client integration as t3code: Slopmochi owns
 	// an App Server child per attempt and the adapter translates its lifecycle,
 	// events and turn-scoped cancellation behind agent.Strategy.
 	strategy := codexcli.New()
@@ -161,7 +161,7 @@ func agentDefaults(value preferences.Document) preferences.Document {
 	value = preferences.Clone(value)
 	value.Agents.Profiles = []preferences.AgentProfile{
 		{ID: "codex-default", Label: "Codex", Runtime: string(codexcli.RuntimeKind),
-			Executable: "codex", RuntimeProfile: "slopwatch", AuthenticationRef: "provider-owned", Options: map[string]string{}},
+			Executable: "codex", RuntimeProfile: "slopmochi", AuthenticationRef: "provider-owned", Options: map[string]string{}},
 		{ID: "gpt-default", Label: "OpenAI API", Runtime: string(openairesponses.RuntimeKind),
 			AuthenticationRef: "env:OPENAI_API_KEY", Options: map[string]string{}},
 	}
@@ -172,7 +172,7 @@ func agentDefaults(value preferences.Document) preferences.Document {
 }
 
 const (
-	publisherExecutableEnvironment = "SLOPWATCH_FIX_GH_EXECUTABLE"
+	publisherExecutableEnvironment = "SLOPMOCHI_FIX_GH_EXECUTABLE"
 )
 
 func pathInside(root, value string) bool {

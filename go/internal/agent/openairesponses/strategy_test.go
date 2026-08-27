@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blater/slopwatch/internal/agent"
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 const testSecret = "sk-test-auth-material-must-never-leak"
@@ -157,11 +157,11 @@ func TestStrategyImplementsControlledResponsesToolLoop(t *testing.T) {
 func TestCrashLeftoverStagingCannotPoisonCandidateOrDeleteLookalikes(t *testing.T) {
 	root := canonicalTempDir(t)
 	request := testRequest(t, root)
-	lookalike := filepath.Join(root, ".slopwatch-agent-unrelated.tmp")
+	lookalike := filepath.Join(root, ".slopmochi-agent-unrelated.tmp")
 	if err := os.WriteFile(lookalike, []byte("tracked lookalike"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(request.Workspace.StagingRoot, ".slopwatch-agent-crash.tmp"), []byte("partial"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(request.Workspace.StagingRoot, ".slopmochi-agent-crash.tmp"), []byte("partial"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	tools, err := newCandidateTools(request.Workspace, request.Write, resolvedConfig{maxWriteBytes: 1 << 20, maxReadBytes: 1 << 20}, nil)
@@ -181,7 +181,7 @@ func TestCrashLeftoverStagingCannotPoisonCandidateOrDeleteLookalikes(t *testing.
 		t.Fatal(err)
 	}
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), ".slopwatch-agent-") && entry.Name() != filepath.Base(lookalike) {
+		if strings.HasPrefix(entry.Name(), ".slopmochi-agent-") && entry.Name() != filepath.Base(lookalike) {
 			t.Fatalf("temporary artifact entered candidate: %s", entry.Name())
 		}
 	}

@@ -1,6 +1,6 @@
 # Dashboard display standards
 
-These standards apply to the `slopwatch` follow dashboard and its overlays.
+These standards apply to the `slopmochi` follow dashboard and its overlays.
 They do not define layouts or controls for other interfaces.
 
 ## Selection

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	userprefs "github.com/blater/slopwatch/internal/preferences"
-	"github.com/blater/slopwatch/internal/style"
+	userprefs "github.com/blater/slopmochi/internal/preferences"
+	"github.com/blater/slopmochi/internal/style"
 )
 
 const defaultTrendWindow = 10 * time.Minute

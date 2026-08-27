@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/isolation"
+	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopmochi/internal/isolation"
 )
 
 const testDeliveryOutputBytes = int64(4 << 20)
@@ -42,11 +42,11 @@ func TestGitServiceCreatesExactAbsentLocalAndRemoteRefs(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := service.PublishCommit(context.Background(), Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)},
-		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopwatch/fix/main-test", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
+		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopmochi/fix/main-test", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Pushed || result.Commit == "" || result.LocalRef != "refs/heads/slopwatch/fix/main-test" {
+	if !result.Pushed || result.Commit == "" || result.LocalRef != "refs/heads/slopmochi/fix/main-test" {
 		t.Fatalf("delivery result = %+v", result)
 	}
 	if head := strings.TrimSpace(gitResult(t, repository, "rev-parse", "HEAD")); head != base {
@@ -64,7 +64,7 @@ func TestGitServiceCreatesExactAbsentLocalAndRemoteRefs(t *testing.T) {
 		t.Fatalf("remote oid = %s, want %s", remoteOID, result.Commit)
 	}
 	if _, err := service.PublishCommit(context.Background(), Request{Job: "job-other", Candidate: fix.CandidateIdentity{Job: "job-other", RepositoryRoot: repository, GitCommonDir: common},
-		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopwatch/fix/main-test", Remote: "origin", CommitTitle: "Again", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}); err == nil {
+		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopmochi/fix/main-test", Remote: "origin", CommitTitle: "Again", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}); err == nil {
 		t.Fatal("reused existing branch")
 	}
 }
@@ -122,7 +122,7 @@ func TestCanceledLocalRefCreationIsReconciledExactly(t *testing.T) {
 	}
 	identity, _ := remoteIdentity(remote)
 	request := Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)},
-		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopwatch/fix/canceled-local", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}
+		DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopmochi/fix/canceled-local", Remote: "origin", CommitTitle: "Refactor main.go", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes}
 	committed, err := normal.CreateCommit(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestCanceledLocalRefCreationIsReconciledExactly(t *testing.T) {
 		t.Fatalf("canceled local ref result = %+v, %v", ambiguous, err)
 	}
 	reconciled, err := normal.Reconcile(t.Context(), request, ambiguous)
-	if err != nil || reconciled.Ambiguous || reconciled.LocalRef != "refs/heads/slopwatch/fix/canceled-local" {
+	if err != nil || reconciled.Ambiguous || reconciled.LocalRef != "refs/heads/slopmochi/fix/canceled-local" {
 		t.Fatalf("local ref reconciliation = %+v, %v", reconciled, err)
 	}
 }
@@ -150,12 +150,12 @@ func TestPullRequestPreflightRequiresResolvableBase(t *testing.T) {
 	service, _ := NewGitService(testExecutor{})
 	workspace := fix.WorkspaceIdentity{RepositoryRoot: repository}
 	for _, base := range []string{"", "does-not-exist"} {
-		_, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: base, Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
+		_, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: base, Branch: "slopmochi/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
 		if err == nil {
 			t.Fatalf("base %q accepted", base)
 		}
 	}
-	if _, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: "HEAD", Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes}); err == nil || !strings.Contains(err.Error(), "github.com") {
+	if _, err := service.Preflight(context.Background(), PreflightRequest{Workspace: workspace, Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: "HEAD", Branch: "slopmochi/fix/test", CommandOutputBytes: testDeliveryOutputBytes}); err == nil || !strings.Contains(err.Error(), "github.com") {
 		t.Fatalf("local remote accepted for pull request: %v", err)
 	}
 }
@@ -174,7 +174,7 @@ func TestPullRequestPreflightRequiresLiteralBaseOnAdmittedRemote(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			service := &GitService{git: "/usr/bin/git", runner: remoteBasePreflightExecutor(test.remoteBase)}
 			result, err := service.Preflight(t.Context(), PreflightRequest{Workspace: fix.WorkspaceIdentity{RepositoryRoot: "/repo"},
-				Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: test.base, Branch: "slopwatch/fix/test", Publication: true, CommandOutputBytes: testDeliveryOutputBytes})
+				Plan: pullRequestNewBranch, Remote: "origin", BaseBranch: test.base, Branch: "slopmochi/fix/test", Publication: true, CommandOutputBytes: testDeliveryOutputBytes})
 			if test.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantError) {
 					t.Fatalf("Preflight() error = %v", err)
@@ -223,7 +223,7 @@ func TestDeliveryRejectsOptionLikeRemoteAliasBeforeGitExecution(t *testing.T) {
 		return isolation.Result{}, nil
 	})}
 	_, err := service.Preflight(t.Context(), PreflightRequest{Workspace: fix.WorkspaceIdentity{RepositoryRoot: "/repo"}, Plan: pushNewBranch,
-		Remote: "--upload-pack=touch-pwn", Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
+		Remote: "--upload-pack=touch-pwn", Branch: "slopmochi/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
 	if err == nil || !strings.Contains(err.Error(), "safe configured remote alias") {
 		t.Fatalf("unsafe remote alias error=%v", err)
 	}
@@ -244,7 +244,7 @@ func TestDeliveryRejectsCredentialBearingAndUnsupportedRemoteURLsWithoutEcho(t *
 		t.Run(test.name, func(t *testing.T) {
 			gitCommand(t, repository, "remote", "set-url", "--push", "origin", test.remoteURL)
 			_, err := service.Preflight(t.Context(), PreflightRequest{Workspace: fix.WorkspaceIdentity{RepositoryRoot: repository}, Plan: pushNewBranch,
-				Remote: "origin", Branch: "slopwatch/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
+				Remote: "origin", Branch: "slopmochi/fix/test", CommandOutputBytes: testDeliveryOutputBytes})
 			if err == nil || test.secret != "" && strings.Contains(err.Error(), test.secret) {
 				t.Fatalf("unsafe URL error=%v", err)
 			}
@@ -288,12 +288,12 @@ func TestDeliveryRejectsHostileGitHubPortAndChangedLocalRemote(t *testing.T) {
 	}
 	gitCommand(t, repository, "remote", "set-url", "--push", "origin", secondRemote)
 	_, err = service.CreateCommit(t.Context(), Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository,
-		GitCommonDir: common, BaseCommit: fix.ObjectID(base)}, DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopwatch/fix/remote-changed", Remote: "origin",
+		GitCommonDir: common, BaseCommit: fix.ObjectID(base)}, DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go"}, Branch: "slopmochi/fix/remote-changed", Remote: "origin",
 		ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
 	if err == nil || !strings.Contains(err.Error(), "identity changed") {
 		t.Fatalf("changed local remote accepted: %v", err)
 	}
-	if command := exec.Command("git", "-C", repository, "rev-parse", "--verify", "refs/heads/slopwatch/fix/remote-changed"); command.Run() == nil {
+	if command := exec.Command("git", "-C", repository, "rev-parse", "--verify", "refs/heads/slopmochi/fix/remote-changed"); command.Run() == nil {
 		t.Fatal("changed remote created a local branch")
 	}
 }
@@ -366,7 +366,7 @@ func TestGitServiceLetsGitHandleAttributesAtRuntime(t *testing.T) {
 	if identityErr != nil {
 		t.Fatal(identityErr)
 	}
-	result, err := service.CreateCommit(context.Background(), Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)}, DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go", ".gitattributes"}, Branch: "slopwatch/fix/attrs", Remote: "origin", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
+	result, err := service.CreateCommit(context.Background(), Request{Job: "job-test", Candidate: fix.CandidateIdentity{Job: "job-test", RepositoryRoot: repository, GitCommonDir: common, BaseCommit: fix.ObjectID(base)}, DiffHash: fingerprint, Plan: pushNewBranch, Paths: []fix.RepoPath{"main.go", ".gitattributes"}, Branch: "slopmochi/fix/attrs", Remote: "origin", ExpectedRemoteIdentity: identity, CommandOutputBytes: testDeliveryOutputBytes})
 	if err != nil || result.Commit == "" {
 		t.Fatalf("Git could not apply configured attributes at runtime: result=%+v err=%v", result, err)
 	}

@@ -11,7 +11,7 @@ RUST_BIN := $(STRUCTURAL_DIR)/slopslap-structural-rust
 JAVA_JAR := $(STRUCTURAL_DIR)/slopslap-structural-java.jar
 JAVA_RUNTIME_BIN := $(STRUCTURAL_DIR)/java-runtime/bin/java
 GO_BIN := $(BUILD_DIR)/slopmark
-WATCH_BIN := $(BUILD_DIR)/slopwatch
+MOCHI_BIN := $(BUILD_DIR)/slopmochi
 TS_MARKER := $(TYPESCRIPT_WORK_DIR)/dist/src/cli.js
 TS_LAUNCHER := $(TYPESCRIPT_RUNTIME_DIR)/slopslap-typescript
 
@@ -25,7 +25,7 @@ STRUCTURAL_GO_SOURCES := $(wildcard $(STRUCTURAL_DIR)/cmd/slopslap-structural/*.
 STRUCTURAL_JAVA_SOURCES := $(wildcard $(STRUCTURAL_DIR)/adapters/java/src/dev/slopslap/structural/*.java)
 STRUCTURAL_RUST_SOURCES := $(wildcard $(STRUCTURAL_DIR)/adapters/rust/src/*.rs)
 GO_SOURCES := $(shell find $(ROOT)/go/cmd/slopslap-go $(ROOT)/go/internal -type f -name '*.go')
-WATCH_SOURCES := $(shell find $(ROOT)/go/cmd/slopwatch -type f -name '*.go')
+MOCHI_SOURCES := $(shell find $(ROOT)/go/cmd/slopmochi -type f -name '*.go')
 TS_SOURCES := $(wildcard $(TYPESCRIPT_DIR)/src/*.ts) $(wildcard $(TYPESCRIPT_DIR)/test/*.ts)
 
 .PHONY: all build dev-build build-structural build-rust build-java build-go \
@@ -66,11 +66,11 @@ $(GO_BIN): $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopslap-go
 
-$(WATCH_BIN): $(WATCH_SOURCES) $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
+$(MOCHI_BIN): $(MOCHI_SOURCES) $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
-	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopwatch
+	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopmochi
 
-build-go: $(GO_BIN) $(WATCH_BIN)
+build-go: $(GO_BIN) $(MOCHI_BIN)
 
 $(TS_MARKER): $(TS_SOURCES) $(TYPESCRIPT_DIR)/package.json $(TYPESCRIPT_DIR)/package-lock.json $(TYPESCRIPT_DIR)/tsconfig.json
 	@rm -rf $(TYPESCRIPT_WORK_DIR)

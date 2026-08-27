@@ -5,7 +5,7 @@ package candidate
 import (
 	"context"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 // ScopePlanner freezes the exact repository-relative paths admitted by a
@@ -64,7 +64,7 @@ type Service interface {
 	// ownership marker, or confirms that the exact owned candidate is gone.
 	ReconcileDiscard(context.Context, fix.CandidateIdentity) error
 	Discard(context.Context, fix.CandidateIdentity) error
-	// Release ends Slopwatch ownership without deleting a preserved workspace.
+	// Release ends Slopmochi ownership without deleting a preserved workspace.
 	Release(context.Context, fix.CandidateIdentity) error
 	Close() error
 }

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/blater/slopwatch/internal/sourcepath"
+	"github.com/blater/slopmochi/internal/sourcepath"
 )
 
 func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {

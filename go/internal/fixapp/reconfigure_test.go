@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopmochi/internal/fix"
 )
 
 func TestReconfigureExpandsAgentCapacityWithoutRestart(t *testing.T) {

@@ -1,6 +1,6 @@
 package follow
 
-import "github.com/blater/slopwatch/internal/fix"
+import "github.com/blater/slopmochi/internal/fix"
 
 // MainView identifies the persistent dashboard surface below transient
 // overlays. Each main view owns its own navigation state.

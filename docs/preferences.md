@@ -4,10 +4,10 @@ The live dashboard stores user preferences in a versioned TOML file. TOML was
 chosen because the hierarchy remains readable and editable without YAML's type
 ambiguities or JSON's lack of comments.
 
-Slopwatch keeps preferences and supporting persistent data under one root:
+Slopmochi keeps preferences and supporting persistent data under one root:
 
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/slopwatch/`
-- Other platforms: `~/.slopwatch/`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/slopmochi/`
+- Other platforms: `~/.slopmochi/`
 
 The preferences file is `preferences.toml` in that directory. `fix-jobs.jsonl`
 contains one structured record per fix, linking to its plain-text logfile in
@@ -17,7 +17,7 @@ the exact prompt, agent activity, and final outcome. Analysis data, worktrees,
 and repository-specific settings are stored in subdirectories of the same
 root. The preferences file is created with complete
 defaults on the first dashboard launch. If it is deleted or unreadable,
-Slopwatch replaces it with current defaults and continues.
+Slopmochi replaces it with current defaults and continues.
 Changes made through Settings, Columns, Weights, or Sort are written
 immediately using an atomic file replacement. Hand edits are read on the next
 launch. An explicitly supplied command-line option takes precedence for that
@@ -29,7 +29,7 @@ limits—are edited only in this file. The Agents popup is deliberately a
 single-account provider chooser: it shows availability and the active provider,
 then exposes only essential connection details and automatic readiness results.
 
-The fix `prompt_template` is the complete agent prompt. Slopwatch substitutes
+The fix `prompt_template` is the complete agent prompt. Slopmochi substitutes
 `{targets}`, `{target_score}`, `{focus_metrics}`, `{change_scope}`,
 `{allowed_paths}`, `{baseline_scores}`, `{target_checklist}`, `{target_count}`,
 `{target_manifest}`, `{target_manifest_count}`, `{previous_attempt}`, and
@@ -59,10 +59,10 @@ effort = 'high'
 prompt_template = '''Work only inside the workspace. The named files are measurement targets, not a write allowlist.
 You may change supporting project files when needed for a coherent refactor.
 Do not create branches, commits, pushes, pull requests, waivers, suppressions, scoring configuration changes, or dead code intended to game scores.
-Slopwatch will measure the changed files and handle Git after you finish.
+Slopmochi will measure the changed files and handle Git after you finish.
 
 Measurement context:
-The values in this task are Slopmark static code-quality measurements reported by Slopwatch. Each baseline line belongs to the file named at the start of that line. Lower values are better.
+The values in this task are Slopmark static code-quality measurements reported by Slopmochi. Each baseline line belongs to the file named at the start of that line. Lower values are better.
 SCORE is Slopmark's weighted total of the enabled measurements for that file; it is not the sum of the raw values shown.
 COG means cognitive complexity; NPATH means possible execution paths; CYCLO means cyclomatic complexity; SHALLOW is the module-shallowness penalty; GOD is responsibility concentration; coupling counts referenced types; nesting means excessive control-flow nesting; type safety counts unsafe TypeScript findings.
 
@@ -83,7 +83,7 @@ Target manifest: {target_manifest}
 
 Measurements from the previous attempt, when present:
 {previous_attempt}'''
-branch_template = 'slopwatch/fix/{target-stem}-{job-short-id}'
+branch_template = 'slopmochi/fix/{target-stem}-{job-short-id}'
 
 [concurrency]
 max_agents = 2
@@ -97,7 +97,7 @@ id = 'codex-default'
 label = 'Codex — managed sign-in (ChatGPT recommended)'
 runtime = 'codex-cli'
 executable = 'codex'
-runtime_profile = 'slopwatch'
+runtime_profile = 'slopmochi'
 authentication_ref = 'provider-owned'
 
 [agents.profiles.options]
@@ -124,13 +124,13 @@ git = 'uncommitted'         # uncommitted | current-branch | new-branch
 publish = 'local'           # local | push | pull-request
 remote = 'origin'
 base_branch = 'main'
-branch_template = 'slopwatch/fix/{target-stem}-{job-short-id}'
+branch_template = 'slopmochi/fix/{target-stem}-{job-short-id}'
 publisher = 'github-cli'
 draft_pull_requests = true
 command_output_bytes = 4194304
-commit_title_template = 'Refactor {targets} with Slopwatch'
+commit_title_template = 'Refactor {targets} with Slopmochi'
 commit_body_template = 'Automated remediation for {goal}.'
-pull_request_title_template = 'Refactor {targets} with Slopwatch'
+pull_request_title_template = 'Refactor {targets} with Slopmochi'
 pull_request_body_template = 'Automated remediation for {goal}.'
 
 [scoring]
@@ -212,8 +212,8 @@ preferences-file setting and is deliberately absent from the UI.
 Agent-specific options are owned and validated by the selected runtime adapter
 but are configured only in this preferences file. For the OpenAI Responses
 adapter, `max_turns`, `max_tool_calls`, and token checks use `0` to mean no
-Slopwatch-imposed budget (or provider default for output tokens). Byte and entry
-budgets must be positive. Slopwatch does not impose an attempt count or job
+Slopmochi-imposed budget (or provider default for output tokens). Byte and entry
+budgets must be positive. Slopmochi does not impose an attempt count or job
 wall-clock timeout; iterations are automatic and per-job Cancel remains
 available. The Codex
 App Server adapter's readiness timeout and post-cancellation termination grace
@@ -229,7 +229,7 @@ compiled 4 MiB/5,000-line ceiling.
 Settings › Git & pull requests controls whether new PRs are drafts or
 ready for review, the user-selected
 base, the organisation's branch template, and the shared candidate/delivery/
-publisher command-output budget. These commands have no Slopwatch wall-clock
+publisher command-output budget. These commands have no Slopmochi wall-clock
 timeout and remain cancelable.
 
 Small supervisor escalation waits after cancellation are fixed safety
