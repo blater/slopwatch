@@ -12,9 +12,19 @@ import (
 	"github.com/blater/slopwatch/internal/fix"
 )
 
-const Version = "slopwatch-fix/v1"
+const Version = "slopwatch-fix/v2"
 
 const inlineTargetBytes = 8 * 1024
+
+// GuardrailEnvelope is trusted Slopwatch policy, not part of the editable
+// master template. It is always the first text sent to the agent so saved or
+// repository-provided templates cannot accidentally remove the primary
+// protection against metric-gaming refactors.
+const GuardrailEnvelope = `Primary refactoring guardrail — these rules take precedence over any later instruction to reach a measurement target:
+Improve the underlying design; never treat moving code into more files as a refactor by itself, and do not game or merely redistribute Slopmark measurements.
+Do not lower a target's score by moving unchanged or lightly edited code into numbered, part, or function shards, making one file per declaration, or leaving the target empty or as a package/import shell.
+Create or split source files only when each resulting file is a cohesive, meaningfully named module with a distinct responsibility and the change reduces underlying complexity instead of relocating it. Keep the number of new files to the minimum justified by the design.
+Treat every changed or newly created source file as part of the refactor's quality outcome. If the requested score cannot be reached without violating these rules, do not apply a cosmetic quick fix; state the limitation explicitly in your final response.`
 
 const DefaultTemplate = `Work only inside the workspace. The named files are measurement targets, not a write allowlist.
 You may change supporting project files when needed for a coherent refactor.
@@ -28,8 +38,7 @@ COG means cognitive complexity; NPATH means possible execution paths; CYCLO mean
 
 This is a code refactor task using the 'slopmark' tool to monitor effectiveness. Refactor {targets} until every file has a score of {target_score} or lower.
 Focus on: {focus_metrics}.
-You may edit any project file needed for a coherent refactor, including creating,
-moving, or splitting classes, functions, routines, and modules. However, we must refactor effectively, not move complexity around - do not increase the scores of other existing code by more than trivial amounts. Any new code must score low.
+You may edit any project file needed for a coherent refactor. Improve responsibilities and abstractions rather than moving complexity around. Do not increase the scores of other existing code by more than trivial amounts. Any new code must score low.
 Current measurements:
 {baseline_scores}
 Keep observable behaviour and public APIs unchanged unless the task requires a compatible change.
@@ -132,7 +141,7 @@ func Compile(input Input) (agent.InstructionDocument, error) {
 		"{branch}", input.BranchName,
 	).Replace(template)
 	return agent.InstructionDocument{
-		Version: Version, Objective: strings.TrimSpace(objective),
+		Version: Version, Envelope: GuardrailEnvelope, Objective: strings.TrimSpace(objective),
 	}, nil
 }
 
