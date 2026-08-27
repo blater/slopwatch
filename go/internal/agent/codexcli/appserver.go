@@ -106,7 +106,10 @@ func startAppServer(executable, directory string, environment []string, maximum 
 	}()
 	go client.read(stdout)
 	go client.writeLoop()
-	go func() { client.waited <- command.Wait() }()
+	go func() {
+		<-client.done
+		client.waited <- command.Wait()
+	}()
 	return client, nil
 }
 
