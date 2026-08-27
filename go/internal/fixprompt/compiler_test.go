@@ -29,6 +29,9 @@ func TestCompileAppliesTheSavedMasterTemplateDeterministically(t *testing.T) {
 	if first.EffectiveBody() != second.EffectiveBody() {
 		t.Fatal("prompt compilation was not deterministic")
 	}
+	if !strings.HasPrefix(first.EffectiveBody(), GuardrailEnvelope+"\n\n"+"Fix a.go, z.go to 100") {
+		t.Fatalf("trusted guardrail was not the prompt prefix: %q", first.EffectiveBody())
+	}
 	for _, wanted := range []string{"a.go, z.go", "Fix a.go, z.go to 100", "cog <= 10", "SCORE 150", "fix/parser"} {
 		if !strings.Contains(first.EffectiveBody(), wanted) {
 			t.Fatalf("compiled prompt omitted %q: %q", wanted, first.EffectiveBody())
@@ -55,10 +58,13 @@ func TestDefaultTemplateContainsTheCompleteAgentInstructions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, wanted := range []string{
+		"Primary refactoring guardrail — these rules take precedence", "do not game or merely redistribute Slopmark measurements",
+		"numbered, part, or function shards", "cohesive, meaningfully named module",
+		"do not apply a cosmetic quick fix; state the limitation explicitly in your final response",
 		"Work only inside the workspace", "Slopwatch will measure", "Measurement context:",
 		"Slopmark static code-quality measurements", "SCORE is Slopmark's weighted total",
 		"This is a code refactor task using the 'slopmark' tool to monitor effectiveness",
-		"However, we must refactor effectively, not move complexity around - do not increase the scores of other existing code by more than trivial amounts. Any new code must score low.",
+		"Improve responsibilities and abstractions rather than moving complexity around.",
 		"Required target checklist:", "do not stop after the first", "- one.go",
 		"Measurements from the previous attempt", "{target_manifest}",
 	} {
@@ -69,9 +75,15 @@ func TestDefaultTemplateContainsTheCompleteAgentInstructions(t *testing.T) {
 	if !strings.Contains(document.Objective, "{previous_attempt}") || !strings.Contains(document.Objective, "{target_manifest}") {
 		t.Fatalf("runtime placeholders were not retained in the configured template: %q", document.Objective)
 	}
+	if !strings.HasPrefix(document.EffectiveBody(), GuardrailEnvelope) {
+		t.Fatalf("trusted guardrail was not first: %q", document.EffectiveBody())
+	}
+	if document.Version != Version {
+		t.Fatalf("compiled prompt version = %q, want %q", document.Version, Version)
+	}
 }
 
-func TestCompileDoesNotAppendInstructionsWhenTemplateHasNoPlaceholders(t *testing.T) {
+func TestCompilePrependsOnlyTheTrustedGuardrailWhenTemplateHasNoPlaceholders(t *testing.T) {
 	t.Parallel()
 	document, err := Compile(Input{
 		Contract: fix.ScoringContract{
@@ -84,7 +96,7 @@ func TestCompileDoesNotAppendInstructionsWhenTemplateHasNoPlaceholders(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := document.EffectiveBody(), "Improve the selected code."; got != want {
+	if got, want := document.EffectiveBody(), GuardrailEnvelope+"\n\nImprove the selected code."; got != want {
 		t.Fatalf("compiled prompt = %q, want exact configured template %q", got, want)
 	}
 }
