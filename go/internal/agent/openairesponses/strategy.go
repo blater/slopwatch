@@ -117,65 +117,15 @@ func (strategy *Strategy) Probe(ctx context.Context, profile agent.Profile) agen
 		}
 		return result
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, modelsEndpoint(endpoint), nil)
+	response, err := strategy.fetchProbe(ctx, config, endpoint, secret)
 	if err != nil {
-		result.State = agent.ProbeIncompatible
-		result.Diagnostic = "Responses API endpoint is invalid"
+		if !errors.Is(err, errProbeUnavailable) {
+			result.State = agent.ProbeIncompatible
+		}
+		result.Diagnostic = err.Error()
 		return result
 	}
-	setHeaders(request, secret, false)
-	response, err := strategy.config.client.Do(request)
-	if err != nil {
-		result.Diagnostic = "Responses API could not be reached"
-		return result
-	}
-	defer response.Body.Close()
-	body, tooLarge, readErr := readBounded(response.Body, config.maxProbeBytes)
-	if readErr != nil || tooLarge {
-		result.State = agent.ProbeIncompatible
-		result.Diagnostic = "Responses API probe returned an invalid response"
-		return result
-	}
-	if providerEchoesSecret(body, secret) {
-		result.State = agent.ProbeIncompatible
-		result.Diagnostic = "Responses API returned unsafe authentication material"
-		return result
-	}
-	if response.StatusCode == http.StatusUnauthorized {
-		result.State = agent.ProbeUnauthenticated
-		result.Diagnostic = "Responses API rejected authentication"
-		return result
-	}
-	if response.StatusCode == http.StatusForbidden {
-		result.State = agent.ProbeIncompatible
-		result.Diagnostic = "Responses API request was forbidden; check the API key, organization/project, and model access"
-		return result
-	}
-	if response.StatusCode == http.StatusTooManyRequests {
-		result.Diagnostic = rateLimitDiagnostic(response.Header.Get("Retry-After"))
-		return result
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		result.Diagnostic = fmt.Sprintf("Responses API probe returned HTTP %d", response.StatusCode)
-		return result
-	}
-	available, err := availableConfiguredModels(body, strategy.config.models)
-	if err != nil {
-		result.State = agent.ProbeIncompatible
-		result.Diagnostic = "Responses API model catalog was invalid"
-		return result
-	}
-	if len(available) == 0 {
-		result.State = agent.ProbeIncompatible
-		result.Diagnostic = "None of this profile's configured models are available to the account"
-		result.Capabilities.Models = nil
-		return result
-	}
-	result.Capabilities.Models = available
-	result.State = agent.ProbeReady
-	result.Version = "responses-v1"
-	result.Authentication = agent.Authentication{Method: "api-key", Label: "API key available (usage billed separately)"}
-	return result
+	return finishProbe(result, response, secret, strategy.config.models)
 }
 
 func availableConfiguredModels(payload []byte, configured []agent.Option[agent.ModelID]) ([]agent.Option[agent.ModelID], error) {
@@ -227,8 +177,7 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 		result.Diagnostic = err.Error()
 		return result
 	}
-	endpoint := strategy.config.endpoint
-	capabilities := strategy.capabilities(endpoint)
+	capabilities := strategy.capabilities(strategy.config.endpoint)
 	model, modelOK := agent.ResolveOption(capabilities.Models, request.Model)
 	effort, effortOK := agent.ResolveOption(capabilities.Efforts, request.Effort)
 	if !modelOK || !effortOK || request.Resume.Reference != "" {
@@ -237,10 +186,9 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 		return result
 	}
 	request.Model, request.Effort = model, effort
-	ctx := parent
-	secret, err := strategy.resolveSecret(ctx, profile.AuthenticationRef)
+	secret, err := strategy.resolveSecret(parent, profile.AuthenticationRef)
 	if err != nil {
-		return canceledOr(result, ctx, agent.FailureUnauthenticated, "Responses API authentication reference could not be resolved")
+		return canceledOr(result, parent, agent.FailureUnauthenticated, "Responses API authentication reference could not be resolved")
 	}
 	tools, err := newCandidateTools(request.Workspace, request.Write, config, request.Task.Manifest)
 	if err != nil {
@@ -255,8 +203,7 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 		result.Diagnostic = "agent progress sink rejected the start event"
 		return result
 	}
-	prompt := request.Task.EffectivePrompt()
-	user, err := inputMessage("user", prompt)
+	user, err := inputMessage("user", request.Task.EffectivePrompt())
 	if err != nil {
 		result.Failure = agent.FailureProtocol
 		result.Diagnostic = "agent instructions could not be encoded"
@@ -268,191 +215,8 @@ func (strategy *Strategy) Execute(parent context.Context, profile agent.Profile,
 		result.Diagnostic = "agent instructions exceed the configured context limit"
 		return result
 	}
-	maximumResponseBytes := config.maxResponseBytes
-	remainingResponseBytes := maximumResponseBytes
-	toolCalls := 0
-	var usage agent.Usage
-	for turn := 1; ; turn++ {
-		if config.maxTurns > 0 && turn > config.maxTurns {
-			result.Failure = agent.FailureProtocol
-			result.Diagnostic = "Responses API reached the configured model-turn budget"
-			result.Usage = usage
-			return result
-		}
-		if err := ctx.Err(); err != nil {
-			return canceledOr(result, ctx, agent.FailureCancellation, "Responses API execution was canceled")
-		}
-		if err := emitter.emit(agent.EventActivity, fmt.Sprintf("Model turn %d", turn), "", primaryActorID, nil, nil); err != nil {
-			result.Failure = agent.FailureProtocol
-			result.Diagnostic = "agent progress sink rejected an activity event"
-			return result
-		}
-		requestBody := apiRequest{
-			Model: string(request.Model), Input: history, Tools: functionTools(request.Task.Manifest != nil), ToolChoice: "auto", ParallelToolCalls: false,
-			Reasoning: reasoningRequest{Effort: string(request.Effort)}, MaxOutputTokens: config.maxOutputTokens,
-			Store: false, Truncation: "disabled",
-		}
-		payload, err := json.Marshal(requestBody)
-		if err != nil || int64(len(payload)) > config.maxRequestBytes {
-			result.Failure = agent.FailureProtocol
-			result.Diagnostic = "Responses API request exceeded the configured context limit"
-			return result
-		}
-		// The authentication token belongs only in the Authorization header.
-		// Enforce this at the adapter's final outbound boundary as well as at UI
-		// admission, covering generated instructions and candidate tool output.
-		if providerEchoesSecret(payload, secret) {
-			result.Failure = agent.FailureProtocol
-			result.Diagnostic = "Responses API context contains protected authentication material"
-			return result
-		}
-		body, status, retryAfter, err := strategy.post(ctx, config, endpoint, secret, payload, remainingResponseBytes)
-		if err != nil {
-			if errors.Is(err, errResponseTooLarge) {
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "Responses API exceeded the configured output limit"
-				return result
-			}
-			if errors.Is(err, errSecretEcho) {
-				if status == http.StatusUnauthorized {
-					result.Failure = agent.FailureUnauthenticated
-					result.Diagnostic = "Responses API rejected authentication"
-				} else {
-					result.Failure = agent.FailureProtocol
-					result.Diagnostic = "Responses API returned unsafe authentication material"
-				}
-				return result
-			}
-			return canceledOr(result, ctx, agent.FailureProvider, "Responses API request failed")
-		}
-		remainingResponseBytes -= int64(len(body))
-		if status == http.StatusUnauthorized {
-			result.Failure = agent.FailureUnauthenticated
-			result.Diagnostic = "Responses API rejected authentication"
-			return result
-		}
-		if status == http.StatusForbidden {
-			result.Failure = agent.FailureProvider
-			result.Diagnostic = "Responses API request was forbidden; check the API key, organization/project, and model access"
-			return result
-		}
-		if status == http.StatusTooManyRequests {
-			result.Failure = agent.FailureProvider
-			result.Diagnostic = rateLimitDiagnostic(retryAfter)
-			return result
-		}
-		if status < 200 || status >= 300 {
-			result.Failure = agent.FailureProvider
-			result.Diagnostic = fmt.Sprintf("Responses API returned HTTP %d", status)
-			return result
-		}
-		response, output, err := decodeAPIResponse(body)
-		if err != nil {
-			result.Failure = agent.FailureProtocol
-			result.Diagnostic = err.Error()
-			return result
-		}
-		if response.Status != "completed" {
-			result.Failure = agent.FailureProvider
-			result.Diagnostic = "Responses API did not complete the model turn"
-			return result
-		}
-		if response.Usage != nil {
-			usage.InputTokens += response.Usage.InputTokens
-			usage.OutputTokens += response.Usage.OutputTokens
-			if response.Usage.InputTokenDetails != nil {
-				usage.CachedTokens += response.Usage.InputTokenDetails.CachedTokens
-			}
-			if response.Usage.OutputTokenDetails != nil {
-				usage.ReasoningTokens += response.Usage.OutputTokenDetails.ReasoningTokens
-			}
-			usage.Cumulative = true
-			if config.maxContextTokens > 0 && response.Usage.InputTokens > config.maxContextTokens {
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "Responses API context exceeded the configured token limit"
-				return result
-			}
-			copy := usage
-			if err := emitter.emit(agent.EventUsage, "Token usage updated", "", primaryActorID, nil, &copy); err != nil {
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "agent progress sink rejected a usage event"
-				return result
-			}
-		}
-		if output.refused {
-			result.Failure = agent.FailureProvider
-			result.Diagnostic = "Responses API refused the remediation request"
-			result.Usage = usage
-			return result
-		}
-		if len(output.calls) == 0 {
-			if output.text == "" {
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "Responses API completed without a summary or tool call"
-				return result
-			}
-			summary := boundedText(output.text, config.maxSummaryBytes)
-			if err := emitter.emit(agent.EventRuntimeMessage, summary, "", primaryActorID, nil, nil); err != nil {
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "agent progress sink rejected the final message"
-				return result
-			}
-			result.Status = agent.ResultCompleted
-			result.Failure = agent.FailureNone
-			result.Summary = summary
-			result.Usage = usage
-			return result
-		}
-		toolCalls += len(output.calls)
-		if config.maxToolCalls > 0 && toolCalls > config.maxToolCalls {
-			result.Failure = agent.FailureProtocol
-			result.Diagnostic = "Responses API exceeded the configured tool-call limit"
-			return result
-		}
-		// Validated output items are retained as model context. No provider-side
-		// stored conversation or unbounded previous_response_id chain is used.
-		history = append(history, response.Output...)
-		for _, call := range output.calls {
-			if err := emitter.emit(agent.EventCommandStarted, "Running "+call.Name, call.CallID, primaryActorID, nil, nil); err != nil {
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "agent progress sink rejected a tool event"
-				return result
-			}
-			toolOutput, changed, toolErr := tools.execute(ctx, call)
-			if toolErr != nil {
-				if errors.Is(toolErr, context.Canceled) || errors.Is(toolErr, context.DeadlineExceeded) {
-					return canceledOr(result, ctx, agent.FailureCancellation, "agent tool execution was canceled")
-				}
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "Responses API emitted an invalid tool call"
-				return result
-			}
-			item, marshalErr := functionOutput(call.CallID, toolOutput)
-			if marshalErr != nil {
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "agent tool result could not be encoded"
-				return result
-			}
-			history = append(history, item)
-			if changed != nil {
-				if err := emitter.emit(agent.EventFileChanged, "Candidate file changed", call.CallID, primaryActorID, changed, nil); err != nil {
-					result.Failure = agent.FailureProtocol
-					result.Diagnostic = "agent progress sink rejected a file event"
-					return result
-				}
-			}
-			if err := emitter.emit(agent.EventCommandFinished, "Finished "+call.Name, call.CallID, primaryActorID, nil, nil); err != nil {
-				result.Failure = agent.FailureProtocol
-				result.Diagnostic = "agent progress sink rejected a tool event"
-				return result
-			}
-		}
-		if contextSize(history) > config.maxContextBytes {
-			result.Failure = agent.FailureProtocol
-			result.Diagnostic = "agent tool loop exceeded the configured context limit"
-			return result
-		}
-	}
+	loop := responseTurnLoop{strategy: strategy, ctx: parent, config: config, endpoint: strategy.config.endpoint, secret: secret, request: request, emitter: emitter, tools: tools, history: history, remainingResponseBytes: config.maxResponseBytes, result: result}
+	return loop.run()
 }
 
 func (strategy *Strategy) resolveSecret(ctx context.Context, reference string) (string, error) {
