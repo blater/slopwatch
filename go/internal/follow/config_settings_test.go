@@ -982,7 +982,7 @@ func settingsResolved() appconfig.Resolved {
 		Concurrency: appconfig.Concurrency{MaxAgents: 2, MaxVerifiers: 1, MaxActorsPerJob: 32, MaxCandidatePreviewBytes: 4 << 20, MaxCandidatePreviewLines: 5000},
 		Profiles:    []agent.Profile{{ID: "codex", Label: "Codex", Runtime: "codex-cli", Executable: "codex", AuthenticationRef: "provider-owned"}},
 		Delivery: appconfig.Delivery{DefaultPlan: fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitLeaveUncommitted, Publish: fix.PublishLocal}, Remote: "origin", BaseBranch: "main",
-			BranchTemplate: "slopmochi/fix-{job}", Publisher: "github-cli", DraftPullRequests: true, CommandOutputBytes: 4 << 20,
+			BranchTemplate: "slopwatch/fix-{job}", Publisher: "github-cli", DraftPullRequests: true, CommandOutputBytes: 4 << 20,
 			CommitTitleTemplate: "Refactor {targets}", CommitBodyTemplate: "Fix {goal}", PullRequestTitleTemplate: "Refactor {targets}", PullRequestBodyTemplate: "Fix {goal}"},
 		TrendWindow: 10 * time.Minute,
 	}

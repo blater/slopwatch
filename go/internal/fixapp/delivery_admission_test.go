@@ -34,7 +34,7 @@ func TestPreparePreservesSessionDeliverySelectionWithoutPreflight(t *testing.T) 
 	defer shutdownManager(t, manager)
 	manager.deps.DeliveryPreflight = staticDeliveryPreflight{target: delivery.PreflightResult{RemoteHost: "github.com", HostRepository: "owner/repo"}}
 	request := pullRequestPrepareRequest()
-	request.Delivery = &LoadDelivery{Plan: testPushPlan, Branch: "slopmochi/fix/edited"}
+	request.Delivery = &LoadDelivery{Plan: testPushPlan, Branch: "slopwatch/fix/edited"}
 	input, err := manager.LoadFix(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func TestPublicationTargetChangeIsRejectedBeforeCommit(t *testing.T) {
 		Workspace:      fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo", AnalysisRoot: "/repo", BaseCommit: "abc"},
 		DeliveryPlan:   testPushPlan,
 		DeliveryTarget: delivery.PreflightResult{RemoteHost: "github.com", HostRepository: "owner/repo"},
-		BranchName:     "slopmochi/fix/test",
+		BranchName:     "slopwatch/fix/test",
 		Preferences:    appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin"}},
 	}
 	manager.runPublicationStep(t.Context(), publicationCommit, input, job, attempt, fix.CandidateIdentity{}, "diff", []fix.RepoPath{"one.go"}, delivery.Result{}, publisher.Result{})
@@ -111,7 +111,7 @@ func TestPublicationDiscoversDeliveryTargetAtRuntime(t *testing.T) {
 	input := FixInput{
 		Workspace:    fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo", AnalysisRoot: "/repo", BaseCommit: "abc"},
 		DeliveryPlan: testPushPlan,
-		BranchName:   "slopmochi/fix/test",
+		BranchName:   "slopwatch/fix/test",
 		Preferences:  appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin"}},
 	}
 	manager.runPublicationStep(t.Context(), publicationCommit, input, job, attempt, fix.CandidateIdentity{}, "diff", []fix.RepoPath{"one.go"}, delivery.Result{}, publisher.Result{})

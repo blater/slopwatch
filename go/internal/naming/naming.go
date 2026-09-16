@@ -1,4 +1,4 @@
-// Package naming creates human-readable random identifiers for Slopmochi.
+// Package naming creates human-readable random identifiers for Slopwatch.
 package naming
 
 import (

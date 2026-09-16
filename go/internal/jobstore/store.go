@@ -10,7 +10,7 @@ import (
 	"github.com/blater/slopwatch/internal/fix"
 )
 
-var ErrJobRunning = errors.New("fix job is running in another Slopmochi process")
+var ErrJobRunning = errors.New("fix job is running in another Slopwatch process")
 
 type Lock interface {
 	Close() error

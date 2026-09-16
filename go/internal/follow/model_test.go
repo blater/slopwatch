@@ -205,10 +205,10 @@ func TestTableTopBarSplitsBrandBranchAndWorkspaceAcrossTwoLines(t *testing.T) {
 	if !strings.HasSuffix(lines[1], "/workspace ") {
 		t.Fatalf("second title line does not show the workspace: %q", lines[1])
 	}
-	brandStart := strings.Index(lines[1], "slopMochi")
-	wantStart := (lipgloss.Width("૮(˶ᵔ ᵕ ᵔ˶)ა") - lipgloss.Width("slopMochi")) / 2
+	brandStart := strings.Index(lines[1], "slopWatch")
+	wantStart := (lipgloss.Width("૮(˶ᵔ ᵕ ᵔ˶)ა") - lipgloss.Width("slopWatch")) / 2
 	if brandStart < 0 || lipgloss.Width(lines[1][:brandStart]) != wantStart {
-		t.Fatalf("slopMochi is not centered below the logo: %q", lines[1])
+		t.Fatalf("slopWatch is not centered below the logo: %q", lines[1])
 	}
 }
 

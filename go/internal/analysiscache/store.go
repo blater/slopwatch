@@ -11,7 +11,7 @@ import (
 	"github.com/blater/slopwatch/internal/userdata"
 )
 
-const envelopeMagic = "slopmochi-analysis-cache"
+const envelopeMagic = "slopwatch-analysis-cache"
 
 type envelope struct {
 	Magic    string          `json:"magic"`
@@ -38,7 +38,7 @@ type Store struct {
 
 var processWorkspaceLocks sync.Map // map[canonical store root + ViewKey]*sync.Mutex
 
-// DefaultRoot returns the analysis directory beneath Slopmochi's single
+// DefaultRoot returns the analysis directory beneath Slopwatch's single
 // per-user data root without creating it.
 func DefaultRoot() (string, error) {
 	root, err := userdata.Root()

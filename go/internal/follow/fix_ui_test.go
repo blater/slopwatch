@@ -590,7 +590,7 @@ func readyFixInput(path fix.RepoPath) fixapp.FixInput {
 		}},
 		Model: "gpt-5.6", Effort: "high",
 		TargetScore: 100,
-		ChangeScope: "targets-and-tests", DeliveryPlan: fix.DeliveryPlan{Workspace: fix.WorkspaceWorktree, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}, BranchName: "slopmochi/fix/a",
+		ChangeScope: "targets-and-tests", DeliveryPlan: fix.DeliveryPlan{Workspace: fix.WorkspaceWorktree, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}, BranchName: "slopwatch/fix/a",
 		AllowedPaths: []fix.RepoPath{path},
 		Instructions: agent.InstructionDocument{Version: "test", Envelope: "locked", Objective: "old", NextAttemptNotes: "baseline"},
 		PlannedPaths: []fix.RepoPath{path},

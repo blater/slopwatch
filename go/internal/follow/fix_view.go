@@ -366,7 +366,7 @@ func (model Model) shutdownView(base string) string {
 		lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
 		return joinScreenLines(lines[:model.height])
 	}
-	return model.overlay(base, style.Popup("ACTIVE FIX JOBS", []string{status, "Running jobs do not detach from Slopmochi."}, footer, min(64, max(32, model.width-4))))
+	return model.overlay(base, style.Popup("ACTIVE FIX JOBS", []string{status, "Running jobs do not detach from Slopwatch."}, footer, min(64, max(32, model.width-4))))
 }
 
 func (model Model) fixDialogPopup() string {

@@ -326,7 +326,7 @@ func scanDirectFiles(ctx context.Context, root string) ([]directEntry, error) {
 
 func ignoredDirectDirectory(name string) bool {
 	switch name {
-	case ".git", ".hg", ".svn", ".slopmochi":
+	case ".git", ".hg", ".svn", ".slopwatch":
 		return true
 	}
 	return false

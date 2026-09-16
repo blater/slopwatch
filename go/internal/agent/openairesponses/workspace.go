@@ -483,7 +483,7 @@ func randomTemporaryName(parent string) (string, error) {
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return "", err
 	}
-	name := ".slopmochi-agent-" + hex.EncodeToString(nonce[:]) + ".tmp"
+	name := ".slopwatch-agent-" + hex.EncodeToString(nonce[:]) + ".tmp"
 	if parent == "." {
 		return name, nil
 	}

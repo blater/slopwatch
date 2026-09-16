@@ -1,10 +1,10 @@
-# Slopmark, Swarm, and Slopmochi implementation specification
+# Slopmark, Swarm, and Slopwatch implementation specification
 
 Status: approved architecture; implementation not started.
 
 This document is the normative implementation plan for splitting the current
 codebase into three separately usable products while retaining a complete
-Slopmochi consumer bundle.
+Slopwatch consumer bundle.
 
 The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY describe requirements in
 the RFC 2119 sense. A phase is complete only when its exit criteria pass from a
@@ -17,7 +17,7 @@ clean checkout and from the packaged artifacts produced by CI.
 Slopmark is the static-analysis product. It owns source discovery, analysis
 planning, analyzer execution, scoring, reporting, and analysis caches.
 
-Slopmark MUST be usable without Swarm or Slopmochi through:
+Slopmark MUST be usable without Swarm or Slopwatch through:
 
 - a command-line interface suitable for CI/CD;
 - JSON output with a versioned schema; and
@@ -34,29 +34,29 @@ Swarm is the headless agent remediation product. It owns agent providers,
 prompt compilation, candidate workspaces, job coordination, verification,
 delivery, publication, persistence, and recovery.
 
-Swarm MUST be usable without Slopmochi as an MCP server. It MUST obtain all
+Swarm MUST be usable without Slopwatch as an MCP server. It MUST obtain all
 quality measurements from Slopmark through a Slopmark client boundary. It MUST
 NOT import Slopmark implementation packages.
 
-### 1.3 Slopmochi
+### 1.3 Slopwatch
 
-Slopmochi is the consumer-facing terminal application. It owns presentation,
+Slopwatch is the consumer-facing terminal application. It owns presentation,
 interaction, file watching, UI preferences, and process supervision for its
 packaged Slopmark and Swarm children.
 
-Slopmochi MUST communicate with Slopmark and Swarm through MCP. It MUST NOT
-import their implementation or domain packages. The released Slopmochi bundle
+Slopwatch MUST communicate with Slopmark and Swarm through MCP. It MUST NOT
+import their implementation or domain packages. The released Slopwatch bundle
 MUST contain tested versions of all three executables and all analyzer
 runtimes.
 
-Slopmochi MUST remain useful when Swarm is unavailable: analysis and file
+Slopwatch MUST remain useful when Swarm is unavailable: analysis and file
 browsing continue, while agent features show a precise unavailable reason.
 Slopmark is mandatory.
 
 ## 2. Target runtime architecture
 
 ```text
-                          Slopmochi
+                          Slopwatch
                        terminal UI/client
                         /             \
                MCP over STDIO     MCP over STDIO
@@ -69,7 +69,7 @@ Slopmark is mandatory.
                                            Slopmark
 ```
 
-When launched from the Slopmochi bundle, each MCP connection consists of a
+When launched from the Slopwatch bundle, each MCP connection consists of a
 fresh child process and private parent-child STDIO pipes:
 
 - parent writes MCP JSON-RPC messages to child stdin;
@@ -79,9 +79,9 @@ fresh child process and private parent-child STDIO pipes:
 - no shell interprets the executable or arguments; and
 - no listening socket or named filesystem endpoint is created.
 
-Slopmochi MAY use one Slopmark child and share its client inside the UI. In the
+Slopwatch MAY use one Slopmark child and share its client inside the UI. In the
 first implementation, Swarm MUST launch its own Slopmark child. Sharing a
-Slopmark process between Slopmochi and Swarm would require multiplexed
+Slopmark process between Slopwatch and Swarm would require multiplexed
 ownership and lifecycle semantics and is deferred.
 
 An independently launched Swarm server MUST resolve Slopmark from an
@@ -107,9 +107,9 @@ products/
     go.mod
     cmd/swarm/
     internal/
-  slopmochi/
+  slopwatch/
     go.mod
-    cmd/slopmochi/
+    cmd/slopwatch/
     internal/
 contracts/
   slopmark/v1/
@@ -124,7 +124,7 @@ module independently without relying on workspace-only replacements.
 Permitted module dependencies:
 
 ```text
-slopmochi -> official MCP Go SDK
+slopwatch -> official MCP Go SDK
 swarm  -> official MCP Go SDK
 slopmark  -> official MCP Go SDK
 ```
@@ -144,7 +144,7 @@ Initial ownership mapping:
 | structural and TypeScript analyzers and catalog | Slopmark |
 | `agent`, `candidate`, `delivery`, `fix`, `fixanalysis`, `fixapp`, `fixprompt` | Swarm |
 | `appconfig`, `gitmanifest`, `isolation`, `jobstore`, `publisher` | Swarm, with product-local helpers where required |
-| `follow`, `style`, `workspace` | Slopmochi |
+| `follow`, `style`, `workspace` | Slopwatch |
 | `preferences` | split into product-owned documents |
 | `userdata` | split into product-owned paths |
 
@@ -164,7 +164,7 @@ slopmark version [--json]
 
 For one compatibility release, `slopmark [OPTIONS] [TARGET ...]` MUST behave as
 `slopmark analyze [OPTIONS] [TARGET ...]`. The existing `--follow` option MUST
-move to Slopmochi and MUST produce an actionable deprecation error from
+move to Slopwatch and MUST produce an actionable deprecation error from
 Slopmark during that release. It is removed in the following major release.
 
 `--allow-target` is a server authority option, not an analysis option. It is
@@ -195,14 +195,14 @@ An explicit path must be absolute, canonical, user-owned, outside the selected
 repository, and not group/world writable. Repository configuration cannot
 redirect the user configuration path.
 
-### 4.3 Slopmochi commands
+### 4.3 Slopwatch commands
 
 ```text
-slopmochi [OPTIONS] [TARGET ...]
-slopmochi version [--json]
+slopwatch [OPTIONS] [TARGET ...]
+slopwatch version [--json]
 ```
 
-Slopmochi accepts the former follow-mode analysis flags and translates them to
+Slopwatch accepts the former follow-mode analysis flags and translates them to
 Slopmark MCP inputs. It does not forward an arbitrary argument string to
 children.
 
@@ -219,7 +219,7 @@ negotiation; product code MUST NOT implement a parallel MCP codec.
 Servers are built with `mcp.NewServer`, typed `mcp.AddTool` handlers, and
 `mcp.StdioTransport`. Clients are built with `mcp.NewClient` and an
 `mcp.CommandTransport` configured with an already validated `exec.Cmd`.
-Before connection, Slopmochi/Swarm set the exact executable, argument vector,
+Before connection, Slopwatch/Swarm set the exact executable, argument vector,
 working directory, allowlisted environment, bounded stderr writer, close-on-exec
 descriptors, and platform process-group controls. If the SDK transport cannot
 terminate the complete owned process group on a supported platform, a
@@ -258,12 +258,12 @@ Modern subscriptions MAY be added as an optimization after polling is proven.
 Each server has two tool profiles:
 
 - operational, the default profile intended for generic MCP clients; and
-- admin, enabled only by explicit `--admin` on STDIO and used by Slopmochi's
+- admin, enabled only by explicit `--admin` on STDIO and used by Slopwatch's
   private child connection.
 
 Admin mode MUST be rejected for any future network transport. It adds only the
 configuration operations defined below; it does not weaken workspace,
-candidate, credential, executable, or delivery validation. Slopmochi MUST
+candidate, credential, executable, or delivery validation. Slopwatch MUST
 launch its packaged children in admin mode. Standalone MCP configuration
 examples MUST use the operational profile.
 
@@ -621,7 +621,7 @@ allows the exact operation. In future HTTP mode it additionally requires the
 corresponding delivery authorization scope.
 
 After `start_fix`, Swarm owns the entire accepted lifecycle, including any
-delivery recorded in the immutable plan. Reconnects and Slopmochi restarts do
+delivery recorded in the immutable plan. Reconnects and Slopwatch restarts do
 not suppress an accepted delivery. This preserves the current durable delivery
 saga rather than introducing a second manual publish command.
 
@@ -717,15 +717,15 @@ Zero-valued provider budgets may continue to mean no product-imposed limit for
 trusted local STDIO. HTTP mode MUST refuse startup if all provider cost/usage
 budgets and admission quotas are unlimited.
 
-## 9. Slopmochi integration
+## 9. Slopwatch integration
 
 ### 9.1 Child discovery
 
-For a packaged installation, Slopmochi resolves children relative to its own
+For a packaged installation, Slopwatch resolves children relative to its own
 canonical executable:
 
 ```text
-<install>/bin/slopmochi
+<install>/bin/slopwatch
 <install>/bin/slopmark
 <install>/bin/swarm
 ```
@@ -766,7 +766,7 @@ Shutdown order:
 8. join stdout/stderr readers before returning.
 
 Unexpected EOF, non-protocol stdout, oversized frames, or a child exit is a
-dependency failure. Slopmochi MUST NOT silently replace the child from `PATH`
+dependency failure. Slopwatch MUST NOT silently replace the child from `PATH`
 or switch to an in-process implementation.
 
 ### 9.3 UI data model
@@ -774,7 +774,7 @@ or switch to an in-process implementation.
 The UI defines its own view DTOs. MCP responses are translated at the client
 boundary; Bubble Tea state MUST NOT store Slopmark or Swarm internal types.
 
-File watching remains in Slopmochi. A debounced change triggers a new Slopmark
+File watching remains in Slopwatch. A debounced change triggers a new Slopmark
 analysis. The first implementation may poll Swarm job state at one-second
 intervals while jobs are active and at a slower interval otherwise. Modern MCP
 subscriptions are a later optimization.
@@ -786,7 +786,7 @@ Configuration splits into:
 ```text
 Slopmark: analysis profiles, component weights, cache policy
 Swarm: agents, prompts, concurrency, candidates, delivery, publication
-Slopmochi: appearance, table, interaction, child locations
+Slopwatch: appearance, table, interaction, child locations
 ```
 
 User configuration lives under product-specific private directories. A
@@ -803,7 +803,7 @@ repository configuration MUST NOT introduce:
 - publication authority; or
 - higher operational limits than trusted user/server policy.
 
-Swarm owns job and candidate state. Slopmochi owns no authoritative job
+Swarm owns job and candidate state. Slopwatch owns no authoritative job
 state. Slopmark owns analysis caches. Each state directory is created with
 owner-only permissions and rejects symlinks where the existing implementation
 does so.
@@ -813,7 +813,7 @@ does so.
 The first split release performs an idempotent, non-destructive migration from
 the paths returned by the current `preferences` and `userdata` packages:
 
-1. Slopmochi reads the legacy combined preference document once.
+1. Slopwatch reads the legacy combined preference document once.
 2. It projects analysis fields into a proposed Slopmark settings document,
    agent/fix/delivery fields into a proposed Swarm settings document, and UI
    fields into its own settings document.
@@ -849,7 +849,7 @@ annotations.
 The default operational profile permits isolated worktrees, target-only scope,
 and uncommitted local results. Trusted user configuration may enable broader
 scope, current-workspace edits, commits, pushes, and pull requests. Admin mode
-used by Slopmochi applies that trusted user policy but still requires each
+used by Slopwatch applies that trusted user policy but still requires each
 requested operation to be explicit in the typed plan.
 
 Repository configuration may narrow the ceiling but never widen it. A plan
@@ -940,12 +940,12 @@ An unauthenticated non-loopback listener is prohibited.
 
 ## 12. Bundle and release format
 
-The Slopmochi release artifact is the consumer bundle:
+The Slopwatch release artifact is the consumer bundle:
 
 ```text
-slopmochi-<bundle-version>-<os>-<arch>/
+slopwatch-<bundle-version>-<os>-<arch>/
   bin/
-    slopmochi
+    slopwatch
     slopmark
     swarm
   analyzers/
@@ -961,10 +961,10 @@ slopmochi-<bundle-version>-<os>-<arch>/
 ```json
 {
   "schema_version": 1,
-  "bundle": "slopmochi",
+  "bundle": "slopwatch",
   "bundle_version": "1.0.0",
   "components": {
-    "slopmochi": {"version": "1.0.0", "path": "bin/slopmochi", "sha256": "..."},
+    "slopwatch": {"version": "1.0.0", "path": "bin/slopwatch", "sha256": "..."},
     "slopmark": {"version": "1.2.0", "path": "bin/slopmark", "sha256": "..."},
     "swarm": {"version": "1.1.0", "path": "bin/swarm", "sha256": "..."}
   },
@@ -974,7 +974,7 @@ slopmochi-<bundle-version>-<os>-<arch>/
   },
   "report_schemas": [3],
   "files": [
-    {"path": "bin/slopmochi", "sha256": "...", "mode": "0755"},
+    {"path": "bin/slopwatch", "sha256": "...", "mode": "0755"},
     {"path": "bin/slopmark", "sha256": "...", "mode": "0755"},
     {"path": "bin/swarm", "sha256": "...", "mode": "0755"},
     {"path": "component-catalog.json", "sha256": "...", "mode": "0644"}
@@ -985,7 +985,7 @@ slopmochi-<bundle-version>-<os>-<arch>/
 The release workflow computes hashes after all files are staged and validates
 the manifest before archiving. `files` contains every file in the bundle except
 `manifest.json`, including every analyzer/runtime file. Undeclared files fail
-validation. Slopmochi validates paths, modes, hashes, and component identities
+validation. Slopwatch validates paths, modes, hashes, and component identities
 at startup. Hash verification is REQUIRED for archives and SHOULD be enabled
 for installed bundles where wrappers do not alter the binaries.
 
@@ -994,7 +994,7 @@ Separate release artifacts:
 - Slopmark standalone contains Slopmark and all analyzer runtimes.
 - Swarm standalone contains Swarm and the exact Slopmark/analyzer build
   tested with that Swarm release.
-- Slopmochi contains the complete tested stack.
+- Slopwatch contains the complete tested stack.
 
 The first migration release may version all artifacts together. Independent
 component versioning starts only after compatibility tests and manifest checks
@@ -1028,7 +1028,7 @@ pass.
 5. Produce and smoke-test a standalone Slopmark archive.
 
 Exit: `go list -deps` for Slopmark contains no Bubble Tea, agent, candidate,
-delivery, publisher, or Slopmochi packages. Standalone multi-language analysis
+delivery, publisher, or Slopwatch packages. Standalone multi-language analysis
 passes from an unpacked archive.
 
 ### Phase 2: implement Slopmark MCP
@@ -1051,7 +1051,7 @@ fields. Fuzz and escape tests pass.
 4. Split trusted Swarm preferences and state roots.
 5. Replace inherited child environments with allowlists.
 
-Exit: Swarm has no Slopmochi or Slopmark-internal imports. Its full manager
+Exit: Swarm has no Slopwatch or Slopmark-internal imports. Its full manager
 test suite passes using both a fake analysis port and a real packaged Slopmark
 child.
 
@@ -1063,19 +1063,19 @@ child.
 4. Add protocol compatibility tests.
 
 Exit: a generic MCP client can start, observe, cancel, restart/reconcile, and
-deliver a job without Slopmochi. Cross-workspace and handle-hijacking tests
+deliver a job without Slopwatch. Cross-workspace and handle-hijacking tests
 fail closed.
 
-### Phase 5: convert Slopmochi
+### Phase 5: convert Slopwatch
 
-1. Make the existing `cmd/slopmochi` the real Bubble Tea application.
+1. Make the existing `cmd/slopwatch` the real Bubble Tea application.
 2. Replace direct analyzer calls with the Slopmark client.
 3. Replace direct fix-manager calls with the Swarm client.
 4. Implement child discovery, manifest validation, process lifecycle, and
    degraded Swarm behavior.
 5. Split UI preferences from service preferences.
 
-Exit: Slopmochi imports neither product's internals and passes current visual,
+Exit: Slopwatch imports neither product's internals and passes current visual,
 interaction, follow-mode, and agent UX tests through MCP fakes plus packaged
 integration tests.
 
@@ -1087,7 +1087,7 @@ integration tests.
 4. Update archive, Homebrew, checksums, smoke tests, and release scripts.
 5. Add standalone Slopmark and Swarm release jobs.
 
-Exit: clean-machine tests prove all three distributions, and the Slopmochi
+Exit: clean-machine tests prove all three distributions, and the Slopwatch
 bundle does not use ambient product executables.
 
 ### Phase 7: consider repository separation
@@ -1144,8 +1144,8 @@ For both servers, exercise:
 
 - Slopmark standalone analyzes Go, Java, Rust, and TypeScript;
 - Swarm standalone launches only its packaged/configured Slopmark;
-- Slopmochi launches both packaged children with ambient `PATH` cleared;
-- Slopmochi remains usable when Swarm is deliberately absent;
+- Slopwatch launches both packaged children with ambient `PATH` cleared;
+- Slopwatch remains usable when Swarm is deliberately absent;
 - tampered manifest/component startup fails clearly;
 - `--help` and `version --json` work for all executables; and
 - archives contain no build caches, credentials, writable executable, or
@@ -1154,7 +1154,7 @@ For both servers, exercise:
 ### Quality gates
 
 - `go test ./...` independently in each module;
-- race tests for Swarm coordinator, MCP sessions, and Slopmochi clients;
+- race tests for Swarm coordinator, MCP sessions, and Slopwatch clients;
 - all Java, Rust, TypeScript, and Go analyzer tests;
 - protocol conformance tests for the official SDK version in use;
 - `git diff --check`; and
@@ -1199,8 +1199,8 @@ The split is complete when:
 1. each product builds and tests as an independent Go module;
 2. Slopmark works as a standalone CI CLI and MCP server;
 3. Swarm works as a standalone MCP server using Slopmark through MCP;
-4. Slopmochi uses only MCP to consume the two services;
-5. the Slopmochi release contains all three tested executables;
+4. Slopwatch uses only MCP to consume the two services;
+5. the Slopwatch release contains all three tested executables;
 6. `2026-07-28` is negotiated by default with tested legacy fallback;
 7. no product selects privileged executables from ambient `PATH`;
 8. security integration tests in section 14 pass;

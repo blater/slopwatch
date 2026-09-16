@@ -1,5 +1,5 @@
 // Package unitplan discovers conservative, cache-safe analysis units for the
-// languages supported by slopmochi.
+// languages supported by slopwatch.
 package unitplan
 
 import (

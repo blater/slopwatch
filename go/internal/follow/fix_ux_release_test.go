@@ -109,7 +109,7 @@ func TestDeliveryAndBranchEditsDoNotRequireSpeculativeRecheck(t *testing.T) {
 
 	model.fixDialog.cursor = fixFieldBranch
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	model.fixDialog.branch.SetValue("slopmochi/fix/edited")
+	model.fixDialog.branch.SetValue("slopwatch/fix/edited")
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
 	if !model.fixDialogRunnable() {
 		t.Fatal("branch edit created a speculative readiness gate")

@@ -424,7 +424,7 @@ func selectedProfile(resolved appconfig.Resolved) (agent.Profile, error) {
 
 func renderBranch(template string, targets []fix.RepoPath, seed string, focus []fix.MetricID, now time.Time) string {
 	if template == "" {
-		template = "slopmochi/fix/{target-stem}-{job-short-id}"
+		template = "slopwatch/fix/{target-stem}-{job-short-id}"
 	}
 	target := "target"
 	if len(targets) > 0 {

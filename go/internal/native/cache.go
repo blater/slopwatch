@@ -23,7 +23,7 @@ func (analyzer *Analyzer) EnableDefaultCache() {
 }
 
 // EnableCache enables persistence at an explicitly selected child of the
-// Slopmochi user directory. Setup failure degrades to an uncached run.
+// Slopwatch user directory. Setup failure degrades to an uncached run.
 func (analyzer *Analyzer) EnableCache(root string) {
 	store, err := analysiscache.NewStore(root)
 	if err != nil {
