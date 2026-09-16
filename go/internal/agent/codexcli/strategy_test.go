@@ -559,13 +559,9 @@ func TestUnexpectedServerRequestIsRejected(t *testing.T) {
 }
 
 func TestUnsupportedServerRequestFailsFastWhenOutboundQueueIsFull(t *testing.T) {
-	client := &appServerClient{
-		pending:  make(map[int64]chan rpcResponse),
-		outbound: make(chan outboundMessage, 1),
-		stop:     make(chan struct{}),
-		done:     make(chan struct{}),
-		maximum:  1 << 20,
-	}
+	client := newRequestTestClient()
+	client.outbound = make(chan outboundMessage, 1)
+	client.maximum = 1 << 20
 	client.outbound <- outboundMessage{}
 	finished := make(chan struct{})
 	go func() {
