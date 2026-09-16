@@ -25,10 +25,11 @@ func TestScoreAboveTargetAutomaticallyQueuesAnotherAgentAttempt(t *testing.T) {
 		candidate:    &fix.CandidateIdentity{Job: job},
 		commands:     map[fix.CommandID]CommandReceipt{},
 	}
-	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory()}, options: Options{Clock: time.Now}, notify: make(chan struct{})}
+	manager := bareTestManager(Dependencies{Store: jobstore.NewMemory()}, Options{Clock: time.Now})
 	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, verifiersRunning: 1}
+	manager.state = state
 
-	manager.handleResult(state, workerResult{kind: workerVerifier, job: job, attempt: attempt,
+	manager.handleResult(workerResult{kind: workerVerifier, job: job, attempt: attempt,
 		diff: candidateDiffForNextAttempt(),
 		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{Path: path, Score: 72, Complete: true}},
 			Complete: true, TargetMet: false, FingerprintBefore: "same", FingerprintAfter: "same"},
@@ -56,8 +57,7 @@ func TestVerificationBuildsBoundedNextAttemptEvidence(t *testing.T) {
 		}}},
 		presentation: fix.JobPresentation{AttemptOrdinal: 1, Targets: []fix.FilePresentation{{Path: path}}},
 	}
-	manager := &Manager{}
-	manager.applyVerification(record, workerResult{
+	record.applyVerification(workerResult{
 		diff:   candidateDiffForNextAttempt(),
 		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{Path: path, Score: 72, Complete: true}}, Complete: true, TargetMet: false, Diagnostic: strings.Repeat("x", 600)},
 	})
@@ -75,8 +75,7 @@ func TestNextAttemptEvidenceIncludesFocusAndRegressionMeasurements(t *testing.T)
 		}}},
 		presentation: fix.JobPresentation{AttemptOrdinal: 2, Targets: []fix.FilePresentation{{Path: path}}},
 	}
-	manager := &Manager{}
-	manager.applyVerification(record, workerResult{
+	record.applyVerification(workerResult{
 		diff: candidateDiffForNextAttempt(),
 		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{
 			Path: path, Score: 40, Complete: true, TargetMet: false, Diagnostic: "COG exceeds focus target; CPL regressed",
@@ -102,9 +101,10 @@ func TestLegacyScopeFlagDoesNotRejectRepositoryRefactor(t *testing.T) {
 		presentation: fix.JobPresentation{ID: job, Phase: fix.PhaseVerifying, AttemptOrdinal: 1, Targets: []fix.FilePresentation{{Path: path}}},
 		attempt:      attempt, candidate: &fix.CandidateIdentity{Job: job}, commands: map[fix.CommandID]CommandReceipt{},
 	}
-	manager := &Manager{deps: Dependencies{Store: jobstore.NewMemory()}, options: Options{Clock: time.Now}, notify: make(chan struct{})}
+	manager := bareTestManager(Dependencies{Store: jobstore.NewMemory()}, Options{Clock: time.Now})
 	state := &controllerState{jobs: map[fix.JobID]*jobRecord{job: record}, order: []fix.JobID{job}, verifiersRunning: 1}
-	manager.handleResult(state, workerResult{kind: workerVerifier, job: job, attempt: attempt,
+	manager.state = state
+	manager.handleResult(workerResult{kind: workerVerifier, job: job, attempt: attempt,
 		diff:   candidate.DiffSnapshot{Scope: fix.ScopeViolated, Fingerprint: "scope-diff"},
 		verify: fixanalysis.VerificationResult{Files: []fixanalysis.FileResult{{Path: path, Score: 60, Complete: true, TargetMet: false}}, Complete: true, TargetMet: false, FingerprintBefore: "same", FingerprintAfter: "same"},
 	})

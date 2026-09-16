@@ -82,7 +82,7 @@ func TestPullRequestRunDoesNotProbePublisher(t *testing.T) {
 
 func TestPublicationTargetChangeIsRejectedBeforeCommit(t *testing.T) {
 	saga := &targetChangingDelivery{target: delivery.PreflightResult{RemoteHost: "github.com", HostRepository: "other/repo"}}
-	manager := &Manager{deps: Dependencies{Candidates: fakeCandidates{}, Delivery: saga, DeliveryPreflight: saga}, results: make(chan workerResult, 1)}
+	manager := bareTestManager(Dependencies{Candidates: fakeCandidates{}, Delivery: saga, DeliveryPreflight: saga}, Options{})
 	job, _ := fix.NewJobID()
 	attempt, _ := fix.NewAttemptID()
 	input := FixInput{
@@ -92,7 +92,7 @@ func TestPublicationTargetChangeIsRejectedBeforeCommit(t *testing.T) {
 		BranchName:     "slopwatch/fix/test",
 		Preferences:    appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin"}},
 	}
-	manager.runPublicationStep(t.Context(), publicationCommit, input, job, attempt, fix.CandidateIdentity{}, "diff", []fix.RepoPath{"one.go"}, delivery.Result{}, publisher.Result{})
+	manager.controller.publication.runPublicationStep(t.Context(), publicationCommit, input, job, attempt, fix.CandidateIdentity{}, "diff", []fix.RepoPath{"one.go"}, delivery.Result{}, publisher.Result{})
 	result := <-manager.results
 	if result.err == nil || !strings.Contains(result.err.Error(), "delivery target changed") {
 		t.Fatalf("publication error = %v", result.err)
@@ -105,7 +105,7 @@ func TestPublicationTargetChangeIsRejectedBeforeCommit(t *testing.T) {
 func TestPublicationDiscoversDeliveryTargetAtRuntime(t *testing.T) {
 	want := delivery.PreflightResult{RemoteHost: "github.com", HostRepository: "owner/repo", RemoteIdentity: "remote-id"}
 	saga := &targetChangingDelivery{target: want}
-	manager := &Manager{deps: Dependencies{Candidates: fakeCandidates{}, Delivery: saga, DeliveryPreflight: saga}, results: make(chan workerResult, 1)}
+	manager := bareTestManager(Dependencies{Candidates: fakeCandidates{}, Delivery: saga, DeliveryPreflight: saga}, Options{})
 	job, _ := fix.NewJobID()
 	attempt, _ := fix.NewAttemptID()
 	input := FixInput{
@@ -114,7 +114,7 @@ func TestPublicationDiscoversDeliveryTargetAtRuntime(t *testing.T) {
 		BranchName:   "slopwatch/fix/test",
 		Preferences:  appconfig.Resolved{Delivery: appconfig.Delivery{Remote: "origin"}},
 	}
-	manager.runPublicationStep(t.Context(), publicationCommit, input, job, attempt, fix.CandidateIdentity{}, "diff", []fix.RepoPath{"one.go"}, delivery.Result{}, publisher.Result{})
+	manager.controller.publication.runPublicationStep(t.Context(), publicationCommit, input, job, attempt, fix.CandidateIdentity{}, "diff", []fix.RepoPath{"one.go"}, delivery.Result{}, publisher.Result{})
 	result := <-manager.results
 	if result.err != nil || result.deliveryTarget != want || saga.commitCount() != 1 {
 		t.Fatalf("runtime delivery discovery: target=%+v commits=%d err=%v", result.deliveryTarget, saga.commitCount(), result.err)
