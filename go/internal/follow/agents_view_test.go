@@ -28,10 +28,10 @@ func TestAgentRowsUseAttentionOrderAndActiveAllFilter(t *testing.T) {
 		{ID: "discarded", Phase: fix.PhaseDiscarded},
 	}
 	model := Model{width: 80, height: 24, agents: AgentsState{Expanded: map[fix.JobID]bool{}}}
-	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	assertAgentJobOrder(t, model.agents.visibleJobs(), "blocked", "failed", "failed-old", "verify", "running")
 
-	model.agents.toggleFilter(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.toggleFilter(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	assertAgentJobOrder(t, model.agents.visibleJobs(), "blocked", "failed", "failed-old", "verify", "running", "completed", "completed-new")
 }
 
@@ -109,9 +109,9 @@ func TestAgentSelectionExpansionAndVisualPositionSurviveUpdates(t *testing.T) {
 		agentTestJob("one", fix.PhaseRunning, "a.go", "b.go", "c.go"),
 		agentTestJob("two", fix.PhaseQueued, "d.go"),
 	}
-	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	model.agents.Selected = AgentRowID{JobID: "one", Path: "c.go"}
-	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	rows := model.agents.rows()
 	index := agentRowIndex(rows, model.agents.Selected)
 	before := agentRowSpans(rows, responsiveTier(model.width, model.height))[index].start - model.agents.Offset
@@ -120,7 +120,7 @@ func TestAgentSelectionExpansionAndVisualPositionSurviveUpdates(t *testing.T) {
 		agentTestJob("urgent", fix.PhaseFailed, "urgent.go"),
 		jobs[0], jobs[1],
 	}
-	model.agents.setPresentations(updated, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.setPresentations(updated, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	rows = model.agents.rows()
 	index = agentRowIndex(rows, model.agents.Selected)
 	after := agentRowSpans(rows, responsiveTier(model.width, model.height))[index].start - model.agents.Offset
@@ -128,12 +128,12 @@ func TestAgentSelectionExpansionAndVisualPositionSurviveUpdates(t *testing.T) {
 		t.Fatalf("live update moved selection: selected=%+v relative=%d, want %d", model.agents.Selected, after, before)
 	}
 
-	model.agents.toggleSelectedJob(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.toggleSelectedJob(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	if !model.agents.Expanded["one"] {
 		t.Fatal("Enter on a file row changed its parent expansion")
 	}
 	model.agents.Selected = AgentRowID{JobID: "one"}
-	model.agents.toggleSelectedJob(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.toggleSelectedJob(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	if model.agents.Expanded["one"] {
 		t.Fatal("Enter on a job row did not collapse it")
 	}
@@ -160,7 +160,7 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 		model := agentTestModel(size.width, size.height, job)
 		model.agents.Expanded[job.ID] = true
 		model.agents.Selected = AgentRowID{JobID: job.ID, Path: job.Targets[0].Path}
-		model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.ensureVisible(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 		view := model.View()
 		assertScreenSize(t, view, size.width, size.height)
 		plain := ansi.Strip(view)
@@ -275,7 +275,7 @@ func TestAgentsEmptyStatesAndStickyParentBreadcrumb(t *testing.T) {
 	if view := ansi.Strip(model.View()); !strings.Contains(view, "No fix jobs yet") {
 		t.Fatalf("new-user empty state = %q", view)
 	}
-	model.agents.setPresentations([]fix.JobPresentation{{ID: "done", Phase: fix.PhaseCompleted}}, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.setPresentations([]fix.JobPresentation{{ID: "done", Phase: fix.PhaseCompleted}}, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	if view := ansi.Strip(model.View()); !strings.Contains(view, "press a to show All") {
 		t.Fatalf("active empty state = %q", view)
 	}
@@ -289,7 +289,7 @@ func TestAgentsEmptyStatesAndStickyParentBreadcrumb(t *testing.T) {
 	model = agentTestModel(36, 8, job)
 	model.agents.Expanded[job.ID] = true
 	model.agents.Selected = AgentRowID{JobID: job.ID, Path: "d.go"}
-	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	header := strings.Split(ansi.Strip(model.View()), "\n")[1]
 	if strings.Contains(header, "↑") || !strings.Contains(header, "RUNNING") {
 		t.Fatalf("sticky parent breadcrumb = %q", header)
@@ -419,7 +419,7 @@ func agentTestModel(width, height int, jobs ...fix.JobPresentation) Model {
 		weights:       defaultWeights(),
 		weightEnabled: defaultWeightEnabled(),
 	}
-	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	return model
 }
 

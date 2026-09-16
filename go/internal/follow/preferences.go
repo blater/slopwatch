@@ -190,8 +190,8 @@ func persistUserPreferences(model *Model) {
 	value.Table.VisibleColumns = visibleColumnKeys(model.files.Visible)
 	value.Table.SortBy = model.files.SortKey
 	value.Table.SortDescending = model.files.SortReverse
-	value.Scoring.WeightStep = model.weightStepValue()
-	value.Scoring.MaximumWeight = model.maximumWeightValue()
+	value.Scoring.WeightStep = positiveOrDefault(model.weightStep, defaultWeightStep)
+	value.Scoring.MaximumWeight = positiveOrDefault(model.maximumWeight, defaultMaximumWeight)
 	for _, item := range componentWeights {
 		value.Scoring.Components[item.id] = userprefs.ComponentPreference{
 			Enabled: isWeightEnabled(*model, item.id), Weight: model.weights[item.id],
@@ -205,16 +205,9 @@ func persistUserPreferences(model *Model) {
 	}
 }
 
-func (model Model) weightStepValue() float64 {
-	if model.weightStep > 0 {
-		return model.weightStep
+func positiveOrDefault(value, fallback float64) float64 {
+	if value > 0 {
+		return value
 	}
-	return defaultWeightStep
-}
-
-func (model Model) maximumWeightValue() float64 {
-	if model.maximumWeight > 0 {
-		return model.maximumWeight
-	}
-	return defaultMaximumWeight
+	return fallback
 }

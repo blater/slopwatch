@@ -71,14 +71,14 @@ func handleWatcherReady(model *Model, message watcherReady) (tea.Model, tea.Cmd)
 		return model, nil
 	}
 	markFreshness(model, nil, report.FreshnessVerifying, "validating current workspace")
-	return model, tea.Batch(waitForChange(model.watcher), model.analyze(nil, true))
+	return model, tea.Batch(waitForChange(model.watcher), analysisCommand(model.analyzer, model.options.Targets, nil, true))
 }
 
 func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	model.width, model.height = message.Width, message.Height
 	model.ensureVisible()
 	model.clampPathOffset()
-	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	policy := model.agentMetricPolicy()
 	model.agents.clampHorizontal(maximumAgentHorizontalOffset(model.agents.rows(), responsiveTier(model.width, model.height), model.width, policy.visible))
 	if overlayPresent(model.overlays, OverlayPromptEditor) {
@@ -111,7 +111,7 @@ func handleFullSourceChange(model *Model, message sourceChange, command tea.Cmd)
 		return model, command
 	}
 	model.analyzing = true
-	return model, tea.Batch(command, model.analyze(nil, true))
+	return model, tea.Batch(command, analysisCommand(model.analyzer, model.options.Targets, nil, true))
 }
 
 func handlePartialSourceChange(model *Model, message sourceChange, command tea.Cmd) (tea.Model, tea.Cmd) {
@@ -202,7 +202,7 @@ func continueQueuedAnalysis(model *Model) (tea.Model, tea.Cmd) {
 		model.pendingFullAnalysis = false
 		model.queued = map[string]bool{}
 		model.analyzing = true
-		return model, model.analyze(nil, true)
+		return model, analysisCommand(model.analyzer, model.options.Targets, nil, true)
 	}
 	if len(model.queued) > 0 {
 		paths := takeQueue(model)

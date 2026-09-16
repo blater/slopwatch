@@ -58,7 +58,7 @@ func analyzeExisting(model Model, paths []string) tea.Cmd {
 	if len(existing) == 0 {
 		return func() tea.Msg { return analysisResult{replace: paths, document: report.Document{}} }
 	}
-	command := model.analyze(existing, false)
+	command := analysisCommand(model.analyzer, model.options.Targets, existing, false)
 	return func() tea.Msg {
 		result := command()
 		analysis := result.(analysisResult)
@@ -137,7 +137,7 @@ func contains(paths []string, path string) bool {
 }
 
 func restoreSelection(model *Model) {
-	model.files.restoreSelection(model.options.Limit, model.bodyHeight())
+	model.files.restoreSelection(model.options.Limit, bodyHeight(model.mainView, model.height))
 }
 
 func refreshDisplayFiles(model *Model) {

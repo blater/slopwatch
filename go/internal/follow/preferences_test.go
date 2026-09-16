@@ -117,7 +117,7 @@ func TestPreferenceChangesSurviveModelRestart(t *testing.T) {
 	model.appearanceCursor = 1
 	model.selectAppearance()
 	model.weightCursor = componentIndex("cognitive_complexity")
-	model.adjustWeight(model.weightStepValue())
+	model.adjustWeight(positiveOrDefault(model.weightStep, defaultWeightStep))
 	toggleWeight(model)
 	model.columnCursor = columnIndex("cog")
 	handleColumnKey(model, " ")

@@ -179,7 +179,7 @@ func (model *Model) openFixForSelected() tea.Cmd {
 			model.switchMainView(MainViewAgents)
 			model.agents.FindQuery = ""
 			model.agents.Selected = AgentRowID{JobID: job.ID}
-			model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+			model.agents.ensureVisible(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 			model.fixNotice = "Opened existing fix for " + path.String()
 			return nil
 		}
@@ -334,26 +334,15 @@ func initialFixJobsCommand(service FixService) tea.Cmd {
 	}
 }
 
-func waitFixJobsCommand(service FixService, subscription fixapp.Subscription) tea.Cmd {
-	return func() tea.Msg {
-		err := subscription.Wait(context.Background())
-		if err != nil {
-			return fixJobsMsg{err: err}
-		}
-		snapshot := service.Jobs(fixapp.JobFilter{IncludeFinished: true})
-		return fixJobsMsg{jobs: snapshot.Jobs}
-	}
-}
-
 func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 	if message.err != nil {
 		return model.fixUpdateError(message.err)
 	}
 	model.fixNotice = model.fixUpdates.clearError(model.fixNotice)
 	previousMonitorUpdate, previousLogUpdate := model.openFixSurfaceUpdates()
-	model.agents.setPresentations(message.jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.setPresentations(message.jobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	monitorCommand, logCommand := model.refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpdate)
-	return model.nextFixUpdate(monitorCommand, logCommand)
+	return model.fixUpdates.next(model.fixService, monitorCommand, logCommand)
 }
 
 func (model *Model) fixUpdateError(err error) tea.Cmd {
@@ -420,13 +409,10 @@ func (model *Model) activateJobAction(jobID fix.JobID, choices ...fix.JobAction)
 		return model, nil
 	}
 	if jobActionRequiresConfirmation(action) {
-		model.jobActions.confirmation = cancelConfirmation{
-			jobID: job.ID, action: action, allowed: true,
-		}
+		model.jobActions.beginConfirmation(job.ID, action)
 		model.overlays.Push(OverlayConfirmation, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: job.ID}.String()})
 		return model, nil
 	}
-	model.jobActions.command = jobCommandState{jobID: job.ID, action: action, pending: true}
 	return model.executeSelectedJobAction(job.ID, action, false)
 }
 

@@ -12,7 +12,7 @@ func (model *Model) handleFixCommand(message fixCommandMsg) {
 		return
 	}
 	if outcome.refresh {
-		model.agents.setPresentations(outcome.refreshedJobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.setPresentations(outcome.refreshedJobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	}
 	if outcome.closeConfirmation {
 		model.overlays.Pop()

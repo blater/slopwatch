@@ -17,19 +17,19 @@ func startWatcher(watcher *sourceWatcher) tea.Cmd {
 	return func() tea.Msg { return watcherReady{err: watcher.start()} }
 }
 
-func (model Model) analyze(paths []string, full bool) tea.Cmd {
+func analysisCommand(analyzer Analyzer, configuredTargets []string, paths []string, full bool) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		targets := paths
 		if full {
-			targets = model.options.Targets
+			targets = configuredTargets
 		}
 		languages := languagesForPaths(paths)
 		if full {
 			languages = nil
 		}
-		document, err := model.analyzer.Analyze(ctx, targets, languages)
+		document, err := analyzer.Analyze(ctx, targets, languages)
 		return analysisResult{document: document, replace: paths, full: full, err: err}
 	}
 }

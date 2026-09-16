@@ -60,6 +60,15 @@ func (state *sourceState) findNext(direction int) bool {
 	return false
 }
 
+func (state sourceState) findFooter(width int) string {
+	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
+	input := style.InputField(state.findInput.View(), max(8, min(24, width/3)))
+	text := background.Render(" FIND "+input+"  ") + hintRow(style.SurfaceFooter,
+		hintItem{"ENTER", "find"}, hintItem{"ESC", "cancel"},
+	)
+	return background.Render(padANSI(truncateANSI(text, width), width))
+}
+
 func (state sourceState) render(outerWidth, outerHeight int, findFooter string) string {
 	innerWidth := max(1, outerWidth-2)
 	headerLeft := "  " + state.path

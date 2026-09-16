@@ -7,9 +7,9 @@ import (
 func dispatchAgentKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	switch name {
 	case "up", "k":
-		model.agents.moveSelection(-1, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.moveSelection(-1, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "down", "j":
-		model.agents.moveSelection(1, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.moveSelection(1, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "left":
 		policy := model.agentMetricPolicy()
 		model.agents.moveHorizontal(pathScrollStep, maximumAgentHorizontalOffset(model.agents.rows(), responsiveTier(model.width, model.height), model.width, policy.visible))
@@ -17,28 +17,28 @@ func dispatchAgentKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		policy := model.agentMetricPolicy()
 		model.agents.moveHorizontal(-pathScrollStep, maximumAgentHorizontalOffset(model.agents.rows(), responsiveTier(model.width, model.height), model.width, policy.visible))
 	case "ctrl+f", "pgdown":
-		model.agents.pageSelection(1, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.pageSelection(1, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "ctrl+b", "pgup":
-		model.agents.pageSelection(-1, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.pageSelection(-1, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "home", "g":
-		model.agents.jumpSelection(false, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.jumpSelection(false, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "end", "G":
-		model.agents.jumpSelection(true, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.jumpSelection(true, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "enter":
 		if model.agents.Selected.IsJob() {
-			model.agents.toggleSelectedJob(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+			model.agents.toggleSelectedJob(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 			break
 		}
 		return model, model.openJobMonitor(model.agents.Selected.JobID, model.agents.Selected.Path)
 	case "a":
-		model.agents.toggleFilter(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.toggleFilter(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "f", "/":
 		model.agents.beginFind()
 	case "o":
-		model.agents.cycleSort(1, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.cycleSort(1, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "O":
 		model.agents.SortReverse = !model.agents.SortReverse
-		model.agents.reconcileSelection(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		model.agents.reconcileSelection(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	case "i":
 		return model, model.openJobMonitor(model.agents.Selected.JobID, model.agents.Selected.Path)
 	case "d":
@@ -83,9 +83,9 @@ func dispatchFileKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "right":
 		model.movePath(pathScrollStep)
 	case "ctrl+f", "pgdown":
-		move(model, max(1, model.bodyHeight()))
+		move(model, max(1, bodyHeight(model.mainView, model.height)))
 	case "ctrl+b", "pgup":
-		move(model, -max(1, model.bodyHeight()))
+		move(model, -max(1, bodyHeight(model.mainView, model.height)))
 	case "home", "g":
 		model.files.Cursor = 0
 		model.files.selectCursor(model.options.Limit)

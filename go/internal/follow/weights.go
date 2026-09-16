@@ -55,7 +55,7 @@ func rebuildWeightedDocument(model *Model) {
 		scoring.NewPolicy(model.weights, model.weightEnabled),
 	)
 	model.files.Document = document
-	model.refreshFreshnessStatus()
+	model.files.refreshFreshnessStatus()
 	model.files.refreshDisplayFiles(model.options.Limit)
 }
 
@@ -121,7 +121,7 @@ func (model *Model) syncTypeScriptTypes() tea.Cmd {
 		return nil
 	}
 	model.analyzing = true
-	return model.analyze(nil, true)
+	return analysisCommand(model.analyzer, model.options.Targets, nil, true)
 }
 
 type settingsItem struct {
@@ -210,9 +210,9 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		model.weightCursor = min(len(componentWeights)-1, model.weightCursor+1)
 	case "left", "h", "-":
-		model.adjustWeight(-model.weightStepValue())
+		model.adjustWeight(-positiveOrDefault(model.weightStep, defaultWeightStep))
 	case "right", "l", "+", "=":
-		model.adjustWeight(model.weightStepValue())
+		model.adjustWeight(positiveOrDefault(model.weightStep, defaultWeightStep))
 	case "r":
 		resetWeight(model)
 		return model, model.syncTypeScriptTypes()
@@ -263,7 +263,7 @@ func toggleWeight(model *Model) {
 func (model *Model) adjustWeight(delta float64) {
 	item := componentWeights[model.weightCursor]
 	value := model.weights[item.id] + delta
-	model.weights[item.id] = math.Max(0, math.Min(model.maximumWeightValue(), value))
+	model.weights[item.id] = math.Max(0, math.Min(positiveOrDefault(model.maximumWeight, defaultMaximumWeight), value))
 	rebuildWeightedDocument(model)
 	restoreSelection(model)
 	persistUserPreferences(model)

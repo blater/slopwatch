@@ -14,7 +14,7 @@ import (
 )
 
 func detailView(model Model) string {
-	file, ok := model.selectedFile()
+	file, ok := model.files.selectedFile(model.options.Limit)
 	if !ok {
 		return ""
 	}
@@ -258,7 +258,7 @@ func detailBodyHeight(model Model) int {
 }
 
 func detailMaxOffset(model Model) int {
-	file, ok := model.selectedFile()
+	file, ok := model.files.selectedFile(model.options.Limit)
 	if !ok {
 		return 0
 	}

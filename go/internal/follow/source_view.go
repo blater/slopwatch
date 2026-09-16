@@ -14,7 +14,7 @@ import (
 )
 
 func openSourceView(model *Model) tea.Cmd {
-	file, ok := model.selectedFile()
+	file, ok := model.files.selectedFile(model.options.Limit)
 	if !ok {
 		return nil
 	}
@@ -78,7 +78,7 @@ func sourceViewView(model Model) string {
 	outerWidth, outerHeight := sourceDimensions(model.width, model.height)
 	findFooter := ""
 	if model.source.findOpen {
-		findFooter = model.findFooter(max(1, outerWidth-2))
+		findFooter = model.source.findFooter(max(1, outerWidth-2))
 	}
 	return model.source.render(outerWidth, outerHeight, findFooter)
 }

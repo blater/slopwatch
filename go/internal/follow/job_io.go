@@ -43,17 +43,13 @@ func (model *Model) refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpd
 	return monitorCommand, logCommand
 }
 
-func (model Model) nextFixUpdate(monitorCommand, logCommand tea.Cmd) tea.Cmd {
-	return model.fixUpdates.next(model.fixService, monitorCommand, logCommand)
-}
-
 func (model *Model) retryFixSubscription(message fixRetrySubscriptionMsg) tea.Cmd {
 	recovery := model.fixUpdates.retry(model.fixService, message.generation)
 	if !recovery.accepted {
 		return nil
 	}
 	snapshot := recovery.jobs
-	model.agents.setPresentations(snapshot, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.agents.setPresentations(snapshot, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	model.fixNotice = recovery.notice
 	return recovery.command
 }

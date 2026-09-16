@@ -1737,7 +1737,7 @@ func BenchmarkTableViewTwentyFiveThousandFiles(b *testing.B) {
 		options: Options{TrendWindow: time.Minute},
 	}
 	model.files.refreshDisplayFiles(model.options.Limit)
-	model.refreshFreshnessStatus()
+	model.files.refreshFreshnessStatus()
 	b.ResetTimer()
 	for range b.N {
 		_ = tableView(model)

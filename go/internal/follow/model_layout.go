@@ -1,15 +1,15 @@
 package follow
 
-func (model Model) bodyHeight() int {
+func bodyHeight(mainView MainView, height int) int {
 	reserved := 3
-	if model.mainView == MainViewFiles {
+	if mainView == MainViewFiles {
 		reserved = 4
 	}
-	return max(1, model.height-reserved)
+	return max(1, height-reserved)
 }
 
 func (model *Model) ensureVisible() {
-	model.files.ensureVisible(model.bodyHeight(), len(model.files.displayFiles(model.options.Limit)))
+	model.files.ensureVisible(bodyHeight(model.mainView, model.height), len(model.files.displayFiles(model.options.Limit)))
 }
 
 func (model Model) mainViewContent() string {

@@ -6,7 +6,7 @@ func (model *Model) toggleMarkMode() {
 }
 
 func (model *Model) moveAndToggleMark(delta int) {
-	model.files.moveAndToggleMark(delta, model.options.Limit, model.bodyHeight())
+	model.files.moveAndToggleMark(delta, model.options.Limit, bodyHeight(model.mainView, model.height))
 }
 
 func (model *Model) clearMarkedFiles() {

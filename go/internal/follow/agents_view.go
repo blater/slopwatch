@@ -61,7 +61,7 @@ func agentsHeader(model Model) string {
 		filter = "ALL"
 	}
 	tier := responsiveTier(model.width, model.height)
-	if crumb := agentBreadcrumb(model.agents, makeAgentLayout(model.width, model.height, model.bodyHeight())); crumb != "" {
+	if crumb := agentBreadcrumb(model.agents, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height))); crumb != "" {
 		prefix := " AGENTS  "
 		line := prefix + truncate(crumb, max(0, model.width-lipgloss.Width(prefix)))
 		return lipgloss.NewStyle().Foreground(style.TextHeader).Background(style.SurfaceHeader).Bold(true).
@@ -101,7 +101,7 @@ func agentBreadcrumb(state AgentsState, layout agentLayout) string {
 }
 
 func agentsRows(model Model) []string {
-	bodyHeight := model.bodyHeight()
+	bodyHeight := bodyHeight(model.mainView, model.height)
 	result := make([]string, 0, bodyHeight)
 	rows := model.agents.rows()
 	if len(rows) == 0 {

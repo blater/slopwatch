@@ -402,9 +402,9 @@ func TestAgentFindConsumesPrintableKeysAndSortCycles(t *testing.T) {
 	if !result.agents.FindEditing || result.agents.FindInput.Value() != "q" {
 		t.Fatal("printable q escaped Agents find")
 	}
-	result.agents.handleFindKey(tea.KeyMsg{Type: tea.KeyEsc}, makeAgentLayout(result.width, result.height, result.bodyHeight()))
+	result.agents.handleFindKey(tea.KeyMsg{Type: tea.KeyEsc}, makeAgentLayout(result.width, result.height, bodyHeight(result.mainView, result.height)))
 	before := result.agents.SortKey
-	result.agents.cycleSort(1, makeAgentLayout(result.width, result.height, result.bodyHeight()))
+	result.agents.cycleSort(1, makeAgentLayout(result.width, result.height, bodyHeight(result.mainView, result.height)))
 	if result.agents.SortKey == before {
 		t.Fatal("Agents sort did not cycle")
 	}

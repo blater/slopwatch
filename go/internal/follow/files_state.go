@@ -33,6 +33,11 @@ type FilesState struct {
 	Visible              map[string]bool
 }
 
+func (state *FilesState) refreshFreshnessStatus() {
+	state.FreshnessStatusText = freshnessStatusForFiles(state.Document.Files)
+	state.FreshnessStatusReady = true
+}
+
 // refreshDisplayFiles rebuilds the ordered projection used by the table.
 // The report remains the source of truth; this cache only stores the current
 // view order and its path width for navigation and rendering.

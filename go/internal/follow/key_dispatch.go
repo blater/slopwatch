@@ -15,7 +15,7 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return dispatchOverlayKey(model, overlay.Kind, key)
 	}
 	if model.mainView == MainViewAgents && model.agents.FindEditing {
-		return model, model.agents.handleFindKey(key, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+		return model, model.agents.handleFindKey(key, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	}
 	if name == "ctrl+c" || name == "q" {
 		return model.requestQuit()

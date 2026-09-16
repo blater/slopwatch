@@ -36,11 +36,6 @@ func freshnessStatus(model Model) string {
 	return freshnessStatusForFiles(model.files.Document.Files)
 }
 
-func (model *Model) refreshFreshnessStatus() {
-	model.files.FreshnessStatusText = freshnessStatusForFiles(model.files.Document.Files)
-	model.files.FreshnessStatusReady = true
-}
-
 func freshnessStatusForFiles(files []report.File) string {
 	counts := map[report.Freshness]int{}
 	for _, file := range files {
@@ -68,27 +63,13 @@ func freshnessStatusForFiles(files []report.File) string {
 	return "CACHE " + strings.Join(parts, " · ")
 }
 
-func (model Model) findFooter(width int) string {
-	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
-	input := style.InputField(model.source.findInput.View(), max(8, min(24, width/3)))
-	text := background.Render(" FIND "+input+"  ") + hintRow(style.SurfaceFooter,
-		hintItem{"ENTER", "find"},
-		hintItem{"ESC", "cancel"},
-	)
-	return background.Render(padANSI(truncateANSI(text, width), width))
-}
-
-func (model Model) scanningIndicator(message string) string {
+func scanningIndicator(animationFrame int, message string) string {
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	frame := frames[model.animationFrame%len(frames)]
+	frame := frames[animationFrame%len(frames)]
 	if message == "" {
 		message = "SCANNING"
 	}
 	return lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceTop).Render(frame + message + frame)
-}
-
-func (model Model) selectedFile() (report.File, bool) {
-	return model.files.selectedFile(model.options.Limit)
 }
 
 func footer(model Model) string {
