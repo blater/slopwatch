@@ -11,12 +11,12 @@ import (
 func renderTable(model Model) string {
 	lines := make([]string, 0, model.height)
 	lines = append(lines, tableTopLines(model)...)
-	lines = append(lines, model.header())
+	lines = append(lines, header(model))
 	lines = append(lines, tableRows(model)...)
-	if model.findOpen {
+	if model.source.findOpen {
 		lines = append(lines, model.findFooter(model.width))
 	} else {
-		lines = append(lines, model.footer())
+		lines = append(lines, footer(model))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -57,7 +57,7 @@ func tableTopParts(model Model) (topLeft, topRight, bottomLeft, bottomRight stri
 	topLeft = logoStyle.Render(logo)
 	bottomLeft = logoStyle.Width(lipgloss.Width(logo)).Align(lipgloss.Center).Render("slopWatch")
 	if model.analyzing {
-		status = model.scanningIndicator(model.freshnessStatus())
+		status = model.scanningIndicator(freshnessStatus(model))
 	} else if status != "" {
 		status = lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(status)
 	}
@@ -78,7 +78,7 @@ func tableStatus(model Model) string {
 	if !model.analyzing && model.status != "" {
 		status = model.status
 	}
-	freshness := model.freshnessStatus()
+	freshness := freshnessStatus(model)
 	if !model.analyzing && freshness != "" {
 		if status != "" {
 			status += "  "
@@ -89,15 +89,15 @@ func tableStatus(model Model) string {
 }
 
 func tableRows(model Model) []string {
-	files := model.displayFiles()
+	files := model.files.displayFiles(model.options.Limit)
 	lines := make([]string, 0, model.bodyHeight())
 	for row := 0; row < model.bodyHeight(); row++ {
-		index := model.offset + row
+		index := model.files.Offset + row
 		if index >= len(files) {
 			lines = append(lines, lipgloss.NewStyle().Background(style.SurfaceScreen).Render(strings.Repeat(" ", model.width)))
 			continue
 		}
-		lines = append(lines, model.renderRow(files[index], index == model.cursor))
+		lines = append(lines, renderRow(model, files[index], index == model.files.Cursor))
 	}
 	return lines
 }

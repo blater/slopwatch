@@ -28,6 +28,30 @@ func TestNewLoadsPreferencesAndCommandLineTrendOverride(t *testing.T) {
 	t.Cleanup(ConfigureTerminalColours)
 	workspace := t.TempDir()
 	path := filepath.Join(t.TempDir(), "preferences.toml")
+	savePreferenceFixture(t, path)
+
+	analyzer := &preferenceAnalyzer{}
+	model, err := New(report.Document{}, analyzer, Options{
+		Workspace: workspace, Targets: []string{"."}, PreferencesPath: path,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(model.Close)
+	assertPreferenceFixtureLoaded(t, model, analyzer)
+
+	overridden, err := New(report.Document{}, &preferenceAnalyzer{}, Options{
+		Workspace: workspace, Targets: []string{"."}, PreferencesPath: path, TrendWindow: 2 * time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer overridden.Close()
+	assertTrendOverride(t, overridden, path)
+}
+
+func savePreferenceFixture(t *testing.T, path string) {
+	t.Helper()
 	value := defaultUserPreferences()
 	value.Appearance.Theme = "light"
 	value.Table.VisibleColumns = []string{"cog"}
@@ -45,20 +69,15 @@ func TestNewLoadsPreferencesAndCommandLineTrendOverride(t *testing.T) {
 	if err := preferences.Save(path, value); err != nil {
 		t.Fatal(err)
 	}
+}
 
-	analyzer := &preferenceAnalyzer{}
-	model, err := New(report.Document{}, analyzer, Options{
-		Workspace: workspace, Targets: []string{"."}, PreferencesPath: path,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(model.Close)
+func assertPreferenceFixtureLoaded(t *testing.T, model *Model, analyzer *preferenceAnalyzer) {
+	t.Helper()
 	if model.theme != style.ThemeLight || string(style.SurfaceScreen) != "#f7fafc" {
 		t.Fatalf("theme was not loaded: model=%q surface=%q", model.theme, style.SurfaceScreen)
 	}
-	if len(model.visible) != 1 || !model.visible["cog"] || model.sortKey != "filename" || model.sortReverse {
-		t.Fatalf("table preferences were not loaded: visible=%v sort=%s reverse=%t", model.visible, model.sortKey, model.sortReverse)
+	if len(model.files.Visible) != 1 || !model.files.Visible["cog"] || model.files.SortKey != "filename" || model.files.SortReverse {
+		t.Fatalf("table preferences were not loaded: visible=%v sort=%s reverse=%t", model.files.Visible, model.files.SortKey, model.files.SortReverse)
 	}
 	if model.options.TrendWindow != 42*time.Minute || model.weightStep != 0.25 || model.maximumWeight != 12 {
 		t.Fatalf("tuning preferences were not loaded: trend=%s step=%v max=%v", model.options.TrendWindow, model.weightStep, model.maximumWeight)
@@ -66,14 +85,10 @@ func TestNewLoadsPreferencesAndCommandLineTrendOverride(t *testing.T) {
 	if model.weights["cognitive_complexity"] != 3 || !analyzer.typeScriptTypes {
 		t.Fatalf("scoring preferences were not loaded: weight=%v types=%t", model.weights["cognitive_complexity"], analyzer.typeScriptTypes)
 	}
+}
 
-	overridden, err := New(report.Document{}, &preferenceAnalyzer{}, Options{
-		Workspace: workspace, Targets: []string{"."}, PreferencesPath: path, TrendWindow: 2 * time.Minute,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer overridden.Close()
+func assertTrendOverride(t *testing.T, overridden *Model, path string) {
+	t.Helper()
 	if overridden.options.TrendWindow != 2*time.Minute {
 		t.Fatalf("command-line trend override = %s", overridden.options.TrendWindow)
 	}
@@ -103,11 +118,11 @@ func TestPreferenceChangesSurviveModelRestart(t *testing.T) {
 	model.selectAppearance()
 	model.weightCursor = componentIndex("cognitive_complexity")
 	model.adjustWeight(model.weightStepValue())
-	model.toggleWeight()
+	toggleWeight(model)
 	model.columnCursor = columnIndex("cog")
-	model.handleColumnKey(" ")
-	model.sortCursor = len(sortFields()) - 1
-	model.activateHighlightedSort(false, true)
+	handleColumnKey(model, " ")
+	model.files.SortCursor = len(sortFields()) - 1
+	activateHighlightedSort(model, false, true)
 	model.Close()
 
 	restarted, err := New(report.Document{}, &preferenceAnalyzer{}, Options{
@@ -123,14 +138,14 @@ func TestPreferenceChangesSurviveModelRestart(t *testing.T) {
 	if restarted.weights["cognitive_complexity"] != 10.5 {
 		t.Fatalf("restarted weight = %v", restarted.weights["cognitive_complexity"])
 	}
-	if restarted.isWeightEnabled("cognitive_complexity") {
+	if isWeightEnabled(*restarted, "cognitive_complexity") {
 		t.Fatal("restarted model restored a disabled component")
 	}
-	if restarted.visible["cog"] {
+	if restarted.files.Visible["cog"] {
 		t.Fatal("restarted model restored a hidden column")
 	}
-	if restarted.sortKey != "filename" || restarted.sortReverse {
-		t.Fatalf("restarted sort = %s reverse=%t", restarted.sortKey, restarted.sortReverse)
+	if restarted.files.SortKey != "filename" || restarted.files.SortReverse {
+		t.Fatalf("restarted sort = %s reverse=%t", restarted.files.SortKey, restarted.files.SortReverse)
 	}
 }
 

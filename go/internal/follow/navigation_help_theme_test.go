@@ -18,44 +18,49 @@ func TestMainTableGAndShiftGJumpWithoutFooterHint(t *testing.T) {
 		files[index] = report.File{Path: string(rune('a'+index)) + ".go", Rank: index + 1}
 	}
 	model := Model{
-		document: report.Document{Files: files}, width: 80, height: 6,
-		sortKey: "filename", visible: defaultColumnVisibility(),
+		files: FilesState{
+			Document: report.Document{Files: files},
+			SortKey:  "filename",
+			Visible:  defaultColumnVisibility(),
+		},
+		width:  80,
+		height: 6,
 	}
 
-	model.handleKey(runeKey('G'))
-	if model.cursor != len(files)-1 || model.selected != "h.go" || model.offset == 0 {
-		t.Fatalf("G selected cursor=%d path=%q offset=%d", model.cursor, model.selected, model.offset)
+	handleKey(&model, runeKey('G'))
+	if model.files.Cursor != len(files)-1 || model.files.Selected != "h.go" || model.files.Offset == 0 {
+		t.Fatalf("G selected cursor=%d path=%q offset=%d", model.files.Cursor, model.files.Selected, model.files.Offset)
 	}
-	model.handleKey(runeKey('g'))
-	if model.cursor != 0 || model.selected != "a.go" || model.offset != 0 {
-		t.Fatalf("g selected cursor=%d path=%q offset=%d", model.cursor, model.selected, model.offset)
+	handleKey(&model, runeKey('g'))
+	if model.files.Cursor != 0 || model.files.Selected != "a.go" || model.files.Offset != 0 {
+		t.Fatalf("g selected cursor=%d path=%q offset=%d", model.files.Cursor, model.files.Selected, model.files.Offset)
 	}
-	if footer := ansi.Strip(model.footer()); strings.Contains(strings.ToLower(footer), "jump") || strings.Contains(footer, "g/G") {
+	if footer := ansi.Strip(footer(model)); strings.Contains(strings.ToLower(footer), "jump") || strings.Contains(footer, "g/G") {
 		t.Fatalf("footer advertises the convenience jump: %q", footer)
 	}
 }
 
 func TestHelpTopicsOpenTheirReferencePages(t *testing.T) {
 	model := Model{width: 100, height: 40}
-	model.handleKey(runeKey('h'))
-	chooser := ansi.Strip(model.helpView())
+	handleKey(&model, runeKey('h'))
+	chooser := ansi.Strip(helpView(model))
 	for _, topic := range []string{"Command-line options", "Main-screen controls", "Scoring system"} {
 		if !strings.Contains(chooser, topic) {
 			t.Errorf("help chooser does not contain %q", topic)
 		}
 	}
 
-	model.handleHelpKey("enter")
-	commandLine := ansi.Strip(model.helpView())
+	handleHelpKey(&model, "enter")
+	commandLine := ansi.Strip(helpView(model))
 	for _, option := range []string{"--format text|json", "--pass-score SCORE", "--typescript-types"} {
 		if !strings.Contains(commandLine, option) {
 			t.Errorf("command-line help does not contain %q", option)
 		}
 	}
 
-	model.handleHelpKey("esc")
+	handleHelpKey(&model, "esc")
 	model.helpCursor = 1
-	model.handleHelpKey("enter")
+	handleHelpKey(&model, "enter")
 	controls := strings.Join(topicLines(helpMainScreen, 100, 0), "\n")
 	for _, description := range []string{"G or End selects the final file", "g or Home selects the first file", "s opens alphabetically ordered settings"} {
 		if !strings.Contains(controls, description) {
@@ -63,10 +68,10 @@ func TestHelpTopicsOpenTheirReferencePages(t *testing.T) {
 		}
 	}
 
-	model.handleHelpKey("esc")
+	handleHelpKey(&model, "esc")
 	model.helpCursor = 2
-	model.handleHelpKey("enter")
-	if scoring := ansi.Strip(model.helpView()); !strings.Contains(scoring, "SCORE") || !strings.Contains(scoring, "COG") {
+	handleHelpKey(&model, "enter")
+	if scoring := ansi.Strip(helpView(model)); !strings.Contains(scoring, "SCORE") || !strings.Contains(scoring, "COG") {
 		t.Fatalf("scoring help does not retain metric information: %q", scoring)
 	}
 }
@@ -85,42 +90,45 @@ func TestSettingsAreAlphabeticalAndLightThemeAppliesEverywhere(t *testing.T) {
 	ConfigureTerminalColours()
 	t.Cleanup(ConfigureTerminalColours)
 	model := Model{
+		files: FilesState{
+			Document: report.Document{Files: []report.File{{Path: "main.go", Rank: 1}}},
+			Visible:  defaultColumnVisibility(),
+			Rows:     map[string]rowState{},
+		},
 		width: 80, height: 20, theme: style.ThemeDark, settings: true,
-		document: report.Document{Files: []report.File{{Path: "main.go", Rank: 1}}},
-		visible:  defaultColumnVisibility(), rows: map[string]rowState{},
 	}
-	settings := ansi.Strip(model.settingsView())
+	settings := ansi.Strip(settingsView(model))
 	appearanceAt, columnsAt, weightsAt := strings.Index(settings, "Appearance"), strings.Index(settings, "Columns"), strings.Index(settings, "Weights")
 	if appearanceAt < 0 || appearanceAt >= columnsAt || columnsAt >= weightsAt {
 		t.Fatalf("settings are not alphabetical: %q", settings)
 	}
 
 	model.settingsCursor = settingsIndex("appearance")
-	model.handleSettingsKey("enter")
+	handleSettingsKey(&model, "enter")
 	if !model.appearance || model.settings {
 		t.Fatal("Appearance did not open from Settings")
 	}
-	model.handleAppearanceKey("down")
-	model.handleAppearanceKey("enter")
+	handleAppearanceKey(&model, "down")
+	handleAppearanceKey(&model, "enter")
 	if model.theme != style.ThemeLight || string(style.SurfaceScreen) != "#f7fafc" {
 		t.Fatalf("light theme was not applied: theme=%q screen=%q", model.theme, style.SurfaceScreen)
 	}
 
 	views := map[string]string{
-		"main table":       model.tableView(),
-		"appearance popup": model.appearanceView(),
-		"columns popup":    model.columnsView(),
-		"settings popup":   model.settingsView(),
-		"sort popup":       model.sortView(),
-		"weights popup":    model.weightsView(),
+		"main table":       tableView(model),
+		"appearance popup": appearanceView(model),
+		"columns popup":    columnsView(model),
+		"settings popup":   settingsView(model),
+		"sort popup":       sortView(model),
+		"weights popup":    weightsView(model),
 	}
 	model.help = true
-	views["help popup"] = model.helpView()
+	views["help popup"] = helpView(model)
 	model.help = false
 	model.infoKey = "score"
-	views["info popup"] = model.infoView()
+	views["info popup"] = infoView(model)
 	model.detail = true
-	views["detail popup"] = model.detailView()
+	views["detail popup"] = detailView(model)
 	for name, view := range views {
 		if !strings.Contains(view, "48;2;") {
 			t.Errorf("%s does not render a themed true-colour background", name)
@@ -133,8 +141,8 @@ func TestSettingsAreAlphabeticalAndLightThemeAppliesEverywhere(t *testing.T) {
 	model.settings = false
 	model.appearance = true
 	model.appearanceCursor = 0
-	model.handleAppearanceKey("esc")
-	model.handleSettingsKey("enter")
+	handleAppearanceKey(&model, "esc")
+	handleSettingsKey(&model, "enter")
 	if model.appearanceCursor != 1 {
 		t.Fatalf("Appearance did not remember the selected theme: cursor=%d", model.appearanceCursor)
 	}

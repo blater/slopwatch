@@ -27,10 +27,10 @@ func TestDegradedAgentIsWarningAndRuntimeAttemptRemainsAvailable(t *testing.T) {
 			t.Fatalf("degraded runtime omitted %q: %q", wanted, plain)
 		}
 	}
-	if !model.fixDialogRunnable() || !strings.Contains(model.fixDialogFooter(), "r run") {
+	if !model.fixDialog.runnable() || !strings.Contains(model.fixDialog.footer(), "r run") {
 		t.Fatal("degraded readiness warning prevented a runtime attempt")
 	}
-	if kind, ok := model.fixRemediationSettingsKind(); !ok || kind != configAgents {
+	if kind, ok := model.fixDialog.remediationSettingsKind(); !ok || kind != configAgents {
 		t.Fatalf("blocked agent did not link to agent settings: kind=%q ok=%t", kind, ok)
 	}
 }
@@ -80,7 +80,7 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 	model.fixDialog.focus["cog"] = true
 	model.fixDialog.branch.SetValue("slopwatch/fix/preserved")
 	model.fixDialog.cursor = fixFieldEffort
-	if !model.syncFixInput() {
+	if !model.fixDialog.syncInput() {
 		t.Fatalf("could not establish edited input: %s", model.fixDialog.errorText)
 	}
 
@@ -101,7 +101,7 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 	}
 
 	model.handleFixLoaded(reprepare().(fixLoadedMsg))
-	if model.fixDialog.loading || !model.fixDialogRunnable() || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||
+	if model.fixDialog.loading || !model.fixDialog.runnable() || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||
 		model.fixDialog.input.BranchName != "slopwatch/fix/preserved" {
 		t.Fatalf("reprepared Fix lost edits or readiness: %+v", model.fixDialog)
 	}
@@ -114,7 +114,7 @@ func TestRunFailureCanBeRetriedWithoutReadinessRecheck(t *testing.T) {
 	model.handleFixLoaded(prepare().(fixLoadedMsg))
 	_, run := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	model.handleFixStarted(run().(fixStartedMsg))
-	if !model.fixDialogRunnable() || !strings.Contains(model.fixDialog.statusText, "retry") {
+	if !model.fixDialog.runnable() || !strings.Contains(model.fixDialog.statusText, "retry") {
 		t.Fatalf("run failure incorrectly invalidated readiness: %+v", model.fixDialog)
 	}
 	if _, retry := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}); retry == nil {

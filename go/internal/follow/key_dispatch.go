@@ -9,196 +9,84 @@ func dispatchKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	model.reconcileLegacyOverlayStack()
 	defer model.reconcileLegacyOverlayStack()
 	if model.width > 0 && model.height > 0 && responsiveTier(model.width, model.height) == ResponsiveResize {
-		// A resize screen must not leave a hidden modal active. In particular,
-		// Enter must never confirm publish/discard/cleanup while the confirmation
-		// itself is not visible. The shutdown surface is the sole exception and
-		// is rendered explicitly by view when there is enough room for it.
-		if overlay, ok := model.overlays.Top(); ok && overlay.Kind == OverlayShutdown {
-			if model.width >= 24 && model.height >= 2 {
-				return dispatchOverlayKey(model, overlay.Kind, key)
-			}
-			return model, nil
-		}
-		switch name {
-		case "q", "ctrl+c":
-			return model.requestQuit()
-		default:
-			return model, nil
-		}
+		return dispatchResizeKey(model, name, key)
 	}
 	if overlay, ok := model.overlays.Top(); ok {
 		return dispatchOverlayKey(model, overlay.Kind, key)
 	}
 	if model.mainView == MainViewAgents && model.agents.FindEditing {
-		return model.handleAgentFindKey(key)
+		return model, model.agents.handleFindKey(key, makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	}
+	if name == "ctrl+c" || name == "q" {
+		return model.requestQuit()
+	}
+	if handled, command := dispatchGlobalKey(model, name); handled {
+		return model, command
+	}
+	if model.mainView == MainViewAgents {
+		return dispatchAgentKey(model, name)
+	}
+	return dispatchFileKey(model, name)
+}
+
+func dispatchResizeKey(model *Model, name string, key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if overlay, ok := model.overlays.Top(); ok && overlay.Kind == OverlayShutdown {
+		if model.width >= 24 && model.height >= 2 {
+			return dispatchOverlayKey(model, overlay.Kind, key)
+		}
+		return model, nil
+	}
+	if name == "q" || name == "ctrl+c" {
+		return model.requestQuit()
+	}
+	return model, nil
+}
+
+func dispatchGlobalKey(model *Model, name string) (bool, tea.Cmd) {
 	switch name {
 	case "tab":
 		model.toggleMainView()
-		return model, nil
 	case "A":
 		model.switchMainView(MainViewAgents)
-		return model, nil
-	case "ctrl+c", "q":
-		return model.requestQuit()
 	case "s":
-		model.settings = true
-		model.settingsCursor = 0
-		return model, nil
+		model.settings, model.settingsCursor = true, 0
 	case "h":
-		model.help = true
-		model.helpCursor = 0
-		model.helpTopic = ""
-		return model, nil
+		model.help, model.helpCursor, model.helpTopic = true, 0, ""
+	default:
+		return false, nil
 	}
-	if model.mainView == MainViewAgents {
-		switch name {
-		case "up", "k":
-			model.moveAgentSelection(-1)
-		case "down", "j":
-			model.moveAgentSelection(1)
-		case "left":
-			model.moveAgentHorizontal(pathScrollStep)
-		case "right":
-			model.moveAgentHorizontal(-pathScrollStep)
-		case "ctrl+f", "pgdown":
-			model.pageAgentSelection(1)
-		case "ctrl+b", "pgup":
-			model.pageAgentSelection(-1)
-		case "home", "g":
-			model.jumpAgentSelection(false)
-		case "end", "G":
-			model.jumpAgentSelection(true)
-		case "enter":
-			if model.agents.Selected.IsJob() {
-				model.toggleSelectedAgentJob()
-			} else {
-				return model, model.openJobMonitor(model.agents.Selected.JobID, model.agents.Selected.Path)
-			}
-		case "a":
-			model.toggleAgentFilter()
-		case "f", "/":
-			model.beginAgentFind()
-		case "o":
-			model.cycleAgentSort(1)
-		case "O":
-			model.agents.SortReverse = !model.agents.SortReverse
-			model.reconcileAgentSelection()
-		case "i":
-			return model, model.openJobMonitor(model.agents.Selected.JobID, model.agents.Selected.Path)
-		case "d":
-			return model, model.openJobDiff(model.agents.Selected.JobID, model.agents.Selected.Path)
-		case "l":
-			if !model.agents.Selected.IsZero() {
-				return model, model.openJobLog(model.agents.Selected.JobID)
-			}
-		case "v":
-			if !model.agents.Selected.IsJob() {
-				return model, model.openCandidateSource(model.agents.Selected.JobID, model.agents.Selected.Path)
-			}
-		case "C":
-			model.openCancelConfirmation()
-		}
-		return model, nil
-	}
-	if name != "shift+up" && name != "shift+down" {
-		model.shiftMarking = false
-	}
-	switch name {
-	case "up", "k":
-		model.move(-1)
-	case "down", "j":
-		model.move(1)
-	case "shift+up":
-		if model.marking {
-			model.moveAndToggleMark(-1)
-		} else {
-			model.move(-1)
-		}
-	case "shift+down":
-		if model.marking {
-			model.moveAndToggleMark(1)
-		} else {
-			model.move(1)
-		}
-	case "left":
-		model.movePath(-pathScrollStep)
-	case "right":
-		model.movePath(pathScrollStep)
-	case "ctrl+f", "pgdown":
-		model.move(max(1, model.bodyHeight()))
-	case "ctrl+b", "pgup":
-		model.move(-max(1, model.bodyHeight()))
-	case "home", "g":
-		model.cursor = 0
-		model.selectCursor()
-		model.ensureVisible()
-	case "end", "G":
-		model.cursor = max(0, len(model.displayFiles())-1)
-		model.selectCursor()
-		model.ensureVisible()
-	case "enter", "i":
-		model.openSelectedFileInfo()
-	case "x":
-		return model, model.openFixForSelected()
-	case "m":
-		model.toggleMarkMode()
-	case "M":
-		model.clearMarkedFiles()
-	case " ":
-		if model.marking {
-			model.toggleCurrentMark()
-		}
-	case "v":
-		return model, model.openSourceView()
-	case "c":
-		model.settings = true
-		model.settingsCursor = settingsIndex("columns")
-	case "o":
-		openSortDialog(model)
-	case "f", "/":
-		return model.openFind(false)
-	case "n":
-		if model.findQuery != "" {
-			model.findNext(1)
-		}
-	case "N":
-		if model.findQuery != "" {
-			model.findNext(-1)
-		}
-	}
-	return model, nil
+	return true, nil
 }
 
 func dispatchOverlayKey(model *Model, kind OverlayKind, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	name := key.String()
 	switch kind {
 	case OverlayFind:
-		return model.handleFindKey(key)
+		return handleFindKey(model, key)
 	case OverlayInfo:
-		if model.handleDialogKey(name) {
+		if handleDialogKey(model, name) {
 			return model, nil
 		}
-		return model.handleInfoKey(name)
+		return handleInfoKey(model, name)
 	case OverlayHelp:
-		return model.handleHelpKey(name)
+		return handleHelpKey(model, name)
 	case OverlayDetail:
-		return model.handleDetailKey(name)
+		return handleDetailKey(model, name)
 	case OverlaySource:
 		if name == "f" || name == "/" {
-			return model.openFind(true)
+			return openFind(model, true)
 		}
-		return model.handleSourceKey(key)
+		return handleSourceKey(model, key)
 	case OverlayColumns:
-		return model.handleColumnKey(name)
+		return handleColumnKey(model, name)
 	case OverlaySort:
-		return model.handleSortKey(name)
+		return handleSortKey(model, name)
 	case OverlayWeights:
-		return model.handleWeightsKey(name)
+		return handleWeightsKey(model, name)
 	case OverlayAppearance:
-		return model.handleAppearanceKey(name)
+		return handleAppearanceKey(model, name)
 	case OverlaySettings:
-		return model.handleSettingsKey(name)
+		return handleSettingsKey(model, name)
 	case OverlayConfigSettings:
 		return model.handleConfigSettingsKey(key)
 	case OverlayFixForm:
@@ -224,15 +112,15 @@ func dispatchOverlayKey(model *Model, kind OverlayKind, key tea.KeyMsg) (tea.Mod
 
 func openSortDialog(model *Model) {
 	model.sortOpen = true
-	model.prepareSortDirections()
-	model.sortCursor = 0
+	model.files.prepareSortDirections()
+	model.files.SortCursor = 0
 	for index, item := range sortFields() {
-		if item.key == model.sortKey && model.sortOptionEnabled(index) {
-			model.sortCursor = index
+		if item.key == model.files.SortKey && model.files.sortOptionEnabled(index) {
+			model.files.SortCursor = index
 			break
 		}
 	}
-	if !model.sortOptionEnabled(model.sortCursor) {
-		model.moveSortCursor(1)
+	if !model.files.sortOptionEnabled(model.files.SortCursor) {
+		model.files.moveSortCursor(1)
 	}
 }

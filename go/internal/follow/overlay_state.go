@@ -89,7 +89,7 @@ func (model *Model) reconcileLegacyOverlayStack() {
 	switch {
 	case model.detail:
 		appendFrame(OverlayDetail)
-	case model.sourceView:
+	case model.source.view:
 		appendFrame(OverlaySource)
 	case model.help:
 		appendFrame(OverlayHelp)
@@ -115,8 +115,8 @@ func (model *Model) reconcileLegacyOverlayStack() {
 	if model.infoOpen {
 		appendFrame(OverlayInfo)
 	}
-	if model.findOpen {
-		if model.findSource && len(frames) == 0 {
+	if model.source.findOpen {
+		if model.source.findSource && len(frames) == 0 {
 			appendFrame(OverlaySource)
 		}
 		appendFrame(OverlayFind)
@@ -128,5 +128,5 @@ func (model Model) mainSelection() string {
 	if model.mainView == MainViewAgents {
 		return model.agents.Selected.String()
 	}
-	return model.selected
+	return model.files.Selected
 }

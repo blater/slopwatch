@@ -6,7 +6,7 @@ import (
 	"github.com/blater/slopwatch/internal/report"
 )
 
-func mergeRowState(model *Model, file report.File, state rowState, result analysisResult, oldScores map[string]float64, oldRanks map[string]int, now time.Time, baseline bool) rowState {
+func mergeRowState(file report.File, state rowState, result analysisResult, oldScores map[string]float64, oldRanks map[string]int, now time.Time, baseline bool, trendWindow time.Duration) rowState {
 	previousScore, existed := oldScores[file.Path]
 	analyzed := result.full || contains(result.replace, file.Path)
 	scoreChanged := existed && analyzed && file.Score != previousScore
@@ -18,7 +18,7 @@ func mergeRowState(model *Model, file report.File, state rowState, result analys
 		state.direction = compareScore(file.Score, previousScore)
 	}
 	state = appendRankPoint(state, file.Rank, oldRanks[file.Path], now)
-	state.ranks = pruneRanks(state.ranks, now, model.options.TrendWindow)
+	state.ranks = pruneRanks(state.ranks, now, trendWindow)
 	if scoreChanged {
 		state.scoreChangedAt = now
 		state.movementDelta = rankMovement(state.ranks, file.Rank)

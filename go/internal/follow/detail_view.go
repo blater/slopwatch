@@ -18,9 +18,9 @@ func detailView(model Model) string {
 	if !ok {
 		return ""
 	}
-	outerWidth, outerHeight, titleHeight, bodyHeight, contentWidth := model.detailDimensions()
+	outerWidth, outerHeight, titleHeight, bodyHeight, contentWidth := detailDimensions(model)
 	innerWidth := max(1, outerWidth-2)
-	lines := model.detailContent(file, contentWidth)
+	lines := detailContent(model, file, contentWidth)
 	maximumOffset := max(0, len(lines)-bodyHeight)
 	offset := min(maximumOffset, max(0, model.detailOffset))
 
@@ -144,7 +144,7 @@ func detailMetricLines(file report.File) []detailLine {
 
 func detailDiagnosticLines(model Model, file report.File) []detailLine {
 	lines := make([]detailLine, 0)
-	for _, text := range fileDiagnosticText(model.document, file) {
+	for _, text := range fileDiagnosticText(model.files.Document, file) {
 		lines = append(lines, detailLine{text, style.AccentCritical, false})
 	}
 	if len(lines) == 0 {
@@ -253,7 +253,7 @@ func detailDimensions(model Model) (outerWidth, outerHeight, titleHeight, bodyHe
 }
 
 func detailBodyHeight(model Model) int {
-	_, _, _, bodyHeight, _ := model.detailDimensions()
+	_, _, _, bodyHeight, _ := detailDimensions(model)
 	return bodyHeight
 }
 
@@ -262,12 +262,12 @@ func detailMaxOffset(model Model) int {
 	if !ok {
 		return 0
 	}
-	_, _, _, bodyHeight, contentWidth := model.detailDimensions()
-	return max(0, len(model.detailContent(file, contentWidth))-bodyHeight)
+	_, _, _, bodyHeight, contentWidth := detailDimensions(model)
+	return max(0, len(detailContent(model, file, contentWidth))-bodyHeight)
 }
 
 func (model *Model) clampDetailOffset() {
-	model.detailOffset = min(max(0, model.detailOffset), model.detailMaxOffset())
+	model.detailOffset = min(max(0, model.detailOffset), detailMaxOffset(*model))
 }
 
 func scrollbar(offset, total, viewport int) (start, size int) {

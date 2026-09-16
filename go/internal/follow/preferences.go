@@ -187,14 +187,14 @@ func persistUserPreferences(model *Model) {
 	}
 	value = latest
 	value.Appearance.Theme = string(model.theme)
-	value.Table.VisibleColumns = visibleColumnKeys(model.visible)
-	value.Table.SortBy = model.sortKey
-	value.Table.SortDescending = model.sortReverse
+	value.Table.VisibleColumns = visibleColumnKeys(model.files.Visible)
+	value.Table.SortBy = model.files.SortKey
+	value.Table.SortDescending = model.files.SortReverse
 	value.Scoring.WeightStep = model.weightStepValue()
 	value.Scoring.MaximumWeight = model.maximumWeightValue()
 	for _, item := range componentWeights {
 		value.Scoring.Components[item.id] = userprefs.ComponentPreference{
-			Enabled: model.isWeightEnabled(item.id), Weight: model.weights[item.id],
+			Enabled: isWeightEnabled(*model, item.id), Weight: model.weights[item.id],
 		}
 	}
 	model.preferences = value

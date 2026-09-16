@@ -37,7 +37,10 @@ func syntaxTestFile(path string, score float64, complete bool) report.File {
 }
 
 func syntaxFixedColumns(file report.File) string {
-	return renderFixedColumns(Model{visible: defaultColumnVisibility()}, file, rowState{}, style.SurfaceScreen)
+	return renderFixedColumns(Model{
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		}}, file, rowState{}, style.SurfaceScreen)
 }
 
 func TestFailedCoverageUsesXAcrossDisplayedColumnsAndKeepsValidZeroNumeric(t *testing.T) {
@@ -60,33 +63,39 @@ func TestFailedMeasurementsSortLastInBothDirectionsAndTiesUsePath(t *testing.T) 
 	measured.Components["cognitive_complexity"] = report.Component{Subjects: []report.SubjectContribution{{Value: 1}}}
 
 	for _, key := range []string{"score", "cog"} {
-		model := Model{sortKey: key}
-		if !model.less(measured, failed) || model.less(failed, measured) {
+		model := Model{
+			files: FilesState{
+				SortKey: key,
+			}}
+		if !filesLess(model.files.SortKey, model.files.SortReverse, measured, failed) || filesLess(model.files.SortKey, model.files.SortReverse, failed, measured) {
 			t.Fatalf("failed %s did not sort after measured value", key)
 		}
-		model.sortReverse = true
-		if !model.less(measured, failed) || model.less(failed, measured) {
+		model.files.SortReverse = true
+		if !filesLess(model.files.SortKey, model.files.SortReverse, measured, failed) || filesLess(model.files.SortKey, model.files.SortReverse, failed, measured) {
 			t.Fatalf("failed %s moved ahead in reverse order", key)
 		}
 	}
 
 	left := syntaxTestFile("a.ts", 5, true)
 	right := syntaxTestFile("b.ts", 5, true)
-	model := Model{sortKey: "score"}
-	if !model.less(left, right) || model.less(right, left) {
+	model := Model{
+		files: FilesState{
+			SortKey: "score",
+		}}
+	if !filesLess(model.files.SortKey, model.files.SortReverse, left, right) || filesLess(model.files.SortKey, model.files.SortReverse, right, left) {
 		t.Fatal("ascending numeric tie is not deterministic")
 	}
-	model.sortReverse = true
-	if !model.less(left, right) || model.less(right, left) {
+	model.files.SortReverse = true
+	if !filesLess(model.files.SortKey, model.files.SortReverse, left, right) || filesLess(model.files.SortKey, model.files.SortReverse, right, left) {
 		t.Fatal("descending numeric tie lost ascending path order")
 	}
-	model.sortKey = "filename"
-	model.sortReverse = false
-	if !model.less(left, right) || model.less(right, left) {
+	model.files.SortKey = "filename"
+	model.files.SortReverse = false
+	if !filesLess(model.files.SortKey, model.files.SortReverse, left, right) || filesLess(model.files.SortKey, model.files.SortReverse, right, left) {
 		t.Fatal("ascending filename tie is not deterministic")
 	}
-	model.sortReverse = true
-	if !model.less(right, left) || model.less(left, right) {
+	model.files.SortReverse = true
+	if !filesLess(model.files.SortKey, model.files.SortReverse, right, left) || filesLess(model.files.SortKey, model.files.SortReverse, left, right) {
 		t.Fatal("descending filename tie is not deterministic")
 	}
 }
@@ -94,13 +103,15 @@ func TestFailedMeasurementsSortLastInBothDirectionsAndTiesUsePath(t *testing.T) 
 func TestFileDetailShowsMatchingDiagnosticsAndFailedComponentsAsX(t *testing.T) {
 	file := syntaxTestFile("broken.ts", 0, false)
 	model := Model{
-		selected: file.Path,
-		document: report.Document{
-			Files: []report.File{file},
-			Diagnostics: []map[string]any{
-				{"path": file.Path, "code": "typescript.syntax.12", "message": "Unexpected token", "line": float64(12), "column": float64(5)},
-				{"path": "other.ts", "code": "other", "message": "do not show"},
-				{"code": "global", "message": "do not show"},
+		files: FilesState{
+			Selected: file.Path,
+			Document: report.Document{
+				Files: []report.File{file},
+				Diagnostics: []map[string]any{
+					{"path": file.Path, "code": "typescript.syntax.12", "message": "Unexpected token", "line": float64(12), "column": float64(5)},
+					{"path": "other.ts", "code": "other", "message": "do not show"},
+					{"code": "global", "message": "do not show"},
+				},
 			},
 		},
 	}
@@ -118,15 +129,19 @@ func TestFileDetailShowsMatchingDiagnosticsAndFailedComponentsAsX(t *testing.T) 
 func TestFileDetailWrapsLongDiagnosticForScrolling(t *testing.T) {
 	file := syntaxTestFile("broken.ts", 0, false)
 	model := Model{
-		width: 40, height: 8, selected: file.Path,
-		document: report.Document{
-			Files: []report.File{file},
-			Diagnostics: []map[string]any{{
-				"path": file.Path, "code": "typescript.syntax.12",
-				"message": strings.Repeat("long parser detail ", 12) + "tail",
-				"line":    float64(12),
-			}},
+		files: FilesState{
+			Selected: file.Path,
+			Document: report.Document{
+				Files: []report.File{file},
+				Diagnostics: []map[string]any{{
+					"path": file.Path, "code": "typescript.syntax.12",
+					"message": strings.Repeat("long parser detail ", 12) + "tail",
+					"line":    float64(12),
+				}},
+			},
 		},
+		width:  40,
+		height: 8,
 	}
 	text := ansi.Strip(strings.Join(detailContent(model, file, 20), "\n"))
 	if !strings.Contains(text, "tail") {

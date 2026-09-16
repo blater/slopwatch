@@ -1,0 +1,61 @@
+package follow
+
+import (
+	"context"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+func (model Model) waitForChange() tea.Cmd {
+	return func() tea.Msg { return model.watcher.wait() }
+}
+
+func (model Model) startWatcher() tea.Cmd {
+	return func() tea.Msg { return watcherReady{err: model.watcher.start()} }
+}
+
+func (model Model) analyze(paths []string, full bool) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		targets := paths
+		if full {
+			targets = model.options.Targets
+		}
+		languages := languagesForPaths(paths)
+		if full {
+			languages = nil
+		}
+		document, err := model.analyzer.Analyze(ctx, targets, languages)
+		return analysisResult{document: document, replace: paths, full: full, err: err}
+	}
+}
+
+func languagesForPaths(paths []string) []string {
+	seen := map[string]bool{}
+	for _, path := range paths {
+		language := ""
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".go":
+			language = "go"
+		case ".java":
+			language = "java"
+		case ".rs":
+			language = "rust"
+		case ".ts", ".tsx", ".mts", ".cts":
+			language = "typescript"
+		}
+		if language != "" {
+			seen[language] = true
+		}
+	}
+	result := make([]string, 0, len(seen))
+	for language := range seen {
+		result = append(result, language)
+	}
+	sort.Strings(result)
+	return result
+}

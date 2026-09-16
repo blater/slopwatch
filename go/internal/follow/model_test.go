@@ -62,10 +62,10 @@ func TestSearchInputsDoNotSilentlyClipLongQueries(t *testing.T) {
 	}
 	t.Cleanup(model.Close)
 	query := strings.Repeat("organisation/platform/component/", 16) + "target.go"
-	model.findInput.SetValue(query)
-	model.agentFindInput.SetValue(query)
-	if model.findInput.Value() != query || model.agentFindInput.Value() != query {
-		t.Fatalf("search query was clipped: files=%d jobs=%d want=%d", len(model.findInput.Value()), len(model.agentFindInput.Value()), len(query))
+	model.source.findInput.SetValue(query)
+	model.agents.FindInput.SetValue(query)
+	if model.source.findInput.Value() != query || model.agents.FindInput.Value() != query {
+		t.Fatalf("search query was clipped: files=%d jobs=%d want=%d", len(model.source.findInput.Value()), len(model.agents.FindInput.Value()), len(query))
 	}
 }
 
@@ -82,22 +82,26 @@ func TestJobHistoryIsVisibleByDefault(t *testing.T) {
 
 func TestArrowNavigationMovesImmediatelyWithoutATimer(t *testing.T) {
 	model := Model{
-		document: report.Document{Files: []report.File{testFile("a.go", 2), testFile("b.go", 1)}},
-		rows:     map[string]rowState{}, visible: map[string]bool{}, height: 10,
+		files: FilesState{
+			Document: report.Document{Files: []report.File{testFile("a.go", 2), testFile("b.go", 1)}},
+			Rows:     map[string]rowState{},
+			Visible:  map[string]bool{},
+		},
+		height: 10,
 	}
 	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	if command != nil {
 		t.Fatal("cursor movement unexpectedly scheduled deferred work")
 	}
 	result := updated.(*Model)
-	if result.cursor != 1 || result.selected != "b.go" {
-		t.Fatalf("cursor = %d, selected = %q", result.cursor, result.selected)
+	if result.files.Cursor != 1 || result.files.Selected != "b.go" {
+		t.Fatalf("cursor = %d, selected = %q", result.files.Cursor, result.files.Selected)
 	}
 }
 
 func TestScanningStatusRendersAnimatedOnTopBar(t *testing.T) {
 	model := Model{width: 80, height: 20, analyzing: true, animationFrame: 1}
-	view := ansi.Strip(model.tableView())
+	view := ansi.Strip(tableView(model))
 	if !strings.Contains(view, "SCANNING") {
 		t.Fatalf("initial scan status is missing: %q", view)
 	}
@@ -119,11 +123,14 @@ func TestStartupScanningIndicatorUsesFreshnessStatus(t *testing.T) {
 	file := testFile("cached.go", 12)
 	file.Freshness = report.FreshnessVerifying
 	model := Model{
+		files: FilesState{
+			Document: report.Document{Files: []report.File{file}},
+			Rows:     map[string]rowState{file.Path: {}},
+			Visible:  map[string]bool{},
+		},
 		width: 100, height: 20, analyzing: true, initialAnalysis: true, animationFrame: 1,
-		document: report.Document{Files: []report.File{file}},
-		rows:     map[string]rowState{file.Path: {}}, visible: map[string]bool{},
 	}
-	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
+	firstLine := strings.Split(ansi.Strip(tableView(model)), "\n")[0]
 	if !strings.Contains(firstLine, "⠙CACHE VERIFYING 1⠙") {
 		t.Fatalf("freshness was not displayed as the animated scanning indicator: %q", firstLine)
 	}
@@ -134,9 +141,16 @@ func TestStartupScanningIndicatorUsesFreshnessStatus(t *testing.T) {
 
 func TestInitialScanCompletionShowsTable(t *testing.T) {
 	model := Model{
-		width: 80, height: 10, analyzing: true, initialAnalysis: true,
-		options: Options{Workspace: "/workspace"},
-		rows:    map[string]rowState{}, queued: map[string]bool{}, visible: map[string]bool{},
+		files: FilesState{
+			Rows:    map[string]rowState{},
+			Visible: map[string]bool{},
+		},
+		width:           80,
+		height:          10,
+		analyzing:       true,
+		initialAnalysis: true,
+		options:         Options{Workspace: "/workspace"},
+		queued:          map[string]bool{},
 	}
 	updated, _ := model.Update(analysisResult{
 		full:     true,
@@ -155,8 +169,11 @@ func TestInitialScanCompletionShowsTable(t *testing.T) {
 func TestSuccessfulInitialScanEnablesCacheReadsAfterResultIsVisible(t *testing.T) {
 	analyzer := &settingsAnalyzer{}
 	model := Model{
-		analyzer: analyzer, analyzing: true, initialAnalysis: true,
-		rows: map[string]rowState{}, queued: map[string]bool{}, visible: map[string]bool{},
+		files: FilesState{
+			Rows:    map[string]rowState{},
+			Visible: map[string]bool{},
+		},
+		analyzer: analyzer, analyzing: true, initialAnalysis: true, queued: map[string]bool{},
 	}
 	updated, _ := model.Update(analysisResult{full: true, document: report.Document{}})
 	result := updated.(*Model)
@@ -171,8 +188,11 @@ func TestSuccessfulInitialScanEnablesCacheReadsAfterResultIsVisible(t *testing.T
 func TestFailedInitialScanDoesNotEnableCacheReads(t *testing.T) {
 	analyzer := &settingsAnalyzer{}
 	model := Model{
-		analyzer: analyzer, analyzing: true, initialAnalysis: true,
-		rows: map[string]rowState{}, queued: map[string]bool{}, visible: map[string]bool{},
+		files: FilesState{
+			Rows:    map[string]rowState{},
+			Visible: map[string]bool{},
+		},
+		analyzer: analyzer, analyzing: true, initialAnalysis: true, queued: map[string]bool{},
 	}
 	updated, _ := model.Update(analysisResult{full: true, err: fmt.Errorf("scan failed")})
 	if analyzer.cacheReads {
@@ -186,7 +206,7 @@ func TestFailedInitialScanDoesNotEnableCacheReads(t *testing.T) {
 func TestTableTopBarRightAlignsWorkspaceOneCharacterFromMargin(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80, height: 10, options: Options{Workspace: "/workspace"}}
-	lines := strings.Split(ansi.Strip(model.tableView()), "\n")
+	lines := strings.Split(ansi.Strip(tableView(model)), "\n")
 	if !strings.HasSuffix(lines[1], "/workspace ") {
 		t.Fatalf("workspace is not right-aligned on the second title line: %q", lines[1])
 	}
@@ -198,7 +218,7 @@ func TestTableTopBarSplitsBrandBranchAndWorkspaceAcrossTwoLines(t *testing.T) {
 		options:            Options{Workspace: "/workspace"},
 		repositoryIdentity: "river:feature/display",
 	}
-	lines := strings.Split(ansi.Strip(model.tableView()), "\n")
+	lines := strings.Split(ansi.Strip(tableView(model)), "\n")
 	if !strings.HasPrefix(lines[0], "૮(˶ᵔ ᵕ ᵔ˶)ა") || !strings.HasSuffix(lines[0], "river:feature/display ") {
 		t.Fatalf("first title line does not show logo and branch: %q", lines[0])
 	}
@@ -249,25 +269,31 @@ func TestFindSearchesMainTableAndAdvancesWithNext(t *testing.T) {
 	document := report.Document{Files: files}
 	document.SortAndRank()
 	model := Model{
-		document: document, cursor: 0, selected: "alpha.go",
-		rows: map[string]rowState{}, visible: map[string]bool{}, findInput: textinput.New(),
+		files: FilesState{
+			Document: document,
+			Cursor:   0,
+			Selected: "alpha.go",
+			Rows:     map[string]rowState{},
+			Visible:  map[string]bool{},
+		},
+		source: sourceState{findInput: textinput.New()},
 	}
-	model.findQuery = "a"
-	model.findNext(1)
-	if model.selected != "beta.go" {
-		t.Fatalf("first find selected %q, want beta.go", model.selected)
+	model.source.findQuery = "a"
+	findNext(&model, 1)
+	if model.files.Selected != "beta.go" {
+		t.Fatalf("first find selected %q, want beta.go", model.files.Selected)
 	}
-	model.findNext(1)
-	if model.selected != "gamma.go" {
-		t.Fatalf("next find selected %q, want gamma.go", model.selected)
+	findNext(&model, 1)
+	if model.files.Selected != "gamma.go" {
+		t.Fatalf("next find selected %q, want gamma.go", model.files.Selected)
 	}
 }
 
 func TestFindUsesFWithSlashAsHiddenSynonym(t *testing.T) {
 	for _, key := range []rune{'f', '/'} {
-		model := Model{findInput: textinput.New()}
-		updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
-		if !updated.(*Model).findOpen {
+		model := Model{source: sourceState{findInput: textinput.New()}}
+		updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+		if !updated.(*Model).source.findOpen {
 			t.Fatalf("%q did not open find", key)
 		}
 	}
@@ -275,58 +301,64 @@ func TestFindUsesFWithSlashAsHiddenSynonym(t *testing.T) {
 
 func TestFindSearchesSourceAndMovesViewport(t *testing.T) {
 	model := Model{
-		findSource: true, findQuery: "needle", sourceSearchText: "first\nfiller\nsecond needle\nlast",
-		sourceViewport: viewport.New(40, 2),
+		source: sourceState{findSource: true, findQuery: "needle", searchText: "first\nfiller\nsecond needle\nlast", viewport: viewport.New(40, 2)},
 	}
-	model.sourceViewport.SetContent(highlightSource("example.go", model.sourceSearchText, style.ThemeDark))
-	model.findNext(1)
-	if model.sourceViewport.YOffset != 2 {
-		t.Fatalf("source find offset = %d, want 2", model.sourceViewport.YOffset)
+	model.source.viewport.SetContent(highlightSource("example.go", model.source.searchText, style.ThemeDark))
+	findNext(&model, 1)
+	if model.source.viewport.YOffset != 2 {
+		t.Fatalf("source find offset = %d, want 2", model.source.viewport.YOffset)
 	}
 }
 
 func TestTargetedMergeLeavesUnchangedRowsAlone(t *testing.T) {
 	model := Model{
-		document: report.Document{Files: []report.File{testFile("a.go", 20), testFile("b.go", 10)}},
-		rows:     map[string]rowState{"a.go": {}, "b.go": {}}, visible: map[string]bool{}, height: 10,
-		selected: "a.go", options: Options{TrendWindow: 15 * time.Minute},
+		files: FilesState{
+			Document: report.Document{Files: []report.File{testFile("a.go", 20), testFile("b.go", 10)}},
+			Rows:     map[string]rowState{"a.go": {}, "b.go": {}},
+			Visible:  map[string]bool{},
+			Selected: "a.go",
+		},
+		height:  10,
+		options: Options{TrendWindow: 15 * time.Minute},
 	}
-	model.document.SortAndRank()
-	model.merge(analysisResult{
+	model.files.Document.SortAndRank()
+	merge(&model, analysisResult{
 		document: report.Document{Files: []report.File{testFile("b.go", 30)}},
 		replace:  []string{"b.go"},
 	})
-	if len(model.document.Files) != 2 || model.document.Files[0].Path != "b.go" || model.document.Files[1].Path != "a.go" {
-		t.Fatalf("unexpected targeted merge: %#v", model.document.Files)
+	if len(model.files.Document.Files) != 2 || model.files.Document.Files[0].Path != "b.go" || model.files.Document.Files[1].Path != "a.go" {
+		t.Fatalf("unexpected targeted merge: %#v", model.files.Document.Files)
 	}
-	if model.rows["b.go"].direction != 1 || model.rows["b.go"].movementDelta != 1 || model.rows["b.go"].scoreChangedAt.IsZero() {
-		t.Fatalf("changed row movement was not recorded: %#v", model.rows["b.go"])
+	if model.files.Rows["b.go"].direction != 1 || model.files.Rows["b.go"].movementDelta != 1 || model.files.Rows["b.go"].scoreChangedAt.IsZero() {
+		t.Fatalf("changed row movement was not recorded: %#v", model.files.Rows["b.go"])
 	}
-	if !model.rows["a.go"].editedAt.IsZero() || model.rows["a.go"].movementDelta != 0 || !model.rows["a.go"].scoreChangedAt.IsZero() {
-		t.Fatalf("targeted row history was not isolated: %#v", model.rows)
+	if !model.files.Rows["a.go"].editedAt.IsZero() || model.files.Rows["a.go"].movementDelta != 0 || !model.files.Rows["a.go"].scoreChangedAt.IsZero() {
+		t.Fatalf("targeted row history was not isolated: %#v", model.files.Rows)
 	}
 }
 
 func TestTargetedMergeRefreshesDisplayedScoresForEveryChangedFile(t *testing.T) {
 	model := Model{
-		document: report.Document{Files: []report.File{
-			testFile("Repository.java", 125),
-			testFile("Store.java", 125),
-			testFile("Writer.java", 121),
-		}},
-		rows: map[string]rowState{
-			"Repository.java": {}, "Store.java": {}, "Writer.java": {},
+		files: FilesState{
+			Document: report.Document{Files: []report.File{
+				testFile("Repository.java", 125),
+				testFile("Store.java", 125),
+				testFile("Writer.java", 121),
+			}},
+			Rows: map[string]rowState{
+				"Repository.java": {}, "Store.java": {}, "Writer.java": {},
+			},
+			Visible:     map[string]bool{},
+			Selected:    "Store.java",
+			SortKey:     "score",
+			SortReverse: true,
 		},
-		visible:     map[string]bool{},
-		selected:    "Store.java",
-		sortKey:     "score",
-		sortReverse: true,
-		options:     Options{TrendWindow: 15 * time.Minute},
+		options: Options{TrendWindow: 15 * time.Minute},
 	}
-	model.document.SortAndRank()
-	model.refreshDisplayFiles()
+	model.files.Document.SortAndRank()
+	model.files.refreshDisplayFiles(model.options.Limit)
 
-	model.merge(analysisResult{
+	merge(&model, analysisResult{
 		document: report.Document{Files: []report.File{
 			testFile("Store.java", 0),
 			testFile("Writer.java", 0),
@@ -335,7 +367,7 @@ func TestTargetedMergeRefreshesDisplayedScoresForEveryChangedFile(t *testing.T) 
 	})
 
 	scores := map[string]float64{}
-	for _, file := range model.displayFiles() {
+	for _, file := range model.files.displayFiles(model.options.Limit) {
 		scores[file.Path] = file.Score
 	}
 	if scores["Repository.java"] != 125 || scores["Store.java"] != 0 || scores["Writer.java"] != 0 {
@@ -345,14 +377,18 @@ func TestTargetedMergeRefreshesDisplayedScoresForEveryChangedFile(t *testing.T) 
 
 func TestInitialFullMergeDoesNotMarkEveryFileAsNew(t *testing.T) {
 	model := Model{
-		document: report.Document{}, rows: map[string]rowState{},
-		visible: map[string]bool{}, options: Options{TrendWindow: 10 * time.Minute},
+		files: FilesState{
+			Document: report.Document{},
+			Rows:     map[string]rowState{},
+			Visible:  map[string]bool{},
+		},
+		options: Options{TrendWindow: 10 * time.Minute},
 	}
-	model.merge(analysisResult{
+	merge(&model, analysisResult{
 		document: report.Document{Files: []report.File{testFile("existing.go", 10)}},
 		full:     true,
 	})
-	if state := model.rows["existing.go"]; !state.newFileAt.IsZero() {
+	if state := model.files.Rows["existing.go"]; !state.newFileAt.IsZero() {
 		t.Fatalf("initial full scan marked existing.go as new: %#v", state)
 	}
 }
@@ -363,23 +399,28 @@ func TestUnchangedRowsPassedByChangedRowStayNeutral(t *testing.T) {
 		testFile("d.go", 30), testFile("e.go", 20), testFile("f.go", 10),
 	}
 	model := Model{
-		document: report.Document{Files: files}, rows: map[string]rowState{},
-		visible: map[string]bool{}, selected: "a.go", options: Options{TrendWindow: 10 * time.Minute},
+		files: FilesState{
+			Document: report.Document{Files: files},
+			Rows:     map[string]rowState{},
+			Visible:  map[string]bool{},
+			Selected: "a.go",
+		},
+		options: Options{TrendWindow: 10 * time.Minute},
 	}
-	model.document.SortAndRank()
-	model.merge(analysisResult{
+	model.files.Document.SortAndRank()
+	merge(&model, analysisResult{
 		document: report.Document{Files: []report.File{testFile("f.go", 70)}},
 		replace:  []string{"f.go"},
 	})
 
-	if got := model.rows["f.go"].movementDelta; got != 5 {
+	if got := model.files.Rows["f.go"].movementDelta; got != 5 {
 		t.Fatalf("changed row movement = %d, want 5", got)
 	}
-	if got := movementArrow(model.rows["f.go"].movementDelta); got != "⇈" {
+	if got := movementArrow(model.files.Rows["f.go"].movementDelta); got != "⇈" {
 		t.Fatalf("changed row arrow = %q, want ⇈", got)
 	}
 	for _, path := range []string{"a.go", "b.go", "c.go", "d.go", "e.go"} {
-		state := model.rows[path]
+		state := model.files.Rows[path]
 		if state.movementDelta != 0 || !state.scoreChangedAt.IsZero() {
 			t.Fatalf("unchanged passer %s received movement state: %#v", path, state)
 		}
@@ -402,12 +443,14 @@ func TestMovementArrowThresholds(t *testing.T) {
 func TestMovementIndicatorExpiresWithTrendWindow(t *testing.T) {
 	file := testFile("a.go", 1)
 	model := Model{
-		rows: map[string]rowState{"a.go": {
-			scoreChangedAt: time.Now().Add(-2 * time.Minute), movementDelta: 1,
-		}},
+		files: FilesState{
+			Rows: map[string]rowState{"a.go": {
+				scoreChangedAt: time.Now().Add(-2 * time.Minute), movementDelta: 1,
+			}},
+		},
 		options: Options{TrendWindow: time.Minute},
 	}
-	if marker, _ := model.rowMarker(file, model.rows[file.Path], time.Now()); marker != "" {
+	if marker, _ := rowMarker(model, file, model.files.Rows[file.Path], time.Now()); marker != "" {
 		t.Fatalf("expired movement indicator remains visible: %q", marker)
 	}
 }
@@ -432,28 +475,32 @@ func TestNewFileMarkerUsesRAGColoursAndExpires(t *testing.T) {
 
 func TestNewFileStateTransitionsFromGreenWhenItsRankChanges(t *testing.T) {
 	model := Model{
-		document: report.Document{Files: []report.File{testFile("a.go", 20)}},
-		rows:     map[string]rowState{"a.go": {}}, visible: map[string]bool{},
-		options: Options{TrendWindow: 10 * time.Minute}, selected: "a.go",
+		files: FilesState{
+			Document: report.Document{Files: []report.File{testFile("a.go", 20)}},
+			Rows:     map[string]rowState{"a.go": {}},
+			Visible:  map[string]bool{},
+			Selected: "a.go",
+		},
+		options: Options{TrendWindow: 10 * time.Minute},
 	}
-	model.document.SortAndRank()
-	model.merge(analysisResult{
+	model.files.Document.SortAndRank()
+	merge(&model, analysisResult{
 		document: report.Document{Files: []report.File{testFile("b.go", 10)}},
 		replace:  []string{"b.go"},
 	})
-	if state := model.rows["b.go"]; state.newFileAt.IsZero() || state.newFileMoved {
+	if state := model.files.Rows["b.go"]; state.newFileAt.IsZero() || state.newFileMoved {
 		t.Fatalf("new file did not start in the green state: %#v", state)
 	}
 
-	model.merge(analysisResult{
+	merge(&model, analysisResult{
 		document: report.Document{Files: []report.File{testFile("b.go", 30)}},
 		replace:  []string{"b.go"},
 	})
-	state := model.rows["b.go"]
+	state := model.files.Rows["b.go"]
 	if !state.newFileMoved || state.movementDelta != 1 {
 		t.Fatalf("new file rank transition was not recorded: %#v", state)
 	}
-	if marker, colour := model.rowMarker(model.document.Files[0], state, time.Now()); marker != "●" || colour != style.AccentCritical {
+	if marker, colour := rowMarker(model, model.files.Document.Files[0], state, time.Now()); marker != "●" || colour != style.AccentCritical {
 		t.Fatalf("top-ranked new file marker = %q, %q; want red dot", marker, colour)
 	}
 }
@@ -482,11 +529,132 @@ func TestOverviewShowsRawCouplingRatherThanThresholdedContribution(t *testing.T)
 	}
 }
 
+func TestFailedCoverageRendersXAndSortsAfterMeasuredFiles(t *testing.T) {
+	failed := testFile("broken.ts", 0)
+	failed.Complete = false
+	failed.ValidZero = false
+	failed.Coverage = map[string]string{}
+	for _, id := range []string{"cognitive_complexity", "npath_complexity", "cyclomatic_method_complexity", "module_shallowness", "god_class", "coupling_between_objects"} {
+		failed.Coverage[id] = "failed"
+		failed.Components[id] = report.Component{Subjects: []report.SubjectContribution{{Value: 0}}}
+	}
+	if _, available, _ := metric(failed, "cog"); available {
+		t.Fatal("failed coverage was treated as a measured metric")
+	}
+	if rendered := ansi.Strip(renderMetricCell(failed, columnDefinitions[1], style.SurfaceScreen)); !strings.Contains(rendered, "X") {
+		t.Fatalf("failed metric cell = %q, want X", rendered)
+	}
+	if rendered := ansi.Strip(modelRenderFixedColumns(failed)); !strings.Contains(rendered, "X") {
+		t.Fatalf("failed score cell = %q, want X", rendered)
+	}
+	if got := strings.Count(ansi.Strip(modelRenderFixedColumns(failed)), "X"); got < 7 {
+		t.Fatalf("failed displayed columns = %d X values, want score plus metrics", got)
+	}
+	measured := testFile("measured.go", 4)
+	measured.Components["cognitive_complexity"] = report.Component{Subjects: []report.SubjectContribution{{Value: 4}}}
+	model := Model{
+		files: FilesState{
+			SortKey: "cog",
+		}}
+	if !filesLess(model.files.SortKey, model.files.SortReverse, measured, failed) || filesLess(model.files.SortKey, model.files.SortReverse, failed, measured) {
+		t.Fatal("failed metric did not sort after measured values")
+	}
+	model.files.SortReverse = true
+	if !filesLess(model.files.SortKey, model.files.SortReverse, measured, failed) || filesLess(model.files.SortKey, model.files.SortReverse, failed, measured) {
+		t.Fatal("failed metric did not remain last in reverse sort")
+	}
+}
+
+func modelRenderFixedColumns(file report.File) string {
+	return renderFixedColumns(Model{
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		}}, file, rowState{}, style.SurfaceScreen)
+}
+
+func TestSortingKeepsFilenameTieBreaksDeterministicInBothDirections(t *testing.T) {
+	left := testFile("a.go", 5)
+	right := testFile("b.go", 5)
+	model := Model{
+		files: FilesState{
+			SortKey: "score",
+		}}
+	if !filesLess(model.files.SortKey, model.files.SortReverse, left, right) || filesLess(model.files.SortKey, model.files.SortReverse, right, left) {
+		t.Fatal("ascending numeric tie did not use filename")
+	}
+	model.files.SortReverse = true
+	if !filesLess(model.files.SortKey, model.files.SortReverse, left, right) || filesLess(model.files.SortKey, model.files.SortReverse, right, left) {
+		t.Fatal("descending numeric tie lost ascending filename order")
+	}
+	model.files.SortKey = "filename"
+	model.files.SortReverse = false
+	if !filesLess(model.files.SortKey, model.files.SortReverse, left, right) || filesLess(model.files.SortKey, model.files.SortReverse, right, left) {
+		t.Fatal("ascending filename sort is not deterministic")
+	}
+	model.files.SortReverse = true
+	if !filesLess(model.files.SortKey, model.files.SortReverse, right, left) || filesLess(model.files.SortKey, model.files.SortReverse, left, right) {
+		t.Fatal("descending filename sort is not deterministic")
+	}
+}
+
+func TestInfoShowsMatchingAnalysisDiagnostic(t *testing.T) {
+	file := testFile("broken.ts", 0)
+	file.Complete = false
+	file.Coverage = map[string]string{"cognitive_complexity": "failed"}
+	file.Components = map[string]report.Component{"cognitive_complexity": {}}
+	model := Model{
+		files: FilesState{
+			Selected: file.Path,
+			Document: report.Document{Files: []report.File{file}, Diagnostics: []map[string]any{{
+				"path": file.Path, "code": "typescript.syntax.12", "message": "Unexpected token", "line": float64(12), "column": float64(5),
+			}}},
+		},
+		width:   80,
+		infoKey: "cog",
+	}
+	text := ansi.Strip(infoView(model))
+	detail := ansi.Strip(strings.Join(detailContent(model, file, 60), "\n"))
+	if strings.Contains(text, "Unexpected token") {
+		t.Fatalf("metric help unexpectedly absorbed file diagnostics: %q", text)
+	}
+	if !strings.Contains(detail, "typescript.syntax.12") || !strings.Contains(detail, "Unexpected token (12:5)") || !strings.Contains(detail, "score X") {
+		t.Fatalf("file detail omitted diagnostic or failed score: %q", detail)
+	}
+}
+
+func TestLongDiagnosticWrapsInsideScrollableFileDetail(t *testing.T) {
+	file := testFile("broken.ts", 0)
+	file.Complete = false
+	file.Coverage = map[string]string{"cognitive_complexity": "failed"}
+	model := Model{
+		files: FilesState{
+			Selected: file.Path,
+			Document: report.Document{Files: []report.File{file}, Diagnostics: []map[string]any{{
+				"path": file.Path, "code": "typescript.syntax.12", "message": strings.Repeat("long parser detail ", 12) + "tail", "line": float64(12),
+			}}},
+		},
+		width:  40,
+		height: 8,
+	}
+	lines := detailContent(model, file, 20)
+	if len(lines) < 4 || !strings.Contains(ansi.Strip(strings.Join(lines, "\n")), "tail") {
+		t.Fatalf("long diagnostic was not wrapped in detail: %q", ansi.Strip(strings.Join(lines, "\n")))
+	}
+	if detailMaxOffset(model) == 0 {
+		t.Fatal("wrapped diagnostic did not contribute to detail scrolling")
+	}
+}
+
 func TestTableFillsAvailableHeight(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{
-		width: 100, height: 12, document: report.Document{Files: []report.File{testFile("a.go", 1)}},
-		rows: map[string]rowState{"a.go": {}}, visible: map[string]bool{},
+		files: FilesState{
+			Document: report.Document{Files: []report.File{testFile("a.go", 1)}},
+			Rows:     map[string]rowState{"a.go": {}},
+			Visible:  map[string]bool{},
+		},
+		width:   100,
+		height:  12,
 		options: Options{Workspace: "/workspace"},
 	}
 	if got := strings.Count(model.View(), "\n") + 1; got != model.height {
@@ -498,10 +666,14 @@ func TestSelectedRowCarriesReferenceBackgroundAcrossEveryCell(t *testing.T) {
 	ConfigureTerminalColours()
 	file := testFile("parent/with/a/long/path/to/example.go", 12)
 	model := Model{
-		width: 80, pathOffset: 7, rows: map[string]rowState{file.Path: {}},
-		visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+		files: FilesState{
+			HorizontalOffset: 7,
+			Rows:             map[string]rowState{file.Path: {}},
+			Visible:          map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+		},
+		width: 80,
 	}
-	row := model.renderRow(file, true)
+	row := renderRow(model, file, true)
 	// termenv rounds the green channel of #245a78 down by one while encoding it.
 	// Match the common RGB payload whether or not a foreground shares its CSI.
 	wantBackground := "48;2;36;89;120m"
@@ -538,14 +710,19 @@ func TestCachedFreshnessIsVisibleInRowsAndDetails(t *testing.T) {
 		file.Freshness = test.freshness
 		file.FreshnessNote = "background reconciliation"
 		model := Model{
-			width: 80, height: 20, document: report.Document{Files: []report.File{file}},
-			rows: map[string]rowState{file.Path: {}}, visible: map[string]bool{},
+			files: FilesState{
+				Document: report.Document{Files: []report.File{file}},
+				Rows:     map[string]rowState{file.Path: {}},
+				Visible:  map[string]bool{},
+			},
+			width:   80,
+			height:  20,
 			options: Options{TrendWindow: time.Minute},
 		}
-		if row := ansi.Strip(model.renderRow(file, false)); !strings.Contains(row, test.marker) {
+		if row := ansi.Strip(renderRow(model, file, false)); !strings.Contains(row, test.marker) {
 			t.Errorf("%s row has no %q marker: %q", test.freshness, test.marker, row)
 		}
-		detail := ansi.Strip(strings.Join(model.detailContent(file, 70), "\n"))
+		detail := ansi.Strip(strings.Join(detailContent(model, file, 70), "\n"))
 		if !strings.Contains(detail, test.label) || !strings.Contains(detail, file.FreshnessNote) {
 			t.Errorf("%s detail does not disclose freshness: %q", test.freshness, detail)
 		}
@@ -560,11 +737,16 @@ func TestMainScreenSummarizesCachedFreshness(t *testing.T) {
 	files[1].Freshness = report.FreshnessProvisional
 	files[2].Freshness = report.FreshnessStaleError
 	model := Model{
-		width: 120, height: 10, document: report.Document{Files: files},
-		rows: map[string]rowState{}, visible: map[string]bool{},
+		files: FilesState{
+			Document: report.Document{Files: files},
+			Rows:     map[string]rowState{},
+			Visible:  map[string]bool{},
+		},
+		width:   120,
+		height:  10,
 		options: Options{Workspace: "/workspace", TrendWindow: time.Minute},
 	}
-	firstLine := strings.Split(ansi.Strip(model.tableView()), "\n")[0]
+	firstLine := strings.Split(ansi.Strip(tableView(model)), "\n")[0]
 	for _, want := range []string{"CACHE", "PROVISIONAL 1", "STALE 1"} {
 		if !strings.Contains(firstLine, want) {
 			t.Fatalf("top status missing %q: %q", want, firstLine)
@@ -577,15 +759,19 @@ func TestHorizontalScrollMovesOnlyFileNames(t *testing.T) {
 	file := testFile("a/very/long/source/path/that/exceeds/the/available/filename/viewport/example.go", 12)
 	file.Components["cognitive_complexity"] = report.Component{Contribution: 3, Subjects: []report.SubjectContribution{{Value: 7}}}
 	model := Model{
-		width: 52, document: report.Document{Files: []report.File{file}},
-		rows: map[string]rowState{file.Path: {}}, visible: map[string]bool{"cog": true},
+		files: FilesState{
+			Document: report.Document{Files: []report.File{file}},
+			Rows:     map[string]rowState{file.Path: {}},
+			Visible:  map[string]bool{"cog": true},
+		},
+		width: 52,
 	}
-	before := ansi.Strip(model.renderRow(file, true))
+	before := ansi.Strip(renderRow(model, file, true))
 	fixedWidth := model.width - model.pathViewportWidth()
 	model.movePath(6)
-	after := ansi.Strip(model.renderRow(file, true))
-	if model.pathOffset != 6 {
-		t.Fatalf("path offset = %d, want 6", model.pathOffset)
+	after := ansi.Strip(renderRow(model, file, true))
+	if model.files.HorizontalOffset != 6 {
+		t.Fatalf("path offset = %d, want 6", model.files.HorizontalOffset)
 	}
 	if got, want := ansi.Cut(after, 0, fixedWidth), ansi.Cut(before, 0, fixedWidth); got != want {
 		t.Fatalf("fixed metric columns moved: before %q, after %q", want, got)
@@ -593,7 +779,7 @@ func TestHorizontalScrollMovesOnlyFileNames(t *testing.T) {
 	if ansi.Cut(after, fixedWidth, model.width) == ansi.Cut(before, fixedWidth, model.width) {
 		t.Fatalf("filename did not scroll: before %q, after %q", before, after)
 	}
-	if lipgloss.Width(model.renderRow(file, true)) != model.width {
+	if lipgloss.Width(renderRow(model, file, true)) != model.width {
 		t.Fatal("horizontal scrolling changed the row width")
 	}
 }
@@ -602,17 +788,23 @@ func TestHorizontalScrollDoesNotChangeVerticalSelection(t *testing.T) {
 	first := testFile("one/very/long/path/that/needs/horizontal/scrolling/first.go", 2)
 	second := testFile("two/very/long/path/that/needs/horizontal/scrolling/second.go", 1)
 	model := Model{
-		width: 36, height: 8, cursor: 0, selected: first.Path,
-		document: report.Document{Files: []report.File{first, second}},
-		rows:     map[string]rowState{first.Path: {}, second.Path: {}}, visible: map[string]bool{},
+		files: FilesState{
+			Cursor:   0,
+			Selected: first.Path,
+			Document: report.Document{Files: []report.File{first, second}},
+			Rows:     map[string]rowState{first.Path: {}, second.Path: {}},
+			Visible:  map[string]bool{},
+		},
+		width:  36,
+		height: 8,
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRight})
-	if model.pathOffset != pathScrollStep || model.cursor != 0 || model.offset != 0 || model.selected != first.Path {
-		t.Fatalf("horizontal scroll changed vertical state: path=%d cursor=%d offset=%d selected=%q", model.pathOffset, model.cursor, model.offset, model.selected)
+	handleKey(&model, tea.KeyMsg{Type: tea.KeyRight})
+	if model.files.HorizontalOffset != pathScrollStep || model.files.Cursor != 0 || model.files.Offset != 0 || model.files.Selected != first.Path {
+		t.Fatalf("horizontal scroll changed vertical state: path=%d cursor=%d offset=%d selected=%q", model.files.HorizontalOffset, model.files.Cursor, model.files.Offset, model.files.Selected)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyDown})
-	if model.pathOffset != pathScrollStep || model.cursor != 1 || model.selected != second.Path {
-		t.Fatalf("vertical movement regressed after horizontal scroll: path=%d cursor=%d selected=%q", model.pathOffset, model.cursor, model.selected)
+	handleKey(&model, tea.KeyMsg{Type: tea.KeyDown})
+	if model.files.HorizontalOffset != pathScrollStep || model.files.Cursor != 1 || model.files.Selected != second.Path {
+		t.Fatalf("vertical movement regressed after horizontal scroll: path=%d cursor=%d selected=%q", model.files.HorizontalOffset, model.files.Cursor, model.files.Selected)
 	}
 }
 
@@ -641,7 +833,7 @@ func TestOverviewUsesReferencePalette(t *testing.T) {
 func TestFooterOnlyAdvertisesUsefulActions(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80}
-	footer := model.footer()
+	footer := footer(model)
 	for _, unwanted := range []string{"Enter", "details", "space", "pause", "columns"} {
 		if strings.Contains(footer, unwanted) {
 			t.Errorf("footer still contains %q: %q", unwanted, footer)
@@ -663,12 +855,15 @@ func TestFooterOnlyAdvertisesUsefulActions(t *testing.T) {
 
 func TestMainInfoKeyOpensTheSamePageAsEnter(t *testing.T) {
 	file := report.File{Path: "main.go", Complete: true, Components: map[string]report.Component{}}
-	base := Model{document: report.Document{Files: []report.File{file}}}
+	base := Model{
+		files: FilesState{
+			Document: report.Document{Files: []report.File{file}},
+		}}
 
 	enterModel := base
-	enterModel.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	handleKey(&enterModel, tea.KeyMsg{Type: tea.KeyEnter})
 	infoModel := base
-	infoModel.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	handleKey(&infoModel, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
 
 	if !enterModel.detail || !infoModel.detail {
 		t.Fatalf("detail state differs: enter=%t info=%t", enterModel.detail, infoModel.detail)
@@ -681,7 +876,7 @@ func TestMainInfoKeyOpensTheSamePageAsEnter(t *testing.T) {
 func TestFooterPlacesGenericActionsOnTheRightWithoutOverlap(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 100}
-	text := ansi.Strip(model.footer())
+	text := ansi.Strip(footer(model))
 	left := strings.Index(text, "sort")
 	right := strings.Index(text, "settings")
 	if left < 0 || right < 0 || left >= right {
@@ -698,7 +893,7 @@ func TestFooterPlacesGenericActionsOnTheRightWithoutOverlap(t *testing.T) {
 func TestFooterDropsGenericActionsBeforeLeftActionsOnNarrowScreens(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 30}
-	text := ansi.Strip(model.footer())
+	text := ansi.Strip(footer(model))
 	if !strings.Contains(text, "mark") || !strings.Contains(text, "clear") {
 		t.Fatalf("narrow footer dropped permanent marking actions: %q", text)
 	}
@@ -719,14 +914,18 @@ func TestSettingsOpensWeightsAndAdjustsScore(t *testing.T) {
 		Path: "a.go", Complete: true, Score: 10,
 		Components: map[string]report.Component{"cognitive_complexity": component},
 	}}}
-	model := Model{document: base, baseDocument: base, weights: defaultWeights()}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	model := Model{
+		files: FilesState{
+			Document:     base,
+			BaseDocument: base,
+		}, weights: defaultWeights()}
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	result := updated.(*Model)
 	if !result.settings || result.weightsOpen {
 		t.Fatal("s did not open settings")
 	}
 	result.settingsCursor = settingsIndex("weights")
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.weightsOpen || result.settings {
 		t.Fatal("Enter did not open weights")
@@ -737,95 +936,104 @@ func TestSettingsOpensWeightsAndAdjustsScore(t *testing.T) {
 			break
 		}
 	}
-	result.handleWeightsKey("left")
+	handleWeightsKey(result, "left")
 	if result.weights["cognitive_complexity"] != 9.5 {
 		t.Fatalf("weight = %v, want 9.5", result.weights["cognitive_complexity"])
 	}
-	if result.document.Files[0].Score != 9.5 {
-		t.Fatalf("score = %v, want 9.5", result.document.Files[0].Score)
+	if result.files.Document.Files[0].Score != 9.5 {
+		t.Fatalf("score = %v, want 9.5", result.files.Document.Files[0].Score)
 	}
 }
 
 func TestWeightsResetCurrentAndAll(t *testing.T) {
-	model := Model{weights: defaultWeights(), visible: defaultColumnVisibility()}
+	model := Model{
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		}, weights: defaultWeights()}
 	model.weightCursor = 0
 	model.weights["cognitive_complexity"] = 2
-	model.handleWeightsKey("r")
+	handleWeightsKey(&model, "r")
 	if got := model.weights["cognitive_complexity"]; got != 10 {
 		t.Fatalf("reset current weight = %v, want 10", got)
 	}
 	model.weights["cognitive_complexity"] = 2
 	model.weights["god_class"] = 19
-	model.handleWeightsKey("c")
+	handleWeightsKey(&model, "c")
 	if !model.weightsResetConfirm {
 		t.Fatal("reset all did not ask for confirmation")
 	}
-	model.handleWeightsKey("n")
+	handleWeightsKey(&model, "n")
 	if model.weights["cognitive_complexity"] != 2 || model.weights["god_class"] != 19 {
 		t.Fatal("cancelled reset all changed weights")
 	}
-	model.handleWeightsKey("c")
-	model.handleWeightsKey("y")
+	handleWeightsKey(&model, "c")
+	handleWeightsKey(&model, "y")
 	if model.weights["cognitive_complexity"] != 10 || model.weights["god_class"] != 1 {
 		t.Fatalf("reset all weights = %v, %v", model.weights["cognitive_complexity"], model.weights["god_class"])
 	}
 }
 
 func TestWeightsAndHelpOpenTheSharedInfoPopup(t *testing.T) {
-	model := Model{weights: defaultWeights(), visible: defaultColumnVisibility(), width: 80, height: 20}
+	model := Model{
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		}, weights: defaultWeights(), width: 80, height: 20}
 	model.weightCursor = 0
-	model.handleWeightsKey("i")
-	if !model.infoOpen || model.infoKey != "cog" || !strings.Contains(ansi.Strip(model.infoView()), "COG") {
+	handleWeightsKey(&model, "i")
+	if !model.infoOpen || model.infoKey != "cog" || !strings.Contains(ansi.Strip(infoView(model)), "COG") {
 		t.Fatal("weights info did not open the shared COG popup")
 	}
-	model.handleInfoKey("esc")
-	before := model.isWeightEnabled(componentWeights[model.weightCursor].id)
-	model.handleWeightsKey("enter")
-	if model.infoOpen || model.isWeightEnabled(componentWeights[model.weightCursor].id) == before {
+	handleInfoKey(&model, "esc")
+	before := isWeightEnabled(model, componentWeights[model.weightCursor].id)
+	handleWeightsKey(&model, "enter")
+	if model.infoOpen || isWeightEnabled(model, componentWeights[model.weightCursor].id) == before {
 		t.Fatal("Enter did not toggle the weight checkbox")
 	}
 	model.infoOpen = false
 	model.help = true
 	model.helpTopic = helpScoring
 	model.helpCursor = 1
-	model.handleHelpKey("i")
+	handleHelpKey(&model, "i")
 	if !model.infoOpen || model.infoKey != "cog" {
 		t.Fatal("help info did not open the shared COG popup")
 	}
-	model.handleInfoKey("esc")
+	handleInfoKey(&model, "esc")
 	if !model.help {
 		t.Fatal("closing info unexpectedly closed help")
 	}
 }
 
 func TestCheckboxListsAcceptEnterAndSpace(t *testing.T) {
-	model := Model{visible: defaultColumnVisibility(), weights: defaultWeights(), weightEnabled: defaultWeightEnabled()}
+	model := Model{
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		}, weights: defaultWeights(), weightEnabled: defaultWeightEnabled()}
 	model.columnCursor = columnIndex("cog")
-	columnBefore := model.visible["cog"]
-	model.handleColumnKey("enter")
-	if model.visible["cog"] == columnBefore {
+	columnBefore := model.files.Visible["cog"]
+	handleColumnKey(&model, "enter")
+	if model.files.Visible["cog"] == columnBefore {
 		t.Fatal("Enter did not toggle a column checkbox")
 	}
-	model.handleColumnKey(" ")
-	if model.visible["cog"] != columnBefore {
+	handleColumnKey(&model, " ")
+	if model.files.Visible["cog"] != columnBefore {
 		t.Fatal("Space did not toggle the column checkbox")
 	}
 
 	model.weightCursor = componentIndex("cognitive_complexity")
-	weightBefore := model.isWeightEnabled("cognitive_complexity")
-	model.handleWeightsKey("enter")
-	if model.isWeightEnabled("cognitive_complexity") == weightBefore {
+	weightBefore := isWeightEnabled(model, "cognitive_complexity")
+	handleWeightsKey(&model, "enter")
+	if isWeightEnabled(model, "cognitive_complexity") == weightBefore {
 		t.Fatal("Enter did not toggle a weight checkbox")
 	}
-	model.handleWeightsKey(" ")
-	if model.isWeightEnabled("cognitive_complexity") != weightBefore {
+	handleWeightsKey(&model, " ")
+	if isWeightEnabled(model, "cognitive_complexity") != weightBefore {
 		t.Fatal("Space did not toggle the weight checkbox")
 	}
 }
 
 func TestEnterClosesPurelyInformationalDialog(t *testing.T) {
 	model := Model{infoOpen: true, infoKey: "cog"}
-	model.handleInfoKey("enter")
+	handleInfoKey(&model, "enter")
 	if model.infoOpen {
 		t.Fatal("Enter did not close the informational dialog")
 	}
@@ -833,14 +1041,17 @@ func TestEnterClosesPurelyInformationalDialog(t *testing.T) {
 
 func TestEnterDoesNotCloseHelpDialogWithOptions(t *testing.T) {
 	model := Model{help: true, helpTopic: helpScoring, helpCursor: 0}
-	model.handleHelpKey("enter")
+	handleHelpKey(&model, "enter")
 	if !model.help || !model.infoOpen {
 		t.Fatal("Enter did not preserve Help while opening its info option")
 	}
 }
 
 func TestInfoPopupOverlaysItsParentPopup(t *testing.T) {
-	model := Model{width: 80, height: 20, weights: defaultWeights(), visible: defaultColumnVisibility(), weightsOpen: true, infoOpen: true, infoKey: "cog"}
+	model := Model{
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		}, width: 80, height: 20, weights: defaultWeights(), weightsOpen: true, infoOpen: true, infoKey: "cog"}
 	view := ansi.Strip(model.View())
 	if !strings.Contains(view, "WEIGHTS") || !strings.Contains(view, "COG  cognitive complexity") {
 		t.Fatalf("info did not overlay the weights popup: %q", view)
@@ -854,7 +1065,7 @@ func TestInfoPopupOverlaysItsParentPopup(t *testing.T) {
 
 func TestHelpScrollsAndHasTopicHint(t *testing.T) {
 	model := Model{help: true, helpTopic: helpScoring, helpCursor: len(metricInformation) - 1, width: 60, height: 10}
-	view := ansi.Strip(model.helpView())
+	view := ansi.Strip(helpView(model))
 	if !strings.Contains(view, "PATH") || strings.Contains(view, "SCORE") {
 		t.Fatalf("help did not scroll to the selected entry: %q", view)
 	}
@@ -867,7 +1078,7 @@ func TestHelpScrollsAndHasTopicHint(t *testing.T) {
 }
 
 func TestWeightsViewGroupsIndentedMetricsByCategory(t *testing.T) {
-	view := ansi.Strip((Model{weights: defaultWeights()}).weightsView())
+	view := ansi.Strip(weightsView(Model{weights: defaultWeights()}))
 	for _, text := range []string{"Structural", "  COG", "  CYCLO", "  NPATH", "  SHALLOW", "Type safety", "Ambiguous boolean"} {
 		if !strings.Contains(view, text) {
 			t.Errorf("weights view does not contain %q", text)
@@ -960,7 +1171,7 @@ func TestTypeSafetySettingsEnableAnalysisAndScheduleRefresh(t *testing.T) {
 			name:          "column",
 			selectSetting: selectTypeSafetyColumn,
 			apply: func(model *Model) tea.Cmd {
-				_, command := model.handleColumnKey(" ")
+				_, command := handleColumnKey(model, " ")
 				return command
 			},
 		},
@@ -968,7 +1179,7 @@ func TestTypeSafetySettingsEnableAnalysisAndScheduleRefresh(t *testing.T) {
 			name:          "individual weight",
 			selectSetting: selectExplicitAnyWeight,
 			apply: func(model *Model) tea.Cmd {
-				_, command := model.handleWeightsKey(" ")
+				_, command := handleWeightsKey(model, " ")
 				return command
 			},
 		},
@@ -1001,9 +1212,13 @@ func assertTypeSafetyToggle(t *testing.T, selectSetting func(*Model), apply func
 	t.Helper()
 	analyzer := &settingsAnalyzer{}
 	model := &Model{
-		analyzer: analyzer, visible: defaultColumnVisibility(),
-		weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
-		queued: map[string]bool{},
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		},
+		analyzer:      analyzer,
+		weights:       defaultWeights(),
+		weightEnabled: defaultWeightEnabled(),
+		queued:        map[string]bool{},
 	}
 	selectSetting(model)
 	command := apply(model)
@@ -1021,17 +1236,22 @@ func assertTypeSafetyToggle(t *testing.T, selectSetting func(*Model), apply func
 func TestTypeSafetyRefreshQueuesBehindAnAnalysisAndDisablingNeedsNoRefresh(t *testing.T) {
 	analyzer := &settingsAnalyzer{}
 	model := &Model{
-		analyzer: analyzer, visible: defaultColumnVisibility(),
-		weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
-		queued: map[string]bool{}, analyzing: true,
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		},
+		analyzer:      analyzer,
+		weights:       defaultWeights(),
+		weightEnabled: defaultWeightEnabled(),
+		queued:        map[string]bool{},
+		analyzing:     true,
 	}
 	selectTypeSafetyColumn(model)
-	_, command := model.handleColumnKey(" ")
+	_, command := handleColumnKey(model, " ")
 	assertQueuedTypeSafetyEnable(t, model, analyzer, command)
 	_, command = model.Update(analysisResult{document: report.Document{}, full: true})
 	assertQueuedTypeSafetyRefresh(t, model, command)
 	model.analyzing = false
-	_, command = model.handleColumnKey(" ")
+	_, command = handleColumnKey(model, " ")
 	assertTypeSafetyDisabled(t, model, analyzer, command)
 }
 
@@ -1051,8 +1271,8 @@ func assertQueuedTypeSafetyRefresh(t *testing.T, model *Model, command tea.Cmd) 
 
 func assertTypeSafetyDisabled(t *testing.T, model *Model, analyzer *settingsAnalyzer, command tea.Cmd) {
 	t.Helper()
-	if command != nil || analyzer.typeScriptTypes || model.visible["typesafety"] {
-		t.Fatalf("disable = command %v, analyzer enabled %t, visible %t", command, analyzer.typeScriptTypes, model.visible["typesafety"])
+	if command != nil || analyzer.typeScriptTypes || model.files.Visible["typesafety"] {
+		t.Fatalf("disable = command %v, analyzer enabled %t, visible %t", command, analyzer.typeScriptTypes, model.files.Visible["typesafety"])
 	}
 }
 
@@ -1061,18 +1281,22 @@ func TestWeightsEnablementControlsScoreIndependently(t *testing.T) {
 	base := report.Document{Files: []report.File{{Path: "a.go", Complete: true, Components: map[string]report.Component{
 		"cognitive_complexity": component,
 	}}}}
-	model := Model{document: base, baseDocument: base, weights: defaultWeights(), weightEnabled: defaultWeightEnabled()}
-	model.rebuildWeightedDocument()
-	if got := model.document.Files[0].Score; got != 10 {
+	model := Model{
+		files: FilesState{
+			Document:     base,
+			BaseDocument: base,
+		}, weights: defaultWeights(), weightEnabled: defaultWeightEnabled()}
+	rebuildWeightedDocument(&model)
+	if got := model.files.Document.Files[0].Score; got != 10 {
 		t.Fatalf("enabled weight score = %v, want 10", got)
 	}
-	model.handleWeightsKey(" ")
-	if model.isWeightEnabled("cognitive_complexity") || model.document.Files[0].Score != 0 {
-		t.Fatalf("space did not disable weight: enabled=%t score=%v", model.isWeightEnabled("cognitive_complexity"), model.document.Files[0].Score)
+	handleWeightsKey(&model, " ")
+	if isWeightEnabled(model, "cognitive_complexity") || model.files.Document.Files[0].Score != 0 {
+		t.Fatalf("space did not disable weight: enabled=%t score=%v", isWeightEnabled(model, "cognitive_complexity"), model.files.Document.Files[0].Score)
 	}
-	model.handleWeightsKey(" ")
-	if !model.isWeightEnabled("cognitive_complexity") || model.document.Files[0].Score != 10 {
-		t.Fatalf("space did not re-enable weight: enabled=%t score=%v", model.isWeightEnabled("cognitive_complexity"), model.document.Files[0].Score)
+	handleWeightsKey(&model, " ")
+	if !isWeightEnabled(model, "cognitive_complexity") || model.files.Document.Files[0].Score != 10 {
+		t.Fatalf("space did not re-enable weight: enabled=%t score=%v", isWeightEnabled(model, "cognitive_complexity"), model.files.Document.Files[0].Score)
 	}
 }
 
@@ -1098,9 +1322,9 @@ func assertWeightScenario(t *testing.T, language string, include func(string) bo
 		}
 	}
 	base := report.Document{Files: []report.File{{Path: "example." + language, Language: language, Complete: true, Components: components}}}
-	model.document, model.baseDocument = base, base
-	model.rebuildWeightedDocument()
-	if got, want := model.document.Files[0].Score, float64(len(applicable)); got != want {
+	model.files.Document, model.files.BaseDocument = base, base
+	rebuildWeightedDocument(&model)
+	if got, want := model.files.Document.Files[0].Score, float64(len(applicable)); got != want {
 		t.Fatalf("all applicable weights score = %v, want %v", got, want)
 	}
 	assertEachWeightCanBeDisabled(t, &model, applicable)
@@ -1110,8 +1334,8 @@ func assertEachWeightCanBeDisabled(t *testing.T, model *Model, applicable []stri
 	t.Helper()
 	for _, disabledID := range applicable {
 		model.weightEnabled[disabledID] = false
-		model.rebuildWeightedDocument()
-		if got, want := model.document.Files[0].Score, float64(len(applicable)-1); got != want {
+		rebuildWeightedDocument(model)
+		if got, want := model.files.Document.Files[0].Score, float64(len(applicable)-1); got != want {
 			t.Fatalf("disabled %s score = %v, want %v", disabledID, got, want)
 		}
 		model.weightEnabled[disabledID] = true
@@ -1119,8 +1343,11 @@ func assertEachWeightCanBeDisabled(t *testing.T, model *Model, applicable []stri
 }
 
 func TestTypeSafetyColumnIsOffByDefaultAndUsesItsAxis(t *testing.T) {
-	model := Model{visible: map[string]bool{}}
-	for _, column := range model.activeColumns() {
+	model := Model{
+		files: FilesState{
+			Visible: map[string]bool{},
+		}}
+	for _, column := range activeColumns(model) {
 		if column.key == "typesafety" {
 			t.Fatal("type safety column is enabled by default")
 		}
@@ -1135,9 +1362,14 @@ func TestTypeSafetyColumnIsOffByDefaultAndUsesItsAxis(t *testing.T) {
 	base := report.Document{Files: []report.File{{Path: "example.ts", Complete: true, Score: 12, Components: map[string]report.Component{
 		"explicit_any": component,
 	}}}}
-	model = Model{document: base, baseDocument: base, visible: map[string]bool{}, weights: defaultWeights()}
-	model.rebuildWeightedDocument()
-	if got := model.document.Files[0].Score; got != 0 {
+	model = Model{
+		files: FilesState{
+			Document:     base,
+			BaseDocument: base,
+			Visible:      map[string]bool{},
+		}, weights: defaultWeights()}
+	rebuildWeightedDocument(&model)
+	if got := model.files.Document.Files[0].Score; got != 0 {
 		t.Fatalf("default type safety score = %v, want 0", got)
 	}
 	for index, column := range columnNames() {
@@ -1146,15 +1378,18 @@ func TestTypeSafetyColumnIsOffByDefaultAndUsesItsAxis(t *testing.T) {
 			break
 		}
 	}
-	model.handleColumnKey(" ")
-	if got := model.document.Files[0].Score; got != 12 {
+	handleColumnKey(&model, " ")
+	if got := model.files.Document.Files[0].Score; got != 12 {
 		t.Fatalf("enabled type safety score = %v, want 12", got)
 	}
 }
 
 func TestNestingColumnIsOffByDefaultAndControlsItsScore(t *testing.T) {
-	model := Model{visible: map[string]bool{}}
-	for _, column := range model.activeColumns() {
+	model := Model{
+		files: FilesState{
+			Visible: map[string]bool{},
+		}}
+	for _, column := range activeColumns(model) {
 		if column.key == "nesting" {
 			t.Fatal("nesting column is enabled by default")
 		}
@@ -1163,9 +1398,14 @@ func TestNestingColumnIsOffByDefaultAndControlsItsScore(t *testing.T) {
 	base := report.Document{Files: []report.File{{Path: "example.go", Complete: true, Score: 6, Components: map[string]report.Component{
 		"deeply_nested_if": component,
 	}}}}
-	model = Model{document: base, baseDocument: base, visible: map[string]bool{}, weights: defaultWeights()}
-	model.rebuildWeightedDocument()
-	if got := model.document.Files[0].Score; got != 0 {
+	model = Model{
+		files: FilesState{
+			Document:     base,
+			BaseDocument: base,
+			Visible:      map[string]bool{},
+		}, weights: defaultWeights()}
+	rebuildWeightedDocument(&model)
+	if got := model.files.Document.Files[0].Score; got != 0 {
 		t.Fatalf("default nesting score = %v, want 0", got)
 	}
 	for index, column := range columnNames() {
@@ -1174,16 +1414,19 @@ func TestNestingColumnIsOffByDefaultAndControlsItsScore(t *testing.T) {
 			break
 		}
 	}
-	model.handleColumnKey(" ")
-	if got := model.document.Files[0].Score; got != 6 {
+	handleColumnKey(&model, " ")
+	if got := model.files.Document.Files[0].Score; got != 6 {
 		t.Fatalf("enabled nesting score = %v, want 6", got)
 	}
 }
 
 func TestCouplingColumnIsOnByDefaultAndControlsItsScore(t *testing.T) {
-	model := Model{visible: map[string]bool{"coupling": true}}
+	model := Model{
+		files: FilesState{
+			Visible: map[string]bool{"coupling": true},
+		}}
 	found := false
-	for _, column := range model.activeColumns() {
+	for _, column := range activeColumns(model) {
 		if column.key == "coupling" && column.title == "CPL" {
 			found = true
 		}
@@ -1195,9 +1438,14 @@ func TestCouplingColumnIsOnByDefaultAndControlsItsScore(t *testing.T) {
 	base := report.Document{Files: []report.File{{Path: "example.go", Complete: true, Score: 10, Components: map[string]report.Component{
 		"coupling_between_objects": component,
 	}}}}
-	model = Model{document: base, baseDocument: base, visible: map[string]bool{"coupling": true}, weights: defaultWeights()}
-	model.rebuildWeightedDocument()
-	if got := model.document.Files[0].Score; got != 10 {
+	model = Model{
+		files: FilesState{
+			Document:     base,
+			BaseDocument: base,
+			Visible:      map[string]bool{"coupling": true},
+		}, weights: defaultWeights()}
+	rebuildWeightedDocument(&model)
+	if got := model.files.Document.Files[0].Score; got != 10 {
 		t.Fatalf("default coupling score = %v, want 10", got)
 	}
 	for index, column := range columnNames() {
@@ -1206,15 +1454,15 @@ func TestCouplingColumnIsOnByDefaultAndControlsItsScore(t *testing.T) {
 			break
 		}
 	}
-	model.handleColumnKey(" ")
-	if got := model.document.Files[0].Score; got != 0 {
+	handleColumnKey(&model, " ")
+	if got := model.files.Document.Files[0].Score; got != 0 {
 		t.Fatalf("disabled coupling score = %v, want 0", got)
 	}
 }
 
 func TestShortWeightsPopupScrollsToSelectedEntry(t *testing.T) {
 	model := Model{height: 10, weightCursor: len(componentWeights) - 1, weights: defaultWeights()}
-	view := ansi.Strip(model.weightsView())
+	view := ansi.Strip(weightsView(model))
 	if !strings.Contains(view, "space on/off") || !strings.Contains(view, "←/→ weights") || !strings.Contains(view, "clear") || !strings.Contains(view, "info") {
 		t.Fatalf("weights popup is missing its adjustment hint: %q", view)
 	}
@@ -1228,12 +1476,12 @@ func TestShortWeightsPopupScrollsToSelectedEntry(t *testing.T) {
 
 func TestOOpensSortAndSDoesNot(t *testing.T) {
 	model := Model{}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
 	if !updated.(*Model).sortOpen {
 		t.Fatal("o did not open sorting")
 	}
 	model = Model{}
-	updated, _ = model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	updated, _ = handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if updated.(*Model).sortOpen || !updated.(*Model).settings {
 		t.Fatal("s still opens sorting")
 	}
@@ -1241,18 +1489,18 @@ func TestOOpensSortAndSDoesNot(t *testing.T) {
 
 func TestSettingsContainsColumnsAndReturnsAfterEditing(t *testing.T) {
 	model := Model{}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	result := updated.(*Model)
-	if !strings.Contains(ansi.Strip(result.settingsView()), "Columns") {
+	if !strings.Contains(ansi.Strip(settingsView(*result)), "Columns") {
 		t.Fatal("settings does not contain Columns")
 	}
 	result.settingsCursor = settingsIndex("columns")
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.columns || !result.columnsFromSettings || result.settings {
 		t.Fatal("settings did not open Columns")
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEsc})
 	result = updated.(*Model)
 	if result.columns || !result.settings {
 		t.Fatal("Columns did not return to Settings")
@@ -1275,11 +1523,11 @@ func TestModalSelectionsUseBackgroundInsteadOfTextCursors(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 80, settingsCursor: 0, weightCursor: 0}
 	for name, view := range map[string]string{
-		"settings":   model.settingsView(),
-		"appearance": model.appearanceView(),
-		"weights":    model.weightsView(),
-		"columns":    model.columnsView(),
-		"sort":       model.sortView(),
+		"settings":   settingsView(model),
+		"appearance": appearanceView(model),
+		"weights":    weightsView(model),
+		"columns":    columnsView(model),
+		"sort":       sortView(model),
 	} {
 		for _, line := range strings.Split(ansi.Strip(view), "\n") {
 			if strings.Contains(line, "←/→ weights") {
@@ -1318,11 +1566,11 @@ func TestHintRowUsesSharedSpacingAndHyphenation(t *testing.T) {
 func TestHelpShortcutShowsTopicChooser(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{width: 100, height: 24}
-	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	if command != nil || !updated.(*Model).help {
 		t.Fatal("h did not open help")
 	}
-	view := updated.(*Model).helpView()
+	view := helpView(*updated.(*Model))
 	if lines := strings.Count(view, "\n") + 1; lines >= 20 {
 		t.Fatalf("help popup has %d lines, want fewer than 20", lines)
 	}
@@ -1334,7 +1582,7 @@ func TestHelpShortcutShowsTopicChooser(t *testing.T) {
 			t.Errorf("help popup does not offer %s", title)
 		}
 	}
-	closed, _ := updated.(*Model).handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	closed, _ := handleKey(updated.(*Model), tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	if closed.(*Model).help {
 		t.Fatal("q did not close help")
 	}
@@ -1370,7 +1618,10 @@ func TestDisplayFilesSortsEveryOverviewColumnInBothDirections(t *testing.T) {
 	first := sortableFile("zeta.go", 1, 80, 8, 18, 28, 2, 38)
 	second := sortableFile("alpha.go", 2, 20, 2, 12, 14, 1, 24)
 	third := sortableFile("middle.go", 3, 50, 5, 15, 21, 0, 31)
-	model := Model{document: report.Document{Files: []report.File{first, second, third}}}
+	model := Model{
+		files: FilesState{
+			Document: report.Document{Files: []report.File{first, second, third}},
+		}}
 	tests := []struct {
 		key        string
 		reverse    bool
@@ -1393,8 +1644,8 @@ func TestDisplayFilesSortsEveryOverviewColumnInBothDirections(t *testing.T) {
 		{"filename", true, "zeta.go", "middle.go"},
 	}
 	for _, test := range tests {
-		model.sortKey, model.sortReverse = test.key, test.reverse
-		got := model.displayFiles()
+		model.files.SortKey, model.files.SortReverse = test.key, test.reverse
+		got := model.files.displayFiles(model.options.Limit)
 		if got[0].Path != test.wantFirst || got[1].Path != test.wantSecond {
 			t.Errorf("sort %s reverse=%t = %s, %s", test.key, test.reverse, got[0].Path, got[1].Path)
 		}
@@ -1403,15 +1654,17 @@ func TestDisplayFilesSortsEveryOverviewColumnInBothDirections(t *testing.T) {
 
 func TestDisplayFilesSortsPathByTheCompletePath(t *testing.T) {
 	model := Model{
-		document: report.Document{Files: []report.File{
-			testFile("zeta/alpha.go", 1),
-			testFile("alpha/zeta.go", 1),
-			testFile("middle/beta.go", 1),
-		}},
-		sortKey: "filename",
+		files: FilesState{
+			Document: report.Document{Files: []report.File{
+				testFile("zeta/alpha.go", 1),
+				testFile("alpha/zeta.go", 1),
+				testFile("middle/beta.go", 1),
+			}},
+			SortKey: "filename",
+		},
 	}
 
-	got := model.displayFiles()
+	got := model.files.displayFiles(model.options.Limit)
 	want := []string{"alpha/zeta.go", "middle/beta.go", "zeta/alpha.go"}
 	for index := range want {
 		if got[index].Path != want[index] {
@@ -1419,8 +1672,8 @@ func TestDisplayFilesSortsPathByTheCompletePath(t *testing.T) {
 		}
 	}
 
-	model.sortReverse = true
-	got = model.displayFiles()
+	model.files.SortReverse = true
+	got = model.files.displayFiles(model.options.Limit)
 	want = []string{"zeta/alpha.go", "middle/beta.go", "alpha/zeta.go"}
 	for index := range want {
 		if got[index].Path != want[index] {
@@ -1431,15 +1684,18 @@ func TestDisplayFilesSortsPathByTheCompletePath(t *testing.T) {
 
 func TestDisplayFilesCacheRefreshesOnlyWhenOrderingChanges(t *testing.T) {
 	model := Model{
-		document: report.Document{Files: []report.File{
-			testFile("low.go", 1), testFile("high.go", 9),
-		}},
-		sortKey: "score", sortReverse: true,
-		visible: defaultColumnVisibility(),
+		files: FilesState{
+			Document: report.Document{Files: []report.File{
+				testFile("low.go", 1), testFile("high.go", 9),
+			}},
+			SortKey:     "score",
+			SortReverse: true,
+			Visible:     defaultColumnVisibility(),
+		},
 	}
-	model.refreshDisplayFiles()
-	first := model.displayFiles()
-	second := model.displayFiles()
+	model.files.refreshDisplayFiles(model.options.Limit)
+	first := model.files.displayFiles(model.options.Limit)
+	second := model.files.displayFiles(model.options.Limit)
 	if len(first) != 2 || first[0].Path != "high.go" {
 		t.Fatalf("cached order = %#v", first)
 	}
@@ -1447,14 +1703,14 @@ func TestDisplayFilesCacheRefreshesOnlyWhenOrderingChanges(t *testing.T) {
 		t.Fatal("displayFiles copied the cached result")
 	}
 
-	model.sortCursor = len(sortFields()) - 1 // filename
-	model.activateHighlightedSort(false, true)
-	if got := model.displayFiles(); got[0].Path != "high.go" {
+	model.files.SortCursor = len(sortFields()) - 1 // filename
+	activateHighlightedSort(&model, false, true)
+	if got := model.files.displayFiles(model.options.Limit); got[0].Path != "high.go" {
 		t.Fatalf("filename order = %#v", got)
 	}
-	model.sortCursor = 0 // score
-	model.activateHighlightedSort(false, true)
-	if got := model.displayFiles(); got[0].Path != "low.go" {
+	model.files.SortCursor = 0 // score
+	activateHighlightedSort(&model, false, true)
+	if got := model.files.displayFiles(model.options.Limit); got[0].Path != "low.go" {
 		t.Fatalf("refreshed score order = %#v", got)
 	}
 }
@@ -1469,17 +1725,22 @@ func BenchmarkTableViewTwentyFiveThousandFiles(b *testing.B) {
 		rows[path] = rowState{}
 	}
 	model := Model{
-		width: 140, height: 50,
-		document: report.Document{Files: files}, rows: rows,
+		files: FilesState{
+			Document:    report.Document{Files: files},
+			Rows:        rows,
+			SortKey:     "score",
+			SortReverse: true,
+			Visible:     defaultColumnVisibility(),
+		},
+		width:   140,
+		height:  50,
 		options: Options{TrendWindow: time.Minute},
-		sortKey: "score", sortReverse: true,
-		visible: defaultColumnVisibility(),
 	}
-	model.refreshDisplayFiles()
+	model.files.refreshDisplayFiles(model.options.Limit)
 	model.refreshFreshnessStatus()
 	b.ResetTimer()
 	for range b.N {
-		_ = model.tableView()
+		_ = tableView(model)
 	}
 }
 
@@ -1489,11 +1750,15 @@ func TestDisplayFilesDoesNotCapFortyFiveThousandRows(t *testing.T) {
 		files[index] = testFile(fmt.Sprintf("src/main/java/example/Class%05d.java", index), 0)
 	}
 	model := Model{
-		document: report.Document{Files: files}, sortKey: "score", sortReverse: true,
-		visible: defaultColumnVisibility(),
+		files: FilesState{
+			Document:    report.Document{Files: files},
+			SortKey:     "score",
+			SortReverse: true,
+			Visible:     defaultColumnVisibility(),
+		},
 	}
-	model.refreshDisplayFiles()
-	if got := len(model.displayFiles()); got != len(files) {
+	model.files.refreshDisplayFiles(model.options.Limit)
+	if got := len(model.files.displayFiles(model.options.Limit)); got != len(files) {
 		t.Fatalf("display rows = %d, want %d", got, len(files))
 	}
 }
@@ -1502,63 +1767,83 @@ func TestSpaceAppliesSortWithoutChangingDirectionAndPreservesSelectedFile(t *tes
 	first := sortableFile("a.go", 1, 90, 9, 9, 9, 0, 0)
 	second := sortableFile("b.go", 2, 10, 1, 1, 1, 0, 0)
 	model := Model{
-		document: report.Document{Files: []report.File{first, second}},
-		selected: "a.go", cursor: 0, sortOpen: true, sortCursor: 0,
-		sortKey: "score", sortReverse: false, sortDirections: map[string]bool{"score": false},
-		options: Options{TrendWindow: time.Minute},
+		files: FilesState{
+			Document:       report.Document{Files: []report.File{first, second}},
+			Selected:       "a.go",
+			Cursor:         0,
+			SortKey:        "score",
+			SortReverse:    false,
+			SortDirections: map[string]bool{"score": false},
+			SortCursor:     0,
+		},
+		sortOpen: true,
+		options:  Options{TrendWindow: time.Minute},
 	}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeySpace})
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeySpace})
 	result := updated.(*Model)
-	if result.sortKey != "score" || result.sortReverse {
-		t.Fatalf("sort = %s reverse=%t", result.sortKey, result.sortReverse)
+	if result.files.SortKey != "score" || result.files.SortReverse {
+		t.Fatalf("sort = %s reverse=%t", result.files.SortKey, result.files.SortReverse)
 	}
 	if !result.sortOpen {
 		t.Fatal("applying sort unexpectedly closed the popup")
 	}
-	if result.selected != "a.go" || result.cursor != 1 {
-		t.Fatalf("selection = %q at %d", result.selected, result.cursor)
+	if result.files.Selected != "a.go" || result.files.Cursor != 1 {
+		t.Fatalf("selection = %q at %d", result.files.Selected, result.files.Cursor)
 	}
 }
 
 func TestEnterDoesNotApplyOrCloseSort(t *testing.T) {
-	model := Model{sortOpen: true, sortCursor: 1, sortKey: "score", sortReverse: true, visible: defaultColumnVisibility()}
-	model.handleSortKey("enter")
-	if !model.sortOpen || model.sortKey != "score" || !model.sortReverse {
-		t.Fatalf("Enter changed sort popup state: open=%t key=%q reverse=%t", model.sortOpen, model.sortKey, model.sortReverse)
+	model := Model{
+		files: FilesState{
+			SortKey:     "score",
+			SortReverse: true,
+			Visible:     defaultColumnVisibility(),
+			SortCursor:  1,
+		},
+		sortOpen: true,
+	}
+	handleSortKey(&model, "enter")
+	if !model.sortOpen || model.files.SortKey != "score" || !model.files.SortReverse {
+		t.Fatalf("Enter changed sort popup state: open=%t key=%q reverse=%t", model.sortOpen, model.files.SortKey, model.files.SortReverse)
 	}
 }
 
 func TestActiveSortIsMarkedImmediatelyBeforeItsHeading(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{
-		width:   100,
-		visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+		files: FilesState{
+			Visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+		},
+		width: 100,
 	}
 	for key, title := range map[string]string{
 		"score": "SCORE", "cog": "COG", "npath": "NPATH",
 		"cyclo": "CYCLO", "deep": "SHALLOW", "god": "GOD",
 	} {
-		model.sortKey, model.sortReverse = key, false
-		if heading := model.header(); !strings.Contains(heading, "▲"+title) {
+		model.files.SortKey, model.files.SortReverse = key, false
+		if heading := header(model); !strings.Contains(heading, "▲"+title) {
 			t.Errorf("ascending %s heading has no adjacent indicator: %q", key, heading)
 		}
-		model.sortReverse = true
-		if heading := model.header(); !strings.Contains(heading, "▼"+title) {
+		model.files.SortReverse = true
+		if heading := header(model); !strings.Contains(heading, "▼"+title) {
 			t.Errorf("descending %s heading has no adjacent indicator: %q", key, heading)
 		}
 	}
-	model.sortKey, model.sortReverse = "filename", false
-	if heading := model.header(); !strings.Contains(heading, " ▲") {
+	model.files.SortKey, model.files.SortReverse = "filename", false
+	if heading := header(model); !strings.Contains(heading, " ▲") {
 		t.Fatalf("filename heading has no ascending indicator: %q", heading)
 	}
 }
 
 func TestHeaderIncludesEveryEnabledTitle(t *testing.T) {
 	model := Model{
-		width: 100, sortKey: "filename",
-		visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+		files: FilesState{
+			SortKey: "filename",
+			Visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+		},
+		width: 100,
 	}
-	heading := ansi.Strip(model.header())
+	heading := ansi.Strip(header(model))
 	for _, title := range []string{"SCORE", "COG", "NPATH", "CYCLO", "SHALLOW", "GOD"} {
 		if !strings.Contains(heading, title) {
 			t.Errorf("enabled title %s is missing from %q", title, heading)
@@ -1569,11 +1854,14 @@ func TestHeaderIncludesEveryEnabledTitle(t *testing.T) {
 func TestHeaderRightAlignsCommaFormattedFileCountInHeaderStyle(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{
-		width: 100, sortKey: "score",
-		document: report.Document{Files: make([]report.File, 12_345)},
-		visible:  map[string]bool{"cog": true, "npath": true},
+		files: FilesState{
+			SortKey:  "score",
+			Document: report.Document{Files: make([]report.File, 12_345)},
+			Visible:  map[string]bool{"cog": true, "npath": true},
+		},
+		width: 100,
 	}
-	header := model.header()
+	header := header(model)
 	plain := ansi.Strip(header)
 	if !strings.HasSuffix(plain, "FILES: 12,345 ") {
 		t.Fatalf("file count is not right-aligned one character from the margin: %q", plain)
@@ -1590,11 +1878,15 @@ func TestOverviewOmitsRankAndSeparatesScoreFromMetrics(t *testing.T) {
 	ConfigureTerminalColours()
 	file := sortableFile("example.go", 7, 12, 3, 4, 5, 0, 100)
 	model := Model{
-		width: 100, sortKey: "score", sortReverse: true,
-		visible: map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
-		rows:    map[string]rowState{file.Path: {}},
+		files: FilesState{
+			SortKey:     "score",
+			SortReverse: true,
+			Visible:     map[string]bool{"cog": true, "npath": true, "cyclo": true, "deep": true, "god": true},
+			Rows:        map[string]rowState{file.Path: {}},
+		},
+		width: 100,
 	}
-	heading := ansi.Strip(model.header())
+	heading := ansi.Strip(header(model))
 	if strings.Contains(heading, "#") {
 		t.Fatalf("rank heading remains: %q", heading)
 	}
@@ -1603,7 +1895,7 @@ func TestOverviewOmitsRankAndSeparatesScoreFromMetrics(t *testing.T) {
 			t.Errorf("enabled title %s is missing from %q", title, heading)
 		}
 	}
-	row := ansi.Strip(model.renderRow(file, false))
+	row := ansi.Strip(renderRow(model, file, false))
 	if !strings.HasPrefix(row, "      12 3") {
 		t.Fatalf("rank or score/COG spacing is wrong: %q", row)
 	}
@@ -1641,8 +1933,12 @@ func TestEveryDisplayedColumnIsSortable(t *testing.T) {
 }
 
 func TestSortUsesSharedColumnDescriptionsAndSkipsHiddenColumns(t *testing.T) {
-	model := Model{visible: defaultColumnVisibility(), sortCursor: 1}
-	view := ansi.Strip(model.sortView())
+	model := Model{
+		files: FilesState{
+			Visible:    defaultColumnVisibility(),
+			SortCursor: 1,
+		}}
+	view := ansi.Strip(sortView(model))
 	for _, text := range []string{
 		"COG         (cognitive)",
 		"NPATH       (execution path complexity)",
@@ -1656,32 +1952,36 @@ func TestSortUsesSharedColumnDescriptionsAndSkipsHiddenColumns(t *testing.T) {
 			t.Errorf("sort description missing %q: %q", text, view)
 		}
 	}
-	for model.sortCursor != len(sortFields())-1 {
-		model.handleSortKey("down")
-		if model.sortCursor == 0 {
+	for model.files.SortCursor != len(sortFields())-1 {
+		handleSortKey(&model, "down")
+		if model.files.SortCursor == 0 {
 			t.Fatal("sort cursor wrapped while moving down")
 		}
 	}
-	if sortFields()[model.sortCursor].key != "filename" {
-		t.Fatalf("sort cursor landed on %q, want filename", sortFields()[model.sortCursor].key)
+	if sortFields()[model.files.SortCursor].key != "filename" {
+		t.Fatalf("sort cursor landed on %q, want filename", sortFields()[model.files.SortCursor].key)
 	}
 }
 
 func TestSortDirectionChangesOnlyHighlightedMetricAndActivatesIt(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{
-		visible: defaultColumnVisibility(), sortCursor: 1,
-		sortKey: "score", sortReverse: true,
-		sortDirections: map[string]bool{"score": true, "cog": false, "npath": false},
+		files: FilesState{
+			Visible:        defaultColumnVisibility(),
+			SortKey:        "score",
+			SortReverse:    true,
+			SortDirections: map[string]bool{"score": true, "cog": false, "npath": false},
+			SortCursor:     1,
+		},
 	}
-	model.handleSortKey("right")
-	if model.sortKey != "cog" || !model.sortReverse {
-		t.Fatalf("right did not activate descending COG: key=%q reverse=%t", model.sortKey, model.sortReverse)
+	handleSortKey(&model, "right")
+	if model.files.SortKey != "cog" || !model.files.SortReverse {
+		t.Fatalf("right did not activate descending COG: key=%q reverse=%t", model.files.SortKey, model.files.SortReverse)
 	}
-	if !model.sortDirections["score"] || model.sortDirections["npath"] {
-		t.Fatalf("right changed another metric's direction: %#v", model.sortDirections)
+	if !model.files.SortDirections["score"] || model.files.SortDirections["npath"] {
+		t.Fatalf("right changed another metric's direction: %#v", model.files.SortDirections)
 	}
-	view := ansi.Strip(model.sortView())
+	view := ansi.Strip(sortView(model))
 	for _, want := range []string{"▼ SCORE", "▼ COG", "▲ NPATH"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("sort view is missing %q: %q", want, view)
@@ -1692,10 +1992,15 @@ func TestSortDirectionChangesOnlyHighlightedMetricAndActivatesIt(t *testing.T) {
 func TestSortCursorBackgroundDoesNotRemainOnActiveMetric(t *testing.T) {
 	ConfigureTerminalColours()
 	model := Model{
-		visible: defaultColumnVisibility(), sortCursor: 1,
-		sortKey: "score", sortReverse: true, sortDirections: map[string]bool{"score": true, "cog": true},
+		files: FilesState{
+			Visible:        defaultColumnVisibility(),
+			SortKey:        "score",
+			SortReverse:    true,
+			SortDirections: map[string]bool{"score": true, "cog": true},
+			SortCursor:     1,
+		},
 	}
-	lines := strings.Split(model.sortView(), "\n")
+	lines := strings.Split(sortView(model), "\n")
 	lineWith := func(title string) string {
 		for _, line := range lines {
 			if strings.Contains(ansi.Strip(line), title) {
@@ -1711,8 +2016,8 @@ func TestSortCursorBackgroundDoesNotRemainOnActiveMetric(t *testing.T) {
 	if !strings.Contains(lineWith("COG"), wantBackground) {
 		t.Fatal("highlighted sort metric has no cursor background")
 	}
-	model.handleSortKey("down")
-	lines = strings.Split(model.sortView(), "\n")
+	handleSortKey(&model, "down")
+	lines = strings.Split(sortView(model), "\n")
 	if strings.Contains(lineWith("COG"), wantBackground) || !strings.Contains(lineWith("NPATH"), wantBackground) {
 		t.Fatal("cursor background did not move with the highlighted row")
 	}
@@ -1723,7 +2028,7 @@ func TestEscapeClosesSortAndColumnsDialogs(t *testing.T) {
 		"sort":    {sortOpen: true},
 		"columns": {columns: true},
 	} {
-		updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+		updated, _ := handleKey(model, tea.KeyMsg{Type: tea.KeyEsc})
 		result := updated.(*Model)
 		if result.sortOpen || result.columns {
 			t.Errorf("Escape did not close %s dialog", name)
@@ -1768,15 +2073,22 @@ func longDetailPopupModel() Model {
 	component.Observations = len(component.Subjects)
 	file.Components["cognitive_complexity"] = component
 	return Model{
-		width: 80, height: 24, detail: true, selected: file.Path,
-		document: report.Document{Files: []report.File{file}},
-		rows:     map[string]rowState{file.Path: {}}, sortKey: "score", sortReverse: true,
+		files: FilesState{
+			Selected:    file.Path,
+			Document:    report.Document{Files: []report.File{file}},
+			Rows:        map[string]rowState{file.Path: {}},
+			SortKey:     "score",
+			SortReverse: true,
+		},
+		width:  80,
+		height: 24,
+		detail: true,
 	}
 }
 
 func assertDetailPopupSize(t *testing.T, model *Model) {
 	t.Helper()
-	view := model.detailView()
+	view := detailView(*model)
 	if got := lipgloss.Width(view); got != 74 {
 		t.Fatalf("detail width = %d, want 74", got)
 	}
@@ -1790,23 +2102,23 @@ func assertDetailPopupSize(t *testing.T, model *Model) {
 
 func assertDetailPopupScrolling(t *testing.T, model *Model) {
 	t.Helper()
-	maximum := model.detailMaxOffset()
+	maximum := detailMaxOffset(*model)
 	if maximum <= 0 {
 		t.Fatal("long detail unexpectedly fits without scrolling")
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyEnd})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyEnd})
 	if model.detailOffset != maximum {
 		t.Fatalf("End scrolled to %d, want %d", model.detailOffset, maximum)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyDown})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyDown})
 	if model.detailOffset != maximum {
 		t.Fatalf("scroll escaped lower bound: %d > %d", model.detailOffset, maximum)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyHome})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyHome})
 	if model.detailOffset != 0 {
 		t.Fatalf("Home left detail offset at %d", model.detailOffset)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyPgDown})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyPgDown})
 	if model.detailOffset <= 0 || model.detailOffset > maximum {
 		t.Fatalf("page scroll produced invalid offset %d of %d", model.detailOffset, maximum)
 	}
@@ -1815,11 +2127,15 @@ func assertDetailPopupScrolling(t *testing.T, model *Model) {
 func TestDetailPopupShrinksWithTerminal(t *testing.T) {
 	file := testFile("example.go", 1)
 	model := Model{
-		width: 24, height: 8, selected: file.Path,
-		document: report.Document{Files: []report.File{file}},
-		rows:     map[string]rowState{file.Path: {}},
+		files: FilesState{
+			Selected: file.Path,
+			Document: report.Document{Files: []report.File{file}},
+			Rows:     map[string]rowState{file.Path: {}},
+		},
+		width:  24,
+		height: 8,
 	}
-	view := model.detailView()
+	view := detailView(model)
 	if lipgloss.Width(view) > model.width || lipgloss.Height(view) > model.height {
 		t.Fatalf("detail %dx%d exceeds terminal %dx%d", lipgloss.Width(view), lipgloss.Height(view), model.width, model.height)
 	}
@@ -1845,20 +2161,26 @@ func sourceViewTestModel(t *testing.T) Model {
 		t.Fatal(err)
 	}
 	return Model{
-		width: 80, height: 24, selected: "example.go", options: Options{Workspace: root},
-		document: report.Document{Files: []report.File{testFile("example.go", 1)}},
-		rows:     map[string]rowState{"example.go": {}}, visible: map[string]bool{},
+		files: FilesState{
+			Selected: "example.go",
+			Document: report.Document{Files: []report.File{testFile("example.go", 1)}},
+			Rows:     map[string]rowState{"example.go": {}},
+			Visible:  map[string]bool{},
+		},
+		width:   80,
+		height:  24,
+		options: Options{Workspace: root},
 	}
 }
 
 func openAndLoadSourceView(t *testing.T, model Model) Model {
 	t.Helper()
-	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
-	if command == nil || !updated.(*Model).sourceView {
+	updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if command == nil || !updated.(*Model).source.view {
 		t.Fatal("v did not open source view")
 	}
 	model = *updated.(*Model)
-	if loadingView := ansi.Strip(model.sourceViewView()); !strings.Contains(loadingView, "Loading source…") || !strings.Contains(loadingView, "loading") {
+	if loadingView := ansi.Strip(sourceViewView(model)); !strings.Contains(loadingView, "Loading source…") || !strings.Contains(loadingView, "loading") {
 		t.Fatalf("source popup did not render before loading completed: %q", loadingView)
 	}
 	updated, command = model.Update(command())
@@ -1866,7 +2188,7 @@ func openAndLoadSourceView(t *testing.T, model Model) Model {
 		t.Fatal("source load did not defer syntax highlighting")
 	}
 	model = *updated.(*Model)
-	if rawView := ansi.Strip(model.sourceViewView()); !strings.Contains(rawView, "func Run()") || model.sourceLoading {
+	if rawView := ansi.Strip(sourceViewView(model)); !strings.Contains(rawView, "func Run()") || model.source.loading {
 		t.Fatalf("raw source was not usable before highlighting completed: %q", rawView)
 	}
 	updated, command = model.Update(command())
@@ -1878,7 +2200,7 @@ func openAndLoadSourceView(t *testing.T, model Model) Model {
 
 func assertSourceViewContents(t *testing.T, model *Model) {
 	t.Helper()
-	view := ansi.Strip(model.sourceViewView())
+	view := ansi.Strip(sourceViewView(*model))
 	if !strings.Contains(view, "func Run()") {
 		t.Fatal("source view did not render selected file")
 	}
@@ -1912,20 +2234,20 @@ func assertSourceViewScrolling(t *testing.T, model *Model) {
 
 func assertSourceVerticalScrolling(t *testing.T, model *Model) {
 	t.Helper()
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	if model.sourceViewport.YOffset != 1 {
-		t.Fatalf("first j moved source viewport by %d lines, want 1", model.sourceViewport.YOffset)
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if model.source.viewport.YOffset != 1 {
+		t.Fatalf("first j moved source viewport by %d lines, want 1", model.source.viewport.YOffset)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	if model.sourceViewport.YOffset != 2 {
-		t.Fatalf("second j moved source viewport by %d lines, want 2 total", model.sourceViewport.YOffset)
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if model.source.viewport.YOffset != 2 {
+		t.Fatalf("second j moved source viewport by %d lines, want 2 total", model.source.viewport.YOffset)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	if model.sourceViewport.YOffset != 4 {
-		t.Fatalf("established repeat moved source viewport by %d lines, want 4 total", model.sourceViewport.YOffset)
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if model.source.viewport.YOffset != 4 {
+		t.Fatalf("established repeat moved source viewport by %d lines, want 4 total", model.source.viewport.YOffset)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlF})
-	if model.sourceViewport.YOffset == 0 {
+	handleKey(model, tea.KeyMsg{Type: tea.KeyCtrlF})
+	if model.source.viewport.YOffset == 0 {
 		t.Fatal("Ctrl-F did not advance source viewport")
 	}
 }
@@ -1933,25 +2255,25 @@ func assertSourceVerticalScrolling(t *testing.T, model *Model) {
 func assertSourceHorizontalScrolling(t *testing.T, model *Model) {
 	t.Helper()
 	longLine := strings.Repeat("x", 200)
-	model.sourceViewport.SetContent(longLine + "\n" + model.sourceSearchText)
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
-	if model.sourceViewport.HorizontalScrollPercent() == 0 {
+	model.source.viewport.SetContent(longLine + "\n" + model.source.searchText)
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	if model.source.viewport.HorizontalScrollPercent() == 0 {
 		t.Fatal("l did not horizontally scroll source viewport")
 	}
 }
 
 func assertSourceJumpAndClose(t *testing.T, model *Model) {
 	t.Helper()
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
-	if model.sourceViewport.YOffset != 0 {
-		t.Fatalf("g moved source viewport to line %d, want top", model.sourceViewport.YOffset)
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.source.viewport.YOffset != 0 {
+		t.Fatalf("g moved source viewport to line %d, want top", model.source.viewport.YOffset)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
-	if model.sourceViewport.YOffset == 0 {
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if model.source.viewport.YOffset == 0 {
 		t.Fatal("G did not jump to the bottom of the source viewport")
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if model.sourceView || model.sourcePath != "" {
+	handleKey(model, tea.KeyMsg{Type: tea.KeyEsc})
+	if model.source.view || model.source.path != "" {
 		t.Fatal("Esc did not close source view")
 	}
 }
@@ -1963,14 +2285,20 @@ func TestSourceViewIgnoresACompletedLoadAfterItCloses(t *testing.T) {
 	}
 	file := testFile("example.go", 1)
 	model := Model{
-		width: 80, height: 24, selected: file.Path, options: Options{Workspace: root},
-		document: report.Document{Files: []report.File{file}},
-		rows:     map[string]rowState{file.Path: {}}, visible: map[string]bool{},
+		files: FilesState{
+			Selected: file.Path,
+			Document: report.Document{Files: []report.File{file}},
+			Rows:     map[string]rowState{file.Path: {}},
+			Visible:  map[string]bool{},
+		},
+		width:   80,
+		height:  24,
+		options: Options{Workspace: root},
 	}
-	_, load := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
-	model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	_, load := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	handleKey(&model, tea.KeyMsg{Type: tea.KeyEsc})
 	model.Update(load())
-	if model.sourceView || model.sourcePath != "" || model.sourceSearchText != "" {
+	if model.source.view || model.source.path != "" || model.source.searchText != "" {
 		t.Fatal("completed background load reopened or populated a closed source view")
 	}
 }
@@ -1981,18 +2309,23 @@ func BenchmarkOpenSourceViewTwentyFiveThousandFiles(b *testing.B) {
 		files[index] = testFile(fmt.Sprintf("module/package/file_%05d.go", index), float64(index%100))
 	}
 	model := Model{
-		width: 140, height: 50, selected: files[0].Path,
-		document: report.Document{Files: files},
-		options:  Options{Workspace: b.TempDir()},
-		sortKey:  "score", sortReverse: true,
-		visible: defaultColumnVisibility(),
+		files: FilesState{
+			Selected:    files[0].Path,
+			Document:    report.Document{Files: files},
+			SortKey:     "score",
+			SortReverse: true,
+			Visible:     defaultColumnVisibility(),
+		},
+		width:   140,
+		height:  50,
+		options: Options{Workspace: b.TempDir()},
 	}
-	model.refreshDisplayFiles()
-	model.selected = model.displayFiles()[0].Path
+	model.files.refreshDisplayFiles(model.options.Limit)
+	model.files.Selected = model.files.displayFiles(model.options.Limit)[0].Path
 	b.ResetTimer()
 	for range b.N {
-		model.sourceView = false
-		if command := model.openSourceView(); command == nil {
+		model.source.view = false
+		if command := openSourceView(&model); command == nil {
 			b.Fatal("openSourceView returned no load command")
 		}
 	}

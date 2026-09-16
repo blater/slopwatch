@@ -47,16 +47,16 @@ func isWeightEnabled(model Model, id string) bool {
 }
 
 func rebuildWeightedDocument(model *Model) {
-	if len(model.baseDocument.Files) == 0 && len(model.document.Files) > 0 {
-		model.baseDocument = model.document
+	if len(model.files.BaseDocument.Files) == 0 && len(model.files.Document.Files) > 0 {
+		model.files.BaseDocument = model.files.Document
 	}
 	document := scoring.ProjectDocument(
-		model.baseDocument,
+		model.files.BaseDocument,
 		scoring.NewPolicy(model.weights, model.weightEnabled),
 	)
-	model.document = document
+	model.files.Document = document
 	model.refreshFreshnessStatus()
-	model.refreshDisplayFiles()
+	model.files.refreshDisplayFiles(model.options.Limit)
 }
 
 func defaultWeight(id string) float64 {
@@ -81,11 +81,11 @@ func typeScriptTypesWanted(model Model) bool {
 	if model.options.TypeScriptTypes {
 		return true
 	}
-	if model.visible["typesafety"] {
+	if model.files.Visible["typesafety"] {
 		return true
 	}
 	for _, item := range componentWeights {
-		if item.axis == "typescript_type_safety" && model.isWeightEnabled(item.id) {
+		if item.axis == "typescript_type_safety" && isWeightEnabled(model, item.id) {
 			return true
 		}
 	}
@@ -94,7 +94,7 @@ func typeScriptTypesWanted(model Model) bool {
 
 func hasTypeScriptTypeData(model Model) bool {
 	found := false
-	for _, file := range model.baseDocument.Files {
+	for _, file := range model.files.BaseDocument.Files {
 		if file.Language != "typescript" {
 			continue
 		}
@@ -111,9 +111,9 @@ func (model *Model) syncTypeScriptTypes() tea.Cmd {
 	if !supported {
 		return nil
 	}
-	enabled := model.typeScriptTypesWanted()
+	enabled := typeScriptTypesWanted(*model)
 	controller.SetTypeScriptTypes(enabled)
-	if !enabled || model.hasTypeScriptTypeData() {
+	if !enabled || hasTypeScriptTypeData(*model) {
 		return nil
 	}
 	if model.analyzing {
@@ -188,7 +188,7 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	if model.weightsResetConfirm {
 		switch name {
 		case "y", "Y":
-			model.resetAllWeights()
+			resetAllWeights(model)
 			model.weightsResetConfirm = false
 			return model, model.syncTypeScriptTypes()
 		case "n", "N", "esc", "escape":
@@ -197,7 +197,7 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	if isToggleKey(name) {
-		model.toggleWeight()
+		toggleWeight(model)
 		return model, model.syncTypeScriptTypes()
 	}
 	switch name {
@@ -214,12 +214,12 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "right", "l", "+", "=":
 		model.adjustWeight(model.weightStepValue())
 	case "r":
-		model.resetWeight()
+		resetWeight(model)
 		return model, model.syncTypeScriptTypes()
 	case "c":
 		model.weightsResetConfirm = true
 	case "i":
-		model.openInfo(weightInfoKey(componentWeights[model.weightCursor].id))
+		openInfo(model, weightInfoKey(componentWeights[model.weightCursor].id))
 	}
 	return model, nil
 }
@@ -231,9 +231,9 @@ func resetWeight(model *Model) {
 		model.weightEnabled = defaultWeightEnabled()
 	}
 	model.weightEnabled[item.id] = defaultWeightEnabled()[item.id]
-	model.rebuildWeightedDocument()
-	model.restoreSelection()
-	model.persistUserPreferences()
+	rebuildWeightedDocument(model)
+	restoreSelection(model)
+	persistUserPreferences(model)
 }
 
 func resetAllWeights(model *Model) {
@@ -244,9 +244,9 @@ func resetAllWeights(model *Model) {
 		}
 		model.weightEnabled[item.id] = defaultWeightEnabled()[item.id]
 	}
-	model.rebuildWeightedDocument()
-	model.restoreSelection()
-	model.persistUserPreferences()
+	rebuildWeightedDocument(model)
+	restoreSelection(model)
+	persistUserPreferences(model)
 }
 
 func toggleWeight(model *Model) {
@@ -254,19 +254,19 @@ func toggleWeight(model *Model) {
 	if model.weightEnabled == nil {
 		model.weightEnabled = defaultWeightEnabled()
 	}
-	model.weightEnabled[item.id] = !model.isWeightEnabled(item.id)
-	model.rebuildWeightedDocument()
-	model.restoreSelection()
-	model.persistUserPreferences()
+	model.weightEnabled[item.id] = !isWeightEnabled(*model, item.id)
+	rebuildWeightedDocument(model)
+	restoreSelection(model)
+	persistUserPreferences(model)
 }
 
 func (model *Model) adjustWeight(delta float64) {
 	item := componentWeights[model.weightCursor]
 	value := model.weights[item.id] + delta
 	model.weights[item.id] = math.Max(0, math.Min(model.maximumWeightValue(), value))
-	model.rebuildWeightedDocument()
-	model.restoreSelection()
-	model.persistUserPreferences()
+	rebuildWeightedDocument(model)
+	restoreSelection(model)
+	persistUserPreferences(model)
 }
 
 func settingsView(model Model) string {
@@ -297,7 +297,7 @@ func weightsView(model Model) string {
 			selectedLine = len(body)
 		}
 		mark := "x"
-		if model.isWeightEnabled(item.id) {
+		if isWeightEnabled(model, item.id) {
 			mark = "✓"
 		}
 		body = append(body, style.ToggleValueOption(fmt.Sprintf("[%s]", mark), fmt.Sprintf("%5.1f", model.weights[item.id]), item.label, index == model.weightCursor, 52, 8))

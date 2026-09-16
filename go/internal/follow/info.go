@@ -23,14 +23,14 @@ func activeDialogPolicy(model Model) dialogPolicy {
 	if model.infoOpen {
 		return dialogPolicy{}
 	}
-	if model.help || model.detail || model.sourceView || model.columns || model.sortOpen || model.weightsOpen || model.appearance || model.settings {
+	if model.help || model.detail || model.source.view || model.columns || model.sortOpen || model.weightsOpen || model.appearance || model.settings {
 		return dialogPolicy{hasInteractiveOptions: true}
 	}
 	return dialogPolicy{}
 }
 
 func handleDialogKey(model *Model, name string) bool {
-	policy := model.activeDialogPolicy()
+	policy := activeDialogPolicy(*model)
 	if name == "enter" && !policy.hasInteractiveOptions && model.infoOpen {
 		model.infoOpen = false
 		return true
@@ -91,7 +91,7 @@ func openInfo(model *Model, key string) {
 }
 
 func handleInfoKey(model *Model, name string) (tea.Model, tea.Cmd) {
-	if model.handleDialogKey(name) {
+	if handleDialogKey(model, name) {
 		return model, nil
 	}
 	if name == "esc" || name == "escape" || name == "q" || name == "i" {
@@ -146,7 +146,7 @@ func handleHelpPageKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		model.helpCursor = maximum
 	case "i", "enter":
 		if model.helpTopic == helpScoring {
-			model.openInfo(metricInformation[model.helpCursor].key)
+			openInfo(model, metricInformation[model.helpCursor].key)
 		}
 	}
 	return model, nil

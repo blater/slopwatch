@@ -56,7 +56,7 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	case shutdownCompleteMsg:
 		return model, model.handleShutdownComplete(message)
 	case tea.KeyMsg:
-		return model.handleKey(message)
+		return handleKey(model, message)
 	default:
 		return model, nil
 	}
@@ -67,10 +67,10 @@ func handleWatcherReady(model *Model, message watcherReady) (tea.Model, tea.Cmd)
 		model.analyzing = false
 		model.initialAnalysis = false
 		model.status = message.err.Error()
-		model.markFreshness(nil, report.FreshnessStaleError, "workspace verification could not start")
+		markFreshness(model, nil, report.FreshnessStaleError, "workspace verification could not start")
 		return model, nil
 	}
-	model.markFreshness(nil, report.FreshnessVerifying, "validating current workspace")
+	markFreshness(model, nil, report.FreshnessVerifying, "validating current workspace")
 	return model, tea.Batch(model.waitForChange(), model.analyze(nil, true))
 }
 
@@ -78,14 +78,16 @@ func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.C
 	model.width, model.height = message.Width, message.Height
 	model.ensureVisible()
 	model.clampPathOffset()
-	model.ensureAgentVisible()
-	model.clampAgentHorizontalOffset()
+	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	policy := model.agentMetricPolicy()
+	model.agents.clampHorizontal(maximumAgentHorizontalOffset(model.agents.rows(), responsiveTier(model.width, model.height), model.width, policy.visible))
 	if model.hasOverlay(OverlayPromptEditor) {
-		model.resizeMasterPromptTextBox()
+		resizeMasterPromptTextBox(&model.configSettings, model.width, model.height)
 	}
 	model.clampDetailOffset()
-	if model.sourceView {
-		model.resizeSourceViewport()
+	if model.source.view {
+		width, height := sourceDimensions(model.width, model.height)
+		model.source.resize(width, height)
 	}
 	return model, nil
 }
@@ -103,7 +105,7 @@ func handleSourceChange(model *Model, message sourceChange) (tea.Model, tea.Cmd)
 }
 
 func handleFullSourceChange(model *Model, message sourceChange, command tea.Cmd) (tea.Model, tea.Cmd) {
-	model.markFreshness(nil, report.FreshnessRefreshing, "workspace inputs changed")
+	markFreshness(model, nil, report.FreshnessRefreshing, "workspace inputs changed")
 	if model.analyzing {
 		model.pendingFullAnalysis = true
 		return model, command
@@ -113,23 +115,23 @@ func handleFullSourceChange(model *Model, message sourceChange, command tea.Cmd)
 }
 
 func handlePartialSourceChange(model *Model, message sourceChange, command tea.Cmd) (tea.Model, tea.Cmd) {
-	model.markFreshness(message.Paths, report.FreshnessRefreshing, "source changed")
+	markFreshness(model, message.Paths, report.FreshnessRefreshing, "source changed")
 	queueChangedPaths(model, message.Paths)
 	if model.analyzing {
 		return model, command
 	}
-	paths := model.takeQueue()
+	paths := takeQueue(model)
 	model.analyzing = true
-	return model, tea.Batch(command, model.analyzeExisting(paths))
+	return model, tea.Batch(command, analyzeExisting(*model, paths))
 }
 
 func queueChangedPaths(model *Model, paths []string) {
 	for _, path := range paths {
 		model.queued[path] = true
-		if state, exists := model.rows[path]; exists {
+		if state, exists := model.files.Rows[path]; exists {
 			state.editedAt = time.Now()
 			state.direction = 0
-			model.rows[path] = state
+			model.files.Rows[path] = state
 		}
 	}
 }
@@ -150,12 +152,12 @@ func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.
 
 func handleAnalysisError(model *Model, message analysisResult) {
 	model.status = message.err.Error()
-	model.markFreshness(message.replace, report.FreshnessStaleError, "verification failed: "+message.err.Error())
+	markFreshness(model, message.replace, report.FreshnessStaleError, "verification failed: "+message.err.Error())
 }
 
 func handleAnalysisSuccess(model *Model, message analysisResult, wasInitial bool) {
 	model.status = ""
-	model.merge(message)
+	merge(model, message)
 	model.clampPathOffset()
 	if wasInitial {
 		if controller, ok := model.analyzer.(cacheReadController); ok {
@@ -168,14 +170,15 @@ func handleSourceLoaded(model *Model, message sourceLoaded) (tea.Model, tea.Cmd)
 	if !currentSourceMessage(model, message.generation, message.path) {
 		return model, nil
 	}
-	model.sourceViewport = message.viewport
-	model.resizeSourceViewport()
-	model.sourceSearchText = message.contents
-	model.sourceLoading = false
+	model.source.viewport = message.viewport
+	width, height := sourceDimensions(model.width, model.height)
+	model.source.resize(width, height)
+	model.source.searchText = message.contents
+	model.source.loading = false
 	if !message.highlight {
 		return model, nil
 	}
-	width, height := model.sourceDimensions()
+	width, height = sourceDimensions(model.width, model.height)
 	return model, highlightSourceCommand(message.generation, message.path, message.contents, width, height, model.theme)
 }
 
@@ -183,14 +186,15 @@ func handleSourceHighlighted(model *Model, message sourceHighlighted) (tea.Model
 	if !currentSourceMessage(model, message.generation, message.path) {
 		return model, nil
 	}
-	message.viewport.SetYOffset(model.sourceViewport.YOffset)
-	model.sourceViewport = message.viewport
-	model.resizeSourceViewport()
+	message.viewport.SetYOffset(model.source.viewport.YOffset)
+	model.source.viewport = message.viewport
+	width, height := sourceDimensions(model.width, model.height)
+	model.source.resize(width, height)
 	return model, nil
 }
 
 func currentSourceMessage(model *Model, generation uint64, path string) bool {
-	return model.sourceView && generation == model.sourceLoadGeneration && path == model.sourcePath
+	return model.source.view && generation == model.source.loadGeneration && path == model.source.path
 }
 
 func continueQueuedAnalysis(model *Model) (tea.Model, tea.Cmd) {
@@ -201,9 +205,9 @@ func continueQueuedAnalysis(model *Model) (tea.Model, tea.Cmd) {
 		return model, model.analyze(nil, true)
 	}
 	if len(model.queued) > 0 {
-		paths := model.takeQueue()
+		paths := takeQueue(model)
 		model.analyzing = true
-		return model, model.analyzeExisting(paths)
+		return model, analyzeExisting(*model, paths)
 	}
 	return model, nil
 }

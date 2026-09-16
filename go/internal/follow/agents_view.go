@@ -3,7 +3,6 @@ package follow
 import (
 	"fmt"
 	"math"
-	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -62,7 +61,7 @@ func agentsHeader(model Model) string {
 		filter = "ALL"
 	}
 	tier := responsiveTier(model.width, model.height)
-	if crumb := model.agentBreadcrumb(); crumb != "" {
+	if crumb := agentBreadcrumb(model.agents, makeAgentLayout(model.width, model.height, model.bodyHeight())); crumb != "" {
 		prefix := " AGENTS  "
 		line := prefix + truncate(crumb, max(0, model.width-lipgloss.Width(prefix)))
 		return lipgloss.NewStyle().Foreground(style.TextHeader).Background(style.SurfaceHeader).Bold(true).
@@ -78,19 +77,19 @@ func agentsHeader(model Model) string {
 		Render(padANSI(truncate(line, model.width), model.width))
 }
 
-func (model Model) agentBreadcrumb() string {
-	if model.agents.Selected.IsZero() || model.agents.Selected.IsJob() {
+func agentBreadcrumb(state AgentsState, layout agentLayout) string {
+	if state.Selected.IsZero() || state.Selected.IsJob() {
 		return ""
 	}
-	rows := model.agentRows()
-	spans := model.agentRowSpans(rows)
-	selected := model.agentRowIndex(rows, model.agents.Selected)
-	if selected < 0 || spans[selected].start >= model.agents.Offset+model.bodyHeight() {
+	rows := state.rows()
+	spans := agentRowSpans(rows, layout.Tier)
+	selected := agentRowIndex(rows, state.Selected)
+	if selected < 0 || spans[selected].start >= state.Offset+layout.Page {
 		return ""
 	}
 	for index := selected - 1; index >= 0; index-- {
-		if rows[index].ID.IsJob() && rows[index].ID.JobID == model.agents.Selected.JobID {
-			if spans[index].start >= model.agents.Offset {
+		if rows[index].ID.IsJob() && rows[index].ID.JobID == state.Selected.JobID {
+			if spans[index].start >= state.Offset {
 				return ""
 			}
 			return strings.Join(nonemptyStrings(
@@ -104,15 +103,18 @@ func (model Model) agentBreadcrumb() string {
 func agentsRows(model Model) []string {
 	bodyHeight := model.bodyHeight()
 	result := make([]string, 0, bodyHeight)
-	rows := model.agentRows()
+	rows := model.agents.rows()
 	if len(rows) == 0 {
-		result = append(result, agentScreenLine(model.agentEmptyMessage(), false, model.width, style.TextMuted))
+		result = append(result, agentScreenLine(agentEmptyMessage(model.agents), false, model.width, style.TextMuted))
 		return appendAgentBlankLines(result, bodyHeight, model.width)
 	}
 
 	rendered := make([]agentRenderedRow, 0, len(rows))
+	tier := responsiveTier(model.width, model.height)
+	policy := agentMetricPolicy{Compact: model.options.Compact, Visible: model.files.Visible, Weights: model.weights, Enabled: model.weightEnabled}
+	visibleMetric := func(id fix.MetricID) bool { return policy.visible(id) }
 	for _, row := range rows {
-		rendered = append(rendered, renderAgentLogicalRow(model, row))
+		rendered = append(rendered, renderAgentLogicalRow(model.agents.Expanded[row.Job.ID], row, tier, model.width, model.agents.HorizontalOffset, visibleMetric))
 	}
 	visual := make([]struct {
 		id   AgentRowID
@@ -134,12 +136,12 @@ func agentsRows(model Model) []string {
 	return appendAgentBlankLines(result, bodyHeight, model.width)
 }
 
-func (model Model) agentEmptyMessage() string {
-	if strings.TrimSpace(model.agents.FindQuery) != "" {
-		return fmt.Sprintf("No fix jobs match %q", cleanAgentText(model.agents.FindQuery))
+func agentEmptyMessage(state AgentsState) string {
+	if strings.TrimSpace(state.FindQuery) != "" {
+		return fmt.Sprintf("No fix jobs match %q", cleanAgentText(state.FindQuery))
 	}
-	if !model.agents.ShowAll {
-		for _, job := range model.agents.Jobs {
+	if !state.ShowAll {
+		for _, job := range state.Jobs {
 			if job.Phase == fix.PhaseCompleted {
 				return "No active fix jobs - press a to show All"
 			}
@@ -161,13 +163,12 @@ func agentScreenLine(text string, selected bool, width int, foreground lipgloss.
 		Render(padANSI(truncate(text, width), width))
 }
 
-func renderAgentLogicalRow(model Model, row agentLogicalRow) agentRenderedRow {
-	tier := responsiveTier(model.width, model.height)
+func renderAgentLogicalRow(expanded bool, row agentLogicalRow, tier ResponsiveTier, width, horizontalOffset int, visibleMetric func(fix.MetricID) bool) agentRenderedRow {
 	var lines []string
 	if row.File == nil {
-		lines = renderAgentJob(row.Job, model.agents.Expanded[row.Job.ID], tier, model.width)
+		lines = renderAgentJob(row.Job, expanded, tier, width)
 	} else {
-		lines = model.renderAgentFile(*row.File, tier, model.width, model.agents.HorizontalOffset)
+		lines = renderAgentFile(*row.File, tier, width, horizontalOffset, visibleMetric)
 	}
 	for index := range lines {
 		lines[index] = cleanAgentText(lines[index])
@@ -256,13 +257,13 @@ func agentColumn(value string, width int, right bool) string {
 	return value + padding
 }
 
-func (model Model) renderAgentFile(file fix.FilePresentation, tier ResponsiveTier, width, horizontalOffset int) []string {
+func renderAgentFile(file fix.FilePresentation, tier ResponsiveTier, width, horizontalOffset int, visibleMetric func(fix.MetricID) bool) []string {
 	classification := agentFileClass(file)
 	path := agentFileDisplayPath(file)
-	metrics := model.visibleAgentFileMetrics(file)
+	metrics := visibleAgentFileMetrics(file, visibleMetric)
 	if tier == ResponsiveCompact {
 		prefix := "    " + classification
-		path = agentPathWindow(path, model.agentFilePathViewport(file, tier, width), horizontalOffset)
+		path = agentPathWindow(path, agentFilePathViewport(file, tier, width, metrics), horizontalOffset)
 		first := prefix + strings.Repeat(" ", max(1, width-lipgloss.Width(prefix)-lipgloss.Width(path))) + path
 		second := "       " + metrics
 		return []string{
@@ -272,7 +273,7 @@ func (model Model) renderAgentFile(file fix.FilePresentation, tier ResponsiveTie
 	}
 	prefix := "    " + classification + "  "
 	available := max(1, width-lipgloss.Width(prefix))
-	pathWidth := model.agentFilePathViewport(file, tier, width)
+	pathWidth := agentFilePathViewport(file, tier, width, metrics)
 	metricWidth := max(1, available-pathWidth-2)
 	metrics = truncate(metrics, metricWidth)
 	pathWidth = max(1, available-lipgloss.Width(metrics)-2)
@@ -289,7 +290,7 @@ func agentFileDisplayPath(file fix.FilePresentation) string {
 	return path
 }
 
-func (model Model) agentFilePathViewport(file fix.FilePresentation, tier ResponsiveTier, width int) int {
+func agentFilePathViewport(file fix.FilePresentation, tier ResponsiveTier, width int, metrics string) int {
 	pathWidth := lipgloss.Width(agentFileDisplayPath(file))
 	if tier == ResponsiveCompact {
 		prefix := "    " + agentFileClass(file)
@@ -299,7 +300,7 @@ func (model Model) agentFilePathViewport(file fix.FilePresentation, tier Respons
 	available := max(1, width-lipgloss.Width(prefix))
 	minimumPathWidth := min(pathWidth, max(12, available/3))
 	metricWidth := max(1, available-minimumPathWidth-2)
-	metrics := truncate(model.visibleAgentFileMetrics(file), metricWidth)
+	metrics = truncate(metrics, metricWidth)
 	return max(1, available-lipgloss.Width(metrics)-2)
 }
 
@@ -336,14 +337,21 @@ func agentFileMetrics(file fix.FilePresentation) string {
 	return agentFileMetricsMatching(file, func(fix.MetricValue) bool { return true })
 }
 
-func (model Model) visibleAgentFileMetrics(file fix.FilePresentation) string {
+func visibleAgentFileMetrics(file fix.FilePresentation, visibleMetric func(fix.MetricID) bool) string {
 	return agentFileMetricsMatching(file, func(metric fix.MetricValue) bool {
-		return metric.Complete && model.agentMetricVisible(metric.ID)
+		return metric.Complete && visibleMetric(metric.ID)
 	})
 }
 
-func (model Model) agentMetricVisible(id fix.MetricID) bool {
-	if model.options.Compact || !model.visible[string(id)] {
+type agentMetricPolicy struct {
+	Compact bool
+	Visible map[string]bool
+	Weights map[string]float64
+	Enabled map[string]bool
+}
+
+func (policy agentMetricPolicy) visible(id fix.MetricID) bool {
+	if policy.Compact || !policy.Visible[string(id)] {
 		return false
 	}
 	definition, known := scoring.MetricDefinitionByID(scoring.MetricID(id))
@@ -351,63 +359,14 @@ func (model Model) agentMetricVisible(id fix.MetricID) bool {
 		return false
 	}
 	if definition.ComponentID != "" {
-		return model.isWeightEnabled(definition.ComponentID)
+		return scoring.NewPolicy(policy.Weights, policy.Enabled).Enabled(definition.ComponentID)
 	}
 	for _, item := range componentWeights {
-		if item.axis == definition.Axis && model.isWeightEnabled(item.id) {
+		if item.axis == definition.Axis && scoring.NewPolicy(policy.Weights, policy.Enabled).Enabled(item.id) {
 			return true
 		}
 	}
 	return false
-}
-
-func agentFileMetricsMatching(file fix.FilePresentation, include func(fix.MetricValue) bool) string {
-	baselineMetrics := file.BaselineMetrics
-	if len(baselineMetrics) == 0 {
-		baselineMetrics = file.Metrics
-	}
-	baselineMetrics = append([]fix.MetricValue(nil), baselineMetrics...)
-	sort.SliceStable(baselineMetrics, func(left, right int) bool {
-		leftRank, rightRank := agentMetricColumnRank(baselineMetrics[left].ID), agentMetricColumnRank(baselineMetrics[right].ID)
-		if leftRank == rightRank {
-			return baselineMetrics[left].ID < baselineMetrics[right].ID
-		}
-		return leftRank < rightRank
-	})
-	if agentFileClass(file) == "S" && file.VerifiedScore == nil && len(baselineMetrics) == 0 {
-		if file.Changed {
-			status := strings.TrimSpace(file.ChangeStatus)
-			if status == "" {
-				status = "modified"
-			}
-			return "supporting file · " + cleanAgentText(status)
-		}
-		return "supporting file · -"
-	}
-	verified := "…"
-	if file.VerifiedScore != nil {
-		verified = roundedIntegerText(*file.VerifiedScore) + agentVerificationGlyph(file.Verification)
-	}
-	parts := []string{fmt.Sprintf("SCORE %s→%s", roundedIntegerText(file.BaselineScore), verified)}
-	verifiedMetrics := make(map[fix.MetricID]fix.MetricValue, len(file.VerifiedMetrics))
-	for _, metric := range file.VerifiedMetrics {
-		verifiedMetrics[metric.ID] = metric
-	}
-	for _, metric := range baselineMetrics {
-		if !include(metric) {
-			continue
-		}
-		label := agentMetricColumnTitle(metric.ID)
-		value := "-"
-		if metric.Complete {
-			value = roundedIntegerText(metric.Value)
-		}
-		if after, ok := verifiedMetrics[metric.ID]; ok && after.Complete {
-			value += "→" + roundedIntegerText(after.Value)
-		}
-		parts = append(parts, label+" "+value)
-	}
-	return strings.Join(parts, " · ")
 }
 
 func agentMetricColumnTitle(id fix.MetricID) string {
@@ -563,7 +522,7 @@ func agentsFooter(model Model) string {
 		}
 	}
 	if model.agents.FindEditing {
-		input := style.InputField(model.agentFindInput.View(), max(8, min(24, model.width/3)))
+		input := style.InputField(model.agents.FindInput.View(), max(8, min(24, model.width/3)))
 		return truncateANSI(hintRow(style.SurfaceFooter, hintItem{"Enter", "apply"}, hintItem{"Esc", "cancel"})+" "+input, model.width)
 	}
 	filterLabel := "all"

@@ -38,5 +38,5 @@ func startupOverlay(model Model, base, logo string) string {
 }
 
 func startupView(model Model, base string) string {
-	return model.startupOverlay(base, embeddedStartupLogo)
+	return startupOverlay(model, base, embeddedStartupLogo)
 }

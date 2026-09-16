@@ -27,8 +27,8 @@ func TestCompactJobInspectScrollsSummaryAndActorsWithoutLogs(t *testing.T) {
 	for range 20 {
 		model.handleJobMonitorKey(tea.KeyMsg{Type: tea.KeyDown})
 	}
-	if model.jobMonitor.offset != model.jobMonitorMaxOffset() {
-		t.Fatalf("monitor offset=%d max=%d", model.jobMonitor.offset, model.jobMonitorMaxOffset())
+	if model.jobMonitor.offset != jobMonitorMaxOffset(model.jobMonitor, model.width, model.height, fullScreenSurface(model.width, model.height)) {
+		t.Fatalf("monitor offset=%d max=%d", model.jobMonitor.offset, jobMonitorMaxOffset(model.jobMonitor, model.width, model.height, fullScreenSurface(model.width, model.height)))
 	}
 	scrolled := ansi.Strip(strings.Join(model.jobMonitorContent(36, 6), "\n"))
 	for _, want := range []string{"ACTORS", "reviewer"} {
@@ -100,7 +100,7 @@ func TestDeliveryAndBranchEditsDoNotRequireSpeculativeRecheck(t *testing.T) {
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyDown})
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if !model.fixDialogRunnable() || strings.Contains(ansi.Strip(model.View()), "RECHECK REQUIRED") {
+	if !model.fixDialog.runnable() || strings.Contains(ansi.Strip(model.View()), "RECHECK REQUIRED") {
 		t.Fatalf("delivery edit created a speculative readiness gate: %+v", model.fixDialog)
 	}
 	if model.fixDialog.input.DeliveryPlan.Publish != fix.PublishPullRequest {
@@ -111,7 +111,7 @@ func TestDeliveryAndBranchEditsDoNotRequireSpeculativeRecheck(t *testing.T) {
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
 	model.fixDialog.branch.SetValue("slopwatch/fix/edited")
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if !model.fixDialogRunnable() {
+	if !model.fixDialog.runnable() {
 		t.Fatal("branch edit created a speculative readiness gate")
 	}
 }

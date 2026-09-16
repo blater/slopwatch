@@ -8,11 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blater/slopwatch/internal/report"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-
-	"github.com/blater/slopwatch/internal/report"
 )
 
 const pathScrollStep = 4
@@ -29,8 +27,8 @@ func updateModel(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 func markFreshness(model *Model, paths []string, freshness report.Freshness, note string) {
 	wanted := pathSet(paths)
 	changed := false
-	for index := range model.baseDocument.Files {
-		file := &model.baseDocument.Files[index]
+	for index := range model.files.BaseDocument.Files {
+		file := &model.files.BaseDocument.Files[index]
 		if len(wanted) == 0 || wanted[file.Path] {
 			file.Freshness = freshness
 			file.FreshnessNote = note
@@ -38,7 +36,7 @@ func markFreshness(model *Model, paths []string, freshness report.Freshness, not
 		}
 	}
 	if changed {
-		model.rebuildWeightedDocument()
+		rebuildWeightedDocument(model)
 	}
 }
 
@@ -80,24 +78,24 @@ func takeQueue(model *Model) []string {
 }
 
 func mergeDocument(model *Model, result analysisResult) {
-	if len(model.baseDocument.Files) == 0 && len(model.document.Files) > 0 {
-		model.baseDocument = model.document
+	if len(model.files.BaseDocument.Files) == 0 && len(model.files.Document.Files) > 0 {
+		model.files.BaseDocument = model.files.Document
 	}
 	if result.full {
-		model.baseDocument = result.document
+		model.files.BaseDocument = result.document
 		return
 	}
 	replace := map[string]bool{}
 	for _, path := range result.replace {
 		replace[filepath.ToSlash(path)] = true
 	}
-	kept := make([]report.File, 0, len(model.baseDocument.Files)+len(result.document.Files))
-	for _, file := range model.baseDocument.Files {
+	kept := make([]report.File, 0, len(model.files.BaseDocument.Files)+len(result.document.Files))
+	for _, file := range model.files.BaseDocument.Files {
 		if !replace[file.Path] {
 			kept = append(kept, file)
 		}
 	}
-	model.baseDocument.Files = append(kept, result.document.Files...)
+	model.files.BaseDocument.Files = append(kept, result.document.Files...)
 }
 
 func compareScore(current, previous float64) int {
@@ -114,18 +112,19 @@ func compareScore(current, previous float64) int {
 func merge(model *Model, result analysisResult) {
 	oldScores := map[string]float64{}
 	oldRanks := map[string]int{}
-	for _, file := range model.document.Files {
+	for _, file := range model.files.Document.Files {
 		oldScores[file.Path] = file.Score
 		oldRanks[file.Path] = file.Rank
 	}
-	model.mergeDocument(result)
-	model.rebuildWeightedDocument()
-	model.document.SortAndRank()
-	model.pruneMarkedFiles()
+	mergeDocument(model, result)
+	rebuildWeightedDocument(model)
+	model.files.Document.SortAndRank()
+	model.files.pruneMarks()
+	model.files.HorizontalOffset = min(model.files.HorizontalOffset, maxPathOffset(*model))
 	now := time.Now()
-	model.mergeRows(result, oldScores, oldRanks, now, result.full && len(oldScores) == 0)
-	model.refreshDisplayFiles()
-	model.restoreSelection()
+	mergeRows(model, result, oldScores, oldRanks, now, result.full && len(oldScores) == 0)
+	model.files.refreshDisplayFiles(model.options.Limit)
+	restoreSelection(model)
 }
 
 func contains(paths []string, path string) bool {
@@ -138,55 +137,15 @@ func contains(paths []string, path string) bool {
 }
 
 func restoreSelection(model *Model) {
-	for index, file := range model.displayFiles() {
-		if file.Path == model.selected {
-			model.cursor = index
-			model.ensureVisible()
-			return
-		}
-	}
-	if model.cursor >= len(model.displayFiles()) {
-		model.cursor = max(0, len(model.displayFiles())-1)
-	}
-	if files := model.displayFiles(); len(files) > 0 {
-		model.selected = files[model.cursor].Path
-	} else {
-		model.selected = ""
-	}
-	model.ensureVisible()
+	model.files.restoreSelection(model.options.Limit, model.bodyHeight())
 }
 
 func refreshDisplayFiles(model *Model) {
-	files := append([]report.File(nil), model.document.Files...)
-	sort.SliceStable(files, func(left, right int) bool {
-		return model.less(files[left], files[right])
-	})
-	if model.options.Limit > 0 && len(files) > model.options.Limit {
-		files = files[:model.options.Limit]
-	}
-	longest := 0
-	for _, file := range files {
-		longest = max(longest, lipgloss.Width(file.Path))
-	}
-	model.displayFilesCache = files
-	model.displayFilesReady = true
-	model.longestDisplayPath = longest
+	model.files.refreshDisplayFiles(model.options.Limit)
 }
 
 func displayFiles(model Model) []report.File {
-	if model.displayFilesReady {
-		return model.displayFilesCache
-	}
-	// Keep value-constructed Models useful for tests and external callers. The
-	// application eagerly refreshes this cache whenever ordering can change.
-	files := append([]report.File(nil), model.document.Files...)
-	sort.SliceStable(files, func(left, right int) bool {
-		return model.less(files[left], files[right])
-	})
-	if model.options.Limit > 0 && len(files) > model.options.Limit {
-		files = files[:model.options.Limit]
-	}
-	return files
+	return model.files.displayFiles(model.options.Limit)
 }
 
 type sortField struct {
@@ -206,58 +165,19 @@ func sortFields() []sortField {
 }
 
 func sortOptionEnabled(model Model, index int) bool {
-	field := sortFields()[index]
-	return field.key == "score" || field.key == "filename" || model.visible[field.key]
+	return model.files.sortOptionEnabled(index)
 }
 
 func moveSortCursor(model *Model, delta int) {
-	items := sortFields()
-	if len(items) == 0 {
-		return
-	}
-	for step := 0; step < len(items); step++ {
-		model.sortCursor = (model.sortCursor + delta + len(items)) % len(items)
-		if model.sortOptionEnabled(model.sortCursor) {
-			return
-		}
-	}
+	model.files.moveSortCursor(delta)
 }
 
 func less(model Model, left, right report.File) bool {
-	if model.sortKey == "filename" {
-		comparison := strings.Compare(strings.ToLower(left.Path), strings.ToLower(right.Path))
-		if comparison == 0 {
-			comparison = strings.Compare(left.Path, right.Path)
-		}
-		if model.sortReverse {
-			return comparison > 0
-		}
-		return comparison < 0
-	}
-	leftValue, leftExists := model.sortValue(left)
-	rightValue, rightExists := model.sortValue(right)
-	if leftExists != rightExists {
-		return leftExists // unavailable measurements always sort last
-	}
-	if leftValue == rightValue {
-		return left.Path < right.Path
-	}
-	if model.sortReverse {
-		return leftValue > rightValue
-	}
-	return leftValue < rightValue
+	return filesLess(model.files.SortKey, model.files.SortReverse, left, right)
 }
 
 func sortValue(model Model, file report.File) (float64, bool) {
-	switch model.sortKey {
-	case "score":
-		return file.Score, !metricFailed(file, "score")
-	case "cog", "npath", "cyclo", "deep", "god", "coupling", "nesting", "typesafety":
-		value, exists, _ := metric(file, model.sortKey)
-		return value, exists
-	default:
-		return float64(file.Rank), true
-	}
+	return filesSortValue(model.files.SortKey, file)
 }
 
 func handleDetailKey(model *Model, name string) (tea.Model, tea.Cmd) {
@@ -268,15 +188,15 @@ func handleDetailKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		model.detailOffset = max(0, model.detailOffset-1)
 	case "down", "j":
-		model.detailOffset = min(model.detailMaxOffset(), model.detailOffset+1)
+		model.detailOffset = min(detailMaxOffset(*model), model.detailOffset+1)
 	case "ctrl+f", "pgdown":
-		model.detailOffset = min(model.detailMaxOffset(), model.detailOffset+max(1, model.detailBodyHeight()-1))
+		model.detailOffset = min(detailMaxOffset(*model), model.detailOffset+max(1, detailBodyHeight(*model)-1))
 	case "ctrl+b", "pgup":
-		model.detailOffset = max(0, model.detailOffset-max(1, model.detailBodyHeight()-1))
+		model.detailOffset = max(0, model.detailOffset-max(1, detailBodyHeight(*model)-1))
 	case "home", "g":
 		model.detailOffset = 0
 	case "end", "G":
-		model.detailOffset = model.detailMaxOffset()
+		model.detailOffset = detailMaxOffset(*model)
 	}
 	return model, nil
 }
@@ -284,159 +204,127 @@ func handleDetailKey(model *Model, name string) (tea.Model, tea.Cmd) {
 func handleSourceKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	name := key.String()
 	if name == "esc" || name == "escape" || name == "q" || name == "v" {
-		model.sourceView = false
-		model.sourceLoading = false
-		model.sourcePath = ""
-		model.sourceLastKey = ""
-		model.sourceLastAt = time.Time{}
-		model.sourceRapid = 0
+		model.source.close()
 		return model, nil
 	}
 	if name == "ctrl+f" {
-		model.sourceViewport.PageDown()
+		model.source.viewport.PageDown()
 		return model, nil
 	}
 	if name == "ctrl+b" {
-		model.sourceViewport.PageUp()
+		model.source.viewport.PageUp()
 		return model, nil
 	}
-	if name == "n" && model.findQuery != "" {
-		model.findNext(1)
+	if name == "n" && model.source.findQuery != "" {
+		findNext(model, 1)
 		return model, nil
 	}
-	if name == "N" && model.findQuery != "" {
-		model.findNext(-1)
+	if name == "N" && model.source.findQuery != "" {
+		findNext(model, -1)
 		return model, nil
 	}
 	if name == "down" || name == "j" {
-		model.sourceViewport.ScrollDown(model.sourceScrollLines("down"))
+		model.source.viewport.ScrollDown(model.source.scrollLines("down", time.Now()))
 		return model, nil
 	}
 	if name == "up" || name == "k" {
-		model.sourceViewport.ScrollUp(model.sourceScrollLines("up"))
+		model.source.viewport.ScrollUp(model.source.scrollLines("up", time.Now()))
 		return model, nil
 	}
 	if name == "home" || name == "g" {
-		model.sourceViewport.GotoTop()
+		model.source.viewport.GotoTop()
 		return model, nil
 	}
 	if name == "end" || name == "G" {
-		model.sourceViewport.GotoBottom()
+		model.source.viewport.GotoBottom()
 		return model, nil
 	}
-	updated, command := model.sourceViewport.Update(key)
-	model.sourceViewport = updated
+	updated, command := model.source.viewport.Update(key)
+	model.source.viewport = updated
 	return model, command
 }
 
 func openFind(model *Model, source bool) (tea.Model, tea.Cmd) {
-	model.findOpen = true
-	model.findSource = source
-	model.findInput.SetValue(model.findQuery)
-	model.findInput.CursorEnd()
-	model.findInput.Focus()
+	model.source.findOpen = true
+	model.source.findSource = source
+	model.source.findInput.SetValue(model.source.findQuery)
+	model.source.findInput.CursorEnd()
+	model.source.findInput.Focus()
 	return model, textinput.Blink
 }
 
 func handleFindKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	name := key.String()
 	if name == "esc" || name == "escape" {
-		model.findOpen = false
-		model.findInput.Blur()
+		model.source.findOpen = false
+		model.source.findInput.Blur()
 		return model, nil
 	}
 	if name == "enter" {
-		model.findQuery = model.findInput.Value()
-		model.findOpen = false
-		model.findInput.Blur()
-		if model.findQuery == "" {
+		model.source.findQuery = model.source.findInput.Value()
+		model.source.findOpen = false
+		model.source.findInput.Blur()
+		if model.source.findQuery == "" {
 			model.status = ""
 		} else {
-			model.findNext(1)
+			findNext(model, 1)
 		}
 		return model, nil
 	}
-	updated, command := model.findInput.Update(key)
-	model.findInput = updated
+	updated, command := model.source.findInput.Update(key)
+	model.source.findInput = updated
 	return model, command
 }
 
 func findNext(model *Model, direction int) {
-	query := strings.ToLower(model.findQuery)
+	query := strings.ToLower(model.source.findQuery)
 	if query == "" {
 		return
 	}
-	if model.findSource {
-		lines := strings.Split(model.sourceSearchText, "\n")
-		if len(lines) == 0 {
+	if model.source.findSource {
+		if model.source.findNext(direction) {
+			model.status = ""
 			return
 		}
-		start := model.sourceViewport.YOffset + direction
-		for checked := 0; checked < len(lines); checked++ {
-			line := ((start+checked*direction)%len(lines) + len(lines)) % len(lines)
-			if strings.Contains(strings.ToLower(lines[line]), query) {
-				model.sourceViewport.SetYOffset(line)
-				model.status = ""
-				return
-			}
-		}
-		model.status = fmt.Sprintf("find: %q not found", model.findQuery)
+		model.status = fmt.Sprintf("find: %q not found", model.source.findQuery)
 		return
 	}
-	files := model.displayFiles()
+	files := model.files.displayFiles(model.options.Limit)
 	if len(files) == 0 {
-		model.status = fmt.Sprintf("find: %q not found", model.findQuery)
+		model.status = fmt.Sprintf("find: %q not found", model.source.findQuery)
 		return
 	}
-	start := model.cursor + direction
+	start := model.files.Cursor + direction
 	for checked := 0; checked < len(files); checked++ {
 		index := ((start+checked*direction)%len(files) + len(files)) % len(files)
 		if strings.Contains(strings.ToLower(files[index].Path), query) {
-			model.cursor = index
-			model.selectCursor()
+			model.files.Cursor = index
+			model.files.selectCursor(model.options.Limit)
 			model.ensureVisible()
 			model.status = ""
 			return
 		}
 	}
-	model.status = fmt.Sprintf("find: %q not found", model.findQuery)
-}
-
-const sourceRepeatWindow = 125 * time.Millisecond
-
-func sourceScrollLines(model *Model, direction string) int {
-	now := time.Now()
-	lines := 1
-	if model.sourceLastKey == direction && !model.sourceLastAt.IsZero() && now.Sub(model.sourceLastAt) <= sourceRepeatWindow {
-		model.sourceRapid++
-	} else {
-		model.sourceRapid = 0
-	}
-	if model.sourceRapid >= 2 {
-		lines = 2
-	}
-	model.sourceLastKey = direction
-	model.sourceLastAt = now
-	return lines
+	model.status = fmt.Sprintf("find: %q not found", model.source.findQuery)
 }
 
 func handleColumnKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	items := columnNames()
 	if isToggleKey(name) {
 		key := items[model.columnCursor].key
-		model.visible[key] = !model.visible[key]
-		if !model.visible[key] && model.sortKey == key {
-			model.sortKey = "score"
-			model.sortReverse = true
-			model.refreshDisplayFiles()
+		model.files.Visible[key] = !model.files.Visible[key]
+		if !model.files.Visible[key] && model.files.SortKey == key {
+			model.files.SortKey = "score"
+			model.files.SortReverse = true
+			model.files.refreshDisplayFiles(model.options.Limit)
 		}
 		if key == "typesafety" || key == "nesting" || key == "coupling" {
-			model.setColumnWeightEnabled(key, model.visible[key])
-			model.rebuildWeightedDocument()
-			model.restoreSelection()
+			setColumnWeightEnabled(model, key, model.files.Visible[key])
+			rebuildWeightedDocument(model)
+			restoreSelection(model)
 		}
 		model.clampPathOffset()
-		model.persistUserPreferences()
+		persistUserPreferences(model)
 		if key == "typesafety" {
 			return model, model.syncTypeScriptTypes()
 		}
@@ -462,57 +350,39 @@ func handleSortKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "esc", "escape", "q":
 		model.sortOpen = false
 	case "up", "k":
-		model.moveSortCursor(-1)
+		model.files.moveSortCursor(-1)
 	case "down", "j":
-		model.moveSortCursor(1)
+		model.files.moveSortCursor(1)
 	case "left", "h":
-		model.activateHighlightedSort(false, true)
+		activateHighlightedSort(model, false, true)
 	case "right", "l":
-		model.activateHighlightedSort(true, true)
+		activateHighlightedSort(model, true, true)
 	case " ":
-		model.activateHighlightedSort(false, false)
+		activateHighlightedSort(model, false, false)
 	}
 	return model, nil
 }
 
 func prepareSortDirections(model *Model) {
-	if model.sortDirections == nil {
-		model.sortDirections = make(map[string]bool, len(sortFields()))
-		for _, item := range sortFields() {
-			model.sortDirections[item.key] = true
-		}
-	}
-	model.sortDirections[model.sortKey] = model.sortReverse
+	model.files.prepareSortDirections()
 }
 
 func sortDirection(model Model, key string) bool {
-	if direction, ok := model.sortDirections[key]; ok {
-		return direction
-	}
-	if key == model.sortKey {
-		return model.sortReverse
-	}
-	return true
+	return model.files.sortDirection(key)
 }
 
 func activateHighlightedSort(model *Model, direction bool, changeDirection bool) {
-	if !model.sortOptionEnabled(model.sortCursor) {
+	if !model.files.sortOptionEnabled(model.files.SortCursor) {
 		return
 	}
-	model.prepareSortDirections()
-	key := sortFields()[model.sortCursor].key
-	if changeDirection {
-		model.sortDirections[key] = direction
-	}
-	model.sortKey = key
-	model.sortReverse = model.sortDirections[key]
-	model.refreshDisplayFiles()
-	model.restoreSelection()
-	model.persistUserPreferences()
+	model.files.activateSort(direction, changeDirection)
+	model.files.refreshDisplayFiles(model.options.Limit)
+	restoreSelection(model)
+	persistUserPreferences(model)
 }
 
 func openSelectedFileInfo(model *Model) {
-	if len(model.displayFiles()) > 0 {
+	if len(model.files.displayFiles(model.options.Limit)) > 0 {
 		model.detail = true
 	}
 }
@@ -522,41 +392,22 @@ func handleKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func move(model *Model, delta int) {
-	files := model.displayFiles()
-	if len(files) == 0 {
-		return
-	}
-	model.cursor = min(len(files)-1, max(0, model.cursor+delta))
-	model.selectCursor()
+	model.files.move(delta, model.options.Limit)
 	model.ensureVisible()
 }
 
 func (model *Model) movePath(delta int) {
-	model.pathOffset = min(model.maxPathOffset(), max(0, model.pathOffset+delta))
+	model.files.HorizontalOffset = min(maxPathOffset(*model), max(0, model.files.HorizontalOffset+delta))
 }
 
 func (model *Model) clampPathOffset() {
-	model.pathOffset = min(model.maxPathOffset(), max(0, model.pathOffset))
+	model.files.HorizontalOffset = min(maxPathOffset(*model), max(0, model.files.HorizontalOffset))
 }
 
 func maxPathOffset(model Model) int {
-	viewportWidth := model.pathViewportWidth()
-	if viewportWidth <= 0 {
-		return 0
-	}
-	if model.displayFilesReady {
-		return max(0, model.longestDisplayPath-viewportWidth)
-	}
-	longest := 0
-	for _, file := range model.displayFiles() {
-		longest = max(longest, lipgloss.Width(file.Path))
-	}
-	return max(0, longest-viewportWidth)
+	return model.files.maxPathOffset(model.pathViewportWidth(), model.options.Limit)
 }
 
 func selectCursor(model *Model) {
-	files := model.displayFiles()
-	if model.cursor >= 0 && model.cursor < len(files) {
-		model.selected = files[model.cursor].Path
-	}
+	model.files.selectCursor(model.options.Limit)
 }

@@ -6,16 +6,17 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/style"
 )
 
 func renderRow(model Model, file report.File, selected bool) string {
-	state := model.rows[file.Path]
-	background := rowBackground(state, selected, model.marked[file.Path], model.options.TrendWindow)
-	prefix := model.fileMarkPrefix(file.Path, background) + model.renderFixedColumns(file, state, background)
+	state := model.files.Rows[file.Path]
+	background := rowBackground(state, selected, model.files.Marked[file.Path], model.options.TrendWindow)
+	prefix := model.fileMarkPrefix(file.Path, background) + renderFixedColumns(model, file, state, background)
 	pathWidth := max(0, model.width-lipgloss.Width(prefix))
-	line := prefix + renderPath(file.Path, pathWidth, model.pathOffset, background)
+	line := prefix + renderPath(file.Path, pathWidth, model.files.HorizontalOffset, background)
 	if remaining := model.width - lipgloss.Width(line); remaining > 0 {
 		line += lipgloss.NewStyle().Background(background).Render(strings.Repeat(" ", remaining))
 	}
@@ -24,8 +25,8 @@ func renderRow(model Model, file report.File, selected bool) string {
 
 func renderFixedColumns(model Model, file report.File, state rowState, background lipgloss.Color) string {
 	separator := lipgloss.NewStyle().Background(background).Render(" ")
-	marker, markerColour := model.rowMarker(file, state, time.Now())
-	fixMarker := model.fixMarkerForPath(file.Path)
+	marker, markerColour := rowMarker(model, file, state, time.Now())
+	fixMarker := fixMarkerForPath(model.agents.Jobs, fix.RepoPath(file.Path))
 	scoreWidth := max(1, columnDefinitions[0].width-lipgloss.Width(fixMarker)-lipgloss.Width(marker))
 	score := styleCell(fixMarker, style.TextPrimary, background)
 	if marker != "" {
@@ -39,7 +40,7 @@ func renderFixedColumns(model Model, file report.File, state rowState, backgroun
 	}
 	score += styleCell(pad(scoreText, scoreWidth, true), scoreForeground, background)
 	parts := []string{score}
-	activeColumns := model.activeColumns()
+	activeColumns := activeColumns(model)
 	for _, column := range activeColumns {
 		parts = append(parts, renderMetricCell(file, column, background))
 	}
@@ -52,7 +53,7 @@ func renderFixedColumns(model Model, file report.File, state rowState, backgroun
 }
 
 func (model Model) pathViewportWidth() int {
-	prefix := model.renderFixedColumns(report.File{}, rowState{}, style.SurfaceScreen)
+	prefix := renderFixedColumns(model, report.File{}, rowState{}, style.SurfaceScreen)
 	return max(0, model.width-model.markColumnWidth()-lipgloss.Width(prefix))
 }
 
@@ -65,7 +66,7 @@ func rowMarker(model Model, file report.File, state rowState, now time.Time) (st
 	case report.FreshnessStaleError:
 		return "!", style.AccentCritical
 	}
-	if marker, colour, ok := newFileMarker(file.Rank, len(model.document.Files), state, now); ok {
+	if marker, colour, ok := newFileMarker(file.Rank, len(model.files.Document.Files), state, now); ok {
 		return marker, colour
 	}
 	if state.scoreChangedAt.IsZero() || now.Sub(state.scoreChangedAt) > model.options.TrendWindow {

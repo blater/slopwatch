@@ -28,11 +28,11 @@ func TestAgentRowsUseAttentionOrderAndActiveAllFilter(t *testing.T) {
 		{ID: "discarded", Phase: fix.PhaseDiscarded},
 	}
 	model := Model{width: 80, height: 24, agents: AgentsState{Expanded: map[fix.JobID]bool{}}}
-	model.setAgentPresentations(jobs)
-	assertAgentJobOrder(t, model.visibleAgentJobs(), "blocked", "failed", "failed-old", "verify", "running")
+	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	assertAgentJobOrder(t, model.agents.visibleJobs(), "blocked", "failed", "failed-old", "verify", "running")
 
-	model.toggleAgentFilter()
-	assertAgentJobOrder(t, model.visibleAgentJobs(), "blocked", "failed", "failed-old", "verify", "running", "completed", "completed-new")
+	model.agents.toggleFilter(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	assertAgentJobOrder(t, model.agents.visibleJobs(), "blocked", "failed", "failed-old", "verify", "running", "completed", "completed-new")
 }
 
 func TestTerminalJobsRemainVisibleAndExplainFailure(t *testing.T) {
@@ -60,7 +60,7 @@ func TestLogsOpenFromExpandedFileOfFinishedJob(t *testing.T) {
 	model.agents.Expanded[job.ID] = true
 	model.agents.Selected = AgentRowID{JobID: job.ID, Path: "fixed.go"}
 
-	_, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	_, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
 	if command == nil || !model.hasOverlay(OverlayJobLog) {
 		t.Fatal("l did not open logs from an expanded file row")
 	}
@@ -109,31 +109,31 @@ func TestAgentSelectionExpansionAndVisualPositionSurviveUpdates(t *testing.T) {
 		agentTestJob("one", fix.PhaseRunning, "a.go", "b.go", "c.go"),
 		agentTestJob("two", fix.PhaseQueued, "d.go"),
 	}
-	model.setAgentPresentations(jobs)
+	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	model.agents.Selected = AgentRowID{JobID: "one", Path: "c.go"}
-	model.ensureAgentVisible()
-	rows := model.agentRows()
-	index := model.agentRowIndex(rows, model.agents.Selected)
-	before := model.agentRowSpans(rows)[index].start - model.agents.Offset
+	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	rows := model.agents.rows()
+	index := agentRowIndex(rows, model.agents.Selected)
+	before := agentRowSpans(rows, responsiveTier(model.width, model.height))[index].start - model.agents.Offset
 
 	updated := []fix.JobPresentation{
 		agentTestJob("urgent", fix.PhaseFailed, "urgent.go"),
 		jobs[0], jobs[1],
 	}
-	model.setAgentPresentations(updated)
-	rows = model.agentRows()
-	index = model.agentRowIndex(rows, model.agents.Selected)
-	after := model.agentRowSpans(rows)[index].start - model.agents.Offset
+	model.agents.setPresentations(updated, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	rows = model.agents.rows()
+	index = agentRowIndex(rows, model.agents.Selected)
+	after := agentRowSpans(rows, responsiveTier(model.width, model.height))[index].start - model.agents.Offset
 	if model.agents.Selected != (AgentRowID{JobID: "one", Path: "c.go"}) || after != before {
 		t.Fatalf("live update moved selection: selected=%+v relative=%d, want %d", model.agents.Selected, after, before)
 	}
 
-	model.toggleSelectedAgentJob()
+	model.agents.toggleSelectedJob(makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	if !model.agents.Expanded["one"] {
 		t.Fatal("Enter on a file row changed its parent expansion")
 	}
 	model.agents.Selected = AgentRowID{JobID: "one"}
-	model.toggleSelectedAgentJob()
+	model.agents.toggleSelectedJob(makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	if model.agents.Expanded["one"] {
 		t.Fatal("Enter on a job row did not collapse it")
 	}
@@ -160,7 +160,7 @@ func TestAgentsResponsiveRenderingAndExpandedMetrics(t *testing.T) {
 		model := agentTestModel(size.width, size.height, job)
 		model.agents.Expanded[job.ID] = true
 		model.agents.Selected = AgentRowID{JobID: job.ID, Path: job.Targets[0].Path}
-		model.ensureAgentVisible()
+		model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
 		view := model.View()
 		assertScreenSize(t, view, size.width, size.height)
 		plain := ansi.Strip(view)
@@ -275,7 +275,7 @@ func TestAgentsEmptyStatesAndStickyParentBreadcrumb(t *testing.T) {
 	if view := ansi.Strip(model.View()); !strings.Contains(view, "No fix jobs yet") {
 		t.Fatalf("new-user empty state = %q", view)
 	}
-	model.setAgentPresentations([]fix.JobPresentation{{ID: "done", Phase: fix.PhaseCompleted}})
+	model.agents.setPresentations([]fix.JobPresentation{{ID: "done", Phase: fix.PhaseCompleted}}, makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	if view := ansi.Strip(model.View()); !strings.Contains(view, "press a to show All") {
 		t.Fatalf("active empty state = %q", view)
 	}
@@ -289,7 +289,7 @@ func TestAgentsEmptyStatesAndStickyParentBreadcrumb(t *testing.T) {
 	model = agentTestModel(36, 8, job)
 	model.agents.Expanded[job.ID] = true
 	model.agents.Selected = AgentRowID{JobID: job.ID, Path: "d.go"}
-	model.ensureAgentVisible()
+	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	header := strings.Split(ansi.Strip(model.View()), "\n")[1]
 	if strings.Contains(header, "↑") || !strings.Contains(header, "RUNNING") {
 		t.Fatalf("sticky parent breadcrumb = %q", header)
@@ -302,18 +302,36 @@ func TestAgentsKeysNavigateLogicalRowsAndPreserveFileState(t *testing.T) {
 	model := agentTestModel(36, 8, job)
 	model.agents.Selected = AgentRowID{JobID: job.ID}
 
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	result := expandAgentJob(t, model, job)
+	result = selectAgentFileRow(t, result, longPath)
+	assertAgentPathNavigation(t, result)
+	assertAgentFilterRetainsSelection(t, result)
+}
+
+func expandAgentJob(t *testing.T, model Model, job fix.JobPresentation) *Model {
+	t.Helper()
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyEnter})
 	result := updated.(*Model)
 	if !result.agents.Expanded[job.ID] {
 		t.Fatal("Enter did not expand selected job")
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyDown})
+	return result
+}
+
+func selectAgentFileRow(t *testing.T, result *Model, longPath fix.RepoPath) *Model {
+	t.Helper()
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyDown})
 	result = updated.(*Model)
-	if result.agents.Selected != (AgentRowID{JobID: job.ID, Path: longPath}) {
+	if result.agents.Selected.Path != longPath {
 		t.Fatalf("Down selected %+v", result.agents.Selected)
 	}
+	return result
+}
+
+func assertAgentPathNavigation(t *testing.T, result *Model) {
+	t.Helper()
 	initialRow := agentFileRowContaining(result.View(), "a.go")
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyLeft})
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyLeft})
 	result = updated.(*Model)
 	if result.agents.HorizontalOffset != pathScrollStep {
 		t.Fatalf("Left horizontal offset = %d", result.agents.HorizontalOffset)
@@ -321,19 +339,24 @@ func TestAgentsKeysNavigateLogicalRowsAndPreserveFileState(t *testing.T) {
 	if shifted := agentFileRowContaining(result.View(), "T"); shifted == initialRow {
 		t.Fatalf("Left did not reveal an earlier part of the right-anchored path: %q", shifted)
 	}
-	for result.agents.HorizontalOffset < result.maximumAgentHorizontalOffset() {
-		updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyLeft})
+	policy := result.agentMetricPolicy()
+	for result.agents.HorizontalOffset < maximumAgentHorizontalOffset(result.agents.rows(), responsiveTier(result.width, result.height), result.width, policy.visible) {
+		updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyLeft})
 		result = updated.(*Model)
 	}
 	if row := agentFileRowContaining(result.View(), "zero/"); !strings.Contains(row, "zero/") {
 		t.Fatalf("path could not reach its beginning: %q", row)
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyRight})
+	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyRight})
 	result = updated.(*Model)
-	if result.agents.HorizontalOffset >= result.maximumAgentHorizontalOffset() {
+	if result.agents.HorizontalOffset >= maximumAgentHorizontalOffset(result.agents.rows(), responsiveTier(result.width, result.height), result.width, policy.visible) {
 		t.Fatal("Right did not return toward the filename end")
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+}
+
+func assertAgentFilterRetainsSelection(t *testing.T, result *Model) {
+	t.Helper()
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	result = updated.(*Model)
 	if !result.agents.ShowAll || result.agents.Selected.IsZero() {
 		t.Fatalf("a did not toggle All while retaining selection: %+v", result.agents)
@@ -349,7 +372,8 @@ func TestAgentPathScrollRangeUsesOnlyExactRenderedPathViewport(t *testing.T) {
 	}
 	model := agentTestModel(36, 8, job)
 	model.agents.Expanded[job.ID] = true
-	if maximum := model.maximumAgentHorizontalOffset(); maximum != 0 {
+	policy := model.agentMetricPolicy()
+	if maximum := maximumAgentHorizontalOffset(model.agents.rows(), responsiveTier(model.width, model.height), model.width, policy.visible); maximum != 0 {
 		t.Fatalf("compact metric line created phantom path scroll range %d", maximum)
 	}
 
@@ -357,8 +381,8 @@ func TestAgentPathScrollRangeUsesOnlyExactRenderedPathViewport(t *testing.T) {
 	job.Targets[0].Path = "new/location/with/a/very/long/name.go"
 	model = agentTestModel(60, 16, job)
 	model.agents.Expanded[job.ID] = true
-	want := max(0, lipgloss.Width(agentFileDisplayPath(job.Targets[0]))-model.agentFilePathViewport(job.Targets[0], ResponsiveMedium, 60))
-	if got := model.maximumAgentHorizontalOffset(); got != want {
+	want := max(0, lipgloss.Width(agentFileDisplayPath(job.Targets[0]))-agentFilePathViewport(job.Targets[0], ResponsiveMedium, 60, visibleAgentFileMetrics(job.Targets[0], policy.visible)))
+	if got := maximumAgentHorizontalOffset(model.agents.rows(), responsiveTier(model.width, model.height), model.width, policy.visible); got != want {
 		t.Fatalf("renamed path scroll maximum = %d, want exact %d", got, want)
 	}
 }
@@ -384,11 +408,17 @@ func TestAgentProjectionStripsTerminalControlSequences(t *testing.T) {
 
 func agentTestModel(width, height int, jobs ...fix.JobPresentation) Model {
 	model := Model{
-		width: width, height: height, mainView: MainViewAgents,
-		agents:  AgentsState{Expanded: map[fix.JobID]bool{}},
-		visible: defaultColumnVisibility(), weights: defaultWeights(), weightEnabled: defaultWeightEnabled(),
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		},
+		width:         width,
+		height:        height,
+		mainView:      MainViewAgents,
+		agents:        AgentsState{Expanded: map[fix.JobID]bool{}},
+		weights:       defaultWeights(),
+		weightEnabled: defaultWeightEnabled(),
 	}
-	model.setAgentPresentations(jobs)
+	model.agents.setPresentations(jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	return model
 }
 

@@ -30,15 +30,15 @@ func tableView(model Model) string {
 }
 
 func freshnessStatus(model Model) string {
-	if model.freshnessStatusReady {
-		return model.freshnessStatusText
+	if model.files.FreshnessStatusReady {
+		return model.files.FreshnessStatusText
 	}
-	return freshnessStatusForFiles(model.document.Files)
+	return freshnessStatusForFiles(model.files.Document.Files)
 }
 
 func (model *Model) refreshFreshnessStatus() {
-	model.freshnessStatusText = freshnessStatusForFiles(model.document.Files)
-	model.freshnessStatusReady = true
+	model.files.FreshnessStatusText = freshnessStatusForFiles(model.files.Document.Files)
+	model.files.FreshnessStatusReady = true
 }
 
 func freshnessStatusForFiles(files []report.File) string {
@@ -70,7 +70,7 @@ func freshnessStatusForFiles(files []report.File) string {
 
 func (model Model) findFooter(width int) string {
 	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
-	input := style.InputField(model.findInput.View(), max(8, min(24, width/3)))
+	input := style.InputField(model.source.findInput.View(), max(8, min(24, width/3)))
 	text := background.Render(" FIND "+input+"  ") + hintRow(style.SurfaceFooter,
 		hintItem{"ENTER", "find"},
 		hintItem{"ESC", "cancel"},
@@ -88,17 +88,13 @@ func (model Model) scanningIndicator(message string) string {
 }
 
 func (model Model) selectedFile() (report.File, bool) {
-	files := model.displayFiles()
-	if model.cursor < 0 || model.cursor >= len(files) {
-		return report.File{}, false
-	}
-	return files[model.cursor], true
+	return model.files.selectedFile(model.options.Limit)
 }
 
 func footer(model Model) string {
 	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
 	markLabel := "mark"
-	if model.marking {
+	if model.files.Marking {
 		markLabel = "done"
 	}
 	screenItems := [][2]string{{"m", markLabel}, {"M", "clear"}, {"o", "sort"}, {"v", "view"}, {"i", "info"}}
@@ -190,7 +186,7 @@ func activeColumns(model Model) []column {
 	}
 	result := []column{}
 	for _, column := range columnNames() {
-		if model.visible[column.key] {
+		if model.files.Visible[column.key] {
 			result = append(result, column)
 		}
 	}
@@ -200,7 +196,7 @@ func activeColumns(model Model) []column {
 func headerColumns(model Model) []column {
 	columns := []column{columnDefinitions[0]}
 	if !model.options.Compact {
-		columns = append(columns, model.activeColumns()...)
+		columns = append(columns, activeColumns(model)...)
 	}
 	return columns
 }
@@ -215,15 +211,15 @@ func headerCell(model Model, columns []column, index int) (string, string) {
 			separator = "  "
 		}
 	}
-	if model.sortKey == column.key {
-		marked := model.sortIndicator() + title
+	if model.files.SortKey == column.key {
+		marked := sortIndicator(model) + title
 		// SHALLOW is intentionally wider than the old DEEP heading. Keep
 		// its sort marker attached to the heading; the column still reserves
 		// the old four-character data width.
 		if lipgloss.Width(marked) <= column.width || column.key == "deep" {
 			title = marked
 		} else if index > 0 {
-			separator = model.sortIndicator()
+			separator = sortIndicator(model)
 		}
 	}
 	return title, separator
@@ -257,11 +253,11 @@ func buildHeader(model Model, columns []column) string {
 }
 
 func headerSortSuffix(model Model, heading string) string {
-	if model.sortKey == "filename" {
-		return heading + " " + model.sortIndicator()
+	if model.files.SortKey == "filename" {
+		return heading + " " + sortIndicator(model)
 	}
-	if !model.sortColumnVisible() {
-		return heading + " " + model.sortIndicator() + model.sortTitle()
+	if !sortColumnVisible(model) {
+		return heading + " " + sortIndicator(model) + sortTitle(model)
 	}
 	return heading
 }
@@ -277,7 +273,7 @@ func fitHeader(model Model, heading, fileCount string) (string, string) {
 func header(model Model) string {
 	columns := headerColumns(model)
 	heading := strings.Repeat(" ", model.markColumnWidth()) + headerSortSuffix(model, buildHeader(model, columns))
-	fileCount := "FILES: " + formatIntegerWithCommas(len(model.document.Files))
+	fileCount := "FILES: " + formatIntegerWithCommas(len(model.files.Document.Files))
 	heading, fileCount = fitHeader(model, heading, fileCount)
 	usableWidth := max(0, model.width-1)
 	gap := max(0, usableWidth-lipgloss.Width(heading)-lipgloss.Width(fileCount))
@@ -297,15 +293,15 @@ func formatIntegerWithCommas(value int) string {
 }
 
 func sortColumnVisible(model Model) bool {
-	if model.sortKey == "score" || model.sortKey == "filename" {
+	if model.files.SortKey == "score" || model.files.SortKey == "filename" {
 		return true
 	}
-	return model.visible[model.sortKey]
+	return model.files.Visible[model.files.SortKey]
 }
 
 func sortTitle(model Model) string {
 	for _, field := range sortFields() {
-		if field.key == model.sortKey {
+		if field.key == model.files.SortKey {
 			return field.title
 		}
 	}
@@ -313,18 +309,18 @@ func sortTitle(model Model) string {
 }
 
 func sortIndicator(model Model) string {
-	if model.sortReverse {
+	if model.files.SortReverse {
 		return "▼"
 	}
 	return "▲"
 }
 
 func (model Model) overlay(base, modal string) string {
-	return model.overlayAt(base, modal, 0)
+	return overlayAt(model, base, modal, 0)
 }
 
 func (model Model) overlayBelowTitle(base, modal string) string {
-	return model.overlayAt(base, modal, 1)
+	return overlayAt(model, base, modal, 1)
 }
 
 func overlayAt(model Model, base, modal string, minimumTop int) string {

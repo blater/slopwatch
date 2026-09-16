@@ -23,34 +23,62 @@ func TestMainViewsSwitchAndRetainIndependentState(t *testing.T) {
 	}
 	selected := files[8].Path
 	model := Model{
-		width: 80, height: 10, document: report.Document{Files: files},
-		rows: rows, visible: map[string]bool{},
-		selected: selected, cursor: 8, offset: 3, pathOffset: 3,
-		sortKey: "filename",
+		files: FilesState{
+			Document:         report.Document{Files: files},
+			Rows:             rows,
+			Visible:          map[string]bool{},
+			Selected:         selected,
+			Cursor:           8,
+			Offset:           3,
+			HorizontalOffset: 3,
+			SortKey:          "filename",
+		},
+		width:  80,
+		height: 10,
 		agents: AgentsState{Selected: AgentRowID{JobID: "job-2"}, Offset: 2, HorizontalOffset: 7,
 			Expanded: map[fix.JobID]bool{"job-2": true}},
 	}
 
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyTab})
+	result := switchToAgents(t, model)
+	assertAgentsViewState(t, result)
+	result = switchBackToFiles(t, result, selected)
+	assertFilesViewState(t, result, selected)
+}
+
+func switchToAgents(t *testing.T, model Model) *Model {
+	t.Helper()
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyTab})
 	result := updated.(*Model)
 	if result.mainView != MainViewAgents {
 		t.Fatalf("Tab selected main view %d, want Agents", result.mainView)
 	}
+	return result
+}
+
+func assertAgentsViewState(t *testing.T, result *Model) {
+	t.Helper()
 	if result.agents.Selected != (AgentRowID{JobID: "job-2"}) || result.agents.Offset != 2 || result.agents.HorizontalOffset != 7 {
 		t.Fatalf("Agents state changed on entry: %+v", result.agents)
 	}
 	if view := ansi.Strip(result.View()); !strings.Contains(view, "ACTIVITY") || !strings.Contains(view, "No fix jobs yet") {
 		t.Fatalf("Agents shell was not rendered: %q", view)
 	}
+}
 
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyTab})
-	result = updated.(*Model)
+func switchBackToFiles(t *testing.T, result *Model, selected string) *Model {
+	t.Helper()
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyTab})
+	return updated.(*Model)
+}
+
+func assertFilesViewState(t *testing.T, result *Model, selected string) {
+	t.Helper()
 	if result.mainView != MainViewFiles {
 		t.Fatalf("second Tab selected main view %d, want Files", result.mainView)
 	}
-	if result.selected != selected || result.cursor != 8 || result.offset != 3 || result.pathOffset != 3 || result.sortKey != "filename" || result.sortReverse {
+	if result.files.Selected != selected || result.files.Cursor != 8 || result.files.Offset != 3 || result.files.HorizontalOffset != 3 || result.files.SortKey != "filename" || result.files.SortReverse {
 		t.Fatalf("Files state was not restored: selected=%q cursor=%d offset=%d horizontal=%d sort=%q reverse=%t",
-			result.selected, result.cursor, result.offset, result.pathOffset, result.sortKey, result.sortReverse)
+			result.files.Selected, result.files.Cursor, result.files.Offset, result.files.HorizontalOffset, result.files.SortKey, result.files.SortReverse)
 	}
 	if result.agents.Selected != (AgentRowID{JobID: "job-2"}) || !result.agents.Expanded["job-2"] {
 		t.Fatalf("Agents state was not retained: %+v", result.agents)
@@ -59,7 +87,7 @@ func TestMainViewsSwitchAndRetainIndependentState(t *testing.T) {
 
 func TestDirectAgentsShortcutDoesNotResetAgentsState(t *testing.T) {
 	model := Model{agents: AgentsState{Selected: AgentRowID{JobID: "job-7"}, ShowAll: true, Expanded: map[fix.JobID]bool{"job-7": true}}}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
 	result := updated.(*Model)
 	if result.mainView != MainViewAgents || result.agents.Selected != (AgentRowID{JobID: "job-7"}) || !result.agents.ShowAll {
 		t.Fatalf("A did not preserve and select Agents: view=%d state=%+v", result.mainView, result.agents)
@@ -67,28 +95,31 @@ func TestDirectAgentsShortcutDoesNotResetAgentsState(t *testing.T) {
 }
 
 func TestTopOverlayOwnsKeysAndRecordsItsCaller(t *testing.T) {
-	model := Model{width: 80, height: 20, visible: defaultColumnVisibility()}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	model := Model{
+		files: FilesState{
+			Visible: defaultColumnVisibility(),
+		}, width: 80, height: 20}
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	result := updated.(*Model)
 	top, ok := result.overlays.Top()
 	if !ok || top.Kind != OverlaySettings || top.Caller.MainView != MainViewFiles {
 		t.Fatalf("Settings overlay stack = %+v, ok=%t", top, ok)
 	}
 
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyTab})
 	result = updated.(*Model)
 	if result.mainView != MainViewFiles || !result.settings {
 		t.Fatal("Tab escaped the top Settings overlay")
 	}
 
 	result.settingsCursor = settingsIndex("appearance")
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	top, ok = result.overlays.Top()
 	if !ok || top.Kind != OverlayAppearance || top.Caller.Overlay != OverlaySettings {
 		t.Fatalf("Appearance caller = %+v, ok=%t", top, ok)
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEsc})
 	result = updated.(*Model)
 	top, ok = result.overlays.Top()
 	if !ok || top.Kind != OverlaySettings {
@@ -100,7 +131,7 @@ func TestTypedOverlayOwnsKeysWithoutLegacyBooleanState(t *testing.T) {
 	model := Model{mainView: MainViewFiles, width: 80, height: 20}
 	model.overlays.Push(OverlayFixForm, OverlayCaller{MainView: MainViewFiles, Selected: "a.go"})
 
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyTab})
 	result := updated.(*Model)
 	top, ok := result.overlays.Top()
 	if result.mainView != MainViewFiles || !ok || top.Kind != OverlayFixForm || top.Caller.Selected != "a.go" {
@@ -188,7 +219,7 @@ func TestResizeScreenGatesInputForEveryHiddenOverlay(t *testing.T) {
 			beforeCursor := model.fixDialog.cursor
 			beforePending := model.cancelConfirmation.pending
 
-			updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+			updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyEnter})
 			result := updated.(*Model)
 			top, ok := result.overlays.Top()
 			if command != nil || !ok || top.Kind != kind || result.overlays.Len() != beforeLen || result.fixDialog.cursor != beforeCursor ||
@@ -210,7 +241,7 @@ func TestResizeScreenAllowsOnlyVisibleShutdownConfirmation(t *testing.T) {
 	if view := ansi.Strip(visible.View()); !strings.Contains(view, "ACTIVE FIX JOBS") || !strings.Contains(view, "Enter cancel all + quit") {
 		t.Fatalf("visible compact shutdown was not rendered: %q", view)
 	}
-	_, command := visible.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	_, command := handleKey(&visible, tea.KeyMsg{Type: tea.KeyEnter})
 	if command == nil || !visible.shutdown.pending {
 		t.Fatal("visible shutdown confirmation did not accept Enter")
 	}
@@ -223,7 +254,7 @@ func TestResizeScreenAllowsOnlyVisibleShutdownConfirmation(t *testing.T) {
 		t.Fatalf("unsafe shutdown surface was visible below 24x2: %q", view)
 	}
 	for _, key := range []tea.KeyMsg{{Type: tea.KeyEnter}, {Type: tea.KeyRunes, Runes: []rune{'q'}}} {
-		_, command = hidden.handleKey(key)
+		_, command = handleKey(&hidden, key)
 		if command != nil || hidden.shutdown.pending || hidden.overlays.Len() != before {
 			t.Fatalf("hidden shutdown consumed %q: pending=%t overlays=%d command=%v", key.String(), hidden.shutdown.pending, hidden.overlays.Len(), command)
 		}

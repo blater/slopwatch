@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/blater/slopwatch/internal/fix"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type AgentRowID struct {
@@ -25,30 +25,52 @@ func (id AgentRowID) String() string {
 	return fmt.Sprintf("%s:%s", id.JobID, id.Path)
 }
 
+type AgentsState struct {
+	Jobs             []fix.JobPresentation
+	Selected         AgentRowID
+	Offset           int
+	HorizontalOffset int
+	SortKey          string
+	SortReverse      bool
+	FindQuery        string
+	FindEditing      bool
+	ShowAll          bool
+	Expanded         map[fix.JobID]bool
+	FindInput        textinput.Model
+}
+
 type agentLogicalRow struct {
 	ID   AgentRowID
 	Job  fix.JobPresentation
 	File *fix.FilePresentation
 }
 
-func (model *Model) setAgentPresentations(jobs []fix.JobPresentation) {
+type agentLayout struct {
+	Tier ResponsiveTier
+	Page int
+}
+
+func makeAgentLayout(width, height, page int) agentLayout {
+	return agentLayout{Tier: responsiveTier(width, height), Page: max(0, page)}
+}
+
+func (state *AgentsState) setPresentations(jobs []fix.JobPresentation, layout agentLayout) {
 	previousTopRelative := 0
-	if rows := model.agentRows(); len(rows) > 0 {
-		if index := model.agentRowIndex(rows, model.agents.Selected); index >= 0 {
-			previousTopRelative = model.agentRowSpans(rows)[index].start - model.agents.Offset
-		}
+	rows := state.rows()
+	if index := agentRowIndex(rows, state.Selected); index >= 0 {
+		previousTopRelative = agentRowSpans(rows, layout.Tier)[index].start - state.Offset
 	}
-	model.agents.Jobs = cloneAgentPresentations(jobs)
-	if model.agents.Expanded == nil {
-		model.agents.Expanded = map[fix.JobID]bool{}
+	state.Jobs = cloneAgentPresentations(jobs)
+	if state.Expanded == nil {
+		state.Expanded = map[fix.JobID]bool{}
 	}
-	rows := model.agentRows()
-	if index := model.agentRowIndex(rows, model.agents.Selected); index >= 0 {
-		model.agents.Offset = model.agentRowSpans(rows)[index].start - previousTopRelative
-		model.ensureAgentVisible()
+	rows = state.rows()
+	if index := agentRowIndex(rows, state.Selected); index >= 0 {
+		state.Offset = agentRowSpans(rows, layout.Tier)[index].start - previousTopRelative
+		state.ensureVisible(layout)
 		return
 	}
-	model.reconcileAgentSelection()
+	state.reconcileSelection(layout)
 }
 
 func cloneAgentPresentations(jobs []fix.JobPresentation) []fix.JobPresentation {
@@ -65,14 +87,14 @@ func cloneAgentPresentations(jobs []fix.JobPresentation) []fix.JobPresentation {
 	return result
 }
 
-func (model Model) visibleAgentJobs() []fix.JobPresentation {
-	jobs := make([]fix.JobPresentation, 0, len(model.agents.Jobs))
-	query := strings.ToLower(strings.TrimSpace(model.agents.FindQuery))
-	for _, job := range model.agents.Jobs {
+func (state AgentsState) visibleJobs() []fix.JobPresentation {
+	jobs := make([]fix.JobPresentation, 0, len(state.Jobs))
+	query := strings.ToLower(strings.TrimSpace(state.FindQuery))
+	for _, job := range state.Jobs {
 		if job.Phase == fix.PhaseDiscarded {
 			continue
 		}
-		if !model.agents.ShowAll && (job.Phase == fix.PhaseCompleted || job.Phase == fix.PhaseCanceled) {
+		if !state.ShowAll && (job.Phase == fix.PhaseCompleted || job.Phase == fix.PhaseCanceled) {
 			continue
 		}
 		if query != "" && !agentJobMatches(job, query) {
@@ -80,44 +102,48 @@ func (model Model) visibleAgentJobs() []fix.JobPresentation {
 		}
 		jobs = append(jobs, job)
 	}
-	sort.SliceStable(jobs, func(left, right int) bool { return model.agentJobLess(jobs[left], jobs[right]) })
+	sort.SliceStable(jobs, func(left, right int) bool { return state.jobLess(jobs[left], jobs[right]) })
 	return jobs
 }
 
 var agentSortKeys = []string{"attention", "state", "agent", "goal", "target", "time", "activity"}
 
-func (model Model) agentJobLess(left, right fix.JobPresentation) bool {
-	key := model.agents.SortKey
+func (state AgentsState) jobLess(left, right fix.JobPresentation) bool {
+	key := state.SortKey
 	if key == "" {
 		key = "attention"
 	}
-	less := false
-	equal := false
-	switch key {
-	case "state":
-		less, equal = agentPhaseText(left) < agentPhaseText(right), agentPhaseText(left) == agentPhaseText(right)
-	case "agent":
-		less, equal = strings.ToLower(left.ProfileLabel) < strings.ToLower(right.ProfileLabel), strings.EqualFold(left.ProfileLabel, right.ProfileLabel)
-	case "goal":
-		less, equal = strings.ToLower(left.Goal) < strings.ToLower(right.Goal), strings.EqualFold(left.Goal, right.Goal)
-	case "target":
-		leftTarget, rightTarget := firstAgentTarget(left), firstAgentTarget(right)
-		less, equal = leftTarget < rightTarget, leftTarget == rightTarget
-	case "time":
-		less, equal = left.UpdatedAt.Before(right.UpdatedAt), left.UpdatedAt.Equal(right.UpdatedAt)
-	case "activity":
-		less, equal = strings.ToLower(left.CurrentAction) < strings.ToLower(right.CurrentAction), strings.EqualFold(left.CurrentAction, right.CurrentAction)
-	default:
-		leftPriority, rightPriority := agentJobPriority(left), agentJobPriority(right)
-		less, equal = leftPriority < rightPriority, leftPriority == rightPriority
-	}
+	less, equal := agentSortComparison(key, left, right)
 	if equal {
 		less = left.ID < right.ID
 	}
-	if model.agents.SortReverse && !equal {
+	if state.SortReverse && !equal {
 		return !less
 	}
 	return less
+}
+
+func agentSortComparison(key string, left, right fix.JobPresentation) (bool, bool) {
+	switch key {
+	case "state":
+		return compareAgentText(agentPhaseText(left), agentPhaseText(right))
+	case "agent":
+		return compareAgentText(left.ProfileLabel, right.ProfileLabel)
+	case "goal":
+		return compareAgentText(left.Goal, right.Goal)
+	case "target":
+		return firstAgentTarget(left) < firstAgentTarget(right), firstAgentTarget(left) == firstAgentTarget(right)
+	case "time":
+		return left.UpdatedAt.Before(right.UpdatedAt), left.UpdatedAt.Equal(right.UpdatedAt)
+	case "activity":
+		return compareAgentText(left.CurrentAction, right.CurrentAction)
+	default:
+		return agentJobPriority(left) < agentJobPriority(right), agentJobPriority(left) == agentJobPriority(right)
+	}
+}
+
+func compareAgentText(left, right string) (bool, bool) {
+	return strings.ToLower(left) < strings.ToLower(right), strings.EqualFold(left, right)
 }
 
 func firstAgentTarget(job fix.JobPresentation) string {
@@ -127,50 +153,48 @@ func firstAgentTarget(job fix.JobPresentation) string {
 	return strings.ToLower(job.Targets[0].Path.String())
 }
 
-func (model *Model) cycleAgentSort(direction int) {
+func (state *AgentsState) cycleSort(direction int, layout agentLayout) {
 	current := 0
 	for index, key := range agentSortKeys {
-		if key == model.agents.SortKey {
+		if key == state.SortKey {
 			current = index
 		}
 	}
-	model.agents.SortKey = agentSortKeys[fixCycleIndex(current, direction, len(agentSortKeys))]
-	model.reconcileAgentSelection()
+	state.SortKey = agentSortKeys[fixCycleIndex(current, direction, len(agentSortKeys))]
+	state.reconcileSelection(layout)
 }
 
-func (model *Model) beginAgentFind() {
-	model.agents.FindEditing = true
-	model.agentFindInput.SetValue(model.agents.FindQuery)
-	model.agentFindInput.CursorEnd()
-	model.agentFindInput.Focus()
+func (state *AgentsState) beginFind() {
+	state.FindEditing = true
+	state.FindInput.SetValue(state.FindQuery)
+	state.FindInput.CursorEnd()
+	state.FindInput.Focus()
 }
 
-func (model *Model) handleAgentFindKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (state *AgentsState) handleFindKey(key tea.KeyMsg, layout agentLayout) tea.Cmd {
 	switch key.String() {
 	case "enter":
-		model.agents.FindQuery = strings.TrimSpace(model.agentFindInput.Value())
-		model.agents.FindEditing = false
-		model.agentFindInput.Blur()
-		model.reconcileAgentSelection()
-		return model, nil
+		state.FindQuery = strings.TrimSpace(state.FindInput.Value())
+		state.FindEditing = false
+		state.FindInput.Blur()
+		state.reconcileSelection(layout)
 	case "esc":
-		model.agents.FindEditing = false
-		model.agentFindInput.Blur()
-		return model, nil
+		state.FindEditing = false
+		state.FindInput.Blur()
 	case "ctrl+c":
-		model.agents.FindQuery = ""
-		model.agentFindInput.SetValue("")
-		model.agents.FindEditing = false
-		model.agentFindInput.Blur()
-		model.reconcileAgentSelection()
-		return model, nil
+		state.FindQuery = ""
+		state.FindInput.SetValue("")
+		state.FindEditing = false
+		state.FindInput.Blur()
+		state.reconcileSelection(layout)
 	default:
 		var command tea.Cmd
-		model.agentFindInput, command = model.agentFindInput.Update(key)
-		model.agents.FindQuery = model.agentFindInput.Value()
-		model.reconcileAgentSelection()
-		return model, command
+		state.FindInput, command = state.FindInput.Update(key)
+		state.FindQuery = state.FindInput.Value()
+		state.reconcileSelection(layout)
+		return command
 	}
+	return nil
 }
 
 func agentJobMatches(job fix.JobPresentation, query string) bool {
@@ -223,13 +247,13 @@ func agentJobFinished(phase fix.Phase) bool {
 	}
 }
 
-func (model Model) agentRows() []agentLogicalRow {
-	jobs := model.visibleAgentJobs()
-	query := strings.ToLower(strings.TrimSpace(model.agents.FindQuery))
+func (state AgentsState) rows() []agentLogicalRow {
+	jobs := state.visibleJobs()
+	query := strings.ToLower(strings.TrimSpace(state.FindQuery))
 	rows := make([]agentLogicalRow, 0, len(jobs)*2)
 	for _, job := range jobs {
 		rows = append(rows, agentLogicalRow{ID: AgentRowID{JobID: job.ID}, Job: job})
-		expanded := model.agents.Expanded[job.ID]
+		expanded := state.Expanded[job.ID]
 		matchingFiles := query != "" && agentTargetMatches(job, query)
 		if !expanded && !matchingFiles {
 			continue
@@ -239,9 +263,7 @@ func (model Model) agentRows() []agentLogicalRow {
 			if query != "" && matchingFiles && !strings.Contains(strings.ToLower(file.Path.String()), query) {
 				continue
 			}
-			rows = append(rows, agentLogicalRow{
-				ID: AgentRowID{JobID: job.ID, Path: file.Path}, Job: job, File: &file,
-			})
+			rows = append(rows, agentLogicalRow{ID: AgentRowID{JobID: job.ID, Path: file.Path}, Job: job, File: &file})
 		}
 	}
 	return rows
@@ -256,39 +278,7 @@ func agentTargetMatches(job fix.JobPresentation, query string) bool {
 	return false
 }
 
-func (model *Model) reconcileAgentSelection() {
-	rows := model.agentRows()
-	if len(rows) == 0 {
-		model.agents.Selected = AgentRowID{}
-		model.agents.Offset = 0
-		return
-	}
-	for _, row := range rows {
-		if row.ID == model.agents.Selected {
-			model.ensureAgentVisible()
-			return
-		}
-	}
-	model.agents.Selected = rows[0].ID
-	model.ensureAgentVisible()
-}
-
-func (model *Model) moveAgentSelection(delta int) {
-	rows := model.agentRows()
-	if len(rows) == 0 {
-		return
-	}
-	index := model.agentRowIndex(rows, model.agents.Selected)
-	if index < 0 {
-		index = 0
-	} else {
-		index = min(len(rows)-1, max(0, index+delta))
-	}
-	model.agents.Selected = rows[index].ID
-	model.ensureAgentVisible()
-}
-
-func (model Model) agentRowIndex(rows []agentLogicalRow, wanted AgentRowID) int {
+func agentRowIndex(rows []agentLogicalRow, wanted AgentRowID) int {
 	for index, row := range rows {
 		if row.ID == wanted {
 			return index
@@ -297,8 +287,36 @@ func (model Model) agentRowIndex(rows []agentLogicalRow, wanted AgentRowID) int 
 	return -1
 }
 
-func (model *Model) jumpAgentSelection(last bool) {
-	rows := model.agentRows()
+func (state *AgentsState) reconcileSelection(layout agentLayout) {
+	rows := state.rows()
+	if len(rows) == 0 {
+		state.Selected = AgentRowID{}
+		state.Offset = 0
+		return
+	}
+	if agentRowIndex(rows, state.Selected) < 0 {
+		state.Selected = rows[0].ID
+	}
+	state.ensureVisible(layout)
+}
+
+func (state *AgentsState) moveSelection(delta int, layout agentLayout) {
+	rows := state.rows()
+	if len(rows) == 0 {
+		return
+	}
+	index := agentRowIndex(rows, state.Selected)
+	if index < 0 {
+		index = 0
+	} else {
+		index = min(len(rows)-1, max(0, index+delta))
+	}
+	state.Selected = rows[index].ID
+	state.ensureVisible(layout)
+}
+
+func (state *AgentsState) jumpSelection(last bool, layout agentLayout) {
+	rows := state.rows()
 	if len(rows) == 0 {
 		return
 	}
@@ -306,21 +324,21 @@ func (model *Model) jumpAgentSelection(last bool) {
 	if last {
 		index = len(rows) - 1
 	}
-	model.agents.Selected = rows[index].ID
-	model.ensureAgentVisible()
+	state.Selected = rows[index].ID
+	state.ensureVisible(layout)
 }
 
-func (model *Model) pageAgentSelection(direction int) {
-	rows := model.agentRows()
+func (state *AgentsState) pageSelection(direction int, layout agentLayout) {
+	rows := state.rows()
 	if len(rows) == 0 {
 		return
 	}
-	spans := model.agentRowSpans(rows)
-	index := model.agentRowIndex(rows, model.agents.Selected)
+	spans := agentRowSpans(rows, layout.Tier)
+	index := agentRowIndex(rows, state.Selected)
 	if index < 0 {
 		index = 0
 	}
-	targetLine := spans[index].start + direction*max(1, model.bodyHeight()-1)
+	targetLine := spans[index].start + direction*max(1, layout.Page-1)
 	target := index
 	if direction > 0 {
 		for target+1 < len(spans) && spans[target].start < targetLine {
@@ -331,56 +349,41 @@ func (model *Model) pageAgentSelection(direction int) {
 			target--
 		}
 	}
-	model.agents.Selected = rows[target].ID
-	model.ensureAgentVisible()
+	state.Selected = rows[target].ID
+	state.ensureVisible(layout)
 }
 
-func (model *Model) toggleSelectedAgentJob() {
-	if !model.agents.Selected.IsJob() {
+func (state *AgentsState) toggleSelectedJob(layout agentLayout) {
+	if !state.Selected.IsJob() {
 		return
 	}
-	if model.agents.Expanded == nil {
-		model.agents.Expanded = map[fix.JobID]bool{}
+	if state.Expanded == nil {
+		state.Expanded = map[fix.JobID]bool{}
 	}
-	jobID := model.agents.Selected.JobID
-	model.agents.Expanded[jobID] = !model.agents.Expanded[jobID]
-	model.ensureAgentVisible()
+	state.Expanded[state.Selected.JobID] = !state.Expanded[state.Selected.JobID]
+	state.ensureVisible(layout)
 }
 
-func (model *Model) toggleAgentFilter() {
-	model.agents.ShowAll = !model.agents.ShowAll
-	model.reconcileAgentSelection()
+func (state *AgentsState) toggleFilter(layout agentLayout) {
+	state.ShowAll = !state.ShowAll
+	state.reconcileSelection(layout)
 }
 
-func (model *Model) moveAgentHorizontal(delta int) {
-	model.agents.HorizontalOffset = min(model.maximumAgentHorizontalOffset(), max(0, model.agents.HorizontalOffset+delta))
+func (state *AgentsState) moveHorizontal(delta, maximum int) {
+	state.HorizontalOffset = min(maximum, max(0, state.HorizontalOffset+delta))
 }
 
-func (model *Model) clampAgentHorizontalOffset() {
-	model.agents.HorizontalOffset = min(model.maximumAgentHorizontalOffset(), max(0, model.agents.HorizontalOffset))
-}
-
-func (model Model) maximumAgentHorizontalOffset() int {
-	maximum := 0
-	tier := responsiveTier(model.width, model.height)
-	for _, row := range model.agentRows() {
-		if row.File == nil {
-			continue
-		}
-		path := agentFileDisplayPath(*row.File)
-		viewport := model.agentFilePathViewport(*row.File, tier, model.width)
-		maximum = max(maximum, lipgloss.Width(path)-viewport)
-	}
-	return maximum
+func (state *AgentsState) clampHorizontal(maximum int) {
+	state.HorizontalOffset = min(maximum, max(0, state.HorizontalOffset))
 }
 
 type agentRowSpan struct{ start, height int }
 
-func (model Model) agentRowSpans(rows []agentLogicalRow) []agentRowSpan {
+func agentRowSpans(rows []agentLogicalRow, tier ResponsiveTier) []agentRowSpan {
 	spans := make([]agentRowSpan, len(rows))
 	line := 0
 	for index, row := range rows {
-		height := agentRowHeight(row, responsiveTier(model.width, model.height))
+		height := agentRowHeight(row, tier)
 		spans[index] = agentRowSpan{start: line, height: height}
 		line += height
 	}
@@ -394,26 +397,26 @@ func agentRowHeight(_ agentLogicalRow, tier ResponsiveTier) int {
 	return 1
 }
 
-func (model *Model) ensureAgentVisible() {
-	rows := model.agentRows()
+func (state *AgentsState) ensureVisible(layout agentLayout) {
+	rows := state.rows()
 	if len(rows) == 0 {
-		model.agents.Offset = 0
+		state.Offset = 0
 		return
 	}
-	spans := model.agentRowSpans(rows)
-	index := model.agentRowIndex(rows, model.agents.Selected)
+	spans := agentRowSpans(rows, layout.Tier)
+	index := agentRowIndex(rows, state.Selected)
 	if index < 0 {
 		index = 0
-		model.agents.Selected = rows[0].ID
+		state.Selected = rows[0].ID
 	}
-	page := model.bodyHeight()
+	page := layout.Page
 	selected := spans[index]
-	if selected.start < model.agents.Offset {
-		model.agents.Offset = selected.start
+	if selected.start < state.Offset {
+		state.Offset = selected.start
 	}
-	if selected.start+selected.height > model.agents.Offset+page {
-		model.agents.Offset = selected.start + selected.height - page
+	if selected.start+selected.height > state.Offset+page {
+		state.Offset = selected.start + selected.height - page
 	}
 	total := spans[len(spans)-1].start + spans[len(spans)-1].height
-	model.agents.Offset = min(max(0, total-page), max(0, model.agents.Offset))
+	state.Offset = min(max(0, total-page), max(0, state.Offset))
 }

@@ -95,6 +95,13 @@ func TestJobReadersConsumeEveryServicePageAndExplainConfiguredTruncation(t *test
 		},
 	}
 	model := fixTestModel(service, 80, 24)
+	assertPagedLog(t, &model, service)
+	assertPagedDiff(t, &model, service)
+	assertCandidateTruncation(t, &model)
+}
+
+func assertPagedLog(t *testing.T, model *Model, service *pagedReaderFixService) {
+	t.Helper()
 	logMessage := model.openJobLog("job-pages")().(jobReaderMsg)
 	logText := strings.Join(logMessage.lines, "\n")
 	if logMessage.err != nil || logMessage.truncated || !strings.Contains(logText, "first activity") || !strings.Contains(logText, "second activity") {
@@ -104,6 +111,10 @@ func TestJobReadersConsumeEveryServicePageAndExplainConfiguredTruncation(t *test
 		t.Fatalf("log cursors=%v", got)
 	}
 	model.overlays.Pop()
+}
+
+func assertPagedDiff(t *testing.T, model *Model, service *pagedReaderFixService) {
+	t.Helper()
 	diffMessage := model.openJobDiff("job-pages", "")().(jobReaderMsg)
 	if diffMessage.err != nil || diffMessage.truncated || !strings.Contains(strings.Join(diffMessage.lines, "\n"), "first.go") || !strings.Contains(strings.Join(diffMessage.lines, "\n"), "second.go") {
 		t.Fatalf("paged diff=%+v", diffMessage)
@@ -111,9 +122,12 @@ func TestJobReadersConsumeEveryServicePageAndExplainConfiguredTruncation(t *test
 	if got := service.diffOffsets; len(got) != 2 || got[0] != 0 || got[1] != 1 {
 		t.Fatalf("diff offsets=%v", got)
 	}
+}
 
+func assertCandidateTruncation(t *testing.T, model *Model) {
+	t.Helper()
 	model.jobReader = jobReaderState{kind: OverlayCandidateSource, jobID: "job-pages", lines: []string{"partial"}, truncated: true}
-	if text := ansi.Strip(strings.Join(model.jobReaderContent(80, 5), "\n")); !strings.Contains(text, "configured candidate byte/line limit") || strings.Contains(text, "retained transcript") {
+	if text := ansi.Strip(strings.Join(model.jobReader.content(80, 5), "\n")); !strings.Contains(text, "configured candidate byte/line limit") || strings.Contains(text, "retained transcript") {
 		t.Fatalf("candidate truncation label=%q", text)
 	}
 }
@@ -134,25 +148,48 @@ func TestJobLogOpensAtEndFollowsUpdatesAndScrollsBothWays(t *testing.T) {
 	model := fixTestModel(service, 60, 12)
 	model.agents.Jobs = []fix.JobPresentation{job}
 	model.handleJobReader(model.openJobLog(job.ID)().(jobReaderMsg))
+	assertJobLogNavigation(t, &model)
+	pausedAt := assertJobLogHorizontalScroll(t, &model)
+	assertJobLogRefresh(t, &model, service, job, pausedAt)
+	assertJobLogClose(t, &model)
+}
 
-	if !model.jobReader.follow || model.jobReader.offset != model.jobReaderMaxOffset() {
+func assertJobLogNavigation(t *testing.T, model *Model) {
+	t.Helper()
+	assertJobLogStartsAtBottom(t, model)
+	assertJobLogPages(t, model)
+	assertJobLogJumps(t, model)
+}
+
+func assertJobLogStartsAtBottom(t *testing.T, model *Model) {
+	t.Helper()
+	if !model.jobReader.follow || model.jobReader.offset != model.jobReader.maxOffset(model.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))) {
 		t.Fatalf("log did not open following its end: %+v", model.jobReader)
 	}
+}
+
+func assertJobLogPages(t *testing.T, model *Model) {
+	t.Helper()
 	bottom := model.jobReader.offset
-	page := model.jobReaderPageSize()
-	model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlB})
+	page := model.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))
+	handleKey(model, tea.KeyMsg{Type: tea.KeyCtrlB})
 	if model.jobReader.offset != max(0, bottom-page) || model.jobReader.follow {
 		t.Fatalf("Ctrl-B did not move one page back: %+v", model.jobReader)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlF})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyCtrlF})
 	if model.jobReader.offset != bottom || !model.jobReader.follow {
 		t.Fatalf("Ctrl-F did not move one page forward: %+v", model.jobReader)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+}
+
+func assertJobLogJumps(t *testing.T, model *Model) {
+	t.Helper()
+	bottom := model.jobReader.offset
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 	if model.jobReader.offset != 0 || model.jobReader.follow {
 		t.Fatalf("g did not jump to the top: %+v", model.jobReader)
 	}
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
 	if model.jobReader.offset != bottom || !model.jobReader.follow {
 		t.Fatalf("G did not jump to the bottom and resume following: %+v", model.jobReader)
 	}
@@ -160,7 +197,10 @@ func TestJobLogOpensAtEndFollowsUpdatesAndScrollsBothWays(t *testing.T) {
 	if !strings.Contains(visible, "entry-29") || !strings.Contains(visible, "entry-22") {
 		t.Fatalf("log did not show latest entry with previous entries above it: %q", visible)
 	}
+}
 
+func assertJobLogHorizontalScroll(t *testing.T, model *Model) int {
+	t.Helper()
 	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyUp})
 	pausedAt := model.jobReader.offset
 	if model.jobReader.follow {
@@ -174,7 +214,11 @@ func TestJobLogOpensAtEndFollowsUpdatesAndScrollsBothWays(t *testing.T) {
 	if model.jobReader.horizontal != 0 {
 		t.Fatalf("left arrow did not restore the horizontal position: %d", model.jobReader.horizontal)
 	}
+	return pausedAt
+}
 
+func assertJobLogRefresh(t *testing.T, model *Model, service *fakeFixService, job fix.JobPresentation, pausedAt int) {
+	t.Helper()
 	service.log.Entries = append(service.log.Entries, fixapp.LogEntry{At: time.Now(), Summary: "new live entry"})
 	job.UpdatedAt = job.UpdatedAt.Add(time.Second)
 	refresh := model.handleFixJobs(fixJobsMsg{jobs: []fix.JobPresentation{job}})
@@ -189,9 +233,12 @@ func TestJobLogOpensAtEndFollowsUpdatesAndScrollsBothWays(t *testing.T) {
 	if model.jobReader.offset != pausedAt || model.jobReader.follow {
 		t.Fatalf("live refresh moved a paused reader: %+v", model.jobReader)
 	}
+}
 
+func assertJobLogClose(t *testing.T, model *Model) {
+	t.Helper()
 	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyEnd})
-	if !model.jobReader.follow || model.jobReader.offset != model.jobReaderMaxOffset() {
+	if !model.jobReader.follow || model.jobReader.offset != model.jobReader.maxOffset(model.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))) {
 		t.Fatalf("End did not resume following at the latest entry: %+v", model.jobReader)
 	}
 	if text := ansi.Strip(model.View()); !strings.Contains(text, "new live entry") {
@@ -278,7 +325,7 @@ func TestQuitWithActiveJobsConfirmsAndJoinsService(t *testing.T) {
 	service := &fakeFixService{}
 	model := fixTestModel(service, 80, 24)
 	model.agents.Jobs = []fix.JobPresentation{{ID: "job-running", Phase: fix.PhaseRunning}}
-	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	result := updated.(*Model)
 	if command != nil || !result.hasOverlay(OverlayShutdown) || result.shutdown.active != 1 {
 		t.Fatal("active-job quit bypassed confirmation")
@@ -301,15 +348,15 @@ func TestFilesShowAggregateAndPerFileFixMarkerBeforeScoreChange(t *testing.T) {
 	model := fixTestModel(&fakeFixService{}, 100, 12)
 	model.options.TrendWindow = time.Minute
 	model.agents.Jobs = []fix.JobPresentation{{ID: "job-1", Phase: fix.PhaseRunning, Targets: []fix.FilePresentation{{Path: "a.go"}}}}
-	state := model.rows["a.go"]
+	state := model.files.Rows["a.go"]
 	state.scoreChangedAt = time.Now()
 	state.movementDelta = -1
-	model.rows["a.go"] = state
+	model.files.Rows["a.go"] = state
 	text := ansi.Strip(model.View())
 	if !strings.Contains(text, "AGENTS 1") || !strings.Contains(text, "▶") || strings.Contains(text, "FIX JOB") {
 		t.Fatalf("Files omitted fix observability: %q", text)
 	}
-	row := ansi.Strip(model.renderRow(model.document.Files[0], false))
+	row := ansi.Strip(renderRow(model, model.files.Document.Files[0], false))
 	fixAt, changeAt, scoreAt := strings.Index(row, "▶"), strings.Index(row, "↓"), strings.Index(row, "120")
 	if fixAt < 0 || changeAt != fixAt+len("▶") || scoreAt <= changeAt {
 		t.Fatalf("fix/change markers are not immediately left of SCORE: %q", row)
@@ -349,15 +396,15 @@ func TestAgentFindConsumesPrintableKeysAndSortCycles(t *testing.T) {
 	model := fixTestModel(&fakeFixService{}, 80, 24)
 	model.mainView = MainViewAgents
 	model.agents.Jobs = []fix.JobPresentation{{ID: "one", ProfileLabel: "Codex", Phase: fix.PhaseRunning}, {ID: "two", ProfileLabel: "Claude", Phase: fix.PhaseQueued}}
-	model.beginAgentFind()
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	model.agents.beginFind()
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	result := updated.(*Model)
-	if !result.agents.FindEditing || result.agentFindInput.Value() != "q" {
+	if !result.agents.FindEditing || result.agents.FindInput.Value() != "q" {
 		t.Fatal("printable q escaped Agents find")
 	}
-	result.handleAgentFindKey(tea.KeyMsg{Type: tea.KeyEsc})
+	result.agents.handleFindKey(tea.KeyMsg{Type: tea.KeyEsc}, makeAgentLayout(result.width, result.height, result.bodyHeight()))
 	before := result.agents.SortKey
-	result.cycleAgentSort(1)
+	result.agents.cycleSort(1, makeAgentLayout(result.width, result.height, result.bodyHeight()))
 	if result.agents.SortKey == before {
 		t.Fatal("Agents sort did not cycle")
 	}
@@ -393,8 +440,8 @@ func TestFeatureSettingsAutoSaveOnExitAndUseCompactFullScreen(t *testing.T) {
 
 	model = settingsModel(configConcurrency, settingsResolved(), &settingsConfigStore{})
 	model.width, model.height = 40, 10
-	assertScreenSize(t, model.configSettingsFullScreen(), 40, 10)
-	if text := ansi.Strip(model.configSettingsFullScreen()); !strings.Contains(text, "CONCURRENCY & RETENTION") || !strings.Contains(text, "Esc") {
+	assertScreenSize(t, configSettingsFullScreen(model.configSettings, model.profileCatalog, 40, 10), 40, 10)
+	if text := ansi.Strip(configSettingsFullScreen(model.configSettings, model.profileCatalog, 40, 10)); !strings.Contains(text, "CONCURRENCY & RETENTION") || !strings.Contains(text, "Esc") {
 		t.Fatalf("compact settings omitted fixed chrome: %q", text)
 	}
 }

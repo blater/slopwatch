@@ -21,8 +21,11 @@ import (
 )
 
 func TestFixKeyWithoutServiceExplainsUnavailable(t *testing.T) {
-	model := Model{selected: "a.go"}
-	updated, command := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	model := Model{
+		files: FilesState{
+			Selected: "a.go",
+		}}
+	updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	result := updated.(*Model)
 	if command != nil || !strings.Contains(result.status, "Fix unavailable") || result.overlays.Len() != 0 {
 		t.Fatalf("nil service behavior: status=%q overlays=%d command=%v", result.status, result.overlays.Len(), command)
@@ -30,7 +33,7 @@ func TestFixKeyWithoutServiceExplainsUnavailable(t *testing.T) {
 }
 
 func TestFilesFooterAdvertisesFixAndAgentsAtUsableSizes(t *testing.T) {
-	footer := ansi.Strip((Model{width: 80}).footer())
+	footer := ansi.Strip(footer(Model{width: 80}))
 	if !strings.Contains(footer, "fix") || !strings.Contains(footer, "agents") {
 		t.Fatalf("Files footer omitted the new workflow: %q", footer)
 	}
@@ -70,28 +73,41 @@ func TestFixPrepareUsesGenerationAndOwnsKeys(t *testing.T) {
 		t.Fatal("current prepare result was not applied")
 	}
 
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyTab})
 	if updated.(*Model).mainView != MainViewFiles {
 		t.Fatal("Tab escaped the Fix dialog")
 	}
 }
 
 func TestFixDialogResponsiveSurfacesAndContractSafeRun(t *testing.T) {
+	assertFixDialogSizes(t)
+	assertFixRunContract(t)
+}
+
+func assertFixDialogSizes(t *testing.T) {
+	t.Helper()
 	for _, size := range []struct{ width, height int }{{36, 6}, {36, 8}, {60, 16}, {80, 24}, {120, 30}} {
-		service := &fakeFixService{input: readyFixInput("a.go")}
-		model := fixTestModel(service, size.width, size.height)
+		model := fixTestModel(&fakeFixService{input: readyFixInput("a.go")}, size.width, size.height)
 		command := model.openFixForSelected()
 		model.handleFixLoaded(command().(fixLoadedMsg))
-		assertScreenSize(t, model.View(), size.width, size.height)
-		plain := ansi.Strip(model.View())
-		if !strings.Contains(plain, "FIX FILE") || !strings.Contains(plain, "Target score") || !strings.Contains(plain, "READY TO FIX") {
-			t.Fatalf("%dx%d Fix surface omitted controls: %q", size.width, size.height, plain)
-		}
-		if !strings.Contains(plain, "╭") || !strings.Contains(plain, "╰") || !strings.Contains(plain, "r run") {
-			t.Fatalf("%dx%d Fix surface stopped being a dialog: %q", size.width, size.height, plain)
-		}
+		view := model.View()
+		assertScreenSize(t, view, size.width, size.height)
+		assertFixDialogText(t, ansi.Strip(view), size.width, size.height)
 	}
+}
 
+func assertFixDialogText(t *testing.T, plain string, width, height int) {
+	t.Helper()
+	if !strings.Contains(plain, "FIX FILE") || !strings.Contains(plain, "Target score") || !strings.Contains(plain, "READY TO FIX") {
+		t.Fatalf("%dx%d Fix surface omitted controls: %q", width, height, plain)
+	}
+	if !strings.Contains(plain, "╭") || !strings.Contains(plain, "╰") || !strings.Contains(plain, "r run") {
+		t.Fatalf("%dx%d Fix surface stopped being a dialog: %q", width, height, plain)
+	}
+}
+
+func assertFixRunContract(t *testing.T) {
+	t.Helper()
 	service := &fakeFixService{input: readyFixInput("a.go"), runID: "job-new"}
 	model := fixTestModel(service, 80, 24)
 	prepare := model.openFixForSelected()
@@ -108,16 +124,20 @@ func TestFixDialogResponsiveSurfacesAndContractSafeRun(t *testing.T) {
 		t.Fatal("Esc hid a start before its start result was known")
 	}
 	message := run().(fixStartedMsg)
-	if message.err != nil || service.ranInput.TargetScore != 90 || service.ranInput.Baseline.Contract.Goal.MaximumScore != 90 {
-		t.Fatalf("ranInput score contract split: input=%+v message=%+v", service.ranInput, message)
-	}
-	if len(service.ranInput.Baseline.Contract.Goal.Focus) != 1 || !strings.Contains(service.ranInput.Instructions.Objective, "score of 90 or lower") ||
-		!strings.Contains(service.ranInput.Instructions.EffectiveBody(), "handle Git") {
-		t.Fatalf("ranInput prompt/goal not synchronized: goal=%+v instructions=%+v", service.ranInput.Baseline.Contract.Goal, service.ranInput.Instructions)
-	}
+	assertFixRunInput(t, service, message)
 	model.handleFixStarted(message)
 	if model.mainView != MainViewAgents || model.agents.Selected.JobID != "job-new" || model.hasOverlay(OverlayFixForm) {
 		t.Fatalf("successful start did not transition to job: view=%d selected=%+v overlays=%d", model.mainView, model.agents.Selected, model.overlays.Len())
+	}
+}
+
+func assertFixRunInput(t *testing.T, service *fakeFixService, message fixStartedMsg) {
+	t.Helper()
+	if message.err != nil || service.ranInput.TargetScore != 90 || service.ranInput.Baseline.Contract.Goal.MaximumScore != 90 {
+		t.Fatalf("ranInput score contract split: input=%+v message=%+v", service.ranInput, message)
+	}
+	if len(service.ranInput.Baseline.Contract.Goal.Focus) != 1 || !strings.Contains(service.ranInput.Instructions.Objective, "score of 90 or lower") || !strings.Contains(service.ranInput.Instructions.EffectiveBody(), "handle Git") {
+		t.Fatalf("ranInput prompt/goal not synchronized: goal=%+v instructions=%+v", service.ranInput.Baseline.Contract.Goal, service.ranInput.Instructions)
 	}
 }
 
@@ -127,13 +147,22 @@ func TestFixDialogUsesTheEssentialAgentNameOnly(t *testing.T) {
 	input.Probe.Authentication = agent.Authentication{Method: "api-key", Label: "Signed in with an API key"}
 	model := Model{fixDialog: fixDialogState{hasInput: true, input: input}}
 
-	text := ansi.Strip(strings.Join(model.fixFieldRows(120), "\n"))
+	text := ansi.Strip(strings.Join(model.fixDialog.fieldRows(model.profileCatalog, 120), "\n"))
 	if !strings.Contains(text, "Agent           Codex") || strings.Contains(text, "ChatGPT recommended") || strings.Contains(text, "Signed in") {
 		t.Fatalf("Fix dialog did not reduce the agent profile to its essential name: %q", text)
 	}
 }
 
 func TestTargetScoreAdjustmentsSerializeIntoGlobalPreferences(t *testing.T) {
+	model, store, resolved := targetScoreSaveModel(t)
+	first := startTargetScoreSave(t, model)
+	queueTargetScoreSave(t, model)
+	assertTargetScoreConcurrentEdit(t, store, resolved)
+	finishTargetScoreSaves(t, model, first, store)
+}
+
+func targetScoreSaveModel(t *testing.T) (*Model, *appconfig.Memory, appconfig.Resolved) {
+	t.Helper()
 	initial := settingsResolved()
 	initial.Revision = 1
 	initial.Fix.TargetScore = 100
@@ -150,22 +179,38 @@ func TestTargetScoreAdjustmentsSerializeIntoGlobalPreferences(t *testing.T) {
 	model.configStore = store
 	prepare := model.openFixForSelected()
 	model.handleFixLoaded(prepare().(fixLoadedMsg))
+	return &model, store, resolved
+}
 
+func startTargetScoreSave(t *testing.T, model *Model) tea.Cmd {
+	t.Helper()
 	model.fixDialog.cursor = fixFieldTargetScore
 	_, first := model.adjustFixField(-1)
 	if first == nil || !model.fixTargetSaving {
 		t.Fatal("first target-score adjustment did not start a preference save")
 	}
+	return first
+}
+
+func queueTargetScoreSave(t *testing.T, model *Model) {
+	t.Helper()
 	_, queued := model.adjustFixField(-1)
 	if queued != nil || model.fixTargetDesired != 80 {
 		t.Fatalf("rapid adjustment was not queued behind the active save: desired=%v command=%v", model.fixTargetDesired, queued)
 	}
+}
 
+func assertTargetScoreConcurrentEdit(t *testing.T, store *appconfig.Memory, resolved appconfig.Resolved) {
+	t.Helper()
 	external := cloneConfigFix(resolved.Fix)
 	external.Effort = "medium"
 	if _, err := store.Save(t.Context(), fix.WorkspaceIdentity{}, appconfig.ScopeUser, appconfig.Patch{Fix: &external}, resolved.Revision); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func finishTargetScoreSaves(t *testing.T, model *Model, first tea.Cmd, store *appconfig.Memory) {
+	t.Helper()
 	next := model.handleFixTargetPreferenceSaved(first().(fixTargetPreferenceSavedMsg))
 	if next == nil {
 		t.Fatal("queued target score was not saved after the first write")
@@ -183,6 +228,14 @@ func TestTargetScoreAdjustmentsSerializeIntoGlobalPreferences(t *testing.T) {
 }
 
 func TestTargetScoreCanBeReplacedByTyping(t *testing.T) {
+	model, store := targetScoreEditorModel(t)
+	assertTargetScoreEditorPopup(t, model)
+	assertTargetScoreValidation(t, model)
+	assertTargetScoreTypedValue(t, model, store)
+}
+
+func targetScoreEditorModel(t *testing.T) (*Model, *appconfig.Memory) {
+	t.Helper()
 	initial := settingsResolved()
 	initial.Revision = 1
 	initial.Fix.TargetScore = 15
@@ -201,9 +254,24 @@ func TestTargetScoreCanBeReplacedByTyping(t *testing.T) {
 	prepare := model.openFixForSelected()
 	model.handleFixLoaded(prepare().(fixLoadedMsg))
 	model.fixDialog.cursor = fixFieldTargetScore
-
 	_, blink := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if blink == nil || !model.fixDialog.scoreEditing || !model.fixDialog.score.Focused() || !model.hasOverlay(OverlayTargetScoreEditor) {
+	if blink == nil {
+		t.Fatal("Enter did not open the focused target-score popup")
+	}
+	return &model, store
+}
+
+func assertTargetScoreEditorPopup(t *testing.T, model *Model) {
+	t.Helper()
+	assertTargetScoreEditingState(t, model)
+	assertTargetScoreCompactState(t, model)
+	assertTargetScoreMinimumHeight(t, model)
+	model.width, model.height = 80, 24
+}
+
+func assertTargetScoreEditingState(t *testing.T, model *Model) {
+	t.Helper()
+	if !model.fixDialog.scoreEditing || !model.fixDialog.score.Focused() || !model.hasOverlay(OverlayTargetScoreEditor) {
 		t.Fatalf("Enter did not open the focused target-score popup: %+v", model.fixDialog)
 	}
 	if model.fixDialog.score.TextStyle.GetBackground() != style.SurfaceFieldActive {
@@ -213,20 +281,32 @@ func TestTargetScoreCanBeReplacedByTyping(t *testing.T) {
 	if !strings.Contains(view, "TARGET SCORE") || !strings.Contains(view, "Score") || !strings.Contains(view, "Enter apply") {
 		t.Fatalf("target-score popup did not make editing clear: %q", view)
 	}
+}
+
+func assertTargetScoreCompactState(t *testing.T, model *Model) {
+	t.Helper()
 	model.width, model.height = 36, 8
 	assertScreenSize(t, model.View(), 36, 8)
-	if compact := ansi.Strip(model.View()); !strings.Contains(compact, "TARGET SCORE") || !strings.Contains(compact, "Enter apply") {
+	compact := ansi.Strip(model.View())
+	if !strings.Contains(compact, "TARGET SCORE") || !strings.Contains(compact, "Enter apply") {
 		t.Fatalf("compact target-score popup lost its edit state: %q", compact)
 	}
+}
+
+func assertTargetScoreMinimumHeight(t *testing.T, model *Model) {
+	t.Helper()
 	model.width, model.height = 36, 6
 	compact := ansi.Strip(model.View())
 	if !strings.Contains(compact, "TARGET SCORE") || !strings.Contains(compact, "Enter apply") || !strings.Contains(compact, "╭") || !strings.Contains(compact, "╰") {
 		t.Fatalf("minimum-height target-score popup was clipped: %q", compact)
 	}
 	assertScreenSize(t, model.View(), 36, 6)
-	model.width, model.height = 80, 24
+}
+
+func assertTargetScoreValidation(t *testing.T, model *Model) {
+	t.Helper()
 	model.fixDialog.score.SetValue("invalid")
-	model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyEnter})
 	if !model.hasOverlay(OverlayTargetScoreEditor) || !strings.Contains(ansi.Strip(model.View()), "Enter a non-negative number") {
 		t.Fatalf("invalid target score was not shown in the popup: %q", ansi.Strip(model.View()))
 	}
@@ -236,12 +316,17 @@ func TestTargetScoreCanBeReplacedByTyping(t *testing.T) {
 		t.Fatalf("minimum-height target-score error was clipped: %q", errorView)
 	}
 	model.width, model.height = 80, 24
+}
+
+func assertTargetScoreTypedValue(t *testing.T, model *Model, store *appconfig.Memory) {
+	t.Helper()
+	model.width, model.height = 80, 24
 	model.fixDialog.score.SetValue("15")
 	model.fixDialog.score.CursorEnd()
-	model.handleKey(tea.KeyMsg{Type: tea.KeyBackspace})
-	model.handleKey(tea.KeyMsg{Type: tea.KeyBackspace})
-	model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("10")})
-	_, save := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyBackspace})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyBackspace})
+	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("10")})
+	_, save := handleKey(model, tea.KeyMsg{Type: tea.KeyEnter})
 	if save == nil || model.fixDialog.scoreEditing || model.fixDialog.input.TargetScore != 10 {
 		t.Fatalf("typed target score was not applied: %+v", model.fixDialog)
 	}
@@ -256,6 +341,14 @@ func TestTargetScoreCanBeReplacedByTyping(t *testing.T) {
 }
 
 func TestFixChoiceFieldsUseSingleAndMultiSelectLists(t *testing.T) {
+	model := choiceTestModel(t)
+	assertMetricChoice(t, model)
+	assertChoiceModelAndEffort(t, model)
+	assertChoiceProfileScopePublish(t, model)
+}
+
+func choiceTestModel(t *testing.T) *Model {
+	t.Helper()
 	input := readyFixInput("a.go")
 	input.Preferences.Profiles = []agent.Profile{
 		{ID: "codex", Label: "Codex", Runtime: "codex-cli"},
@@ -266,15 +359,32 @@ func TestFixChoiceFieldsUseSingleAndMultiSelectLists(t *testing.T) {
 	model := fixTestModel(&fakeFixService{input: input}, 80, 24)
 	prepare := model.openFixForSelected()
 	model.handleFixLoaded(prepare().(fixLoadedMsg))
+	return &model
+}
 
+func assertMetricChoice(t *testing.T, model *Model) {
+	t.Helper()
 	model.fixDialog.cursor = fixFieldFocus
-	closedRows := model.fixFieldRows(76)
+	closedRows := model.fixDialog.fieldRows(model.profileCatalog, 76)
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
+	assertMetricDropdownOpened(t, model)
+	assertMetricDropdownPreservesForm(t, model, closedRows)
+	assertMetricDropdownFooter(t, model)
+	assertMetricDropdownToggles(t, model)
+	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEsc})
+}
+
+func assertMetricDropdownOpened(t *testing.T, model *Model) {
+	t.Helper()
 	plain := ansi.Strip(model.View())
 	if !model.fixDialog.choiceOpen || !strings.Contains(plain, "SCORE") || !strings.Contains(plain, "Cognitive complexity") {
 		t.Fatalf("metric multi-select did not open: %q", plain)
 	}
-	openRows := model.fixFieldRows(76)
+}
+
+func assertMetricDropdownPreservesForm(t *testing.T, model *Model, closedRows []string) {
+	t.Helper()
+	openRows := model.fixDialog.fieldRows(model.profileCatalog, 76)
 	if len(openRows) != len(closedRows) || strings.Join(openRows, "\n") != strings.Join(closedRows, "\n") {
 		t.Fatalf("opening a combo changed the form rows: closed=%q open=%q", ansi.Strip(strings.Join(closedRows, "\n")), ansi.Strip(strings.Join(openRows, "\n")))
 	}
@@ -282,9 +392,17 @@ func TestFixChoiceFieldsUseSingleAndMultiSelectLists(t *testing.T) {
 	if !strings.Contains(content, "Metrics") || !strings.Contains(content, "Agent") || !strings.Contains(content, "Model") {
 		t.Fatalf("dropdown covered the form instead of overlaying its field: %q", content)
 	}
-	if footer := model.fixDialogFooter(); !strings.Contains(footer, "Space toggle") || strings.Contains(footer, "Enter toggle") {
+}
+
+func assertMetricDropdownFooter(t *testing.T, model *Model) {
+	t.Helper()
+	if footer := model.fixDialog.footer(); !strings.Contains(footer, "Space toggle") || strings.Contains(footer, "Enter toggle") {
 		t.Fatalf("metric footer=%q", footer)
 	}
+}
+
+func assertMetricDropdownToggles(t *testing.T, model *Model) {
+	t.Helper()
 	model.width, model.height = 36, 8
 	assertScreenSize(t, model.View(), 36, 8)
 	model.width, model.height = 80, 24
@@ -297,8 +415,10 @@ func TestFixChoiceFieldsUseSingleAndMultiSelectLists(t *testing.T) {
 	if model.fixDialog.focus["cog"] || !model.fixDialog.choiceOpen {
 		t.Fatal("Space did not toggle the metric checkbox")
 	}
-	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEsc})
+}
 
+func assertChoiceModelAndEffort(t *testing.T, model *Model) {
+	t.Helper()
 	model.fixDialog.cursor = fixFieldModel
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRight})
 	if model.fixDialog.input.Model != "gpt-5.6" {
@@ -318,7 +438,10 @@ func TestFixChoiceFieldsUseSingleAndMultiSelectLists(t *testing.T) {
 	if model.fixDialog.choiceOpen || model.fixDialog.input.Effort != "medium" {
 		t.Fatalf("effort single-select did not apply: %+v", model.fixDialog)
 	}
+}
 
+func assertChoiceProfileScopePublish(t *testing.T, model *Model) {
+	t.Helper()
 	model.fixDialog.cursor = fixFieldProfile
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEnter})
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyDown})
@@ -439,7 +562,7 @@ func TestBranchEditorDoesNotSilentlyClipLongNames(t *testing.T) {
 	if got := model.fixDialog.branch.Value(); got != longBranch {
 		t.Fatalf("branch name was clipped to %d of %d bytes", len(got), len(longBranch))
 	}
-	if !model.syncFixInput() {
+	if !model.fixDialog.syncInput() {
 		t.Fatalf("long editor values were rejected: %s", model.fixDialog.errorText)
 	}
 	if model.fixDialog.input.BranchName != longBranch {
@@ -463,12 +586,12 @@ func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) 
 	model.overlays.Pop()
 	model.mainView = MainViewAgents
 	model.agents.Selected = AgentRowID{JobID: "two"}
-	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
 	result := updated.(*Model)
 	if !result.hasOverlay(OverlayConfirmation) || result.cancelConfirmation.jobID != "two" {
 		t.Fatalf("cancel confirmation captured %+v", result.cancelConfirmation)
 	}
-	updated, command := result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, command := handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if command == nil {
 		t.Fatal("cancel confirmation did not issue a command")
@@ -560,12 +683,19 @@ func fixTestModel(service FixService, width, height int) Model {
 	agentFindInput := textinput.New()
 	agentFindInput.Prompt = "/ "
 	return Model{
-		width: width, height: height, mainView: MainViewFiles, selected: file.Path,
-		document: report.Document{Files: []report.File{file}}, rows: map[string]rowState{file.Path: {}}, visible: defaultColumnVisibility(),
-		options: Options{Workspace: "/repo"}, fixService: service,
-		fixWorkspace:   fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo", AnalysisRoot: "/repo", BaseCommit: "abc"},
-		agents:         AgentsState{Expanded: map[fix.JobID]bool{}},
-		agentFindInput: agentFindInput,
+		files: FilesState{
+			Selected: file.Path,
+			Document: report.Document{Files: []report.File{file}},
+			Rows:     map[string]rowState{file.Path: {}},
+			Visible:  defaultColumnVisibility(),
+		},
+		width:        width,
+		height:       height,
+		mainView:     MainViewFiles,
+		options:      Options{Workspace: "/repo"},
+		fixService:   service,
+		fixWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo", AnalysisRoot: "/repo", BaseCommit: "abc"},
+		agents:       AgentsState{Expanded: map[fix.JobID]bool{}, FindInput: agentFindInput},
 	}
 }
 

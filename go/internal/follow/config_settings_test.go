@@ -22,6 +22,45 @@ import (
 	"github.com/blater/slopwatch/internal/style"
 )
 
+func TestConfigResolvedClampsCursorUsingNewDeliveryRows(t *testing.T) {
+	state := configSettingsState{
+		open: true, kind: configDelivery, generation: 4, cursor: 3,
+		working: settingsResolved(),
+	}
+	state.working.Delivery.DefaultPlan.Git = fix.GitCommitNewBranch
+	if rows := configSettingsRowsForState(state); rows <= 2 {
+		t.Fatalf("old delivery rows=%d, want more than new layout", rows)
+	}
+
+	resolved := settingsResolved()
+	resolved.Delivery.DefaultPlan.Git = fix.GitLeaveUncommitted
+	outcome := state.applyResolved(configResolvedMsg{generation: 4, resolved: resolved})
+	if !outcome.accepted {
+		t.Fatal("resolved configuration was rejected")
+	}
+	want := configSettingsRowsForState(state) - 1
+	if state.cursor != want {
+		t.Fatalf("cursor=%d, want new layout last row=%d", state.cursor, want)
+	}
+}
+
+func TestConfigSettingsPopupKeepsTerminalFooterTier(t *testing.T) {
+	state := configSettingsState{kind: configFix, cursor: fixSettingsPromptRow, working: settingsResolved()}
+	view := configSettingsPopup(state, nil, 60, 12)
+	if !strings.Contains(ansi.Strip(view), "Esc back") {
+		t.Fatalf("terminal footer lost full footer hint: %q", ansi.Strip(view))
+	}
+}
+
+func TestConfigSettingsPopupAllowsUnboundedHeight(t *testing.T) {
+	state := configSettingsState{kind: configFix, working: settingsResolved()}
+	view := configSettingsPopup(state, nil, 80, 0)
+	text := ansi.Strip(view)
+	if !strings.Contains(text, "Target score") || !strings.Contains(text, "Focus metrics") {
+		t.Fatalf("zero-height popup was truncated: %q", ansi.Strip(view))
+	}
+}
+
 func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
 	t.Parallel()
 	store := &settingsConfigStore{resolved: settingsResolved()}
@@ -30,7 +69,7 @@ func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
 		settingsCursor: settingsIndex("delivery"), configStore: store,
 		configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"},
 	}
-	updated, command := model.handleSettingsKey("enter")
+	updated, command := handleSettingsKey(model, "enter")
 	result := updated.(*Model)
 	if command == nil || !result.configSettings.open || !result.configSettings.loading || result.settings {
 		t.Fatalf("opening feature settings = %+v, command nil=%t", result.configSettings, command == nil)
@@ -41,34 +80,72 @@ func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
 	message := command()
 	updated, _ = result.Update(message)
 	result = updated.(*Model)
-	if result.configSettings.loading || result.configSettings.working.Revision != 7 || store.resolveCalls != 1 {
-		t.Fatalf("resolved state = %+v, calls=%d", result.configSettings, store.resolveCalls)
-	}
+	assertSettingsLoaded(t, result, store)
+	assertSettingsOwnsKeyboard(t, result)
+}
 
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyTab})
+func assertSettingsLoaded(t *testing.T, model *Model, store *settingsConfigStore) {
+	t.Helper()
+	if model.configSettings.loading || model.configSettings.working.Revision != 7 || store.resolveCalls != 1 {
+		t.Fatalf("resolved state = %+v, calls=%d", model.configSettings, store.resolveCalls)
+	}
+}
+
+func assertSettingsOwnsKeyboard(t *testing.T, result *Model) {
+	t.Helper()
+	result = returnToSettingsOverlay(t, result)
+	result = beginSettingsTextEdit(t, result)
+	result = assertSettingsTextInput(t, result)
+	result = leaveSettingsTextEdit(t, result)
+	closeSettingsOverlay(t, result)
+}
+
+func returnToSettingsOverlay(t *testing.T, result *Model) *Model {
+	t.Helper()
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyTab})
 	result = updated.(*Model)
 	if result.mainView != MainViewFiles || !result.configSettings.open {
 		t.Fatal("Tab escaped the feature settings overlay")
 	}
+	return result
+}
+
+func beginSettingsTextEdit(t *testing.T, result *Model) *Model {
+	t.Helper()
 	result.configSettings.cursor = 1
 	result.configSettings.working.Delivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}
 	result.configSettings.cursor = 4 // Remote in the expanded delivery form.
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.configSettings.editing {
 		t.Fatal("Enter did not transfer ownership to the text input")
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	return result
+}
+
+func assertSettingsTextInput(t *testing.T, result *Model) *Model {
+	t.Helper()
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	result = updated.(*Model)
 	if !result.configSettings.open || !result.configSettings.editing || !strings.Contains(result.configSettings.input.Value(), "q") {
 		t.Fatal("printable key escaped an active settings text input")
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	return result
+}
+
+func leaveSettingsTextEdit(t *testing.T, result *Model) *Model {
+	t.Helper()
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyEsc})
 	result = updated.(*Model)
 	if result.configSettings.editing || !result.configSettings.open {
 		t.Fatal("first Escape did not leave inline editing only")
 	}
-	updated, _ = result.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	return result
+}
+
+func closeSettingsOverlay(t *testing.T, result *Model) {
+	t.Helper()
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyEsc})
 	result = updated.(*Model)
 	if result.configSettings.open || !result.settings {
 		t.Fatal("second Escape did not restore Settings")
@@ -94,12 +171,20 @@ func TestDashboardSavePreservesFeatureGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	model := &Model{
-		preferencesPath: path, preferences: defaultUserPreferences(), theme: style.ThemeLight,
-		visible: preferenceColumns(value), sortKey: value.Table.SortBy, sortReverse: value.Table.SortDescending,
-		weights: preferenceWeights(value), weightEnabled: preferenceWeightEnabled(value),
-		weightStep: value.Scoring.WeightStep, maximumWeight: value.Scoring.MaximumWeight,
+		files: FilesState{
+			Visible:     preferenceColumns(value),
+			SortKey:     value.Table.SortBy,
+			SortReverse: value.Table.SortDescending,
+		},
+		preferencesPath: path,
+		preferences:     defaultUserPreferences(),
+		theme:           style.ThemeLight,
+		weights:         preferenceWeights(value),
+		weightEnabled:   preferenceWeightEnabled(value),
+		weightStep:      value.Scoring.WeightStep,
+		maximumWeight:   value.Scoring.MaximumWeight,
 	}
-	model.persistUserPreferences()
+	persistUserPreferences(model)
 	loaded, err := userprefs.LoadOrCreate(path, defaultUserPreferences())
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +258,7 @@ func TestFixDefaultsSaveEachChangeAndDoNotOfferReload(t *testing.T) {
 	if command != nil || model.configSettings.loading || model.configSettings.working.Fix.TargetScore != before {
 		t.Fatal("Fix Defaults retained a reload key")
 	}
-	footer := model.configSettingsFooter()
+	footer := configSettingsFooterForState(model.configSettings, model.profileCatalog, model.width, model.height)
 	if strings.Contains(footer, "save") || strings.Contains(footer, "reload") {
 		t.Fatalf("Fix Defaults footer still exposes manual persistence: %q", footer)
 	}
@@ -193,7 +278,7 @@ func TestAgentSettingsOfferSafeCodexDefaultAndShowReadiness(t *testing.T) {
 	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeReady, Version: "1.2.3", Authentication: agent.Authentication{Method: "chatgpt", Label: "Signed in with ChatGPT"}, Capabilities: agent.Capabilities{Isolation: agent.RuntimeIsolation{
 		Writes: agent.CandidateTreeAndGitMetadataProtected, SensitiveReadsDenied: true, TransportAuthIsolated: true, CrashContainment: true,
 	}}}
-	text := ansi.Strip(model.configSettingsView())
+	text := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	for _, fragment := range []string{"Claude CLI  not available", "Claude API  not available", "Codex       [ACTIVE]", "Grok        not available", "OpenAI API  available", "Enter select"} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("agent settings missing %q: %q", fragment, text)
@@ -220,11 +305,11 @@ func TestAgentConnectionCheckHasImmediateAndReadableFeedback(t *testing.T) {
 	if command == nil {
 		t.Fatal("opening Codex did not start its connection check")
 	}
-	if text := ansi.Strip(model.configSettingsView()); !strings.Contains(text, "CODEX") || !strings.Contains(text, "CHECKING CONNECTION") {
+	if text := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height)); !strings.Contains(text, "CODEX") || !strings.Contains(text, "CHECKING CONNECTION") {
 		t.Fatalf("connection check had no immediate feedback: %q", text)
 	}
 	_, _ = handleMessage(model, command())
-	text := ansi.Strip(model.configSettingsView())
+	text := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	for _, fragment := range []string{"CODEX", "CONNECTION FAILED", "codex login", "https://developers.openai.com/codex/auth"} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("connection result hid %q: %q", fragment, text)
@@ -240,7 +325,7 @@ func TestMissingCodexExecutableIsMarkedUnavailable(t *testing.T) {
 	model := settingsModel(configAgents, resolved, &settingsConfigStore{})
 	model.profileCatalog = &multiRuntimeProfileServices{}
 	model.configSettings.probes["codex"] = agent.ProbeResult{State: agent.ProbeUnavailable, Diagnostic: "codex executable was not found on PATH"}
-	text := ansi.Strip(model.configSettingsView())
+	text := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	if !strings.Contains(text, "Codex       [ACTIVE] · unavailable") {
 		t.Fatalf("missing CLI harness was not marked unavailable: %q", text)
 	}
@@ -255,7 +340,7 @@ func TestAgentConnectionDialogShowsOnlyEssentialAdapterFields(t *testing.T) {
 	model.profileCatalog = &multiRuntimeProfileServices{}
 	model.configSettings.providerRuntime = "openai-responses"
 	model.configSettings.profileEditing = true
-	text := ansi.Strip(strings.Join(model.configSettingsLines(120), "\n"))
+	text := ansi.Strip(strings.Join(configSettingsLinesForState(model.configSettings, model.profileCatalog, 120), "\n"))
 	for _, hidden := range []string{"Runtime", "Executable", "Probe timeout", "Cancellation grace", "Profile ID", "Label"} {
 		if strings.Contains(text, hidden) {
 			t.Fatalf("Agents popup exposed preferences-only field %q: %q", hidden, text)
@@ -309,38 +394,44 @@ func TestEditedConnectionRejectsStaleABAProbeAndRestoresLastKnownGoodProfile(t *
 	if stale == nil {
 		t.Fatal("initial connection check was not started")
 	}
+	superseded := commitConnectionEdit(t, model, "env:NEW_OPENAI_KEY", "edited connection remained blocked behind the stale check")
+	current := commitConnectionEdit(t, model, "env:OLD_OPENAI_KEY", "second connection edit did not supersede the first edit")
+	assertStaleConnectionResults(t, model, stale, superseded, current)
+	if got := model.configSettings.working.Profiles[1].AuthenticationRef; got != "env:OLD_OPENAI_KEY" || model.configSettings.dirty || model.configSettings.pendingOriginal != nil {
+		t.Fatalf("failed second edit did not restore the last-known-good profile: %+v", model.configSettings)
+	}
+}
+
+func commitConnectionEdit(t *testing.T, model *Model, value, message string) tea.Cmd {
+	t.Helper()
 	model.configSettings.editField = 0
-	model.configSettings.input.SetValue("env:NEW_OPENAI_KEY")
-	if err := model.commitConfigText(); err != nil {
+	model.configSettings.input.SetValue(value)
+	if err := model.configSettings.commitText(model.profileCatalog); err != nil {
 		t.Fatal(err)
 	}
-	superseded := model.testSelectedProfileCommand()
-	if superseded == nil {
-		t.Fatal("edited connection remained blocked behind the stale check")
+	command := model.configSettings.testSelectedProfileCommand(model.profileProber)
+	if command == nil {
+		t.Fatal(message)
 	}
-	model.configSettings.editField = 0
-	model.configSettings.input.SetValue("env:OLD_OPENAI_KEY")
-	if err := model.commitConfigText(); err != nil {
-		t.Fatal(err)
-	}
-	current := model.testSelectedProfileCommand()
-	if current == nil {
-		t.Fatal("second connection edit did not supersede the first edit")
-	}
+	return command
+}
+
+func assertStaleConnectionResults(t *testing.T, model *Model, stale, superseded, current tea.Cmd) {
+	t.Helper()
 	_, _ = handleMessage(model, stale())
-	if _, exists := model.configSettings.probes["api"]; exists || !model.configSettings.probing["api"] {
-		t.Fatal("ABA-stale connection result replaced the newer in-flight check")
-	}
+	assertConnectionStillProbing(t, model, "ABA-stale connection result replaced the newer in-flight check")
 	_, _ = handleMessage(model, superseded())
-	if _, exists := model.configSettings.probes["api"]; exists || !model.configSettings.probing["api"] {
-		t.Fatal("superseded middle connection result replaced the current check")
-	}
+	assertConnectionStillProbing(t, model, "superseded middle connection result replaced the current check")
 	_, _ = handleMessage(model, current())
 	if model.configSettings.probing["api"] {
 		t.Fatal("current connection result did not finish its check")
 	}
-	if got := model.configSettings.working.Profiles[1].AuthenticationRef; got != "env:OLD_OPENAI_KEY" || model.configSettings.dirty || model.configSettings.pendingOriginal != nil {
-		t.Fatalf("failed second edit did not restore the last-known-good profile: %+v", model.configSettings)
+}
+
+func assertConnectionStillProbing(t *testing.T, model *Model, message string) {
+	t.Helper()
+	if _, exists := model.configSettings.probes["api"]; exists || !model.configSettings.probing["api"] {
+		t.Fatal(message)
 	}
 }
 
@@ -357,10 +448,10 @@ func TestSuccessfulEditToActiveConnectionIsAutomaticallySaved(t *testing.T) {
 	model.configSettings.providerRuntime = "openai-responses"
 	model.configSettings.editField = 0
 	model.configSettings.input.SetValue("env:NEW_OPENAI_KEY")
-	if err := model.commitConfigText(); err != nil {
+	if err := model.configSettings.commitText(model.profileCatalog); err != nil {
 		t.Fatal(err)
 	}
-	probe := model.testSelectedProfileCommand()
+	probe := model.configSettings.testSelectedProfileCommand(model.profileProber)
 	if probe == nil {
 		t.Fatal("active connection edit did not begin an automatic check")
 	}
@@ -387,10 +478,10 @@ func TestFailedConnectionEditIsRolledBackAndCannotBeSaved(t *testing.T) {
 	model.configSettings.providerRuntime = "openai-responses"
 	model.configSettings.editField = 0
 	model.configSettings.input.SetValue("env:BROKEN_OPENAI_KEY")
-	if err := model.commitConfigText(); err != nil {
+	if err := model.configSettings.commitText(model.profileCatalog); err != nil {
 		t.Fatal(err)
 	}
-	probe := model.testSelectedProfileCommand()
+	probe := model.configSettings.testSelectedProfileCommand(model.profileProber)
 	_, save := handleMessage(model, probe())
 	if save != nil {
 		t.Fatal("failed connection check attempted to save")
@@ -417,10 +508,10 @@ func TestEscapingAnInFlightConnectionEditRestoresItAndRejectsItsResult(t *testin
 	model.configSettings.providerRuntime = "openai-responses"
 	model.configSettings.editField = 0
 	model.configSettings.input.SetValue("env:UNVERIFIED_OPENAI_KEY")
-	if err := model.commitConfigText(); err != nil {
+	if err := model.configSettings.commitText(model.profileCatalog); err != nil {
 		t.Fatal(err)
 	}
-	probe := model.testSelectedProfileCommand()
+	probe := model.configSettings.testSelectedProfileCommand(model.profileProber)
 	if probe == nil {
 		t.Fatal("connection edit did not start a check")
 	}
@@ -449,7 +540,7 @@ func TestAutomaticActivationSaveFailureRestoresActiveProviderAndIsVisible(t *tes
 	if model.configSettings.working.Fix.Profile != "codex" || model.configSettings.saving {
 		t.Fatalf("failed save left an unsaved provider active: %+v", model.configSettings)
 	}
-	text := ansi.Strip(model.configSettingsView())
+	text := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	if !strings.Contains(text, "ACTIVATION FAILED") || !strings.Contains(text, "preferences are read-only") {
 		t.Fatalf("activation save failure was hidden: %q", text)
 	}
@@ -466,13 +557,13 @@ func TestDuplicateProviderProfilesAreUnavailableAndNeverProbed(t *testing.T) {
 	services := &readyMultiRuntimeProfileServices{}
 	model.profileCatalog, model.profileProber = services, services
 	model.configSettings.cursor = agentProviderIndex("openai-responses")
-	if available, _ := model.agentProviderAvailability(agentProviderChoices[model.configSettings.cursor]); available {
+	if available, _ := agentProviderAvailabilityForState(model.configSettings, model.profileCatalog, agentProviderChoices[model.configSettings.cursor]); available {
 		t.Fatal("ambiguous provider profiles were reported available")
 	}
 	if command := model.openSelectedAgentProvider(); command != nil {
 		t.Fatal("ambiguous provider profiles started a connection check")
 	}
-	text := ansi.Strip(model.configSettingsView())
+	text := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	if !strings.Contains(text, "Multiple connections") || !strings.Contains(text, "one account") {
 		t.Fatalf("duplicate-profile recovery was unclear: %q", text)
 	}
@@ -485,13 +576,13 @@ func TestSupportedProviderWithoutProfileIsUnavailableWithRecovery(t *testing.T) 
 	model.profileCatalog = &multiRuntimeProfileServices{}
 	model.configSettings.cursor = agentProviderIndex("openai-responses")
 	choice := agentProviderChoices[model.configSettings.cursor]
-	if available, _ := model.agentProviderAvailability(choice); available {
+	if available, _ := agentProviderAvailabilityForState(model.configSettings, model.profileCatalog, choice); available {
 		t.Fatal("provider without a configuration was reported available")
 	}
 	if command := model.openSelectedAgentProvider(); command != nil {
 		t.Fatal("provider without a profile started a connection check")
 	}
-	text := ansi.Strip(model.configSettingsView())
+	text := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	if !strings.Contains(text, "No connection configured") || !strings.Contains(text, "preferences") {
 		t.Fatalf("missing-profile recovery was unclear: %q", text)
 	}
@@ -514,7 +605,7 @@ func TestCompactMissingAndDuplicateProfileRecoveryIsVisible(t *testing.T) {
 			model.width, model.height = 40, 10
 			model.configSettings.cursor = agentProviderIndex("openai-responses")
 			model.openSelectedAgentProvider()
-			view := ansi.Strip(model.configSettingsFullScreen())
+			view := ansi.Strip(configSettingsFullScreen(model.configSettings, model.profileCatalog, model.width, model.height))
 			assertScreenSize(t, view, 40, 10)
 			if !strings.Contains(view, "preferences file") || !strings.Contains(view, "reopen Settings") {
 				t.Fatalf("compact %s recovery was clipped: %q", name, view)
@@ -533,10 +624,10 @@ func TestChoiceConnectionEditRollsBackAfterFailedAutomaticCheck(t *testing.T) {
 	model.profileCatalog, model.profileProber = services, services
 	model.configSettings.profileEditing = true
 	model.configSettings.providerRuntime = "choice-api"
-	if !model.adjustProfileChoice(1) {
+	if !model.configSettings.adjustProfileChoice(model.profileCatalog, 1) {
 		t.Fatal("choice field was not changed")
 	}
-	probe := model.testSelectedProfileCommand()
+	probe := model.configSettings.testSelectedProfileCommand(model.profileProber)
 	_, save := handleMessage(model, probe())
 	if save != nil || model.configSettings.working.Profiles[0].Options["region"] != "us" || model.configSettings.dirty {
 		t.Fatalf("failed choice check was not rolled back: %+v", model.configSettings)
@@ -553,10 +644,10 @@ func TestChoiceRepairOfInactiveProviderActivatesAndSavesIt(t *testing.T) {
 	model.profileCatalog, model.profileProber = services, services
 	model.configSettings.profileEditing = true
 	model.configSettings.providerRuntime = "choice-api"
-	if !model.adjustProfileChoice(1) {
+	if !model.configSettings.adjustProfileChoice(model.profileCatalog, 1) {
 		t.Fatal("choice repair did not change the field")
 	}
-	probe := model.testSelectedProfileCommand()
+	probe := model.configSettings.testSelectedProfileCommand(model.profileProber)
 	_, save := handleMessage(model, probe())
 	if save == nil {
 		t.Fatal("ready choice repair did not schedule activation save")
@@ -611,11 +702,20 @@ func TestAPIBackedAgentProfileSavesAndReloadsWithoutExecutable(t *testing.T) {
 	store := &settingsConfigStore{resolved: resolved}
 	model := settingsModel(configAgents, resolved, store)
 	model.profileCatalog = &multiRuntimeProfileServices{}
+	setAPIProfile(model)
+	saveAPIProfile(t, model, store)
+	assertReloadedAPIProfile(t, store)
+}
+
+func setAPIProfile(model *Model) {
 	model.configSettings.working.Profiles = []agent.Profile{{
 		ID: "gpt", Label: "OpenAI Responses API", Runtime: "openai-responses", AuthenticationRef: "env:OPENAI_API_KEY",
 	}}
 	model.configSettings.dirty = true
+}
 
+func saveAPIProfile(t *testing.T, model *Model, store *settingsConfigStore) {
+	t.Helper()
 	save := model.saveConfigSettings()
 	if save == nil || !model.configSettings.saving {
 		t.Fatal("API-backed profile was rejected before asynchronous save")
@@ -627,7 +727,10 @@ func TestAPIBackedAgentProfileSavesAndReloadsWithoutExecutable(t *testing.T) {
 	if got := store.resolved.Profiles; len(got) != 1 || got[0].Runtime != "openai-responses" || got[0].Executable != "" {
 		t.Fatalf("saved API profile=%#v", got)
 	}
+}
 
+func assertReloadedAPIProfile(t *testing.T, store *settingsConfigStore) {
+	t.Helper()
 	reopened := &Model{configStore: store, configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"}}
 	reload := reopened.openConfigSettings(configAgents)
 	if reload == nil || !reopened.configSettings.loading {
@@ -747,7 +850,7 @@ func TestFeatureSettingsRenderAllSectionsAtResponsiveSizes(t *testing.T) {
 		for kind, heading := range sections {
 			model := settingsModel(kind, settingsResolved(), &settingsConfigStore{})
 			model.width, model.height = size[0], size[1]
-			text := ansi.Strip(model.configSettingsView())
+			text := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 			if !strings.Contains(text, heading) || kind == configAgents && !strings.Contains(text, "Enter select") {
 				t.Fatalf("%s at %dx%d = %q", kind, size[0], size[1], text)
 			}
@@ -762,8 +865,8 @@ func TestCompactSettingsEditorKeepsApplyAndCancelFooterVisible(t *testing.T) {
 	model := settingsModel(configDelivery, settingsResolved(), &settingsConfigStore{})
 	model.width, model.height = 36, 6
 	model.configSettings.cursor = 3
-	model.beginConfigText()
-	view := model.configSettingsFullScreen()
+	model.configSettings.beginText(model.profileCatalog)
+	view := configSettingsFullScreen(model.configSettings, model.profileCatalog, model.width, model.height)
 	assertScreenSize(t, view, 36, 6)
 	plain := ansi.Strip(view)
 	for _, wanted := range []string{"Edit:", "Enter apply", "Esc cancel"} {
@@ -778,7 +881,7 @@ func TestSettingsKeepDeliveryAndMasterPromptClear(t *testing.T) {
 	resolved.Fix.PromptTemplate = fixprompt.DefaultTemplate
 
 	deliveryModel := settingsModel(configDelivery, resolved, &settingsConfigStore{})
-	deliveryText := ansi.Strip(strings.Join(deliveryModel.configSettingsLines(100), "\n"))
+	deliveryText := ansi.Strip(strings.Join(configSettingsLinesForState(deliveryModel.configSettings, deliveryModel.profileCatalog, 100), "\n"))
 	for _, unwanted := range []string{"Publisher", "only supported v1 adapter", "fixed v1", "explicit Discard", "Built-in default", "save creates user default"} {
 		if strings.Contains(deliveryText, unwanted) {
 			t.Fatalf("delivery settings contain obsolete hint %q: %q", unwanted, deliveryText)
@@ -787,7 +890,7 @@ func TestSettingsKeepDeliveryAndMasterPromptClear(t *testing.T) {
 
 	fixModel := settingsModel(configFix, resolved, &settingsConfigStore{})
 	fixModel.configSettings.cursor = fixSettingsPromptRow
-	fixText := ansi.Strip(strings.Join(fixModel.configSettingsLines(75), "\n"))
+	fixText := ansi.Strip(strings.Join(configSettingsLinesForState(fixModel.configSettings, fixModel.profileCatalog, 75), "\n"))
 	if !strings.Contains(fixText, "Agent prompt") || !strings.Contains(fixText, "[x] SCORE") {
 		t.Fatalf("master prompt or score metric missing: %q", fixText)
 	}
@@ -803,7 +906,7 @@ func TestSettingsKeepDeliveryAndMasterPromptClear(t *testing.T) {
 	if gridRows != 3 {
 		t.Fatalf("focus metrics are not an aligned 3x3 grid: %q", fixText)
 	}
-	if text := ansi.Strip(strings.Join(fixModel.configSettingsLines(100), "\n")); strings.Contains(text, "Master template used") || strings.Contains(text, "Built-in default") {
+	if text := ansi.Strip(strings.Join(configSettingsLinesForState(fixModel.configSettings, fixModel.profileCatalog, 100), "\n")); strings.Contains(text, "Master template used") || strings.Contains(text, "Built-in default") {
 		t.Fatalf("Fix settings contain an explanatory hint: %q", text)
 	}
 }
@@ -815,11 +918,11 @@ func TestSavingTargetScoreKeepsModelAndEffortChoicesStable(t *testing.T) {
 		Models:  []agent.Option[agent.ModelID]{{ID: "gpt", Label: "GPT"}, {ID: "mini", Label: "Mini"}},
 		Efforts: []agent.Option[agent.EffortID]{{ID: "high", Label: "High"}, {ID: "medium", Label: "Medium"}},
 	}}
-	if !model.configChoiceField(3) || !model.configChoiceField(4) {
+	if !configChoiceFieldForState(model.configSettings, 3) || !configChoiceFieldForState(model.configSettings, 4) {
 		t.Fatal("model and effort did not start as dropdowns")
 	}
 	command := model.handleConfigSaved(configSavedMsg{generation: model.configSettings.generation, saved: appconfig.Saved{Revision: resolved.Revision + 1, Resolved: resolved}})
-	if command != nil || !model.configChoiceField(3) || !model.configChoiceField(4) {
+	if command != nil || !configChoiceFieldForState(model.configSettings, 3) || !configChoiceFieldForState(model.configSettings, 4) {
 		t.Fatal("saving an unrelated FIX DEFAULT caused agent choices to disappear or re-probe")
 	}
 }
@@ -845,16 +948,16 @@ func TestFixDefaultsEditTheMasterPrompt(t *testing.T) {
 func TestFixDefaultsChoicesOpenAsAnchoredMenusWithoutReflow(t *testing.T) {
 	model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{resolved: settingsResolved()})
 	model.configSettings.cursor = 1 // May edit.
-	closed := model.configSettingsLines(68)
+	closed := configSettingsLinesForState(model.configSettings, model.profileCatalog, 68)
 	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
 	if !model.configSettings.choiceOpen {
 		t.Fatal("Enter did not open the May edit dropdown")
 	}
-	open := model.configSettingsLines(68)
+	open := configSettingsLinesForState(model.configSettings, model.profileCatalog, 68)
 	if strings.Join(closed, "\n") != strings.Join(open, "\n") {
 		t.Fatalf("opening a settings dropdown reflowed its form rows: closed=%q open=%q", ansi.Strip(strings.Join(closed, "\n")), ansi.Strip(strings.Join(open, "\n")))
 	}
-	view := ansi.Strip(model.configSettingsView())
+	view := ansi.Strip(configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	for _, choice := range []string{"Selected files", "Selected files + related tests", "Any file in the project"} {
 		if !strings.Contains(view, choice) {
 			t.Fatalf("settings dropdown omitted %q despite available dialog space: %q", choice, view)
@@ -891,14 +994,14 @@ func TestDeliverySettingsDoNotSilentlyClipOrganisationBranchTemplate(t *testing.
 	load := model.openConfigSettings(configDelivery)
 	model.handleConfigResolved(load().(configResolvedMsg))
 	model.configSettings.cursor = 3
-	model.beginConfigText()
+	model.configSettings.beginText(model.profileCatalog)
 
 	template := strings.Repeat("organisation/platform/", 16) + "{target-stem}-{job-short-id}"
 	model.configSettings.input.SetValue(template)
 	if got := model.configSettings.input.Value(); got != template {
 		t.Fatalf("branch template was clipped to %d of %d bytes", len(got), len(template))
 	}
-	if err := model.commitConfigText(); err != nil {
+	if err := model.configSettings.commitText(model.profileCatalog); err != nil {
 		t.Fatalf("long organisation branch template was rejected: %v", err)
 	}
 	if got := model.configSettings.working.Delivery.BranchTemplate; got != template {
@@ -911,7 +1014,7 @@ func TestSettingsDoNotAppendFocusedHints(t *testing.T) {
 	resolved.Origins["concurrency.max_agents"] = appconfig.OriginCLI
 	model := settingsModel(configConcurrency, resolved, &settingsConfigStore{})
 	model.configSettings.cursor = 0
-	text := ansi.Strip(strings.Join(model.configSettingsLines(100), "\n"))
+	text := ansi.Strip(strings.Join(configSettingsLinesForState(model.configSettings, model.profileCatalog, 100), "\n"))
 	for _, unwanted := range []string{"lowering it", "never deletes", "Pinned at Prepare", "maximum candidate-file"} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("settings contain focused hint %q: %q", unwanted, text)

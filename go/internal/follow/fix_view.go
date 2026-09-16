@@ -22,9 +22,9 @@ func (model Model) featureOverlayView(base string, frame OverlayFrame) string {
 		return model.fixTargetScoreEditorView(base)
 	case OverlayConfigSettings:
 		if fullScreenSurface(model.width, model.height) {
-			return model.configSettingsFullScreen()
+			return configSettingsFullScreen(model.configSettings, model.profileCatalog, model.width, model.height)
 		}
-		return model.overlay(base, model.configSettingsView())
+		return model.overlay(base, configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	case OverlayPromptEditor:
 		return model.masterPromptEditorView()
 	case OverlayJobMonitor:
@@ -86,55 +86,12 @@ func (model Model) jobMonitorContent(width, height int) []string {
 		return fitFixContent([]string{fixSurfaceLine("Error: "+state.errorText, width, style.SurfaceModal, style.TextPrimary)}, width, height)
 	}
 	job := state.job
-	lines := []string{
-		fixSurfaceLine("Job: "+string(job.ID), width, style.SurfaceModal, style.TextMuted),
-		fixSurfaceLine("Goal: "+cleanAgentText(job.Goal), width, style.SurfaceModal, style.TextPrimary),
-		fixSurfaceLine("Agent: "+strings.Join(nonemptyStrings(agentHarnessName(job), job.ModelLabel, job.EffortLabel), " · "), width, style.SurfaceModal, style.TextPrimary),
-		fixSurfaceLine("State: "+agentPhaseText(job)+" · "+nonemptySetting(job.CurrentAction, "No current activity"), width, style.SurfaceModal, style.TextPrimary),
-		fixSurfaceLine(fmt.Sprintf("Targets: %d", len(job.Targets)), width, style.SurfaceModal, style.TextPrimary),
-	}
-	if job.DeliveryPlan.Valid() {
-		workspace := "current files"
-		if job.DeliveryPlan.Workspace == fix.WorkspaceWorktree {
-			workspace = nonemptySetting(job.WorkspacePath, "separate worktree")
-		}
-		lines = append(lines, fixSurfaceLine("Files: "+workspace, width, style.SurfaceModal, style.TextPrimary))
-		gitResult := gitModeLabel(job.DeliveryPlan.Git)
-		if job.DeliveryPlan.Git != fix.GitLeaveUncommitted {
-			gitResult += " · " + publishModeLabel(job.DeliveryPlan.Publish)
-		}
-		lines = append(lines, fixSurfaceLine("Git: "+gitResult, width, style.SurfaceModal, style.TextPrimary))
-	}
-	if job.UsageReported {
-		lines = append(lines, fixSurfaceLine(fmt.Sprintf("Tokens: input %d · cached %d · output %d · reasoning %d", job.Usage.InputTokens, job.Usage.CachedTokens, job.Usage.OutputTokens, job.Usage.ReasoningTokens), width, style.SurfaceModal, style.TextPrimary))
-	} else {
-		lines = append(lines, fixSurfaceLine("Tokens: not reported by this agent", width, style.SurfaceModal, style.TextMuted))
-	}
-	if state.focusPath != "" {
-		lines = append(lines, fixSurfaceLine("Focused file: "+state.focusPath.String(), width, style.SurfaceModal, style.TextPrimary))
-		for _, target := range job.Targets {
-			if target.Path == state.focusPath {
-				lines = append(lines, fixSurfaceLine(model.visibleAgentFileMetrics(target), width, style.SurfaceModal, style.TextPrimary))
-			}
-		}
-	}
-	if job.Issue != nil {
-		label := "Attention: "
-		if job.Phase == fix.PhaseFailed {
-			label = "Failure: "
-		}
-		lines = append(lines, fixSurfaceLine(label+strings.Join(nonemptyStrings(job.Issue.Summary, job.Issue.Detail), " · "), width, style.SurfaceModal, style.TextPrimary))
-	}
-	if len(job.Actors) > 0 {
-		lines = append(lines, fixSurfaceLine("ACTORS", width, style.SurfaceModal, style.TextMuted))
-		for _, actor := range job.Actors {
-			prefix := "• "
-			if actor.ParentID != "" {
-				prefix = "  ↳ "
-			}
-			lines = append(lines, fixSurfaceLine(prefix+cleanAgentText(actor.ID)+" · "+cleanAgentText(actor.CurrentAction), width, style.SurfaceModal, style.TextPrimary))
-		}
-	}
+	lines := jobMonitorHeaderLines(job, width)
+	lines = append(lines, jobMonitorDeliveryLines(job, width)...)
+	lines = append(lines, jobMonitorUsageLines(job, width)...)
+	lines = append(lines, model.jobMonitorFocusLines(job, state.focusPath, width)...)
+	lines = append(lines, jobMonitorIssueLines(job, width)...)
+	lines = append(lines, jobMonitorActorLines(job, width)...)
 	if state.errorText != "" {
 		lines = append(lines, fixSurfaceLine("Error: "+state.errorText, width, style.SurfaceModal, style.TextPrimary))
 	}
@@ -143,25 +100,101 @@ func (model Model) jobMonitorContent(width, height int) []string {
 	return fitFixContent(lines[start:end], width, height)
 }
 
-func (model Model) jobMonitorMaxOffset() int {
-	_, height := model.jobMonitorContentSize()
-	return max(0, model.jobMonitorLineCount()-height)
-}
-
-func (model Model) jobMonitorContentSize() (int, int) {
-	if fullScreenSurface(model.width, model.height) {
-		return model.width, max(1, model.height-2)
+func jobMonitorHeaderLines(job fix.JobPresentation, width int) []string {
+	return []string{
+		fixSurfaceLine("Job: "+string(job.ID), width, style.SurfaceModal, style.TextMuted),
+		fixSurfaceLine("Goal: "+cleanAgentText(job.Goal), width, style.SurfaceModal, style.TextPrimary),
+		fixSurfaceLine("Agent: "+strings.Join(nonemptyStrings(agentHarnessName(job), job.ModelLabel, job.EffortLabel), " · "), width, style.SurfaceModal, style.TextPrimary),
+		fixSurfaceLine("State: "+agentPhaseText(job)+" · "+nonemptySetting(job.CurrentAction, "No current activity"), width, style.SurfaceModal, style.TextPrimary),
+		fixSurfaceLine(fmt.Sprintf("Targets: %d", len(job.Targets)), width, style.SurfaceModal, style.TextPrimary),
 	}
-	width := min(82, max(36, model.width-4))
-	return width - 4, max(6, min(18, model.height-6))
 }
 
-func (model Model) jobMonitorLineCount() int {
-	state, job := model.jobMonitor, model.jobMonitor.job
+func jobMonitorDeliveryLines(job fix.JobPresentation, width int) []string {
+	if !job.DeliveryPlan.Valid() {
+		return nil
+	}
+	workspace := "current files"
+	if job.DeliveryPlan.Workspace == fix.WorkspaceWorktree {
+		workspace = nonemptySetting(job.WorkspacePath, "separate worktree")
+	}
+	gitResult := gitModeLabel(job.DeliveryPlan.Git)
+	if job.DeliveryPlan.Git != fix.GitLeaveUncommitted {
+		gitResult += " · " + publishModeLabel(job.DeliveryPlan.Publish)
+	}
+	return []string{
+		fixSurfaceLine("Files: "+workspace, width, style.SurfaceModal, style.TextPrimary),
+		fixSurfaceLine("Git: "+gitResult, width, style.SurfaceModal, style.TextPrimary),
+	}
+}
+
+func jobMonitorUsageLines(job fix.JobPresentation, width int) []string {
+	if job.UsageReported {
+		return []string{fixSurfaceLine(fmt.Sprintf("Tokens: input %d · cached %d · output %d · reasoning %d", job.Usage.InputTokens, job.Usage.CachedTokens, job.Usage.OutputTokens, job.Usage.ReasoningTokens), width, style.SurfaceModal, style.TextPrimary)}
+	}
+	return []string{fixSurfaceLine("Tokens: not reported by this agent", width, style.SurfaceModal, style.TextMuted)}
+}
+
+func (model Model) jobMonitorFocusLines(job fix.JobPresentation, focus fix.RepoPath, width int) []string {
+	if focus == "" {
+		return nil
+	}
+	lines := []string{fixSurfaceLine("Focused file: "+focus.String(), width, style.SurfaceModal, style.TextPrimary)}
+	policy := model.agentMetricPolicy()
+	for _, target := range job.Targets {
+		if target.Path == focus {
+			lines = append(lines, fixSurfaceLine(visibleAgentFileMetrics(target, policy.visible), width, style.SurfaceModal, style.TextPrimary))
+		}
+	}
+	return lines
+}
+
+func jobMonitorIssueLines(job fix.JobPresentation, width int) []string {
+	if job.Issue == nil {
+		return nil
+	}
+	label := "Attention: "
+	if job.Phase == fix.PhaseFailed {
+		label = "Failure: "
+	}
+	return []string{fixSurfaceLine(label+strings.Join(nonemptyStrings(job.Issue.Summary, job.Issue.Detail), " · "), width, style.SurfaceModal, style.TextPrimary)}
+}
+
+func jobMonitorActorLines(job fix.JobPresentation, width int) []string {
+	if len(job.Actors) == 0 {
+		return nil
+	}
+	lines := []string{fixSurfaceLine("ACTORS", width, style.SurfaceModal, style.TextMuted)}
+	for _, actor := range job.Actors {
+		prefix := "• "
+		if actor.ParentID != "" {
+			prefix = "  ↳ "
+		}
+		lines = append(lines, fixSurfaceLine(prefix+cleanAgentText(actor.ID)+" · "+cleanAgentText(actor.CurrentAction), width, style.SurfaceModal, style.TextPrimary))
+	}
+	return lines
+}
+
+func jobMonitorMaxOffset(state jobMonitorState, width, height int, fullScreen bool) int {
+	_, contentHeight := jobMonitorContentSize(width, height, fullScreen)
+	return max(0, state.lineCount(state.job)-contentHeight)
+}
+
+func jobMonitorContentSize(width, height int, fullScreen bool) (int, int) {
+	if fullScreen {
+		return width, max(1, height-2)
+	}
+	popupWidth := min(82, max(36, width-4))
+	return popupWidth - 4, max(6, min(18, height-6))
+}
+func (state jobMonitorState) lineCount(job fix.JobPresentation) int {
 	if state.loading || state.errorText != "" && job.ID == "" {
 		return 1
 	}
 	count := 6 // job, goal, agent, state, targets, usage
+	if job.DeliveryPlan.Valid() {
+		count += 2
+	}
 	if state.focusPath != "" {
 		count++
 		for _, target := range job.Targets {
@@ -209,8 +242,8 @@ func (model Model) jobReaderView(base string) string {
 	case OverlayCandidateSource:
 		title = "CANDIDATE SOURCE"
 	}
-	width, height := model.jobReaderDimensions()
-	content := model.jobReaderContent(width-4, height)
+	width, height := jobReaderDimensions(model.jobReader.kind, model.width, model.height)
+	content := model.jobReader.content(width-4, height)
 	footer := "PgUp/PgDn · r refresh · Esc back"
 	if state.kind == OverlayJobLog {
 		footer = "G follow · Esc back"
@@ -224,7 +257,7 @@ func (model Model) jobReaderView(base string) string {
 	}
 	if fullScreenSurface(model.width, model.height) {
 		lines := []string{fixSurfaceLine(title, model.width, style.SurfaceHeader, style.TextPrimary)}
-		lines = append(lines, model.jobReaderContent(model.width, max(1, model.height-2))...)
+		lines = append(lines, model.jobReader.content(model.width, max(1, model.height-2))...)
 		for len(lines) < model.height-1 {
 			lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
 		}
@@ -234,8 +267,7 @@ func (model Model) jobReaderView(base string) string {
 	return model.overlay(base, style.Popup(title, content, footer, width))
 }
 
-func (model Model) jobReaderContent(width, height int) []string {
-	state := model.jobReader
+func (state jobReaderState) content(width, height int) []string {
 	lines := []string{fixSurfaceLine("Job: "+string(state.jobID)+func() string {
 		if state.path != "" {
 			return " · " + state.path.String()
@@ -269,50 +301,151 @@ func (model Model) jobReaderContent(width, height int) []string {
 	return fitFixContent(lines, width, height)
 }
 
-func (model Model) jobReaderDimensions() (int, int) {
-	if model.jobReader.kind == OverlayJobLog {
-		return min(140, max(36, model.width-2)), max(6, min(30, model.height-5))
+func jobReaderDimensions(kind OverlayKind, width, height int) (int, int) {
+	if kind == OverlayJobLog {
+		return min(140, max(36, width-2)), max(6, min(30, height-5))
 	}
-	return min(92, max(36, model.width-4)), max(4, min(20, model.height-7))
+	return min(92, max(36, width-4)), max(4, min(20, height-7))
 }
 
 func jobReaderAvailableLines(height int) int {
 	return max(1, height-2)
 }
 
-func (model Model) jobReaderPageSize() int {
-	_, height := model.jobReaderDimensions()
-	if fullScreenSurface(model.width, model.height) {
-		height = max(1, model.height-2)
+func (state jobReaderState) pageSize(width, height int, fullScreen bool) int {
+	_, contentHeight := jobReaderDimensions(state.kind, width, height)
+	if fullScreen {
+		contentHeight = max(1, height-2)
 	}
-	return jobReaderAvailableLines(height)
+	return jobReaderAvailableLines(contentHeight)
 }
 
-func (model Model) jobReaderMaxOffset() int {
-	return max(0, len(model.jobReader.lines)-model.jobReaderPageSize())
+func (state jobReaderState) maxOffset(pageSize int) int {
+	return max(0, len(state.lines)-pageSize)
 }
 
-func (model Model) jobReaderMaxHorizontalOffset() int {
-	width, _ := model.jobReaderDimensions()
-	if fullScreenSurface(model.width, model.height) {
-		width = model.width
+func (state jobReaderState) maxHorizontalOffset(width, height int, fullScreen bool) int {
+	contentWidth, _ := jobReaderDimensions(state.kind, width, height)
+	if fullScreen {
+		contentWidth = width
 	} else {
-		width -= 4
+		contentWidth -= 4
 	}
 	longest := 0
-	for _, line := range model.jobReader.lines {
+	for _, line := range state.lines {
 		longest = max(longest, ansi.StringWidth(line))
 	}
-	return max(0, longest-width)
+	return max(0, longest-contentWidth)
 }
 
-func (model *Model) clampJobReaderPosition() {
-	if model.jobReader.follow {
-		model.jobReader.offset = model.jobReaderMaxOffset()
+func (state *jobReaderState) clamp(width, height int, fullScreen bool) {
+	pageSize := state.pageSize(width, height, fullScreen)
+	maximum := state.maxOffset(pageSize)
+	if state.follow {
+		state.offset = maximum
 	} else {
-		model.jobReader.offset = min(model.jobReader.offset, model.jobReaderMaxOffset())
+		state.offset = min(state.offset, maximum)
 	}
-	model.jobReader.horizontal = min(model.jobReader.horizontal, model.jobReaderMaxHorizontalOffset())
+	state.horizontal = min(state.horizontal, state.maxHorizontalOffset(width, height, fullScreen))
+}
+func (state fixDialogState) footer() string {
+	if state.choiceOpen {
+		if state.choiceField == fixFieldFocus {
+			return "Space toggle"
+		}
+		return "Enter select"
+	}
+	if state.starting {
+		return "Starting fix…"
+	}
+	if state.loading {
+		return ""
+	}
+	if !state.loading && !state.runnable() {
+		_, hasSettings := state.remediationSettingsKind()
+		if hasSettings {
+			return "R recheck · s settings"
+		}
+		return "R recheck"
+	}
+	if state.branchEditing {
+		return "Enter apply"
+	}
+	return "r run"
+}
+
+func (state fixDialogState) fieldRows(catalog agent.ProfileCatalog, width int) []string {
+	values := state.fieldValues(catalog)
+	labels := map[int]string{
+		fixFieldTargetScore: "Target score", fixFieldFocus: "Metrics", fixFieldProfile: "Agent",
+		fixFieldModel: "Model", fixFieldEffort: "Effort", fixFieldScope: "May edit",
+		fixFieldWorkspace: "Work in", fixFieldGit: "Git", fixFieldPublish: "Publish", fixFieldBranch: "Branch name",
+	}
+	fields := state.visibleFields()
+	rows := make([]string, 0, len(fields))
+	for _, field := range fields {
+		value := values[field]
+		prefix := "  "
+		if field == state.cursor {
+			prefix = "› "
+		}
+		selected := field == state.cursor
+		if state.fieldEditable(field) {
+			rows = append(rows, style.FormFieldRow(prefix+labels[field], value, width, 18, selected, fixChoiceField(field)))
+		} else {
+			rows = append(rows, fixSurfaceLine(prefix+fmt.Sprintf("%-16s", labels[field])+value, width, style.SelectionSurface(selected), style.TextPrimary))
+		}
+	}
+	return rows
+}
+
+func (state fixDialogState) overlayChoiceMenu(catalog agent.ProfileCatalog, lines []string, width, height, fieldStart, fieldEnd int) []string {
+	fields := state.visibleFields()
+	fieldRow := fixFieldPosition(fields, state.choiceField)
+	if fieldRow < fieldStart || fieldRow >= fieldEnd {
+		return lines
+	}
+	fieldOffset := 0
+	if height > 2 {
+		fieldOffset = 1 // target row
+	}
+	anchorRow := fieldOffset + fieldRow - fieldStart
+	if height <= 0 {
+		return lines
+	}
+	menu := state.choiceMenu(width, height, 1)
+	if len(menu) == 0 {
+		return lines
+	}
+	// Start at the field and shift upward only when needed. The menu may cover
+	// form rows in either direction, but never the dialog border.
+	menuTop := min(anchorRow, max(0, height-len(menu)))
+	minimumWidth := 1
+	values := state.fieldValues(catalog)
+	for row := menuTop; row < menuTop+len(menu); row++ {
+		position := fieldStart + row - fieldOffset
+		if row < fieldOffset || position < 0 || position >= len(fields) {
+			continue
+		}
+		field := fields[position]
+		fieldWidth := lipgloss.Width(values[field])
+		if fixChoiceField(field) {
+			fieldWidth++
+		}
+		minimumWidth = max(minimumWidth, fieldWidth)
+	}
+	menu = state.choiceMenu(width, height, minimumWidth)
+	menuLeft := min(18, max(0, width-lipgloss.Width(menu[0])))
+	return overlayFixLines(lines, menu, menuLeft, menuTop, width, height)
+}
+
+func (state fixDialogState) choiceMenu(maximumWidth, maximumHeight, minimumWidth int) []string {
+	choices := state.choices(state.choiceField)
+	return formChoiceMenu(choices, state.choiceCursor, state.choiceField == fixFieldFocus, maximumWidth, maximumHeight, minimumWidth)
+}
+
+func (state fixDialogState) cursorRow() int {
+	return fixFieldPosition(state.visibleFields(), state.cursor)
 }
 
 func (model Model) dirtyChoiceView(base, title string, cursor int) string {
@@ -374,37 +507,11 @@ func (model Model) fixDialogPopup() string {
 	if model.height < 10 {
 		contentHeight := max(1, model.height-4) // border, title, and footer
 		content := model.fixDialogContent(width-4, contentHeight)
-		return style.TightPopup("FIX FILE", content, model.fixDialogFooter(), width)
+		return style.TightPopup("FIX FILE", content, model.fixDialog.footer(), width)
 	}
 	contentHeight := max(4, min(12, model.height-7))
 	content := model.fixDialogContent(width-4, contentHeight)
-	return style.Popup("FIX FILE", content, model.fixDialogFooter(), width)
-}
-
-func (model Model) fixDialogFooter() string {
-	if model.fixDialog.choiceOpen {
-		if model.fixDialog.choiceField == fixFieldFocus {
-			return "Space toggle"
-		}
-		return "Enter select"
-	}
-	if model.fixDialog.starting {
-		return "Starting fix…"
-	}
-	if model.fixDialog.loading {
-		return ""
-	}
-	if !model.fixDialog.loading && !model.fixDialogRunnable() {
-		_, hasSettings := model.fixRemediationSettingsKind()
-		if hasSettings {
-			return "R recheck · s settings"
-		}
-		return "R recheck"
-	}
-	if model.fixDialog.branchEditing {
-		return "Enter apply"
-	}
-	return "r run"
+	return style.Popup("FIX FILE", content, model.fixDialog.footer(), width)
 }
 
 func (model Model) fixTargetScoreEditorView(base string) string {
@@ -426,7 +533,17 @@ func (model Model) fixTargetScoreEditorView(base string) string {
 }
 
 func (model Model) fixDialogContent(width, height int) []string {
-	state := model.fixDialog
+	return model.fixDialog.content(model.profileCatalog, width, height)
+}
+
+func (state fixDialogState) content(catalog agent.ProfileCatalog, width, height int) []string {
+	fields := state.fieldRows(catalog, width)
+	runnable := state.runnable()
+	preflight := ""
+	if state.hasInput {
+		preflight = fixPreflightWarning(state.input)
+	}
+	cursor := state.cursorRow()
 	lines := []string{}
 	if height > 2 {
 		targetText := "Target: " + state.target.String()
@@ -448,28 +565,26 @@ func (model Model) fixDialogContent(width, height int) []string {
 		status = "STARTING FIX…"
 	} else if state.errorText != "" {
 		status = "Error: " + state.errorText
-	} else if !model.fixDialogRunnable() {
+	} else if !runnable {
 		status = "FIX BLOCKED · " + fixPreflightSummary(state.input)
-	} else if warning := fixPreflightWarning(state.input); warning != "" {
-		status = "READY WITH WARNING · " + warning
+	} else if preflight != "" {
+		status = "READY WITH WARNING · " + preflight
 	} else {
 		status = "READY TO FIX"
 	}
 	statusColour := style.TextMuted
-	if !model.fixDialogRunnable() {
+	if !runnable {
 		statusColour = style.AccentCritical
 	}
 	statusLines := fixWrappedLines(status, width, min(3, max(1, height-len(lines)-1)), statusColour)
-	fields := model.fixFieldRows(width)
 	available := max(1, height-len(lines)-len(statusLines))
-	cursor := model.fixDialogCursorRow()
 	start := min(max(0, cursor-available/2), max(0, len(fields)-available))
 	end := min(len(fields), start+available)
 	lines = append(lines, fields[start:end]...)
 	lines = append(lines, statusLines...)
 	lines = fitFixContent(lines, width, height)
 	if state.choiceOpen {
-		lines = model.overlayFixChoiceMenu(lines, width, height, start, end)
+		lines = state.overlayChoiceMenu(catalog, lines, width, height, start, end)
 	}
 	return lines
 }
@@ -497,34 +612,7 @@ func fitFixContent(lines []string, width, height int) []string {
 	return lines
 }
 
-func (model Model) fixFieldRows(width int) []string {
-	state := model.fixDialog
-	values := model.fixFieldValues()
-	labels := map[int]string{
-		fixFieldTargetScore: "Target score", fixFieldFocus: "Metrics", fixFieldProfile: "Agent",
-		fixFieldModel: "Model", fixFieldEffort: "Effort", fixFieldScope: "May edit",
-		fixFieldWorkspace: "Work in", fixFieldGit: "Git", fixFieldPublish: "Publish", fixFieldBranch: "Branch name",
-	}
-	fields := model.fixVisibleFields()
-	rows := make([]string, 0, len(fields))
-	for _, field := range fields {
-		value := values[field]
-		prefix := "  "
-		if field == state.cursor {
-			prefix = "› "
-		}
-		selected := field == state.cursor
-		if model.fixFieldEditable(field) {
-			rows = append(rows, style.FormFieldRow(prefix+labels[field], value, width, 18, selected, fixChoiceField(field)))
-		} else {
-			rows = append(rows, fixSurfaceLine(prefix+fmt.Sprintf("%-16s", labels[field])+value, width, style.SelectionSurface(selected), style.TextPrimary))
-		}
-	}
-	return rows
-}
-
-func (model Model) fixFieldValues() map[int]string {
-	state := model.fixDialog
+func (state fixDialogState) fieldValues(catalog agent.ProfileCatalog) map[int]string {
 	branch := state.branch.Value()
 	if state.branchEditing {
 		input := state.branch
@@ -534,8 +622,8 @@ func (model Model) fixFieldValues() map[int]string {
 	targetScore := formatTargetScore(state.input.TargetScore)
 	return map[int]string{
 		fixFieldTargetScore: "≤ " + targetScore,
-		fixFieldFocus:       model.fixMetricSelectionLabel(),
-		fixFieldProfile:     model.fixAgentLabel(),
+		fixFieldFocus:       state.metricSelectionLabel(),
+		fixFieldProfile:     state.agentLabel(catalog),
 		fixFieldModel:       agentOptionLabel(state.input.Probe.Capabilities.Models, state.input.Model),
 		fixFieldEffort:      agentOptionLabel(state.input.Probe.Capabilities.Efforts, state.input.Effort),
 		fixFieldScope:       changeScopeLabel(state.input.ChangeScope),
@@ -546,70 +634,11 @@ func (model Model) fixFieldValues() map[int]string {
 	}
 }
 
-func (model Model) overlayFixChoiceMenu(lines []string, width, height, fieldStart, fieldEnd int) []string {
-	state := model.fixDialog
-	fields := model.fixVisibleFields()
-	fieldRow := fixFieldPosition(fields, state.choiceField)
-	if fieldRow < fieldStart || fieldRow >= fieldEnd {
-		return lines
-	}
-	fieldOffset := 0
-	if height > 2 {
-		fieldOffset = 1 // target row
-	}
-	anchorRow := fieldOffset + fieldRow - fieldStart
-	if height <= 0 {
-		return lines
-	}
-	menu := model.fixChoiceMenu(width, height, 1)
-	if len(menu) == 0 {
-		return lines
-	}
-	// Start at the field and shift upward only when needed. The menu may cover
-	// form rows in either direction, but never the dialog border.
-	menuTop := min(anchorRow, max(0, height-len(menu)))
-	minimumWidth := 1
-	values := model.fixFieldValues()
-	for row := menuTop; row < menuTop+len(menu); row++ {
-		position := fieldStart + row - fieldOffset
-		if row < fieldOffset || position < 0 || position >= len(fields) {
-			continue
-		}
-		field := fields[position]
-		fieldWidth := lipgloss.Width(values[field])
-		if fixChoiceField(field) {
-			fieldWidth++
-		}
-		minimumWidth = max(minimumWidth, fieldWidth)
-	}
-	menu = model.fixChoiceMenu(width, height, minimumWidth)
-	menuLeft := min(18, max(0, width-lipgloss.Width(menu[0])))
-	return overlayFixLines(lines, menu, menuLeft, menuTop, width, height)
-}
-
-func (model Model) fixChoiceMenu(maximumWidth, maximumHeight, minimumWidth int) []string {
-	choices := model.fixChoices(model.fixDialog.choiceField)
-	return formChoiceMenu(choices, model.fixDialog.choiceCursor, model.fixDialog.choiceField == fixFieldFocus, maximumWidth, maximumHeight, minimumWidth)
-}
-
 func formChoiceMenu(choices []fixDialogChoice, cursor int, multi bool, maximumWidth, maximumHeight, minimumWidth int) []string {
 	if len(choices) == 0 || maximumWidth <= 0 || maximumHeight <= 0 {
 		return nil
 	}
-	desiredInnerWidth := 1
-	for _, choice := range choices {
-		mark := "○"
-		if choice.selected {
-			mark = "●"
-		}
-		if multi {
-			mark = "[ ]"
-			if choice.selected {
-				mark = "[x]"
-			}
-		}
-		desiredInnerWidth = max(desiredInnerWidth, lipgloss.Width("›↓ "+mark+" "+choice.label))
-	}
+	desiredInnerWidth := choiceMenuWidth(choices, multi)
 
 	bordered := maximumHeight >= 3 && maximumWidth >= 5
 	borderWidth := 0
@@ -625,51 +654,7 @@ func formChoiceMenu(choices []fixDialogChoice, cursor int, multi bool, maximumWi
 	end := start + visibleRows
 	rows := make([]string, 0, visibleRows)
 	for index := start; index < start+visibleRows; index++ {
-		choice := choices[index]
-		active := index == cursor
-		mark := "○"
-		if choice.selected {
-			mark = "●"
-		}
-		if multi {
-			mark = "[ ]"
-			if choice.selected {
-				mark = "[x]"
-			}
-		}
-		prefix := "  "
-		if active {
-			prefix = "› "
-		}
-		moreAbove := index == start && start > 0
-		moreBelow := index == end-1 && end < len(choices)
-		switch {
-		case moreAbove && moreBelow:
-			prefix = " ↕ "
-			if active {
-				prefix = "›↕ "
-			}
-		case moreAbove:
-			prefix = " ↑ "
-			if active {
-				prefix = "›↑ "
-			}
-		case moreBelow:
-			prefix = " ↓ "
-			if active {
-				prefix = "›↓ "
-			}
-		}
-		foreground := style.TextPrimary
-		if choice.disabled {
-			foreground = style.TextMuted
-		}
-		background := style.SurfaceField
-		if active {
-			background = style.SurfaceFieldActive
-		}
-		text := ansi.Truncate(prefix+mark+" "+choice.label, innerWidth, "")
-		rows = append(rows, lipgloss.NewStyle().Width(innerWidth).Background(background).Foreground(foreground).Bold(active).Render(text))
+		rows = append(rows, renderChoiceMenuRow(choices[index], index, cursor, start, end, len(choices), multi, innerWidth))
 	}
 	if !bordered {
 		return rows
@@ -680,6 +665,67 @@ func formChoiceMenu(choices []fixDialogChoice, cursor int, multi bool, maximumWi
 		Background(style.SurfaceField).
 		Render(strings.Join(rows, "\n"))
 	return strings.Split(menu, "\n")
+}
+
+func choiceMenuWidth(choices []fixDialogChoice, multi bool) int {
+	desired := 1
+	for _, choice := range choices {
+		desired = max(desired, lipgloss.Width("›↓ "+choiceMenuMark(choice, multi)+" "+choice.label))
+	}
+	return desired
+}
+
+func choiceMenuMark(choice fixDialogChoice, multi bool) string {
+	if multi {
+		if choice.selected {
+			return "[x]"
+		}
+		return "[ ]"
+	}
+	if choice.selected {
+		return "●"
+	}
+	return "○"
+}
+
+func choiceMenuPrefix(index, cursor, start, end, total int) string {
+	active := index == cursor
+	prefix := "  "
+	if active {
+		prefix = "› "
+	}
+	moreAbove, moreBelow := index == start && start > 0, index == end-1 && end < total
+	switch {
+	case moreAbove && moreBelow:
+		prefix = " ↕ "
+		if active {
+			prefix = "›↕ "
+		}
+	case moreAbove:
+		prefix = " ↑ "
+		if active {
+			prefix = "›↑ "
+		}
+	case moreBelow:
+		prefix = " ↓ "
+		if active {
+			prefix = "›↓ "
+		}
+	}
+	return prefix
+}
+
+func renderChoiceMenuRow(choice fixDialogChoice, index, cursor, start, end, total int, multi bool, width int) string {
+	active := index == cursor
+	foreground, background := style.TextPrimary, style.SurfaceField
+	if choice.disabled {
+		foreground = style.TextMuted
+	}
+	if active {
+		background = style.SurfaceFieldActive
+	}
+	text := ansi.Truncate(choiceMenuPrefix(index, cursor, start, end, total)+choiceMenuMark(choice, multi)+" "+choice.label, width, "")
+	return lipgloss.NewStyle().Width(width).Background(background).Foreground(foreground).Bold(active).Render(text)
 }
 
 func overlayFixLines(base, overlay []string, left, top, width, height int) []string {
@@ -704,8 +750,7 @@ func overlayFixLines(base, overlay []string, left, top, width, height int) []str
 	return result[:min(height, len(result))]
 }
 
-func (model Model) fixFieldEditable(field int) bool {
-	state := model.fixDialog
+func (state fixDialogState) fieldEditable(field int) bool {
 	switch field {
 	case fixFieldTargetScore, fixFieldFocus, fixFieldScope, fixFieldWorkspace, fixFieldGit, fixFieldPublish, fixFieldBranch:
 		return true
@@ -720,8 +765,7 @@ func (model Model) fixFieldEditable(field int) bool {
 	}
 }
 
-func (model Model) fixMetricSelectionLabel() string {
-	state := model.fixDialog
+func (state fixDialogState) metricSelectionLabel() string {
 	labels := make([]string, 0, len(state.metrics))
 	for _, id := range state.metrics {
 		if state.focus[id] {
@@ -737,12 +781,7 @@ func (model Model) fixMetricSelectionLabel() string {
 	return fmt.Sprintf("%s + %d", labels[0], len(labels)-1)
 }
 
-func (model Model) fixDialogCursorRow() int {
-	return fixFieldPosition(model.fixVisibleFields(), model.fixDialog.cursor)
-}
-
-func (model Model) fixVisibleFields() []int {
-	state := model.fixDialog
+func (state fixDialogState) visibleFields() []int {
 	fields := []int{fixFieldTargetScore}
 	if len(state.metrics) > 0 {
 		fields = append(fields, fixFieldFocus)
@@ -768,10 +807,10 @@ func fixFieldPosition(fields []int, field int) int {
 	return 0
 }
 
-func (model Model) fixAgentLabel() string {
-	profile := model.fixDialog.input.Profile
-	if model.profileCatalog != nil {
-		if descriptor, err := model.profileCatalog.Descriptor(profile.Runtime); err == nil && descriptor.Label != "" {
+func (state fixDialogState) agentLabel(catalog agent.ProfileCatalog) string {
+	profile := state.input.Profile
+	if catalog != nil {
+		if descriptor, err := catalog.Descriptor(profile.Runtime); err == nil && descriptor.Label != "" {
 			return cleanAgentText(descriptor.Label)
 		}
 	}
@@ -877,37 +916,63 @@ func fixPreflightSummary(input fixapp.FixInput) string {
 }
 
 func fixPreflightWarning(input fixapp.FixInput) string {
-	if input.DeliveryPlan.Git == fix.GitCommitNewBranch && strings.TrimSpace(input.BranchName) == "" {
-		return "enter a branch name"
+	if warning := deliveryPreflightWarning(input); warning != "" {
+		return warning
 	}
-	if input.DeliveryPlan.Git != fix.GitLeaveUncommitted && input.Workspace.GitCommonDir == "" {
-		return "this folder is not a Git repository; choose Leave uncommitted"
+	return probePreflightWarning(input)
+}
+
+func deliveryPreflightWarning(input fixapp.FixInput) string {
+	checks := []struct {
+		invalid bool
+		message string
+	}{
+		{input.DeliveryPlan.Git == fix.GitCommitNewBranch && strings.TrimSpace(input.BranchName) == "", "enter a branch name"},
+		{input.DeliveryPlan.Git != fix.GitLeaveUncommitted && input.Workspace.GitCommonDir == "", "this folder is not a Git repository; choose Leave uncommitted"},
+		{input.DeliveryPlan.Workspace == fix.WorkspaceWorktree && input.DeliveryPlan.Git == fix.GitCommitCurrent, "choose Current files to commit the current branch"},
+		{input.DeliveryPlan.Git == fix.GitCommitCurrent && input.Workspace.CurrentBranch == "", "Git has no current branch; leave changes uncommitted or create a new branch"},
 	}
-	if input.DeliveryPlan.Workspace == fix.WorkspaceWorktree && input.DeliveryPlan.Git == fix.GitCommitCurrent {
-		return "choose Current files to commit the current branch"
+	for _, check := range checks {
+		if check.invalid {
+			return check.message
+		}
 	}
-	if input.DeliveryPlan.Git == fix.GitCommitCurrent && input.Workspace.CurrentBranch == "" {
-		return "Git has no current branch; leave changes uncommitted or create a new branch"
+	return ""
+}
+
+func probePreflightWarning(input fixapp.FixInput) string {
+	if input.Probe.State == "" {
+		return ""
 	}
 	diagnostic := cleanAgentText(input.Probe.Diagnostic)
 	suffix := ""
 	if diagnostic != "" {
 		suffix = " · " + diagnostic
 	}
-	switch input.Probe.State {
+	if warning := probeStateWarning(input.Probe.State, suffix); warning != "" {
+		return warning
+	}
+	return probeCapabilityWarning(input)
+}
+
+func probeStateWarning(state agent.ProbeState, suffix string) string {
+	switch state {
 	case "":
 		return ""
 	case agent.ProbeUnauthenticated:
 		return "agent appears unauthenticated; the job will attempt to connect at runtime" + suffix
 	case agent.ProbeUnavailable, agent.ProbeIncompatible:
-		return fmt.Sprintf("agent appears %s; the job will attempt to start it at runtime%s", input.Probe.State, suffix)
+		return fmt.Sprintf("agent appears %s; the job will attempt to start it at runtime%s", state, suffix)
 	case agent.ProbeDegraded:
 		return "agent readiness is degraded; the job will report any concrete runtime failure" + suffix
+	case agent.ProbeReady:
+		return ""
 	default:
-		if input.Probe.State != agent.ProbeReady {
-			return fmt.Sprintf("agent readiness is %s; the job will attempt to start it at runtime%s", input.Probe.State, suffix)
-		}
+		return fmt.Sprintf("agent readiness is %s; the job will attempt to start it at runtime%s", state, suffix)
 	}
+}
+
+func probeCapabilityWarning(input fixapp.FixInput) string {
 	if !input.Probe.Capabilities.Isolation.EligibleForMutation() {
 		return fixAgentName(input) + " did not report the configured isolation capabilities"
 	}
