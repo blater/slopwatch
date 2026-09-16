@@ -221,20 +221,19 @@ func (model *Model) openFixForSelected() tea.Cmd {
 		statusText: "Preparing analysis of " + markedFilesLabel(len(targets)) + "…",
 	}
 	model.overlays.Push(OverlayFixForm, OverlayCaller{MainView: MainViewFiles, Selected: model.files.Selected})
-	return model.loadFixCommand(targets, nil, model.fixGeneration)
+	workspace := fixLoadWorkspace(model.fixWorkspace, model.options.Workspace)
+	return loadFixCommand(model.fixService, workspace, targets, nil, nil, model.fixGeneration)
 }
 
-func (model Model) loadFixCommand(paths []fix.RepoPath, profile *agent.ProfileID, generation uint64) tea.Cmd {
-	service := model.fixService
-	workspace := model.fixWorkspace
-	var selectedDelivery *fixapp.LoadDelivery
-	if model.fixDialog.hasInput {
-		selectedDelivery = &fixapp.LoadDelivery{Plan: model.fixDialog.input.DeliveryPlan, Branch: model.fixDialog.input.BranchName}
-	}
+func fixLoadWorkspace(workspace fix.WorkspaceIdentity, fallback string) fix.WorkspaceIdentity {
 	if workspace.RepositoryRoot == "" {
-		workspace.RepositoryRoot = model.options.Workspace
-		workspace.AnalysisRoot = model.options.Workspace
+		workspace.RepositoryRoot = fallback
+		workspace.AnalysisRoot = fallback
 	}
+	return workspace
+}
+
+func loadFixCommand(service FixService, workspace fix.WorkspaceIdentity, paths []fix.RepoPath, profile *agent.ProfileID, selectedDelivery *fixapp.LoadDelivery, generation uint64) tea.Cmd {
 	return func() tea.Msg {
 		overrides := appconfig.SessionOverrides{Profile: profile}
 		input, err := service.LoadFix(context.Background(), fixapp.LoadRequest{
@@ -245,7 +244,7 @@ func (model Model) loadFixCommand(paths []fix.RepoPath, profile *agent.ProfileID
 }
 
 func (model *Model) handleFixLoaded(message fixLoadedMsg) {
-	if message.generation != model.fixDialog.generation || !model.hasOverlay(OverlayFixForm) {
+	if message.generation != model.fixDialog.generation || !overlayPresent(model.overlays, OverlayFixForm) {
 		return
 	}
 	model.fixDialog.loading = false
@@ -322,120 +321,6 @@ type fixDialogChoice struct {
 	disabled bool
 }
 
-func (model *Model) handleFixChoiceKey(name string) (tea.Model, tea.Cmd) {
-	choice, selected := model.fixDialog.handleChoiceKey(name)
-	if !selected {
-		return model, nil
-	}
-	return model.applyFixChoice(choice)
-}
-
-func (model *Model) applyFixChoice(choice fixDialogChoice) (tea.Model, tea.Cmd) {
-	state := &model.fixDialog
-	switch state.choiceField {
-	case fixFieldFocus:
-		id := fix.MetricID(choice.value)
-		state.focus[id] = !state.focus[id]
-		model.fixDialog.syncInput()
-	case fixFieldProfile:
-		profile := agent.ProfileID(choice.value)
-		state.choiceOpen = false
-		if profile == state.input.Profile.ID {
-			return model, nil
-		}
-		model.fixGeneration++
-		state.generation = model.fixGeneration
-		state.loading = true
-		state.statusText = "Checking agent profile…"
-		return model, model.loadFixCommand(state.targetPaths(), &profile, state.generation)
-	case fixFieldModel:
-		state.input.Model = agent.ModelID(choice.value)
-		state.choiceOpen = false
-	case fixFieldEffort:
-		state.input.Effort = agent.EffortID(choice.value)
-		state.choiceOpen = false
-	case fixFieldScope:
-		state.input.ChangeScope = choice.value
-		model.fixDialog.syncInput()
-		state.choiceOpen = false
-	case fixFieldWorkspace:
-		state.input.DeliveryPlan.Workspace = fix.WorkspaceMode(choice.value)
-		if state.input.DeliveryPlan.Workspace == fix.WorkspaceWorktree && state.input.DeliveryPlan.Git == fix.GitCommitCurrent {
-			state.input.DeliveryPlan.Git = fix.GitLeaveUncommitted
-			state.input.DeliveryPlan.Publish = fix.PublishLocal
-		}
-		model.fixDialog.syncInput()
-		state.choiceOpen = false
-		model.fixDialog.ensureCursorVisible()
-	case fixFieldGit:
-		state.input.DeliveryPlan.Git = fix.GitMode(choice.value)
-		if state.input.DeliveryPlan.Git == fix.GitLeaveUncommitted {
-			state.input.DeliveryPlan.Publish = fix.PublishLocal
-		}
-		model.fixDialog.syncInput()
-		state.choiceOpen = false
-		model.fixDialog.ensureCursorVisible()
-	case fixFieldPublish:
-		state.input.DeliveryPlan.Publish = fix.PublishMode(choice.value)
-		model.fixDialog.syncInput()
-		state.choiceOpen = false
-		model.fixDialog.ensureCursorVisible()
-	}
-	return model, nil
-}
-
-func (model *Model) adjustFixField(direction int) (tea.Model, tea.Cmd) {
-	state := &model.fixDialog
-	switch state.cursor {
-	case fixFieldTargetScore:
-		return model.adjustFixScore(direction)
-	case fixFieldProfile:
-		return model.adjustFixProfile(direction)
-	case fixFieldModel:
-		state.input.Model = cycleAgentOption(state.input.Probe.Capabilities.Models, state.input.Model, direction)
-	case fixFieldEffort:
-		state.input.Effort = cycleAgentOption(state.input.Probe.Capabilities.Efforts, state.input.Effort, direction)
-	case fixFieldScope:
-		state.input.ChangeScope = fixCycleString([]string{"targets-only", "targets-and-tests", "repository"}, state.input.ChangeScope, direction)
-		model.fixDialog.syncInput()
-	}
-	return model, nil
-}
-
-func (model *Model) adjustFixScore(direction int) (tea.Model, tea.Cmd) {
-	state := &model.fixDialog
-	state.input.TargetScore = max(0, state.input.TargetScore+float64(direction*10))
-	if !model.fixDialog.syncInput() {
-		return model, nil
-	}
-	model.fixTargetDesired = state.input.TargetScore
-	if model.fixTargetSaving {
-		return model, nil
-	}
-	return model, model.saveFixTargetPreference(state.input.Preferences)
-}
-
-func (model *Model) adjustFixProfile(direction int) (tea.Model, tea.Cmd) {
-	state := &model.fixDialog
-	profiles := state.input.Preferences.Profiles
-	if len(profiles) <= 1 {
-		return model, nil
-	}
-	current := 0
-	for index := range profiles {
-		if profiles[index].ID == state.input.Profile.ID {
-			current = index
-			break
-		}
-	}
-	profile := profiles[fixCycleIndex(current, direction, len(profiles))].ID
-	model.fixGeneration++
-	state.generation = model.fixGeneration
-	state.loading = true
-	state.statusText = "Checking agent profile…"
-	return model, model.loadFixCommand(state.targetPaths(), &profile, state.generation)
-}
-
 func (model *Model) saveFixTargetPreference(preferences appconfig.Resolved) tea.Cmd {
 	if model.configStore == nil {
 		return nil
@@ -497,7 +382,7 @@ func (model *Model) runFix() (tea.Model, tea.Cmd) {
 }
 
 func (model *Model) handleFixStarted(message fixStartedMsg) {
-	if message.generation != model.fixDialog.generation || !model.hasOverlay(OverlayFixForm) {
+	if message.generation != model.fixDialog.generation || !overlayPresent(model.overlays, OverlayFixForm) {
 		return
 	}
 	model.fixDialog.starting = false
@@ -532,8 +417,8 @@ func (model *Model) openFixRemediationSettings() tea.Cmd {
 	return command
 }
 
-func (model Model) hasOverlay(kind OverlayKind) bool {
-	for _, frame := range model.overlays.frames {
+func overlayPresent(stack OverlayStack, kind OverlayKind) bool {
+	for _, frame := range stack.frames {
 		if frame.Kind == kind {
 			return true
 		}
@@ -586,7 +471,7 @@ func (model *Model) clearFixUpdateError() {
 }
 
 func (model *Model) requestQuit() (tea.Model, tea.Cmd) {
-	active := model.activeFixJobs()
+	active := activeFixJobs(model.agents.Jobs)
 	if len(active) == 0 || model.fixService == nil {
 		return model, tea.Quit
 	}
@@ -595,9 +480,9 @@ func (model *Model) requestQuit() (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
-func (model Model) activeFixJobs() []fix.JobPresentation {
+func activeFixJobs(jobs []fix.JobPresentation) []fix.JobPresentation {
 	result := make([]fix.JobPresentation, 0)
-	for _, job := range model.agents.Jobs {
+	for _, job := range jobs {
 		switch job.Phase {
 		case fix.PhaseQueued, fix.PhasePreflight, fix.PhasePreparing, fix.PhaseRunning,
 			fix.PhaseWaitingVerifier, fix.PhaseVerifying, fix.PhasePublishing, fix.PhaseCanceling,
@@ -645,7 +530,7 @@ func (model *Model) openCancelConfirmation() {
 }
 
 func (model *Model) activateJobAction(jobID fix.JobID, choices ...fix.JobAction) (tea.Model, tea.Cmd) {
-	job, ok := model.agentJobByID(jobID)
+	job, ok := jobByID(model.agents.Jobs, jobID)
 	if !ok {
 		model.fixNotice = "Selected job is no longer available"
 		return model, nil
@@ -672,8 +557,8 @@ func (model *Model) activateJobAction(jobID fix.JobID, choices ...fix.JobAction)
 	return model.executeSelectedJobAction(job.ID, action, false)
 }
 
-func (model Model) agentJobByID(id fix.JobID) (fix.JobPresentation, bool) {
-	for _, job := range model.agents.Jobs {
+func jobByID(jobs []fix.JobPresentation, id fix.JobID) (fix.JobPresentation, bool) {
+	for _, job := range jobs {
 		if job.ID == id {
 			return job, true
 		}
@@ -683,15 +568,6 @@ func (model Model) agentJobByID(id fix.JobID) (fix.JobPresentation, bool) {
 
 func jobActionRequiresConfirmation(action fix.JobAction) bool {
 	return action == fix.ActionCancel
-}
-
-func (model Model) selectedAgentJob() (fix.JobPresentation, bool) {
-	for _, job := range model.agents.Jobs {
-		if job.ID == model.agents.Selected.JobID {
-			return job, true
-		}
-	}
-	return fix.JobPresentation{}, false
 }
 
 func containsFixAction(actions []fix.JobAction, wanted fix.JobAction) bool {

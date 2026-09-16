@@ -13,13 +13,13 @@ import (
 
 func (model Model) openFixSurfaceUpdates() (time.Time, time.Time) {
 	monitorUpdate, logUpdate := time.Time{}, time.Time{}
-	if model.hasOverlay(OverlayJobMonitor) {
-		if job, ok := model.agentJobByID(model.jobMonitor.jobID); ok {
+	if overlayPresent(model.overlays, OverlayJobMonitor) {
+		if job, ok := jobByID(model.agents.Jobs, model.jobMonitor.jobID); ok {
 			monitorUpdate = job.UpdatedAt
 		}
 	}
-	if model.hasOverlay(OverlayJobLog) {
-		if job, ok := model.agentJobByID(model.jobReader.jobID); ok {
+	if overlayPresent(model.overlays, OverlayJobLog) {
+		if job, ok := jobByID(model.agents.Jobs, model.jobReader.jobID); ok {
 			logUpdate = job.UpdatedAt
 		}
 	}
@@ -28,16 +28,15 @@ func (model Model) openFixSurfaceUpdates() (time.Time, time.Time) {
 
 func (model *Model) refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpdate time.Time) (tea.Cmd, tea.Cmd) {
 	monitorCommand, logCommand := tea.Cmd(nil), tea.Cmd(nil)
-	if model.hasOverlay(OverlayJobMonitor) {
-		if job, ok := model.agentJobByID(model.jobMonitor.jobID); ok {
-			model.jobMonitor.job = job
-			if !job.UpdatedAt.Equal(previousMonitorUpdate) {
+	if overlayPresent(model.overlays, OverlayJobMonitor) {
+		if job, ok := jobByID(model.agents.Jobs, model.jobMonitor.jobID); ok {
+			if model.jobMonitor.replaceJob(job, previousMonitorUpdate) {
 				monitorCommand = model.beginJobMonitorRefresh()
 			}
 		}
 	}
-	if model.hasOverlay(OverlayJobLog) {
-		if job, ok := model.agentJobByID(model.jobReader.jobID); ok && !job.UpdatedAt.Equal(previousLogUpdate) {
+	if overlayPresent(model.overlays, OverlayJobLog) {
+		if job, ok := jobByID(model.agents.Jobs, model.jobReader.jobID); ok && !job.UpdatedAt.Equal(previousLogUpdate) {
 			logCommand = model.beginJobLogRefresh()
 		}
 	}
@@ -73,15 +72,11 @@ func (model *Model) openJobMonitor(jobID fix.JobID, focus fix.RepoPath) tea.Cmd 
 	}
 	model.fixGeneration++
 	model.jobMonitor = jobMonitorState{generation: model.fixGeneration, jobID: jobID, focusPath: focus, loading: true, refreshing: true}
-	if !model.hasOverlay(OverlayJobMonitor) {
+	if !overlayPresent(model.overlays, OverlayJobMonitor) {
 		model.overlays.Push(OverlayJobMonitor, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: jobID, Path: focus}.String()})
 	}
 	service, generation := model.fixService, model.fixGeneration
-	return model.loadJobMonitorCommandWithService(service, jobID, generation)
-}
-
-func (model Model) loadJobMonitorCommand(jobID fix.JobID, generation uint64) tea.Cmd {
-	return model.loadJobMonitorCommandWithService(model.fixService, jobID, generation)
+	return loadJobMonitorCommand(service, jobID, generation)
 }
 
 // beginJobMonitorRefresh coalesces subscription bursts into at most one queued
@@ -92,17 +87,15 @@ func (model *Model) beginJobMonitorRefresh() tea.Cmd {
 	if model.fixService == nil || model.jobMonitor.jobID == "" {
 		return nil
 	}
-	if model.jobMonitor.refreshing {
-		model.jobMonitor.pending = true
+	nextGeneration := model.fixGeneration + 1
+	if !model.jobMonitor.beginRefresh(nextGeneration) {
 		return nil
 	}
-	model.fixGeneration++
-	model.jobMonitor.generation = model.fixGeneration
-	model.jobMonitor.refreshing = true
-	return model.loadJobMonitorCommand(model.jobMonitor.jobID, model.jobMonitor.generation)
+	model.fixGeneration = nextGeneration
+	return loadJobMonitorCommand(model.fixService, model.jobMonitor.jobID, model.jobMonitor.generation)
 }
 
-func (model Model) loadJobMonitorCommandWithService(service FixService, jobID fix.JobID, generation uint64) tea.Cmd {
+func loadJobMonitorCommand(service FixService, jobID fix.JobID, generation uint64) tea.Cmd {
 	return func() tea.Msg {
 		job, found := service.Job(jobID)
 		if !found {
@@ -113,7 +106,7 @@ func (model Model) loadJobMonitorCommandWithService(service FixService, jobID fi
 }
 
 func (model *Model) handleJobMonitor(message jobMonitorMsg) tea.Cmd {
-	if message.generation != model.jobMonitor.generation || !model.hasOverlay(OverlayJobMonitor) {
+	if message.generation != model.jobMonitor.generation || !overlayPresent(model.overlays, OverlayJobMonitor) {
 		return nil
 	}
 	if model.jobMonitor.apply(message, model.width, model.height, fullScreenSurface(model.width, model.height)) {
@@ -168,11 +161,10 @@ func (model *Model) openJobReader(kind OverlayKind, jobID fix.JobID, path fix.Re
 		follow:     kind == OverlayJobLog,
 	}
 	model.overlays.Push(kind, OverlayCaller{MainView: MainViewAgents, Overlay: OverlayJobMonitor, Selected: AgentRowID{JobID: jobID, Path: path}.String()})
-	return model.loadJobReaderCommand(kind, jobID, path, model.fixGeneration, 0, false)
+	return loadJobReaderCommand(model.fixService, kind, jobID, path, model.fixGeneration, 0, false)
 }
 
-func (model *Model) loadJobReaderCommand(kind OverlayKind, jobID fix.JobID, path fix.RepoPath, generation uint64, cursor fixapp.LogCursor, increment bool) tea.Cmd {
-	service := model.fixService
+func loadJobReaderCommand(service FixService, kind OverlayKind, jobID fix.JobID, path fix.RepoPath, generation uint64, cursor fixapp.LogCursor, increment bool) tea.Cmd {
 	return func() tea.Msg {
 		result := loadJobReader(context.Background(), service, kind, jobID, path, cursor, increment)
 		result.generation, result.kind, result.increment = generation, kind, increment
@@ -201,17 +193,15 @@ func wholeSecondTimestamp(value string) string {
 }
 
 func (model *Model) beginJobLogRefresh() tea.Cmd {
-	if model.jobReader.kind != OverlayJobLog || !model.hasOverlay(OverlayJobLog) || model.fixService == nil {
+	if model.jobReader.kind != OverlayJobLog || !overlayPresent(model.overlays, OverlayJobLog) || model.fixService == nil {
 		return nil
 	}
-	if model.jobReader.refreshing {
-		model.jobReader.pending = true
+	nextGeneration := model.fixGeneration + 1
+	if !model.jobReader.beginRefresh(nextGeneration) {
 		return nil
 	}
-	model.fixGeneration++
-	model.jobReader.generation = model.fixGeneration
-	model.jobReader.refreshing = true
-	return model.loadJobReaderCommand(OverlayJobLog, model.jobReader.jobID, "", model.fixGeneration, model.jobReader.logCursor, true)
+	model.fixGeneration = nextGeneration
+	return loadJobReaderCommand(model.fixService, OverlayJobLog, model.jobReader.jobID, "", model.fixGeneration, model.jobReader.logCursor, true)
 }
 
 func loadTranscript(ctx context.Context, service FixService, jobID fix.JobID, cursor fixapp.LogCursor) (fixapp.LogPage, error) {
@@ -235,7 +225,7 @@ func loadTranscript(ctx context.Context, service FixService, jobID fix.JobID, cu
 }
 
 func (model *Model) handleJobReader(message jobReaderMsg) tea.Cmd {
-	if message.generation != model.jobReader.generation || message.kind != model.jobReader.kind || !model.hasOverlay(message.kind) {
+	if message.generation != model.jobReader.generation || message.kind != model.jobReader.kind || !overlayPresent(model.overlays, message.kind) {
 		return nil
 	}
 	if model.jobReader.apply(message, model.width, model.height, fullScreenSurface(model.width, model.height)) {

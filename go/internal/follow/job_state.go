@@ -1,6 +1,8 @@
 package follow
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/blater/slopwatch/internal/fix"
@@ -21,6 +23,21 @@ type jobMonitorKeyResult struct {
 	action jobMonitorKeyAction
 	jobID  fix.JobID
 	path   fix.RepoPath
+}
+
+func (state *jobMonitorState) replaceJob(job fix.JobPresentation, previous time.Time) bool {
+	state.job = job
+	return !job.UpdatedAt.Equal(previous)
+}
+
+func (state *jobMonitorState) beginRefresh(generation uint64) bool {
+	if state.refreshing {
+		state.pending = true
+		return false
+	}
+	state.generation = generation
+	state.refreshing = true
+	return true
 }
 
 func (state *jobMonitorState) apply(message jobMonitorMsg, width, height int, fullScreen bool) bool {
@@ -91,6 +108,16 @@ const (
 	jobReaderKeyRefresh
 	jobReaderKeyReopen
 )
+
+func (state *jobReaderState) beginRefresh(generation uint64) bool {
+	if state.refreshing {
+		state.pending = true
+		return false
+	}
+	state.generation = generation
+	state.refreshing = true
+	return true
+}
 
 func (state *jobReaderState) apply(message jobReaderMsg, width, height int, fullScreen bool) bool {
 	state.loading = false

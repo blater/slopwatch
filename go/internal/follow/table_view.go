@@ -272,7 +272,7 @@ func fitHeader(model Model, heading, fileCount string) (string, string) {
 
 func header(model Model) string {
 	columns := headerColumns(model)
-	heading := strings.Repeat(" ", model.markColumnWidth()) + headerSortSuffix(model, buildHeader(model, columns))
+	heading := strings.Repeat(" ", model.files.markColumnWidth()) + headerSortSuffix(model, buildHeader(model, columns))
 	fileCount := "FILES: " + formatIntegerWithCommas(len(model.files.Document.Files))
 	heading, fileCount = fitHeader(model, heading, fileCount)
 	usableWidth := max(0, model.width-1)
@@ -324,29 +324,33 @@ func (model Model) overlayBelowTitle(base, modal string) string {
 }
 
 func overlayAt(model Model, base, modal string, minimumTop int) string {
+	return overlaySurface(base, modal, model.width, model.height, minimumTop)
+}
+
+func overlaySurface(base, modal string, width, height, minimumTop int) string {
 	baseLines := strings.Split(base, "\n")
-	for len(baseLines) < model.height {
-		baseLines = append(baseLines, strings.Repeat(" ", model.width))
+	for len(baseLines) < height {
+		baseLines = append(baseLines, strings.Repeat(" ", width))
 	}
 	modalLines := strings.Split(modal, "\n")
 	modalWidth := lipgloss.Width(modal)
 	modalHeight := len(modalLines)
-	left := max(0, (model.width-modalWidth)/2)
-	top := max(minimumTop, (model.height-modalHeight)/2)
+	left := max(0, (width-modalWidth)/2)
+	top := max(minimumTop, (height-modalHeight)/2)
 	for index, modalLine := range modalLines {
 		row := top + index
 		if row < 0 || row >= len(baseLines) {
 			continue
 		}
 		baseLine := baseLines[row]
-		if lipgloss.Width(baseLine) < model.width {
-			baseLine = padANSI(baseLine, model.width)
+		if lipgloss.Width(baseLine) < width {
+			baseLine = padANSI(baseLine, width)
 		}
 		modalLine = padANSI(modalLine, modalWidth)
-		rightEdge := min(model.width, left+modalWidth)
+		rightEdge := min(width, left+modalWidth)
 		baseLines[row] = ansi.Cut(baseLine, 0, left) +
 			ansi.Cut(modalLine, 0, rightEdge-left) +
-			ansi.Cut(baseLine, rightEdge, model.width)
+			ansi.Cut(baseLine, rightEdge, width)
 	}
-	return strings.Join(baseLines[:model.height], "\n")
+	return strings.Join(baseLines[:height], "\n")
 }

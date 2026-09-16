@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 type FilesState struct {
@@ -238,12 +239,72 @@ func (state *FilesState) toggleMark(path string) {
 	state.Marked[path] = true
 }
 
+func (state *FilesState) toggleMarkMode() {
+	state.Marking = !state.Marking
+	state.ShiftMarking = false
+}
+
+func (state *FilesState) toggleCurrentMark(limit int) bool {
+	files := state.displayFiles(limit)
+	if state.Cursor < 0 || state.Cursor >= len(files) {
+		return false
+	}
+	state.toggleMark(files[state.Cursor].Path)
+	return true
+}
+
+func (state *FilesState) moveAndToggleMark(delta, limit, page int) bool {
+	files := state.displayFiles(limit)
+	before := state.Cursor
+	startingRange := !state.ShiftMarking
+	state.move(delta, limit)
+	state.ensureVisible(page, len(files))
+	if state.Cursor == before || before < 0 || before >= len(files) {
+		return false
+	}
+	if startingRange {
+		state.toggleMark(files[before].Path)
+	}
+	state.toggleCurrentMark(limit)
+	state.ShiftMarking = true
+	return true
+}
+
 func (state *FilesState) clearMarks() {
 	state.Marked = map[string]bool{}
 	state.ShiftMarking = false
 }
 
 func (state FilesState) markedCount() int { return len(state.Marked) }
+
+func (state FilesState) markColumnWidth() int {
+	if state.Marking {
+		return 4
+	}
+	if state.markedCount() > 0 {
+		return 2
+	}
+	return 0
+}
+
+func (state FilesState) fileMarkPrefix(path string, background lipgloss.Color) string {
+	marked := state.Marked[path]
+	if state.Marking {
+		mark := " "
+		if marked {
+			mark = "●"
+		}
+		return lipgloss.NewStyle().Background(background).Foreground(style.TextPrimary).Bold(marked).Render("(" + mark + ") ")
+	}
+	if state.markedCount() == 0 {
+		return ""
+	}
+	mark := "  "
+	if marked {
+		mark = "● "
+	}
+	return lipgloss.NewStyle().Background(background).Foreground(style.TextPrimary).Bold(marked).Render(mark)
+}
 
 func (state *FilesState) pruneMarks() {
 	if len(state.Marked) == 0 {

@@ -491,7 +491,7 @@ func TestFailedConnectionEditIsRolledBackAndCannotBeSaved(t *testing.T) {
 		t.Fatalf("failed connection edit was not rolled back: %+v", state)
 	}
 	model.handleAgentSettingsKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if model.hasOverlay(OverlaySettingsDirty) || store.saveCalls != 0 {
+	if overlayPresent(model.overlays, OverlaySettingsDirty) || store.saveCalls != 0 {
 		t.Fatal("failed connection edit remained reachable through Save/Discard")
 	}
 }
@@ -931,7 +931,7 @@ func TestFixDefaultsEditTheMasterPrompt(t *testing.T) {
 	model := settingsModel(configFix, settingsResolved(), &settingsConfigStore{})
 	model.configSettings.cursor = fixSettingsPromptRow
 	model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if !model.hasOverlay(OverlayPromptEditor) || !strings.Contains(ansi.Strip(model.View()), "MASTER AGENT PROMPT") {
+	if !overlayPresent(model.overlays, OverlayPromptEditor) || !strings.Contains(ansi.Strip(model.View()), "MASTER AGENT PROMPT") {
 		t.Fatalf("master prompt editor did not open: %q", ansi.Strip(model.View()))
 	}
 	if model.configSettings.prompt.ShowLineNumbers || model.configSettings.prompt.Prompt != "" || strings.Contains(ansi.Strip(model.View()), "┃") {
@@ -940,7 +940,7 @@ func TestFixDefaultsEditTheMasterPrompt(t *testing.T) {
 	const prompt = "Refactor {targets} until SCORE is no more than {target_score}."
 	model.configSettings.prompt.SetValue(prompt)
 	model.handleMasterPromptKey(tea.KeyMsg{Type: tea.KeyCtrlS})
-	if model.hasOverlay(OverlayPromptEditor) || model.configSettings.working.Fix.PromptTemplate != prompt || !model.configSettings.dirty {
+	if overlayPresent(model.overlays, OverlayPromptEditor) || model.configSettings.working.Fix.PromptTemplate != prompt || !model.configSettings.dirty {
 		t.Fatalf("master prompt was not applied to Fix Defaults: %+v", model.configSettings)
 	}
 }
@@ -979,7 +979,7 @@ func TestMasterPromptEmptyErrorIsVisible(t *testing.T) {
 		model.configSettings.prompt.SetValue("   ")
 		model.handleMasterPromptKey(tea.KeyMsg{Type: tea.KeyCtrlS})
 		plain := ansi.Strip(model.View())
-		if !model.hasOverlay(OverlayPromptEditor) || !strings.Contains(plain, "Agent prompt cannot be empty") {
+		if !overlayPresent(model.overlays, OverlayPromptEditor) || !strings.Contains(plain, "Agent prompt cannot be empty") {
 			t.Fatalf("%dx%d prompt error was not visible: %q", size.width, size.height, plain)
 		}
 		assertScreenSize(t, model.View(), size.width, size.height)

@@ -513,7 +513,7 @@ func agentsFooter(model Model) string {
 	leftItems := []hintItem{{"Tab", "files"}}
 	if selected := model.agents.Selected; !selected.IsZero() {
 		if selected.IsJob() {
-			if job, ok := model.selectedAgentJob(); ok && containsFixAction(job.AllowedActions, fix.ActionCancel) {
+			if job, ok := jobByID(model.agents.Jobs, model.agents.Selected.JobID); ok && containsFixAction(job.AllowedActions, fix.ActionCancel) {
 				leftItems = append(leftItems, hintItem{"C", "cancel"})
 			}
 			leftItems = append(leftItems, hintItem{"Enter", "expand"}, hintItem{"i", "inspect"}, hintItem{"d", "diff"}, hintItem{"l", "logs"})

@@ -17,46 +17,46 @@ import (
 func (model Model) featureOverlayView(base string, frame OverlayFrame) string {
 	switch frame.Kind {
 	case OverlayFixForm:
-		return model.overlay(base, model.fixDialogPopup())
+		return model.overlay(base, fixDialogPopup(model.fixDialog, model.profileCatalog, model.width, model.height))
 	case OverlayTargetScoreEditor:
-		return model.fixTargetScoreEditorView(base)
+		return fixTargetScoreEditorView(base, model.fixDialog, model.profileCatalog, model.width, model.height)
 	case OverlayConfigSettings:
 		if fullScreenSurface(model.width, model.height) {
 			return configSettingsFullScreen(model.configSettings, model.profileCatalog, model.width, model.height)
 		}
 		return model.overlay(base, configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	case OverlayPromptEditor:
-		return model.masterPromptEditorView()
+		return masterPromptEditorView(model.configSettings, model.width, model.height)
 	case OverlayJobMonitor:
-		return model.jobMonitorView(base)
+		return jobMonitorView(base, model.jobMonitor, model.width, model.height, model.agentMetricPolicy())
 	case OverlayConfirmation:
 		if fullScreenSurface(model.width, model.height) {
-			return model.confirmationFullScreen()
+			return confirmationFullScreen(model.cancelConfirmation, model.width, model.height)
 		}
-		return model.overlay(base, model.confirmationPopup())
+		return model.overlay(base, confirmationPopup(model.cancelConfirmation, model.width))
 	case OverlayJobLog, OverlayJobDiff, OverlayCandidateSource:
-		return model.jobReaderView(base)
+		return jobReaderView(base, model.jobReader, model.width, model.height)
 	case OverlaySettingsDirty:
-		return model.dirtyChoiceView(base, "UNSAVED SETTINGS", model.configSettings.dirtyCursor)
+		return dirtyChoiceView(base, "UNSAVED SETTINGS", model.configSettings.dirtyCursor, model.width, model.height)
 	case OverlayShutdown:
-		return model.shutdownView(base)
+		return shutdownView(base, model.shutdown, model.width, model.height)
 	default:
 		return base
 	}
 }
 
-func (model Model) jobMonitorView(base string) string {
-	width := min(82, max(36, model.width-4))
-	height := max(6, min(18, model.height-6))
-	content := model.jobMonitorContent(width-4, height)
+func jobMonitorView(base string, state jobMonitorState, screenWidth, screenHeight int, policy agentMetricPolicy) string {
+	width := min(82, max(36, screenWidth-4))
+	height := max(6, min(18, screenHeight-6))
+	content := state.content(width-4, height, policy)
 	items := []string{"Esc close"}
-	job := model.jobMonitor.job
+	job := state.job
 	if containsFixAction(job.AllowedActions, fix.ActionCancel) {
 		items = append(items, "C cancel")
 	}
 	items = append(items, "l logs", "d diff", "[ prev", "] next")
 	footer := strings.Join(items, " · ")
-	if responsiveTier(model.width, model.height) == ResponsiveCompact {
+	if responsiveTier(screenWidth, screenHeight) == ResponsiveCompact {
 		compact := []string{}
 		switch {
 		case containsFixAction(job.AllowedActions, fix.ActionCancel):
@@ -65,20 +65,19 @@ func (model Model) jobMonitorView(base string) string {
 		compact = append(compact, "[ prev", "] next", "Esc")
 		footer = strings.Join(compact, " · ")
 	}
-	if fullScreenSurface(model.width, model.height) {
-		lines := []string{fixSurfaceLine("INSPECT", model.width, style.SurfaceHeader, style.TextPrimary)}
-		lines = append(lines, model.jobMonitorContent(model.width, max(1, model.height-2))...)
-		for len(lines) < model.height-1 {
-			lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
+	if fullScreenSurface(screenWidth, screenHeight) {
+		lines := []string{fixSurfaceLine("INSPECT", screenWidth, style.SurfaceHeader, style.TextPrimary)}
+		lines = append(lines, state.content(screenWidth, max(1, screenHeight-2), policy)...)
+		for len(lines) < screenHeight-1 {
+			lines = append(lines, fixSurfaceLine("", screenWidth, style.SurfaceModal, style.TextPrimary))
 		}
-		lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
-		return joinScreenLines(lines[:model.height])
+		lines = append(lines, fixSurfaceLine(footer, screenWidth, style.SurfaceFooter, style.TextMuted))
+		return joinScreenLines(lines[:screenHeight])
 	}
-	return model.overlay(base, style.Popup("INSPECT", content, footer, width))
+	return overlaySurface(base, style.Popup("INSPECT", content, footer, width), screenWidth, screenHeight, 0)
 }
 
-func (model Model) jobMonitorContent(width, height int) []string {
-	state := model.jobMonitor
+func (state jobMonitorState) content(width, height int, policy agentMetricPolicy) []string {
 	if state.loading {
 		return fitFixContent([]string{fixSurfaceLine("Loading authoritative job snapshot…", width, style.SurfaceModal, style.TextMuted)}, width, height)
 	}
@@ -89,7 +88,7 @@ func (model Model) jobMonitorContent(width, height int) []string {
 	lines := jobMonitorHeaderLines(job, width)
 	lines = append(lines, jobMonitorDeliveryLines(job, width)...)
 	lines = append(lines, jobMonitorUsageLines(job, width)...)
-	lines = append(lines, model.jobMonitorFocusLines(job, state.focusPath, width)...)
+	lines = append(lines, state.focusLines(job, width, policy)...)
 	lines = append(lines, jobMonitorIssueLines(job, width)...)
 	lines = append(lines, jobMonitorActorLines(job, width)...)
 	if state.errorText != "" {
@@ -135,14 +134,13 @@ func jobMonitorUsageLines(job fix.JobPresentation, width int) []string {
 	return []string{fixSurfaceLine("Tokens: not reported by this agent", width, style.SurfaceModal, style.TextMuted)}
 }
 
-func (model Model) jobMonitorFocusLines(job fix.JobPresentation, focus fix.RepoPath, width int) []string {
-	if focus == "" {
+func (state jobMonitorState) focusLines(job fix.JobPresentation, width int, policy agentMetricPolicy) []string {
+	if state.focusPath == "" {
 		return nil
 	}
-	lines := []string{fixSurfaceLine("Focused file: "+focus.String(), width, style.SurfaceModal, style.TextPrimary)}
-	policy := model.agentMetricPolicy()
+	lines := []string{fixSurfaceLine("Focused file: "+state.focusPath.String(), width, style.SurfaceModal, style.TextPrimary)}
 	for _, target := range job.Targets {
-		if target.Path == focus {
+		if target.Path == state.focusPath {
 			lines = append(lines, fixSurfaceLine(visibleAgentFileMetrics(target, policy.visible), width, style.SurfaceModal, style.TextPrimary))
 		}
 	}
@@ -226,8 +224,7 @@ func agentHarnessName(job fix.JobPresentation) string {
 	return "agent"
 }
 
-func (model Model) jobReaderView(base string) string {
-	state := model.jobReader
+func jobReaderView(base string, state jobReaderState, screenWidth, screenHeight int) string {
 	title := "JOB DETAILS"
 	switch state.kind {
 	case OverlayJobLog:
@@ -242,29 +239,29 @@ func (model Model) jobReaderView(base string) string {
 	case OverlayCandidateSource:
 		title = "CANDIDATE SOURCE"
 	}
-	width, height := jobReaderDimensions(model.jobReader.kind, model.width, model.height)
-	content := model.jobReader.content(width-4, height)
+	width, height := jobReaderDimensions(state.kind, screenWidth, screenHeight)
+	content := state.content(width-4, height)
 	footer := "PgUp/PgDn · r refresh · Esc back"
 	if state.kind == OverlayJobLog {
 		footer = "G follow · Esc back"
 	}
-	if responsiveTier(model.width, model.height) == ResponsiveCompact {
+	if responsiveTier(screenWidth, screenHeight) == ResponsiveCompact {
 		if state.kind == OverlayJobLog {
 			footer = "G follow · Esc"
 		} else {
 			footer = "r refresh · Esc back"
 		}
 	}
-	if fullScreenSurface(model.width, model.height) {
-		lines := []string{fixSurfaceLine(title, model.width, style.SurfaceHeader, style.TextPrimary)}
-		lines = append(lines, model.jobReader.content(model.width, max(1, model.height-2))...)
-		for len(lines) < model.height-1 {
-			lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
+	if fullScreenSurface(screenWidth, screenHeight) {
+		lines := []string{fixSurfaceLine(title, screenWidth, style.SurfaceHeader, style.TextPrimary)}
+		lines = append(lines, state.content(screenWidth, max(1, screenHeight-2))...)
+		for len(lines) < screenHeight-1 {
+			lines = append(lines, fixSurfaceLine("", screenWidth, style.SurfaceModal, style.TextPrimary))
 		}
-		lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
-		return joinScreenLines(lines[:model.height])
+		lines = append(lines, fixSurfaceLine(footer, screenWidth, style.SurfaceFooter, style.TextMuted))
+		return joinScreenLines(lines[:screenHeight])
 	}
-	return model.overlay(base, style.Popup(title, content, footer, width))
+	return overlaySurface(base, style.Popup(title, content, footer, width), screenWidth, screenHeight, 0)
 }
 
 func (state jobReaderState) content(width, height int) []string {
@@ -448,7 +445,7 @@ func (state fixDialogState) cursorRow() int {
 	return fixFieldPosition(state.visibleFields(), state.cursor)
 }
 
-func (model Model) dirtyChoiceView(base, title string, cursor int) string {
+func dirtyChoiceView(base, title string, cursor, width, height int) string {
 	choices := []string{"Save", "Discard", "Continue editing"}
 	content := []string{"Unsaved changes would be lost."}
 	for index, choice := range choices {
@@ -456,28 +453,27 @@ func (model Model) dirtyChoiceView(base, title string, cursor int) string {
 		if index == cursor {
 			prefix = "› "
 		}
-		content = append(content, style.ModalOption(prefix+choice, index == cursor, min(44, max(24, model.width-8))))
+		content = append(content, style.ModalOption(prefix+choice, index == cursor, min(44, max(24, width-8))))
 	}
 	footer := "Enter choose · Esc continue editing"
-	if responsiveTier(model.width, model.height) == ResponsiveCompact {
+	if responsiveTier(width, height) == ResponsiveCompact {
 		footer = "Enter choose · Esc edit"
 	}
-	if fullScreenSurface(model.width, model.height) {
-		lines := []string{fixSurfaceLine(title, model.width, style.SurfaceHeader, style.TextPrimary)}
+	if fullScreenSurface(width, height) {
+		lines := []string{fixSurfaceLine(title, width, style.SurfaceHeader, style.TextPrimary)}
 		for _, line := range content {
-			lines = append(lines, fixSurfaceLineANSI(line, model.width, style.SurfaceModal))
+			lines = append(lines, fixSurfaceLineANSI(line, width, style.SurfaceModal))
 		}
-		for len(lines) < model.height-1 {
-			lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
+		for len(lines) < height-1 {
+			lines = append(lines, fixSurfaceLine("", width, style.SurfaceModal, style.TextPrimary))
 		}
-		lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
-		return joinScreenLines(lines[:model.height])
+		lines = append(lines, fixSurfaceLine(footer, width, style.SurfaceFooter, style.TextMuted))
+		return joinScreenLines(lines[:height])
 	}
-	return model.overlay(base, style.Popup(title, content, footer, min(52, max(32, model.width-4))))
+	return overlaySurface(base, style.Popup(title, content, footer, min(52, max(32, width-4))), width, height, 0)
 }
 
-func (model Model) shutdownView(base string) string {
-	state := model.shutdown
+func shutdownView(base string, state shutdownState, width, height int) string {
 	status := fmt.Sprintf("%d active fix jobs will be canceled before exit.", state.active)
 	footer := "Enter cancel all + quit · Esc return"
 	if state.pending {
@@ -488,52 +484,48 @@ func (model Model) shutdownView(base string) string {
 		status = "Shutdown incomplete: " + cleanAgentText(state.errorText)
 		footer = "Enter retry · Esc return"
 	}
-	if model.width >= 24 && model.height == 2 {
-		return joinScreenLines([]string{fixSurfaceLine(status, model.width, style.SurfaceHeader, style.TextPrimary), fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted)})
+	if width >= 24 && height == 2 {
+		return joinScreenLines([]string{fixSurfaceLine(status, width, style.SurfaceHeader, style.TextPrimary), fixSurfaceLine(footer, width, style.SurfaceFooter, style.TextMuted)})
 	}
-	if fullScreenSurface(model.width, model.height) {
-		lines := []string{fixSurfaceLine("ACTIVE FIX JOBS", model.width, style.SurfaceHeader, style.TextPrimary), fixSurfaceLine(status, model.width, style.SurfaceModal, style.TextPrimary)}
-		for len(lines) < model.height-1 {
-			lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
+	if fullScreenSurface(width, height) {
+		lines := []string{fixSurfaceLine("ACTIVE FIX JOBS", width, style.SurfaceHeader, style.TextPrimary), fixSurfaceLine(status, width, style.SurfaceModal, style.TextPrimary)}
+		for len(lines) < height-1 {
+			lines = append(lines, fixSurfaceLine("", width, style.SurfaceModal, style.TextPrimary))
 		}
-		lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
-		return joinScreenLines(lines[:model.height])
+		lines = append(lines, fixSurfaceLine(footer, width, style.SurfaceFooter, style.TextMuted))
+		return joinScreenLines(lines[:height])
 	}
-	return model.overlay(base, style.Popup("ACTIVE FIX JOBS", []string{status, "Running jobs do not detach from Slopwatch."}, footer, min(64, max(32, model.width-4))))
+	return overlaySurface(base, style.Popup("ACTIVE FIX JOBS", []string{status, "Running jobs do not detach from Slopwatch."}, footer, min(64, max(32, width-4))), width, height, 0)
 }
 
-func (model Model) fixDialogPopup() string {
-	width := min(76, max(24, model.width-4))
-	if model.height < 10 {
-		contentHeight := max(1, model.height-4) // border, title, and footer
-		content := model.fixDialogContent(width-4, contentHeight)
-		return style.TightPopup("FIX FILE", content, model.fixDialog.footer(), width)
+func fixDialogPopup(state fixDialogState, catalog agent.ProfileCatalog, screenWidth, screenHeight int) string {
+	width := min(76, max(24, screenWidth-4))
+	if screenHeight < 10 {
+		contentHeight := max(1, screenHeight-4) // border, title, and footer
+		content := state.content(catalog, width-4, contentHeight)
+		return style.TightPopup("FIX FILE", content, state.footer(), width)
 	}
-	contentHeight := max(4, min(12, model.height-7))
-	content := model.fixDialogContent(width-4, contentHeight)
-	return style.Popup("FIX FILE", content, model.fixDialog.footer(), width)
+	contentHeight := max(4, min(12, screenHeight-7))
+	content := state.content(catalog, width-4, contentHeight)
+	return style.Popup("FIX FILE", content, state.footer(), width)
 }
 
-func (model Model) fixTargetScoreEditorView(base string) string {
-	underlay := model.overlay(base, model.fixDialogPopup())
-	width := min(34, max(26, model.width-4))
-	input := model.fixDialog.score
+func fixTargetScoreEditorView(base string, state fixDialogState, catalog agent.ProfileCatalog, screenWidth, screenHeight int) string {
+	underlay := overlaySurface(base, fixDialogPopup(state, catalog, screenWidth, screenHeight), screenWidth, screenHeight, 0)
+	width := min(34, max(26, screenWidth-4))
+	input := state.score
 	style.ApplyTextInputStyle(&input, true)
 	input.Width = min(14, max(8, width-8))
 	field := style.InputField(input.View(), input.Width+2)
 	content := []string{"Score  " + field}
-	if model.fixDialog.scoreError != "" {
-		content = append(content, lipgloss.NewStyle().Foreground(style.AccentCritical).Background(style.SurfaceModal).Render(model.fixDialog.scoreError))
+	if state.scoreError != "" {
+		content = append(content, lipgloss.NewStyle().Foreground(style.AccentCritical).Background(style.SurfaceModal).Render(state.scoreError))
 	}
 	popup := style.Popup("TARGET SCORE", content, "Enter apply · Esc cancel", width)
-	if model.height < 9 {
+	if screenHeight < 9 {
 		popup = style.TightPopup("TARGET SCORE", content, "Enter apply · Esc cancel", width)
 	}
-	return model.overlay(underlay, popup)
-}
-
-func (model Model) fixDialogContent(width, height int) []string {
-	return model.fixDialog.content(model.profileCatalog, width, height)
+	return overlaySurface(underlay, popup, screenWidth, screenHeight, 0)
 }
 
 func (state fixDialogState) content(catalog agent.ProfileCatalog, width, height int) []string {
@@ -993,16 +985,15 @@ func fixAgentName(input fixapp.FixInput) string {
 	return "The selected agent"
 }
 
-func (model Model) masterPromptEditorView() string {
-	width, height := model.width, model.height
+func masterPromptEditorView(state configSettingsState, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
-	errorText := cleanAgentText(model.configSettings.promptError)
+	errorText := cleanAgentText(state.promptError)
 	title := "MASTER AGENT PROMPT"
 	footer := "Ctrl-S done · Esc cancel"
 	lines := []string{fixSurfaceLine(title, width, style.SurfaceHeader, style.TextPrimary)}
-	for _, line := range strings.Split(model.configSettings.prompt.View(), "\n") {
+	for _, line := range strings.Split(state.prompt.View(), "\n") {
 		lines = append(lines, fixSurfaceLineANSI(line, width, style.SurfaceFieldActive))
 	}
 	if errorText != "" {
@@ -1015,8 +1006,7 @@ func (model Model) masterPromptEditorView() string {
 	return joinScreenLines(lines[:height])
 }
 
-func (model Model) confirmationPopup() string {
-	state := model.cancelConfirmation
+func confirmationPopup(state cancelConfirmation, width int) string {
 	status := jobActionConfirmationQuestion(state.action)
 	if state.pending {
 		status = "Requesting " + strings.ToLower(jobActionLabel(state.action)) + "…"
@@ -1030,35 +1020,35 @@ func (model Model) confirmationPopup() string {
 	if !state.allowed {
 		footer = "Esc back · cancel unavailable"
 	}
-	return style.Popup("CONFIRM "+strings.ToUpper(jobActionLabel(state.action)), content, footer, min(68, max(32, model.width-4)))
+	return style.Popup("CONFIRM "+strings.ToUpper(jobActionLabel(state.action)), content, footer, min(68, max(32, width-4)))
 }
 
-func (model Model) confirmationFullScreen() string {
-	lines := []string{fixSurfaceLine("CONFIRM "+strings.ToUpper(jobActionLabel(model.cancelConfirmation.action)), model.width, style.SurfaceHeader, style.TextPrimary)}
+func confirmationFullScreen(state cancelConfirmation, width, height int) string {
+	lines := []string{fixSurfaceLine("CONFIRM "+strings.ToUpper(jobActionLabel(state.action)), width, style.SurfaceHeader, style.TextPrimary)}
 	body := []string{
-		fixSurfaceLine("Job: "+string(model.cancelConfirmation.jobID), model.width, style.SurfaceModal, style.TextPrimary),
-		fixSurfaceLine(jobActionConfirmationQuestion(model.cancelConfirmation.action), model.width, style.SurfaceModal, style.TextPrimary),
+		fixSurfaceLine("Job: "+string(state.jobID), width, style.SurfaceModal, style.TextPrimary),
+		fixSurfaceLine(jobActionConfirmationQuestion(state.action), width, style.SurfaceModal, style.TextPrimary),
 	}
-	for _, value := range jobActionOutcomeLines(model.cancelConfirmation) {
-		body = append(body, fixSurfaceLine(value, model.width, style.SurfaceModal, style.TextPrimary))
+	for _, value := range jobActionOutcomeLines(state) {
+		body = append(body, fixSurfaceLine(value, width, style.SurfaceModal, style.TextPrimary))
 	}
-	if model.cancelConfirmation.errorText != "" {
-		body = append(body, fixSurfaceLine("Error: "+model.cancelConfirmation.errorText, model.width, style.SurfaceModal, style.TextPrimary))
+	if state.errorText != "" {
+		body = append(body, fixSurfaceLine("Error: "+state.errorText, width, style.SurfaceModal, style.TextPrimary))
 	}
-	available := max(0, model.height-2)
+	available := max(0, height-2)
 	if len(body) > available {
 		body = body[:available]
 	}
 	lines = append(lines, body...)
-	for len(lines) < model.height-1 {
-		lines = append(lines, fixSurfaceLine("", model.width, style.SurfaceModal, style.TextPrimary))
+	for len(lines) < height-1 {
+		lines = append(lines, fixSurfaceLine("", width, style.SurfaceModal, style.TextPrimary))
 	}
 	footer := "Enter confirm · Esc stay"
-	if !model.cancelConfirmation.allowed {
+	if !state.allowed {
 		footer = "Esc back · cancel unavailable"
 	}
-	lines = append(lines, fixSurfaceLine(footer, model.width, style.SurfaceFooter, style.TextMuted))
-	return joinScreenLines(lines[:model.height])
+	lines = append(lines, fixSurfaceLine(footer, width, style.SurfaceFooter, style.TextMuted))
+	return joinScreenLines(lines[:height])
 }
 
 func jobActionLabel(action fix.JobAction) string {

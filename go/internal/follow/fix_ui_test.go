@@ -49,7 +49,7 @@ func TestFixKeyOpensExistingReservationInsteadOfPreparingDuplicate(t *testing.T)
 	if command := model.openFixForSelected(); command != nil {
 		t.Fatal("reserved target started a duplicate Prepare")
 	}
-	if model.mainView != MainViewAgents || model.agents.Selected.JobID != "existing" || model.hasOverlay(OverlayFixForm) {
+	if model.mainView != MainViewAgents || model.agents.Selected.JobID != "existing" || overlayPresent(model.overlays, OverlayFixForm) {
 		t.Fatalf("existing reservation was not opened: view=%d selected=%+v", model.mainView, model.agents.Selected)
 	}
 }
@@ -113,20 +113,20 @@ func assertFixRunContract(t *testing.T) {
 	prepare := model.openFixForSelected()
 	model.handleFixLoaded(prepare().(fixLoadedMsg))
 	model.fixDialog.cursor = fixFieldTargetScore
-	model.adjustFixField(-1)
+	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyLeft})
 	model.fixDialog.focus["cog"] = true
 	_, run := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if run == nil {
 		t.Fatalf("Run fix did not run: %s", model.fixDialog.errorText)
 	}
 	model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if !model.hasOverlay(OverlayFixForm) {
+	if !overlayPresent(model.overlays, OverlayFixForm) {
 		t.Fatal("Esc hid a start before its start result was known")
 	}
 	message := run().(fixStartedMsg)
 	assertFixRunInput(t, service, message)
 	model.handleFixStarted(message)
-	if model.mainView != MainViewAgents || model.agents.Selected.JobID != "job-new" || model.hasOverlay(OverlayFixForm) {
+	if model.mainView != MainViewAgents || model.agents.Selected.JobID != "job-new" || overlayPresent(model.overlays, OverlayFixForm) {
 		t.Fatalf("successful start did not transition to job: view=%d selected=%+v overlays=%d", model.mainView, model.agents.Selected, model.overlays.Len())
 	}
 }
@@ -185,7 +185,7 @@ func targetScoreSaveModel(t *testing.T) (*Model, *appconfig.Memory, appconfig.Re
 func startTargetScoreSave(t *testing.T, model *Model) tea.Cmd {
 	t.Helper()
 	model.fixDialog.cursor = fixFieldTargetScore
-	_, first := model.adjustFixField(-1)
+	_, first := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyLeft})
 	if first == nil || !model.fixTargetSaving {
 		t.Fatal("first target-score adjustment did not start a preference save")
 	}
@@ -194,7 +194,7 @@ func startTargetScoreSave(t *testing.T, model *Model) tea.Cmd {
 
 func queueTargetScoreSave(t *testing.T, model *Model) {
 	t.Helper()
-	_, queued := model.adjustFixField(-1)
+	_, queued := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyLeft})
 	if queued != nil || model.fixTargetDesired != 80 {
 		t.Fatalf("rapid adjustment was not queued behind the active save: desired=%v command=%v", model.fixTargetDesired, queued)
 	}
@@ -271,7 +271,7 @@ func assertTargetScoreEditorPopup(t *testing.T, model *Model) {
 
 func assertTargetScoreEditingState(t *testing.T, model *Model) {
 	t.Helper()
-	if !model.fixDialog.scoreEditing || !model.fixDialog.score.Focused() || !model.hasOverlay(OverlayTargetScoreEditor) {
+	if !model.fixDialog.scoreEditing || !model.fixDialog.score.Focused() || !overlayPresent(model.overlays, OverlayTargetScoreEditor) {
 		t.Fatalf("Enter did not open the focused target-score popup: %+v", model.fixDialog)
 	}
 	if model.fixDialog.score.TextStyle.GetBackground() != style.SurfaceFieldActive {
@@ -307,7 +307,7 @@ func assertTargetScoreValidation(t *testing.T, model *Model) {
 	t.Helper()
 	model.fixDialog.score.SetValue("invalid")
 	handleKey(model, tea.KeyMsg{Type: tea.KeyEnter})
-	if !model.hasOverlay(OverlayTargetScoreEditor) || !strings.Contains(ansi.Strip(model.View()), "Enter a non-negative number") {
+	if !overlayPresent(model.overlays, OverlayTargetScoreEditor) || !strings.Contains(ansi.Strip(model.View()), "Enter a non-negative number") {
 		t.Fatalf("invalid target score was not shown in the popup: %q", ansi.Strip(model.View()))
 	}
 	model.width, model.height = 36, 6
@@ -388,7 +388,7 @@ func assertMetricDropdownPreservesForm(t *testing.T, model *Model, closedRows []
 	if len(openRows) != len(closedRows) || strings.Join(openRows, "\n") != strings.Join(closedRows, "\n") {
 		t.Fatalf("opening a combo changed the form rows: closed=%q open=%q", ansi.Strip(strings.Join(closedRows, "\n")), ansi.Strip(strings.Join(openRows, "\n")))
 	}
-	content := ansi.Strip(strings.Join(model.fixDialogContent(76, 14), "\n"))
+	content := ansi.Strip(strings.Join(model.fixDialog.content(model.profileCatalog, 76, 14), "\n"))
 	if !strings.Contains(content, "Metrics") || !strings.Contains(content, "Agent") || !strings.Contains(content, "Model") {
 		t.Fatalf("dropdown covered the form instead of overlaying its field: %q", content)
 	}
@@ -539,7 +539,7 @@ func TestFixPrepareErrorStaysNonBlockingAndActionable(t *testing.T) {
 	model := fixTestModel(service, 60, 16)
 	command := model.openFixForSelected()
 	model.handleFixLoaded(command().(fixLoadedMsg))
-	if model.fixDialog.loading || !strings.Contains(model.fixDialog.errorText, "authentication") || !model.hasOverlay(OverlayFixForm) {
+	if model.fixDialog.loading || !strings.Contains(model.fixDialog.errorText, "authentication") || !overlayPresent(model.overlays, OverlayFixForm) {
 		t.Fatalf("prepare error state = %+v", model.fixDialog)
 	}
 	if !strings.Contains(ansi.Strip(model.View()), "authentication") {
@@ -580,7 +580,7 @@ func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) 
 		{ID: "two", Phase: fix.PhaseRunning, AllowedActions: []fix.JobAction{fix.ActionCancel}},
 	}
 	model.handleFixJobs(fixJobsMsg{jobs: jobs})
-	if len(model.agents.Jobs) != 2 || !model.hasOverlay(OverlayFixForm) {
+	if len(model.agents.Jobs) != 2 || !overlayPresent(model.overlays, OverlayFixForm) {
 		t.Fatal("job update did not project behind the open form")
 	}
 	model.overlays.Pop()
@@ -588,7 +588,7 @@ func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) 
 	model.agents.Selected = AgentRowID{JobID: "two"}
 	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
 	result := updated.(*Model)
-	if !result.hasOverlay(OverlayConfirmation) || result.cancelConfirmation.jobID != "two" {
+	if !overlayPresent(result.overlays, OverlayConfirmation) || result.cancelConfirmation.jobID != "two" {
 		t.Fatalf("cancel confirmation captured %+v", result.cancelConfirmation)
 	}
 	updated, command := handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
@@ -601,7 +601,7 @@ func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) 
 		t.Fatalf("cancel command targeted %+v", service.executed)
 	}
 	result.handleFixCommand(message)
-	if result.hasOverlay(OverlayConfirmation) || !strings.Contains(result.fixNotice, "two") {
+	if overlayPresent(result.overlays, OverlayConfirmation) || !strings.Contains(result.fixNotice, "two") {
 		t.Fatalf("accepted cancel did not close safely: notice=%q", result.fixNotice)
 	}
 }

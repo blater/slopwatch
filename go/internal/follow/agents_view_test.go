@@ -61,7 +61,7 @@ func TestLogsOpenFromExpandedFileOfFinishedJob(t *testing.T) {
 	model.agents.Selected = AgentRowID{JobID: job.ID, Path: "fixed.go"}
 
 	_, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
-	if command == nil || !model.hasOverlay(OverlayJobLog) {
+	if command == nil || !overlayPresent(model.overlays, OverlayJobLog) {
 		t.Fatal("l did not open logs from an expanded file row")
 	}
 	model.handleJobReader(command().(jobReaderMsg))
@@ -264,7 +264,7 @@ func TestJobInspectRendersOnlyEssentialAgentIdentity(t *testing.T) {
 	model := Model{jobMonitor: jobMonitorState{job: fix.JobPresentation{
 		ID: "job-1", Phase: fix.PhaseRunning, ProfileLabel: "Codex recommended account", ModelLabel: "gpt-5.6-sol", EffortLabel: "high", AttemptOrdinal: 2,
 	}}}
-	view := ansi.Strip(strings.Join(model.jobMonitorContent(72, 8), "\n"))
+	view := ansi.Strip(strings.Join(model.jobMonitor.content(72, 8, model.agentMetricPolicy()), "\n"))
 	if !strings.Contains(view, "Agent: codex · gpt-5.6-sol · high") || strings.Contains(view, "recommended") || strings.Contains(view, "attempt") {
 		t.Fatalf("job inspect did not use the concise agent identity: %q", view)
 	}

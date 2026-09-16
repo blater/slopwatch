@@ -61,7 +61,7 @@ func TestUnauthenticatedRuntimeLinksDirectlyToAgentRepair(t *testing.T) {
 		t.Fatalf("authentication remediation was not actionable: %q", text)
 	}
 	_, command := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	if command == nil || !model.configSettings.open || model.configSettings.kind != configAgents || !model.hasOverlay(OverlayFixForm) || !model.hasOverlay(OverlayConfigSettings) {
+	if command == nil || !model.configSettings.open || model.configSettings.kind != configAgents || !overlayPresent(model.overlays, OverlayFixForm) || !overlayPresent(model.overlays, OverlayConfigSettings) {
 		t.Fatalf("agent remediation did not open directly: open=%t kind=%q overlays=%d", model.configSettings.open, model.configSettings.kind, model.overlays.Len())
 	}
 }
@@ -92,7 +92,7 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 
 	service.input = readyFixInput("a.go")
 	_, reprepare := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if reprepare == nil || model.configSettings.open || !model.hasOverlay(OverlayFixForm) || model.hasOverlay(OverlayConfigSettings) {
+	if reprepare == nil || model.configSettings.open || !overlayPresent(model.overlays, OverlayFixForm) || overlayPresent(model.overlays, OverlayConfigSettings) {
 		t.Fatalf("settings did not return to Fix and reprepare: open=%t overlays=%d command nil=%t", model.configSettings.open, model.overlays.Len(), reprepare == nil)
 	}
 	if !model.fixDialog.loading || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||

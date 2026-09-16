@@ -81,7 +81,7 @@ func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.C
 	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	policy := model.agentMetricPolicy()
 	model.agents.clampHorizontal(maximumAgentHorizontalOffset(model.agents.rows(), responsiveTier(model.width, model.height), model.width, policy.visible))
-	if model.hasOverlay(OverlayPromptEditor) {
+	if overlayPresent(model.overlays, OverlayPromptEditor) {
 		resizeMasterPromptTextBox(&model.configSettings, model.width, model.height)
 	}
 	model.clampDetailOffset()

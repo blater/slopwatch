@@ -14,7 +14,7 @@ import (
 func renderRow(model Model, file report.File, selected bool) string {
 	state := model.files.Rows[file.Path]
 	background := rowBackground(state, selected, model.files.Marked[file.Path], model.options.TrendWindow)
-	prefix := model.fileMarkPrefix(file.Path, background) + renderFixedColumns(model, file, state, background)
+	prefix := model.files.fileMarkPrefix(file.Path, background) + renderFixedColumns(model, file, state, background)
 	pathWidth := max(0, model.width-lipgloss.Width(prefix))
 	line := prefix + renderPath(file.Path, pathWidth, model.files.HorizontalOffset, background)
 	if remaining := model.width - lipgloss.Width(line); remaining > 0 {
@@ -54,7 +54,7 @@ func renderFixedColumns(model Model, file report.File, state rowState, backgroun
 
 func (model Model) pathViewportWidth() int {
 	prefix := renderFixedColumns(model, report.File{}, rowState{}, style.SurfaceScreen)
-	return max(0, model.width-model.markColumnWidth()-lipgloss.Width(prefix))
+	return max(0, model.width-model.files.markColumnWidth()-lipgloss.Width(prefix))
 }
 
 func rowMarker(model Model, file report.File, state rowState, now time.Time) (string, lipgloss.Color) {

@@ -20,7 +20,7 @@ func TestCompactJobInspectScrollsSummaryAndActorsWithoutLogs(t *testing.T) {
 	}
 	model := Model{width: 36, height: 8, jobMonitor: jobMonitorState{job: job,
 		activity: []fixapp.LogEntry{{At: time.Unix(1, 0), Summary: "must not render"}}}}
-	initial := ansi.Strip(strings.Join(model.jobMonitorContent(36, 8), "\n"))
+	initial := ansi.Strip(strings.Join(model.jobMonitor.content(36, 8, model.agentMetricPolicy()), "\n"))
 	if !strings.Contains(initial, "Tokens: not reported") || strings.Contains(initial, "Tokens: input 0") {
 		t.Fatalf("unreported usage was not truthful: %q", initial)
 	}
@@ -30,7 +30,7 @@ func TestCompactJobInspectScrollsSummaryAndActorsWithoutLogs(t *testing.T) {
 	if model.jobMonitor.offset != jobMonitorMaxOffset(model.jobMonitor, model.width, model.height, fullScreenSurface(model.width, model.height)) {
 		t.Fatalf("monitor offset=%d max=%d", model.jobMonitor.offset, jobMonitorMaxOffset(model.jobMonitor, model.width, model.height, fullScreenSurface(model.width, model.height)))
 	}
-	scrolled := ansi.Strip(strings.Join(model.jobMonitorContent(36, 6), "\n"))
+	scrolled := ansi.Strip(strings.Join(model.jobMonitor.content(36, 6, model.agentMetricPolicy()), "\n"))
 	for _, want := range []string{"ACTORS", "reviewer"} {
 		if !strings.Contains(scrolled, want) {
 			t.Fatalf("compact inspect scroll omitted %q: %q", want, scrolled)
@@ -42,7 +42,7 @@ func TestCompactJobInspectScrollsSummaryAndActorsWithoutLogs(t *testing.T) {
 
 	model.jobMonitor.job.UsageReported = true
 	model.jobMonitor.offset = 0
-	if reported := ansi.Strip(strings.Join(model.jobMonitorContent(36, 6), "\n")); !strings.Contains(reported, "Tokens: input 0") {
+	if reported := ansi.Strip(strings.Join(model.jobMonitor.content(36, 6, model.agentMetricPolicy()), "\n")); !strings.Contains(reported, "Tokens: input 0") {
 		t.Fatalf("reported zero usage was hidden: %q", reported)
 	}
 }

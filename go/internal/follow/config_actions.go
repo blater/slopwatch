@@ -5,6 +5,7 @@ import (
 
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
+	"github.com/blater/slopwatch/internal/fixapp"
 )
 
 func (model *Model) handleAgentSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -46,7 +47,7 @@ func (model *Model) closeConfigSettingsNow() tea.Cmd {
 		if top, ok := model.overlays.Top(); ok && top.Kind == OverlayConfigSettings {
 			model.overlays.Pop()
 		}
-		if !model.hasOverlay(OverlayFixForm) || !model.fixDialog.hasInput && len(model.fixDialog.targetPaths()) == 0 {
+		if !overlayPresent(model.overlays, OverlayFixForm) || !model.fixDialog.hasInput && len(model.fixDialog.targetPaths()) == 0 {
 			return nil
 		}
 		model.fixGeneration++
@@ -59,7 +60,12 @@ func (model *Model) closeConfigSettingsNow() tea.Cmd {
 			selected := model.fixDialog.input.Profile.ID
 			profile = &selected
 		}
-		return model.loadFixCommand(model.fixDialog.targetPaths(), profile, model.fixDialog.generation)
+		var delivery *fixapp.LoadDelivery
+		if model.fixDialog.hasInput {
+			delivery = &fixapp.LoadDelivery{Plan: model.fixDialog.input.DeliveryPlan, Branch: model.fixDialog.input.BranchName}
+		}
+		workspace := fixLoadWorkspace(model.fixWorkspace, model.options.Workspace)
+		return loadFixCommand(model.fixService, workspace, model.fixDialog.targetPaths(), profile, delivery, model.fixDialog.generation)
 	}
 	model.settings = true
 	return nil

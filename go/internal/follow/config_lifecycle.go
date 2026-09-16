@@ -84,7 +84,7 @@ func (model *Model) handleConfigSaved(message configSavedMsg) tea.Cmd {
 		return nil
 	}
 	if outcome.close {
-		if model.hasOverlay(OverlaySettingsDirty) {
+		if overlayPresent(model.overlays, OverlaySettingsDirty) {
 			model.overlays.Pop()
 		}
 		return model.closeConfigSettingsNow()

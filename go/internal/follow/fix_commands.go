@@ -10,7 +10,7 @@ import (
 )
 
 func (model *Model) handleFixCommand(message fixCommandMsg) {
-	confirmation := model.hasOverlay(OverlayConfirmation) && model.cancelConfirmation.matches(message)
+	confirmation := overlayPresent(model.overlays, OverlayConfirmation) && model.cancelConfirmation.matches(message)
 	direct := !confirmation && model.jobCommand.matches(message)
 	if !confirmation && !direct {
 		return

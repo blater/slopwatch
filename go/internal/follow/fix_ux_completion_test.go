@@ -33,7 +33,7 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 	model.agents.Selected = AgentRowID{JobID: job.ID}
 
 	command := model.openJobMonitor(job.ID, "a.go")
-	if command == nil || !model.hasOverlay(OverlayJobMonitor) {
+	if command == nil || !overlayPresent(model.overlays, OverlayJobMonitor) {
 		t.Fatal("monitor did not open asynchronously")
 	}
 	model.handleJobMonitor(command().(jobMonitorMsg))
@@ -71,7 +71,7 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 		{OverlayCandidateSource, func() tea.Cmd { return model.openCandidateSource(job.ID, "a.go") }, "package sample"},
 	} {
 		command = test.open()
-		if command == nil || !model.hasOverlay(test.kind) {
+		if command == nil || !overlayPresent(model.overlays, test.kind) {
 			t.Fatalf("reader %d did not open", test.kind)
 		}
 		model.handleJobReader(command().(jobReaderMsg))
@@ -327,7 +327,7 @@ func TestQuitWithActiveJobsConfirmsAndJoinsService(t *testing.T) {
 	model.agents.Jobs = []fix.JobPresentation{{ID: "job-running", Phase: fix.PhaseRunning}}
 	updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	result := updated.(*Model)
-	if command != nil || !result.hasOverlay(OverlayShutdown) || result.shutdown.active != 1 {
+	if command != nil || !overlayPresent(result.overlays, OverlayShutdown) || result.shutdown.active != 1 {
 		t.Fatal("active-job quit bypassed confirmation")
 	}
 	updated, command = result.handleShutdownKey(tea.KeyMsg{Type: tea.KeyEnter})
@@ -430,7 +430,7 @@ func TestFeatureSettingsAutoSaveOnExitAndUseCompactFullScreen(t *testing.T) {
 	model.configSettings.working.Concurrency.MaxAgents++
 	model.configSettings.dirty = true
 	save := model.closeConfigSettings()
-	if save == nil || !model.configSettings.open || !model.configSettings.saving || model.hasOverlay(OverlaySettingsDirty) {
+	if save == nil || !model.configSettings.open || !model.configSettings.saving || overlayPresent(model.overlays, OverlaySettingsDirty) {
 		t.Fatal("dirty settings did not begin an automatic save")
 	}
 	model.handleConfigSaved(save().(configSavedMsg))
