@@ -1,6 +1,9 @@
 package follow
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blater/slopwatch/internal/native"
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,35 +52,6 @@ func pathSet(paths []string) map[string]bool {
 	return result
 }
 
-func analyzeExisting(model Model, paths []string) tea.Cmd {
-	existing := make([]string, 0, len(paths))
-	for _, path := range paths {
-		if info, err := os.Stat(filepath.Join(model.options.Workspace, filepath.FromSlash(path))); err == nil && !info.IsDir() {
-			existing = append(existing, path)
-		}
-	}
-	if len(existing) == 0 {
-		return func() tea.Msg { return analysisResult{replace: paths, document: report.Document{}} }
-	}
-	command := analysisCommand(model.analyzer, model.options.Targets, existing, false)
-	return func() tea.Msg {
-		result := command()
-		analysis := result.(analysisResult)
-		analysis.replace = paths
-		return analysis
-	}
-}
-
-func takeQueue(model *Model) []string {
-	paths := make([]string, 0, len(model.queued))
-	for path := range model.queued {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	model.queued = map[string]bool{}
-	return paths
-}
-
 func mergeDocument(model *Model, result analysisResult) {
 	if len(model.files.BaseDocument.Files) == 0 && len(model.files.Document.Files) > 0 {
 		model.files.BaseDocument = model.files.Document
@@ -89,6 +64,9 @@ func mergeDocument(model *Model, result analysisResult) {
 	for _, path := range result.replace {
 		replace[filepath.ToSlash(path)] = true
 	}
+	for _, file := range result.document.Files {
+		replace[filepath.ToSlash(file.Path)] = true
+	}
 	kept := make([]report.File, 0, len(model.files.BaseDocument.Files)+len(result.document.Files))
 	for _, file := range model.files.BaseDocument.Files {
 		if !replace[file.Path] {
@@ -96,6 +74,93 @@ func mergeDocument(model *Model, result analysisResult) {
 		}
 	}
 	model.files.BaseDocument.Files = append(kept, result.document.Files...)
+	model.files.BaseDocument.Diagnostics = mergeDiagnostics(model.files.BaseDocument.Diagnostics, result.document.Diagnostics, replace, result.document.ExecutionPlans)
+	model.files.BaseDocument.ExecutionPlans = mergeExecutionPlans(model.files.BaseDocument.ExecutionPlans, result.document.ExecutionPlans)
+}
+
+func mergeDiagnostics(previous, updated []map[string]any, affected map[string]bool, updatedPlans []map[string]any) []map[string]any {
+	merged := make([]map[string]any, 0, len(previous)+len(updated))
+	seen := map[string]bool{}
+	replacedUnits := executionPlanIDs(updatedPlans)
+	for _, diagnostic := range previous {
+		path, hasPath := diagnostic["path"].(string)
+		unitID, hasUnit := diagnostic["unit_id"].(string)
+		if (hasPath && affected[filepath.ToSlash(path)]) || (hasUnit && replacedUnits[unitID]) {
+			continue
+		}
+		appendDiagnostic(&merged, seen, diagnostic)
+	}
+	for _, diagnostic := range updated {
+		appendDiagnostic(&merged, seen, diagnostic)
+	}
+	return merged
+}
+
+func executionPlanIDs(plans []map[string]any) map[string]bool {
+	ids := make(map[string]bool, len(plans))
+	for _, plan := range plans {
+		if unitID, _ := plan["unit_id"].(string); unitID != "" {
+			ids[unitID] = true
+		}
+	}
+	return ids
+}
+
+func appendDiagnostic(merged *[]map[string]any, seen map[string]bool, diagnostic map[string]any) {
+	identityValues := make(map[string]any, len(diagnostic))
+	for name, value := range diagnostic {
+		if name != "invocation_id" {
+			identityValues[name] = value
+		}
+	}
+	identity := string(metadataIdentity(identityValues))
+	if seen[identity] {
+		return
+	}
+	seen[identity] = true
+	*merged = append(*merged, diagnostic)
+}
+
+func mergeExecutionPlans(previous, updated []map[string]any) []map[string]any {
+	if len(updated) == 0 {
+		return previous
+	}
+	merged := append([]map[string]any(nil), previous...)
+	indexes := make(map[string]int, len(merged))
+	identities := make(map[string]bool, len(merged))
+	for index, plan := range merged {
+		if unitID, _ := plan["unit_id"].(string); unitID != "" {
+			indexes[unitID] = index
+		} else {
+			identities[string(metadataIdentity(plan))] = true
+		}
+	}
+	for _, plan := range updated {
+		unitID, _ := plan["unit_id"].(string)
+		if unitID == "" {
+			identity := string(metadataIdentity(plan))
+			if !identities[identity] {
+				identities[identity] = true
+				merged = append(merged, plan)
+			}
+			continue
+		}
+		if index, exists := indexes[unitID]; exists {
+			merged[index] = plan
+		} else {
+			indexes[unitID] = len(merged)
+			merged = append(merged, plan)
+		}
+	}
+	return merged
+}
+
+func metadataIdentity(value map[string]any) []byte {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return []byte(fmt.Sprintf("%#v", value))
+	}
+	return encoded
 }
 
 func compareScore(current, previous float64) int {
@@ -117,6 +182,9 @@ func merge(model *Model, result analysisResult) {
 		oldRanks[file.Path] = file.Rank
 	}
 	mergeDocument(model, result)
+	// Keep the projected copy synchronized before rebuilding weights. This is
+	// also required when an incremental result removes its final affected row.
+	model.files.Document = model.files.BaseDocument
 	rebuildWeightedDocument(model)
 	model.files.Document.SortAndRank()
 	model.files.pruneMarks()
@@ -410,4 +478,43 @@ func maxPathOffset(model Model) int {
 
 func selectCursor(model *Model) {
 	model.files.selectCursor(model.options.Limit)
+}
+func analyzeExisting(model Model, paths []string) tea.Cmd {
+	if analyzer, ok := model.analyzer.(changeAnalyzer); ok {
+		return func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			document, affected, err := analyzer.AnalyzeChanges(ctx, paths)
+			if errors.Is(err, native.ErrIncrementalPlanUnavailable) {
+				return analysisCommand(model.analyzer, model.options.Targets, nil, true)()
+			}
+			return analysisResult{document: document, replace: affected, err: err}
+		}
+	}
+	existing := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if info, err := os.Stat(filepath.Join(model.options.Workspace, filepath.FromSlash(path))); err == nil && !info.IsDir() {
+			existing = append(existing, path)
+		}
+	}
+	if len(existing) == 0 {
+		return func() tea.Msg { return analysisResult{replace: paths, document: report.Document{}} }
+	}
+	command := analysisCommand(model.analyzer, model.options.Targets, existing, false)
+	return func() tea.Msg {
+		result := command()
+		analysis := result.(analysisResult)
+		analysis.replace = paths
+		return analysis
+	}
+}
+
+func takeQueue(model *Model) []string {
+	paths := make([]string, 0, len(model.queued))
+	for path := range model.queued {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	model.queued = map[string]bool{}
+	return paths
 }

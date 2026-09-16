@@ -22,8 +22,8 @@ type persistentCacheState struct {
 	misses     []plannedCacheUnit
 }
 
-func runPersistentCache(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options) (report.Document, bool, error) {
-	state, usable, err := preparePersistentCache(analyzer, parent, catalog, discovered, selected, options)
+func runPersistentCache(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options, plan unitplan.Plan, planErr error) (report.Document, bool, error) {
+	state, usable, err := preparePersistentCache(analyzer, parent, catalog, discovered, selected, options, plan, planErr)
 	if !usable || err != nil {
 		return report.Document{}, usable, err
 	}
@@ -42,17 +42,12 @@ func runPersistentCache(analyzer *analysisEngine, parent context.Context, catalo
 	return persistPersistentReport(parent, document, discovered, selected, &state)
 }
 
-func preparePersistentCache(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options) (persistentCacheState, bool, error) {
+func preparePersistentCache(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options, plan unitplan.Plan, planErr error) (persistentCacheState, bool, error) {
 	store := cacheStore(analyzer)
 	if store == nil {
 		return persistentCacheState{}, false, nil
 	}
-	typeScriptMode := unitplan.TypeScriptSyntax
-	if options.TypeScriptTypes {
-		typeScriptMode = unitplan.TypeScriptTyped
-	}
-	plan, err := unitplan.PlanWorkspace(analyzer.workspace, unitplan.Options{TypeScriptMode: typeScriptMode, Targets: options.Targets})
-	if err != nil {
+	if planErr != nil {
 		return persistentFailure(parent)
 	}
 	active := filterPlannedUnits(plan.Units, discovered, selected, options.IncludeTests)

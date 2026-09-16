@@ -34,6 +34,8 @@ type Analyzer struct {
 	catalog   catalogDocument
 	options   Options
 	optionsMu sync.RWMutex
+	planMu    sync.Mutex
+	plan      *analysisPlanSnapshot
 	cache     analyzerCache
 	runUnits  analyzerUnitsRunner
 }
@@ -138,7 +140,13 @@ func analyzeLanguage(analyzer *analysisEngine, parent context.Context, catalog c
 }
 
 func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, languages []string) (report.Document, error) {
-	return analyze(analyzer.engine(), parent, targets, languages)
+	analyzer.planMu.Lock()
+	defer analyzer.planMu.Unlock()
+	document, snapshot, err := analyzeWithPlan(analyzer.engine(), parent, targets, languages)
+	if err == nil && snapshot != nil {
+		analyzer.plan = snapshot
+	}
+	return document, err
 }
 
 func analysisOptions(analyzer *analysisEngine, targets, languages []string) Options {
@@ -179,27 +187,43 @@ func analyzeFresh(
 }
 
 func analyze(analyzer *analysisEngine, parent context.Context, targets []string, languages []string) (report.Document, error) {
+	document, _, err := analyzeWithPlan(analyzer, parent, targets, languages)
+	return document, err
+}
+
+func analyzeWithPlan(analyzer *analysisEngine, parent context.Context, targets []string, languages []string) (report.Document, *analysisPlanSnapshot, error) {
 	options := analysisOptions(analyzer, targets, languages)
 	discovered, err := discover(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks)
 	if err != nil {
-		return report.Document{}, err
+		return report.Document{}, nil, err
+	}
+	if err := requireDiscoveredSources(discovered); err != nil {
+		return report.Document{}, nil, err
 	}
 	selected, err := selectedLanguages(options.Languages, discovered)
 	if err != nil {
-		return report.Document{}, err
+		return report.Document{}, nil, err
+	}
+	plan, planErr := workspacePlan(analyzer, options)
+	var snapshot *analysisPlanSnapshot
+	if planErr == nil {
+		snapshot = newPlanSnapshot(plan, discovered, selected, options)
 	}
 	catalog := activeCatalog(analyzer.catalog, options)
-	// Cache writes and cache reads are deliberately independent. The default
-	// slopmark path must remain the ordinary fresh analyzer plus a cheap
-	// post-analysis projection write; only explicit reuse enters the package
-	// coordinator and pays for planning, hashing, and snapshot validation.
+	// Cache writes and cache reads remain independent. The workspace plan is
+	// captured here for a later incremental refresh; the coordinator reuses it
+	// when cache reads are enabled instead of planning a second time.
 	if persistentCacheEnabled(analyzer, options) {
-		document, handled, cacheErr := analyzeWithPersistentCache(analyzer, parent, catalog, discovered, selected, options)
-		if handled {
-			return document, cacheErr
+		cacheResult := analyzeWithPersistentCache(analyzer, parent, catalog, discovered, selected, options, plan, planErr, options)
+		if cacheResult.handled {
+			if cacheResult.err == nil {
+				snapshot = newPlanSnapshot(cacheResult.plan, cacheResult.discovered, cacheResult.selected, options)
+			}
+			return cacheResult.document, snapshot, cacheResult.err
 		}
 	}
-	return analyzeFresh(analyzer, parent, catalog, discovered, selected, options)
+	document, err := analyzeFresh(analyzer, parent, catalog, discovered, selected, options)
+	return document, snapshot, err
 }
 
 func validateDocumentInventory(document report.Document, discovered map[string][]string, selected []string) error {

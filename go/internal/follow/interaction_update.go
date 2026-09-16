@@ -115,6 +115,9 @@ func handleFullSourceChange(model *Model, message sourceChange, command tea.Cmd)
 }
 
 func handlePartialSourceChange(model *Model, message sourceChange, command tea.Cmd) (tea.Model, tea.Cmd) {
+	if len(message.Paths) == 0 {
+		return model, command
+	}
 	markFreshness(model, message.Paths, report.FreshnessRefreshing, "source changed")
 	queueChangedPaths(model, message.Paths)
 	if model.analyzing {
@@ -202,6 +205,7 @@ func continueQueuedAnalysis(model *Model) (tea.Model, tea.Cmd) {
 		model.pendingFullAnalysis = false
 		model.queued = map[string]bool{}
 		model.analyzing = true
+		markFreshness(model, nil, report.FreshnessRefreshing, "workspace inputs changed")
 		return model, analysisCommand(model.analyzer, model.options.Targets, nil, true)
 	}
 	if len(model.queued) > 0 {

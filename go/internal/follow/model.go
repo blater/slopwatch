@@ -48,6 +48,13 @@ type Analyzer interface {
 	Analyze(context.Context, []string, []string) (report.Document, error)
 }
 
+// changeAnalyzer can reuse the analyzer's dependency graph for a source
+// change. It returns every file whose result may have changed, including
+// deleted paths, so the dashboard can replace exactly that affected set.
+type changeAnalyzer interface {
+	AnalyzeChanges(context.Context, []string) (report.Document, []string, error)
+}
+
 type typeScriptTypesController interface {
 	SetTypeScriptTypes(bool)
 }
