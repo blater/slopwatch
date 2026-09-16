@@ -24,14 +24,24 @@ func markProfileEntryOrigins(origins map[string]appconfig.Origin, before, after 
 }
 
 func markProfileFields(origins map[string]appconfig.Origin, prefix string, before, after preferences.AgentProfile, exists bool, origin appconfig.Origin) {
+	if !exists {
+		markNewProfileFields(origins, prefix, origin)
+		return
+	}
 	fields := []struct {
 		key     string
 		changed bool
-	}{{"label", !exists || before.Label != after.Label}, {"runtime", !exists || before.Runtime != after.Runtime}, {"executable", !exists || before.Executable != after.Executable}, {"runtime_profile", !exists || before.RuntimeProfile != after.RuntimeProfile}, {"authentication_ref", !exists || before.AuthenticationRef != after.AuthenticationRef}, {"options", !exists || !reflect.DeepEqual(before.Options, after.Options)}}
+	}{{"label", before.Label != after.Label}, {"runtime", before.Runtime != after.Runtime}, {"executable", before.Executable != after.Executable}, {"runtime_profile", before.RuntimeProfile != after.RuntimeProfile}, {"authentication_ref", before.AuthenticationRef != after.AuthenticationRef}, {"options", !reflect.DeepEqual(before.Options, after.Options)}}
 	for _, field := range fields {
 		if field.changed {
 			origins[prefix+field.key] = origin
 		}
+	}
+}
+
+func markNewProfileFields(origins map[string]appconfig.Origin, prefix string, origin appconfig.Origin) {
+	for _, field := range []string{"label", "runtime", "executable", "runtime_profile", "authentication_ref", "options"} {
+		origins[prefix+field] = origin
 	}
 }
 

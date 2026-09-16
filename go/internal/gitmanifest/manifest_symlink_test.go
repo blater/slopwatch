@@ -9,27 +9,34 @@ import (
 func TestFingerprintCoversSymlinkTarget(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "new.go")
-	if err := os.Symlink("target-one", path); err != nil {
+	writeSymlink(t, path, "target-one")
+	first := buildRenamedManifest(t, root)
+	assertRenamedSymlink(t, first)
+	removePath(t, path)
+	writeSymlink(t, path, "target-two")
+	second := buildRenamedManifest(t, root)
+	if first.Fingerprint == second.Fingerprint {
+		t.Fatal("symlink target change did not change fingerprint")
+	}
+}
+
+func writeSymlink(t *testing.T, path, target string) {
+	t.Helper()
+	if err := os.Symlink(target, path); err != nil {
 		t.Fatal(err)
 	}
-	first, err := Build(root, []byte("R  new.go\x00old.go\x00"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(first.Entries) != 1 || first.Entries[0].Path != "new.go" || first.Entries[0].Previous != "old.go" || first.Entries[0].Kind != "symlink" {
-		t.Fatalf("rename symlink = %+v", first)
-	}
+}
+
+func removePath(t *testing.T, path string) {
+	t.Helper()
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink("target-two", path); err != nil {
-		t.Fatal(err)
-	}
-	second, err := Build(root, []byte("R  new.go\x00old.go\x00"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first.Fingerprint == second.Fingerprint {
-		t.Fatal("symlink target change did not change fingerprint")
+}
+
+func assertRenamedSymlink(t *testing.T, manifest Manifest) {
+	t.Helper()
+	if len(manifest.Entries) != 1 || manifest.Entries[0].Path != "new.go" || manifest.Entries[0].Previous != "old.go" || manifest.Entries[0].Kind != "symlink" {
+		t.Fatalf("rename symlink = %+v", manifest)
 	}
 }

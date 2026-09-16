@@ -105,7 +105,12 @@ func TestProtocolUsesDeterministicTypeMetricFallback(t *testing.T) {
 	if first.String() != second.String() {
 		t.Fatal("identical analysis requests produced different protocol output")
 	}
-	decoder := json.NewDecoder(&first)
+	assertDeterministicTypeFallback(t, first.Bytes())
+}
+
+func assertDeterministicTypeFallback(t *testing.T, output []byte) {
+	t.Helper()
+	decoder := json.NewDecoder(bytes.NewReader(output))
 	seenComplete := false
 	seenCBO := false
 	for decoder.More() {

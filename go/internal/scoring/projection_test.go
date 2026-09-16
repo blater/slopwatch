@@ -44,24 +44,33 @@ func TestProjectFilePreservesLegacyReweightingSemantics(t *testing.T) {
 	)
 	projected := ProjectFile(original, policy)
 
-	if projected.Score != 9 {
-		t.Fatalf("score = %v, want 9", projected.Score)
+	assertLegacyProjectionValues(t, projected)
+	assertOriginalProjection(t, original)
+}
+
+func assertLegacyProjectionValues(t *testing.T, file report.File) {
+	t.Helper()
+	if file.Score != 9 {
+		t.Fatalf("score = %v, want 9", file.Score)
 	}
-	if projected.Axes["structural_core"] != 5 || projected.Axes["structural_language"] != 4 {
-		t.Fatalf("axes = %#v", projected.Axes)
+	if file.Axes["structural_core"] != 5 || file.Axes["structural_language"] != 4 {
+		t.Fatalf("axes = %#v", file.Axes)
 	}
-	if projected.Axes["typescript_type_safety"] != 0 || projected.Axes["unknown"] != 0 {
-		t.Fatalf("disabled axes = %#v", projected.Axes)
+	if file.Axes["typescript_type_safety"] != 0 || file.Axes["unknown"] != 0 {
+		t.Fatalf("disabled axes = %#v", file.Axes)
 	}
-	cognitive := projected.Components["cognitive_complexity"]
+	cognitive := file.Components["cognitive_complexity"]
 	if cognitive.Contribution != 5 || cognitive.ObservedContribution != 10 || cognitive.Subjects[0].Contribution != 5 {
 		t.Fatalf("cognitive projection = %#v", cognitive)
 	}
+}
 
-	if original.Score != 24 || original.Axes["old"] != 24 {
+func assertOriginalProjection(t *testing.T, file report.File) {
+	t.Helper()
+	if file.Score != 24 || file.Axes["old"] != 24 {
 		t.Fatal("projection mutated original file")
 	}
-	originalCognitive := original.Components["cognitive_complexity"]
+	originalCognitive := file.Components["cognitive_complexity"]
 	if originalCognitive.Contribution != 10 || originalCognitive.Subjects[0].Contribution != 10 {
 		t.Fatal("projection mutated original component")
 	}

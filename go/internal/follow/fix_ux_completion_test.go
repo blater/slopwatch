@@ -17,6 +17,14 @@ import (
 )
 
 func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
+	model, service, job := monitorServiceModel()
+	openMonitor(t, &model, job)
+	assertMonitorInitial(t, &model)
+	refreshMonitor(t, &model, service, job)
+	assertReaderViews(t, &model, job)
+}
+
+func monitorServiceModel() (Model, *fakeFixService, fix.JobPresentation) {
 	job := fix.JobPresentation{ID: "job-1", Phase: fix.PhaseRunning, ProfileLabel: "Codex", ModelLabel: "gpt-5.6-sol", EffortLabel: "high", Goal: "SCORE <= 100", CurrentAction: "Running tests", AttemptOrdinal: 1, UpdatedAt: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 		Actors: []fix.ActorPresentation{{ID: "primary", CurrentAction: "Editing a.go"}, {ID: "reviewer", ParentID: "primary", CurrentAction: "Reviewing"}},
 		Usage:  fix.UsagePresentation{InputTokens: 100, CachedTokens: 25, OutputTokens: 30, ReasoningTokens: 10}, UsageReported: true,
@@ -31,12 +39,20 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 	model.mainView = MainViewAgents
 	model.agents.Jobs = []fix.JobPresentation{job}
 	model.agents.Selected = AgentRowID{JobID: job.ID}
+	return model, service, job
+}
 
+func openMonitor(t *testing.T, model *Model, job fix.JobPresentation) {
+	t.Helper()
 	command := model.openJobMonitor(job.ID, "a.go")
 	if command == nil || !overlayPresent(model.overlays, OverlayJobMonitor) {
 		t.Fatal("monitor did not open asynchronously")
 	}
 	model.handleJobMonitor(command().(jobMonitorMsg))
+}
+
+func assertMonitorInitial(t *testing.T, model *Model) {
+	t.Helper()
 	monitor := ansi.Strip(model.View())
 	for _, want := range []string{"INSPECT", "RUNNING", "Running tests", "Focused file: a.go", "Agent: codex · gpt-5.6-sol · high", "ACTORS", "primary", "reviewer", "Tokens: input 100", "cached 25"} {
 		if !strings.Contains(monitor, want) {
@@ -48,11 +64,15 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 			t.Fatalf("inspect contains unwanted %q: %q", unwanted, monitor)
 		}
 	}
+}
+
+func refreshMonitor(t *testing.T, model *Model, service *fakeFixService, job fix.JobPresentation) {
+	t.Helper()
 	service.log.Entries = append(service.log.Entries, fixapp.LogEntry{At: time.Date(2026, 1, 1, 12, 0, 1, 0, time.UTC), Summary: "Edited a.go"})
 	job.UpdatedAt = job.UpdatedAt.Add(time.Second)
 	job.CurrentAction = "Editing a.go"
 	service.jobs = fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}}
-	command = model.handleFixJobs(fixJobsMsg{jobs: []fix.JobPresentation{job}})
+	command := model.handleFixJobs(fixJobsMsg{jobs: []fix.JobPresentation{job}})
 	if command == nil {
 		t.Fatal("open monitor did not schedule activity refresh on subscription advance")
 	}
@@ -60,7 +80,10 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 	if text := ansi.Strip(model.View()); !strings.Contains(text, "Editing a.go") || strings.Contains(text, "Edited a.go") {
 		t.Fatalf("inspect did not refresh state cleanly: %q", text)
 	}
+}
 
+func assertReaderViews(t *testing.T, model *Model, job fix.JobPresentation) {
+	t.Helper()
 	for _, test := range []struct {
 		kind OverlayKind
 		open func() tea.Cmd
@@ -70,7 +93,7 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 		{OverlayJobDiff, func() tea.Cmd { return model.openJobReader(OverlayJobDiff, job.ID, "a.go") }, "modified"},
 		{OverlayCandidateSource, func() tea.Cmd { return model.openJobReader(OverlayCandidateSource, job.ID, "a.go") }, "package sample"},
 	} {
-		command = test.open()
+		command := test.open()
 		if command == nil || !overlayPresent(model.overlays, test.kind) {
 			t.Fatalf("reader %d did not open", test.kind)
 		}

@@ -89,7 +89,16 @@ func TestMainScreenHelpIsAlphabeticalByAction(t *testing.T) {
 func TestSettingsAreAlphabeticalAndLightThemeAppliesEverywhere(t *testing.T) {
 	ConfigureTerminalColours()
 	t.Cleanup(ConfigureTerminalColours)
-	model := Model{
+	model := themedSettingsModel()
+	assertSettingsAlphabetical(t, model)
+	selectLightTheme(t, &model)
+	views := themedViews(&model)
+	assertLightThemeViews(t, views)
+	assertThemeSelectionRemembered(t, &model)
+}
+
+func themedSettingsModel() Model {
+	return Model{
 		files: FilesState{
 			Document: report.Document{Files: []report.File{{Path: "main.go", Rank: 1}}},
 			Visible:  defaultColumnVisibility(),
@@ -97,38 +106,55 @@ func TestSettingsAreAlphabeticalAndLightThemeAppliesEverywhere(t *testing.T) {
 		},
 		width: 80, height: 20, theme: style.ThemeDark, settings: true,
 	}
+}
+
+func assertSettingsAlphabetical(t *testing.T, model Model) {
+	t.Helper()
 	settings := ansi.Strip(settingsView(model))
 	appearanceAt, columnsAt, weightsAt := strings.Index(settings, "Appearance"), strings.Index(settings, "Columns"), strings.Index(settings, "Weights")
 	if appearanceAt < 0 || appearanceAt >= columnsAt || columnsAt >= weightsAt {
 		t.Fatalf("settings are not alphabetical: %q", settings)
 	}
+}
 
+func selectLightTheme(t *testing.T, model *Model) {
+	t.Helper()
 	model.settingsCursor = settingsIndex("appearance")
-	handleSettingsKey(&model, "enter")
+	handleSettingsKey(model, "enter")
 	if !model.appearance || model.settings {
 		t.Fatal("Appearance did not open from Settings")
 	}
-	handleAppearanceKey(&model, "down")
-	handleAppearanceKey(&model, "enter")
+	handleAppearanceKey(model, "down")
+	handleAppearanceKey(model, "enter")
 	if model.theme != style.ThemeLight || string(style.SurfaceScreen) != "#f7fafc" {
 		t.Fatalf("light theme was not applied: theme=%q screen=%q", model.theme, style.SurfaceScreen)
 	}
+}
 
+func themedViews(model *Model) map[string]string {
+	model.settings = false
+	model.appearance = true
+	model.help = false
 	views := map[string]string{
-		"main table":       tableView(model),
-		"appearance popup": appearanceView(model),
-		"columns popup":    columnsView(model),
-		"settings popup":   settingsView(model),
-		"sort popup":       sortView(model),
-		"weights popup":    weightsView(model),
+		"main table":       tableView(*model),
+		"appearance popup": appearanceView(*model),
+		"columns popup":    columnsView(*model),
+		"settings popup":   settingsView(*model),
+		"sort popup":       sortView(*model),
+		"weights popup":    weightsView(*model),
 	}
 	model.help = true
-	views["help popup"] = helpView(model)
+	views["help popup"] = helpView(*model)
 	model.help = false
 	model.infoKey = "score"
-	views["info popup"] = infoView(model)
+	views["info popup"] = infoView(*model)
 	model.detail = true
-	views["detail popup"] = detailView(model)
+	views["detail popup"] = detailView(*model)
+	return views
+}
+
+func assertLightThemeViews(t *testing.T, views map[string]string) {
+	t.Helper()
 	for name, view := range views {
 		if !strings.Contains(view, "48;2;") {
 			t.Errorf("%s does not render a themed true-colour background", name)
@@ -137,12 +163,15 @@ func TestSettingsAreAlphabeticalAndLightThemeAppliesEverywhere(t *testing.T) {
 			t.Errorf("%s still contains a dark application surface", name)
 		}
 	}
+}
 
+func assertThemeSelectionRemembered(t *testing.T, model *Model) {
+	t.Helper()
 	model.settings = false
 	model.appearance = true
 	model.appearanceCursor = 0
-	handleAppearanceKey(&model, "esc")
-	handleSettingsKey(&model, "enter")
+	handleAppearanceKey(model, "esc")
+	handleSettingsKey(model, "enter")
 	if model.appearanceCursor != 1 {
 		t.Fatalf("Appearance did not remember the selected theme: cursor=%d", model.appearanceCursor)
 	}

@@ -73,15 +73,35 @@ func savePreferenceFixture(t *testing.T, path string) {
 
 func assertPreferenceFixtureLoaded(t *testing.T, model *Model, analyzer *preferenceAnalyzer) {
 	t.Helper()
+	assertFixtureTheme(t, model)
+	assertFixtureTable(t, model)
+	assertFixtureTuning(t, model)
+	assertFixtureScoring(t, model, analyzer)
+}
+
+func assertFixtureTheme(t *testing.T, model *Model) {
+	t.Helper()
 	if model.theme != style.ThemeLight || string(style.SurfaceScreen) != "#f7fafc" {
 		t.Fatalf("theme was not loaded: model=%q surface=%q", model.theme, style.SurfaceScreen)
 	}
+}
+
+func assertFixtureTable(t *testing.T, model *Model) {
+	t.Helper()
 	if len(model.files.Visible) != 1 || !model.files.Visible["cog"] || model.files.SortKey != "filename" || model.files.SortReverse {
 		t.Fatalf("table preferences were not loaded: visible=%v sort=%s reverse=%t", model.files.Visible, model.files.SortKey, model.files.SortReverse)
 	}
+}
+
+func assertFixtureTuning(t *testing.T, model *Model) {
+	t.Helper()
 	if model.options.TrendWindow != 42*time.Minute || model.weightStep != 0.25 || model.maximumWeight != 12 {
 		t.Fatalf("tuning preferences were not loaded: trend=%s step=%v max=%v", model.options.TrendWindow, model.weightStep, model.maximumWeight)
 	}
+}
+
+func assertFixtureScoring(t *testing.T, model *Model, analyzer *preferenceAnalyzer) {
+	t.Helper()
 	if model.weights["cognitive_complexity"] != 3 || !analyzer.typeScriptTypes {
 		t.Fatalf("scoring preferences were not loaded: weight=%v types=%t", model.weights["cognitive_complexity"], analyzer.typeScriptTypes)
 	}
@@ -132,18 +152,38 @@ func TestPreferenceChangesSurviveModelRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer restarted.Close()
+	assertRestartedTheme(t, restarted)
+	assertRestartedWeight(t, restarted)
+	assertRestartedColumns(t, restarted)
+	assertRestartedSort(t, restarted)
+}
+
+func assertRestartedTheme(t *testing.T, restarted *Model) {
+	t.Helper()
 	if restarted.theme != style.ThemeLight {
 		t.Fatalf("restarted theme = %q", restarted.theme)
 	}
+}
+
+func assertRestartedWeight(t *testing.T, restarted *Model) {
+	t.Helper()
 	if restarted.weights["cognitive_complexity"] != 10.5 {
 		t.Fatalf("restarted weight = %v", restarted.weights["cognitive_complexity"])
 	}
 	if isWeightEnabled(*restarted, "cognitive_complexity") {
 		t.Fatal("restarted model restored a disabled component")
 	}
+}
+
+func assertRestartedColumns(t *testing.T, restarted *Model) {
+	t.Helper()
 	if restarted.files.Visible["cog"] {
 		t.Fatal("restarted model restored a hidden column")
 	}
+}
+
+func assertRestartedSort(t *testing.T, restarted *Model) {
+	t.Helper()
 	if restarted.files.SortKey != "filename" || restarted.files.SortReverse {
 		t.Fatalf("restarted sort = %s reverse=%t", restarted.files.SortKey, restarted.files.SortReverse)
 	}

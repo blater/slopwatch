@@ -35,20 +35,20 @@ func (service *GitService) CreateCommit(ctx context.Context, request Request) (R
 			return result, err
 		}
 	}
-	if err := service.validateLiteralBranch(ctx, request.Candidate.RepositoryRoot, request.Branch); err != nil {
+	if err := validateLiteralBranch(service.executor, ctx, request.Candidate.RepositoryRoot, request.Branch); err != nil {
 		return result, fmt.Errorf("invalid delivery branch: %w", err)
 	}
 	if request.Plan.Git == fix.GitCommitCurrent {
 		return service.createCurrentBranchCommit(ctx, request)
 	}
 	ref := "refs/heads/" + request.Branch
-	if exists, _, err := service.ref(ctx, request.Candidate.RepositoryRoot, ref); err != nil {
+	if exists, _, err := service.executor.ref(ctx, request.Candidate.RepositoryRoot, ref); err != nil {
 		return result, err
 	} else if exists {
 		return result, errors.New("delivery branch already exists locally")
 	}
 	if request.Plan.Publish != fix.PublishLocal {
-		if exists, _, err := service.remoteRef(ctx, request.Candidate.RepositoryRoot, request.Remote, ref); err != nil {
+		if exists, _, err := service.executor.remoteRef(ctx, request.Candidate.RepositoryRoot, request.Remote, ref); err != nil {
 			return result, err
 		} else if exists {
 			return result, errors.New("delivery branch already exists remotely")

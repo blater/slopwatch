@@ -88,32 +88,25 @@ func handleFakeTurnStart(mode, capture string, request fakeRequest, responder fa
 	}
 	responder.result(map[string]any{"turn": map[string]any{"id": "turn-1", "status": "inProgress", "items": []any{}}})
 	fakeNotify("turn/started", fakeIdentity())
-	if mode == "serverrequest" {
+	switch mode {
+	case "serverrequest":
 		fakeServerRequest()
 		time.Sleep(50 * time.Millisecond)
-	}
-	if mode == "descendant" {
+	case "descendant":
 		startFakeDescendant(capture)
-	}
-	if mode == "stubborn" {
+	case "stubborn":
 		startTermIgnoringDescendant(capture)
-	}
-	if mode == "foreign" {
+	case "foreign":
 		fakeForeignTurn()
-	}
-	if mode == "oversize" {
+	case "oversize":
 		fakeOversizeMessage()
-	}
-	if mode == "flood" {
+	case "flood":
 		fakeWarnings(4, 0)
-	}
-	if mode == "actoroverflow" {
+	case "actoroverflow":
 		fakeActorOverflow()
-	}
-	if mode == "cumulative" {
+	case "cumulative":
 		fakeWarnings(160, 8192)
-	}
-	if mode == "oversizeframe" {
+	case "oversizeframe":
 		fakeNotify("warning", map[string]any{"message": strings.Repeat("x", diagnosticCaptureLimit+1)})
 		return false
 	}

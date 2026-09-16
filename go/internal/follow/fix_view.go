@@ -530,47 +530,38 @@ func fixTargetScoreEditorView(base string, state fixDialogState, catalog agent.P
 
 func (state fixDialogState) content(catalog agent.ProfileCatalog, width, height int) []string {
 	fields := state.fieldRows(catalog, width)
-	runnable := state.runnable()
-	preflight := ""
-	if state.hasInput {
-		preflight = fixPreflightWarning(state.input)
-	}
-	cursor := state.cursorRow()
 	lines := []string{}
 	if height > 2 {
-		targetText := "Target: " + state.target.String()
-		if len(state.targetPaths()) > 1 {
-			targetText = "Targets: " + markedFilesLabel(len(state.targetPaths()))
-		}
-		lines = append(lines, fixSurfaceLine(targetText, width, style.SurfaceModal, style.TextMuted))
+		lines = append(lines, state.targetLine(width))
 	}
 	if state.loading || !state.hasInput {
-		message := "PREPARING ANALYSIS…"
-		if state.errorText != "" {
-			message = "Error: " + state.errorText
-		}
-		lines = append(lines, fixWrappedLines(message, width, max(1, height-len(lines)), style.TextPrimary)...)
-		return fitFixContent(lines, width, height)
+		return state.loadingContent(lines, width, height)
 	}
-	status := state.statusText
-	if state.starting {
-		status = "STARTING FIX…"
-	} else if state.errorText != "" {
-		status = "Error: " + state.errorText
-	} else if !runnable {
-		status = "FIX BLOCKED · " + fixPreflightSummary(state.input)
-	} else if preflight != "" {
-		status = "READY WITH WARNING · " + preflight
-	} else {
-		status = "READY TO FIX"
+	return state.readyContent(lines, fields, catalog, width, height)
+}
+
+func (state fixDialogState) targetLine(width int) string {
+	targetText := "Target: " + state.target.String()
+	if len(state.targetPaths()) > 1 {
+		targetText = "Targets: " + markedFilesLabel(len(state.targetPaths()))
 	}
-	statusColour := style.TextMuted
-	if !runnable {
-		statusColour = style.AccentCritical
+	return fixSurfaceLine(targetText, width, style.SurfaceModal, style.TextMuted)
+}
+
+func (state fixDialogState) loadingContent(lines []string, width, height int) []string {
+	message := "PREPARING ANALYSIS…"
+	if state.errorText != "" {
+		message = "Error: " + state.errorText
 	}
-	statusLines := fixWrappedLines(status, width, min(3, max(1, height-len(lines)-1)), statusColour)
+	lines = append(lines, fixWrappedLines(message, width, max(1, height-len(lines)), style.TextPrimary)...)
+	return fitFixContent(lines, width, height)
+}
+
+func (state fixDialogState) readyContent(lines, fields []string, catalog agent.ProfileCatalog, width, height int) []string {
+	status, colour := state.statusLine()
+	statusLines := fixWrappedLines(status, width, min(3, max(1, height-len(lines)-1)), colour)
 	available := max(1, height-len(lines)-len(statusLines))
-	start := min(max(0, cursor-available/2), max(0, len(fields)-available))
+	start := min(max(0, state.cursorRow()-available/2), max(0, len(fields)-available))
 	end := min(len(fields), start+available)
 	lines = append(lines, fields[start:end]...)
 	lines = append(lines, statusLines...)
@@ -579,6 +570,27 @@ func (state fixDialogState) content(catalog agent.ProfileCatalog, width, height 
 		lines = state.overlayChoiceMenu(catalog, lines, width, height, start, end)
 	}
 	return lines
+}
+
+func (state fixDialogState) statusLine() (string, lipgloss.Color) {
+	runnable := state.runnable()
+	colour := style.TextMuted
+	if !runnable {
+		colour = style.AccentCritical
+	}
+	if state.starting {
+		return "STARTING FIX…", colour
+	}
+	if state.errorText != "" {
+		return "Error: " + state.errorText, colour
+	}
+	if !runnable {
+		return "FIX BLOCKED · " + fixPreflightSummary(state.input), colour
+	}
+	if preflight := fixPreflightWarning(state.input); preflight != "" {
+		return "READY WITH WARNING · " + preflight, colour
+	}
+	return "READY TO FIX", colour
 }
 
 func fixWrappedLines(text string, width, maximum int, foreground lipgloss.Color) []string {

@@ -144,11 +144,24 @@ func TestPrepareReusesExactOwnedCandidateAfterCrashBeforeStateSave(t *testing.T)
 }
 
 func TestPrepareCancellationCleansRegisteredWorktreeAndRemainsRetryable(t *testing.T) {
+	fixture := newCancellationFixture(t)
+	assertCanceledPrepareCleanup(t, fixture)
+	assertCanceledPrepareRetry(t, fixture)
+}
+
+type cancellationFixture struct {
+	repository, state, worktree string
+	ctx                         context.Context
+	service                     *GitWorktreeService
+	request                     PrepareRequest
+}
+
+func newCancellationFixture(t *testing.T) cancellationFixture {
+	t.Helper()
 	repository := initializeRepository(t)
 	state := filepath.Join(t.TempDir(), "state")
 	ctx, cancel := context.WithCancel(context.Background())
-	executor := &cancelAfterWorktreeAddExecutor{cancel: cancel}
-	service, err := NewGitWorktreeService(state, executor, testGitWorktreeConfig())
+	service, err := NewGitWorktreeService(state, &cancelAfterWorktreeAddExecutor{cancel: cancel}, testGitWorktreeConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,22 +173,30 @@ func TestPrepareCancellationCleansRegisteredWorktreeAndRemainsRetryable(t *testi
 	job, _ := fix.NewJobID()
 	request := PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace,
 		Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
-	if _, err := service.Prepare(ctx, request); err == nil {
+	return cancellationFixture{repository: repository, state: state, worktree: filepath.Join(service.stateRoot, string(job), "worktree"), ctx: ctx, service: service, request: request}
+}
+
+func assertCanceledPrepareCleanup(t *testing.T, fixture cancellationFixture) {
+	t.Helper()
+	if _, err := fixture.service.Prepare(fixture.ctx, fixture.request); err == nil {
 		t.Fatal("Prepare unexpectedly succeeded after cancellation between worktree add and checkout")
 	}
-	worktree := filepath.Join(service.stateRoot, string(job), "worktree")
-	if output := gitOutput(t, repository, "worktree", "list", "--porcelain"); strings.Contains(output, worktree) {
+	if output := gitOutput(t, fixture.repository, "worktree", "list", "--porcelain"); strings.Contains(output, fixture.worktree) {
 		t.Fatalf("canceled Prepare left registered worktree metadata:\n%s", output)
 	}
-	if _, err := os.Stat(filepath.Join(state, string(job))); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(fixture.state, string(fixture.request.Job))); !os.IsNotExist(err) {
 		t.Fatalf("canceled Prepare retained state after exact cleanup: %v", err)
 	}
-	identity, err := service.Prepare(context.Background(), request)
+}
+
+func assertCanceledPrepareRetry(t *testing.T, fixture cancellationFixture) {
+	t.Helper()
+	identity, err := fixture.service.Prepare(context.Background(), fixture.request)
 	if err != nil {
 		t.Fatalf("retry after canceled Prepare: %v", err)
 	}
-	if identity.RepositoryRoot != worktree {
-		t.Fatalf("retry worktree = %q, want %q", identity.RepositoryRoot, worktree)
+	if identity.RepositoryRoot != fixture.worktree {
+		t.Fatalf("retry worktree = %q, want %q", identity.RepositoryRoot, fixture.worktree)
 	}
 }
 

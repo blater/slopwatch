@@ -67,6 +67,16 @@ func TestUnauthenticatedRuntimeLinksDirectlyToAgentRepair(t *testing.T) {
 }
 
 func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *testing.T) {
+	model, service := remediationDraftModel(t)
+	load := openRemediationSettings(t, model)
+	model.handleConfigResolved(load().(configResolvedMsg))
+	reprepare := returnFromRemediationSettings(t, model, service)
+	assertRemediationDraftPreserved(t, model)
+	finishRemediationReprepare(t, model, reprepare)
+}
+
+func remediationDraftModel(t *testing.T) (*Model, *fakeFixService) {
+	t.Helper()
 	input := readyFixInput("a.go")
 	input.Probe.State = agent.ProbeUnauthenticated
 	input.Probe.Diagnostic = "Run codex login to authorize"
@@ -83,23 +93,38 @@ func TestFixRemediationSettingsRoundTripPreservesDraftAndRechecksReadiness(t *te
 	if !model.fixDialog.syncInput() {
 		t.Fatalf("could not establish edited input: %s", model.fixDialog.errorText)
 	}
+	return &model, service
+}
 
+func openRemediationSettings(t *testing.T, model *Model) tea.Cmd {
+	t.Helper()
 	_, load := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if load == nil || model.overlays.Len() != 2 {
 		t.Fatalf("remediation stack=%d command nil=%t", model.overlays.Len(), load == nil)
 	}
-	model.handleConfigResolved(load().(configResolvedMsg))
+	return load
+}
 
+func returnFromRemediationSettings(t *testing.T, model *Model, service *fakeFixService) tea.Cmd {
+	t.Helper()
 	service.input = readyFixInput("a.go")
 	_, reprepare := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyEsc})
 	if reprepare == nil || model.configSettings.open || !overlayPresent(model.overlays, OverlayFixForm) || overlayPresent(model.overlays, OverlayConfigSettings) {
 		t.Fatalf("settings did not return to Fix and reprepare: open=%t overlays=%d command nil=%t", model.configSettings.open, model.overlays.Len(), reprepare == nil)
 	}
+	return reprepare
+}
+
+func assertRemediationDraftPreserved(t *testing.T, model *Model) {
+	t.Helper()
 	if !model.fixDialog.loading || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||
 		model.fixDialog.branch.Value() != "slopwatch/fix/preserved" {
 		t.Fatalf("Fix edits changed before reprepare: %+v", model.fixDialog)
 	}
+}
 
+func finishRemediationReprepare(t *testing.T, model *Model, reprepare tea.Cmd) {
+	t.Helper()
 	model.handleFixLoaded(reprepare().(fixLoadedMsg))
 	if model.fixDialog.loading || !model.fixDialog.runnable() || model.fixDialog.cursor != fixFieldEffort || model.fixDialog.input.TargetScore != 70 ||
 		model.fixDialog.input.BranchName != "slopwatch/fix/preserved" {

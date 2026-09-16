@@ -16,6 +16,20 @@ import (
 )
 
 func TestJobLogContainsStartAndResult(t *testing.T) {
+	fixture := createJobLogFixture(t)
+	contents := readJobLogFile(t, fixture.path)
+	indexed := assertJobLogIndex(t, fixture.record, contents)
+	logContents := readJobLogFile(t, indexed.LogFile)
+	assertJobLogContents(t, fixture.record, logContents)
+}
+
+type jobLogFixture struct {
+	path   string
+	record *jobRecord
+}
+
+func createJobLogFixture(t *testing.T) jobLogFixture {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "fix-jobs.jsonl")
 	manager := bareTestManager(Dependencies{}, Options{Clock: time.Now, JobIndexPath: path})
 	startedAt := time.Now()
@@ -33,10 +47,11 @@ func TestJobLogContainsStartAndResult(t *testing.T) {
 	record.presentation.Phase = fix.PhaseCompleted
 	record.presentation.CurrentAction = "Done"
 	manager.controller.logging.logJobResult(record)
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	return jobLogFixture{path: path, record: record}
+}
+
+func assertJobLogIndex(t *testing.T, record *jobRecord, contents []byte) jobIndexEntry {
+	t.Helper()
 	if strings.Count(string(contents), "\n") != 1 {
 		t.Fatalf("job index should contain one record per job: %q", contents)
 	}
@@ -50,10 +65,20 @@ func TestJobLogContainsStartAndResult(t *testing.T) {
 	if bytes.Contains(contents, []byte("trusted instructions")) {
 		t.Fatalf("job index contains the prompt: %s", contents)
 	}
-	logContents, err := os.ReadFile(indexed.LogFile)
+	return indexed
+}
+
+func readJobLogFile(t *testing.T, path string) []byte {
+	t.Helper()
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return contents
+}
+
+func assertJobLogContents(t *testing.T, record *jobRecord, logContents []byte) {
+	t.Helper()
 	for _, wanted := range []string{"SLOPWATCH FIX JOB", "PROMPT attempt-one", record.input.Instructions.EffectiveBody(), "Status: completed", "thread-one", "M a.go"} {
 		if !strings.Contains(string(logContents), wanted) {
 			t.Fatalf("job text log omitted %q: %s", wanted, logContents)

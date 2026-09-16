@@ -315,28 +315,15 @@ func agentProviderAvailabilityForState(state configSettingsState, catalog agent.
 }
 
 func agentConnectionLinesForState(state configSettingsState, catalog agent.ProfileCatalog, width int) ([]string, int, int) {
-	choice := agentProviderChoice{Runtime: state.providerRuntime, Label: string(state.providerRuntime)}
-	for _, candidate := range agentProviderChoices {
-		if candidate.Runtime == state.providerRuntime {
-			choice = candidate
-			break
-		}
-	}
+	choice := agentProviderChoiceForRuntime(state.providerRuntime)
 	descriptor, descriptorErr := profileDescriptor(catalog, agent.Profile{Runtime: choice.Runtime})
 	if descriptorErr != nil {
-		message := nonemptySetting(choice.Unavailable, "This agent adapter is not available in this Slopwatch build.")
-		lines := wrappedDisabledConfigLines(message, width)
-		return lines, 0, max(0, len(lines)-1)
+		return agentConnectionUnavailable(choice, width)
 	}
 
 	count := profileCountForRuntime(state.working.Profiles, choice.Runtime)
-	if count == 0 {
-		lines := agentConnectionErrorLines("No connection configured. Add exactly one profile in the preferences file, then reopen Settings.", width)
-		return lines, 0, max(0, len(lines)-1)
-	}
-	if count > 1 {
-		lines := agentConnectionErrorLines("Multiple connections configured. This release supports one account per provider. In the preferences file, keep one profile and reopen Settings.", width)
-		return lines, 0, max(0, len(lines)-1)
+	if count != 1 {
+		return agentConnectionCountError(count, width)
 	}
 	lines := make([]string, 0, 12)
 	if descriptor.ConnectionInstructions != "" {
@@ -362,6 +349,35 @@ func agentConnectionLinesForState(state configSettingsState, catalog agent.Profi
 	}
 	statusStart := len(lines)
 	lines = append(lines, "")
+	return appendAgentConnectionStatus(lines, statusStart, state, profile, width)
+}
+
+func agentProviderChoiceForRuntime(runtime agent.RuntimeKind) agentProviderChoice {
+	choice := agentProviderChoice{Runtime: runtime, Label: string(runtime)}
+	for _, candidate := range agentProviderChoices {
+		if candidate.Runtime == runtime {
+			return candidate
+		}
+	}
+	return choice
+}
+
+func agentConnectionUnavailable(choice agentProviderChoice, width int) ([]string, int, int) {
+	message := nonemptySetting(choice.Unavailable, "This agent adapter is not available in this Slopwatch build.")
+	lines := wrappedDisabledConfigLines(message, width)
+	return lines, 0, max(0, len(lines)-1)
+}
+
+func agentConnectionCountError(count, width int) ([]string, int, int) {
+	message := "No connection configured. Add exactly one profile in the preferences file, then reopen Settings."
+	if count > 1 {
+		message = "Multiple connections configured. This release supports one account per provider. In the preferences file, keep one profile and reopen Settings."
+	}
+	lines := agentConnectionErrorLines(message, width)
+	return lines, 0, max(0, len(lines)-1)
+}
+
+func appendAgentConnectionStatus(lines []string, statusStart int, state configSettingsState, profile agent.Profile, width int) ([]string, int, int) {
 	if state.saving {
 		lines = append(lines, lipgloss.NewStyle().Width(width).Bold(true).Foreground(style.AccentInfo).Render("SAVING ACTIVE CONNECTION…"))
 		return lines, statusStart, len(lines) - 1

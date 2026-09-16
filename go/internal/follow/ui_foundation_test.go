@@ -99,29 +99,44 @@ func TestTopOverlayOwnsKeysAndRecordsItsCaller(t *testing.T) {
 		files: FilesState{
 			Visible: defaultColumnVisibility(),
 		}, width: 80, height: 20}
-	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	result := openSettingsOverlay(t, &model)
+	result = enterAppearanceOverlay(t, result)
+	assertSettingsRestored(t, result)
+}
+
+func openSettingsOverlay(t *testing.T, model *Model) *Model {
+	t.Helper()
+	updated, _ := handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	result := updated.(*Model)
 	top, ok := result.overlays.Top()
 	if !ok || top.Kind != OverlaySettings || top.Caller.MainView != MainViewFiles {
 		t.Fatalf("Settings overlay stack = %+v, ok=%t", top, ok)
 	}
-
 	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyTab})
 	result = updated.(*Model)
 	if result.mainView != MainViewFiles || !result.settings {
 		t.Fatal("Tab escaped the top Settings overlay")
 	}
+	return result
+}
 
+func enterAppearanceOverlay(t *testing.T, result *Model) *Model {
+	t.Helper()
 	result.settingsCursor = settingsIndex("appearance")
-	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
-	top, ok = result.overlays.Top()
+	top, ok := result.overlays.Top()
 	if !ok || top.Kind != OverlayAppearance || top.Caller.Overlay != OverlaySettings {
 		t.Fatalf("Appearance caller = %+v, ok=%t", top, ok)
 	}
-	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEsc})
+	return result
+}
+
+func assertSettingsRestored(t *testing.T, result *Model) {
+	t.Helper()
+	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyEsc})
 	result = updated.(*Model)
-	top, ok = result.overlays.Top()
+	top, ok := result.overlays.Top()
 	if !ok || top.Kind != OverlaySettings {
 		t.Fatalf("Escape did not restore Settings overlay: %+v, ok=%t", top, ok)
 	}
@@ -235,6 +250,12 @@ func TestResizeScreenGatesInputForEveryHiddenOverlay(t *testing.T) {
 
 func TestResizeScreenAllowsOnlyVisibleShutdownConfirmation(t *testing.T) {
 	service := &fakeFixService{}
+	assertVisibleShutdown(t, service)
+	assertHiddenShutdown(t, service)
+}
+
+func assertVisibleShutdown(t *testing.T, service *fakeFixService) {
+	t.Helper()
 	visible := fixTestModel(service, 35, 6)
 	visible.shutdown = shutdownState{active: 1}
 	visible.overlays.Push(OverlayShutdown, OverlayCaller{MainView: MainViewAgents})
@@ -245,7 +266,10 @@ func TestResizeScreenAllowsOnlyVisibleShutdownConfirmation(t *testing.T) {
 	if command == nil || !visible.shutdown.pending {
 		t.Fatal("visible shutdown confirmation did not accept Enter")
 	}
+}
 
+func assertHiddenShutdown(t *testing.T, service *fakeFixService) {
+	t.Helper()
 	hidden := fixTestModel(service, 20, 1)
 	hidden.shutdown = shutdownState{active: 1}
 	hidden.overlays.Push(OverlayShutdown, OverlayCaller{MainView: MainViewAgents})
@@ -253,6 +277,7 @@ func TestResizeScreenAllowsOnlyVisibleShutdownConfirmation(t *testing.T) {
 	if view := ansi.Strip(hidden.View()); !strings.Contains(view, "RESIZE TERMINAL") || strings.Contains(view, "ACTIVE FIX JOBS") {
 		t.Fatalf("unsafe shutdown surface was visible below 24x2: %q", view)
 	}
+	var command tea.Cmd
 	for _, key := range []tea.KeyMsg{{Type: tea.KeyEnter}, {Type: tea.KeyRunes, Runes: []rune{'q'}}} {
 		_, command = handleKey(&hidden, key)
 		if command != nil || hidden.shutdown.pending || hidden.overlays.Len() != before {

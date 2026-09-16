@@ -21,87 +21,113 @@ func validateRepositoryPartial(value preferences.PartialDocument) error {
 // user. Fields without a provider-independent ordering must remain unchanged.
 func validateRepositoryOverride(inherited appconfig.Resolved, value preferences.PartialDocument) error {
 	if value.Fix != nil {
-		candidate, err := preferenceFixToApp(*value.Fix)
-		if err != nil {
+		if err := validateRepositoryFix(inherited.Fix, *value.Fix); err != nil {
 			return err
-		}
-		if candidate.TargetScore > inherited.Fix.TargetScore {
-			return repositoryBroadening("fix target score", candidate.TargetScore, inherited.Fix.TargetScore)
-		}
-		if !metricSuperset(candidate.Focus, inherited.Fix.Focus) {
-			return fmt.Errorf("repository preferences cannot remove inherited fix focus metrics")
-		}
-		if mutationScopeRank(candidate.ChangeScope) > mutationScopeRank(inherited.Fix.ChangeScope) {
-			return repositoryBroadening("fix change scope", candidate.ChangeScope, inherited.Fix.ChangeScope)
-		}
-		if candidate.Profile != inherited.Fix.Profile {
-			return repositoryOwnedField("fix profile")
-		}
-		if candidate.Model != inherited.Fix.Model {
-			return repositoryOwnedField("fix model")
-		}
-		if candidate.Effort != inherited.Fix.Effort {
-			return repositoryOwnedField("fix effort")
-		}
-		if candidate.PromptTemplate != inherited.Fix.PromptTemplate {
-			return repositoryOwnedField("fix prompt template")
 		}
 	}
 	if value.Concurrency != nil {
-		candidate := preferenceConcurrencyToApp(*value.Concurrency)
-		if candidate.MaxAgents > inherited.Concurrency.MaxAgents {
-			return repositoryBroadening("concurrency max agents", candidate.MaxAgents, inherited.Concurrency.MaxAgents)
-		}
-		if candidate.MaxVerifiers > inherited.Concurrency.MaxVerifiers {
-			return repositoryBroadening("concurrency max verifiers", candidate.MaxVerifiers, inherited.Concurrency.MaxVerifiers)
-		}
-		if candidate.MaxActorsPerJob > inherited.Concurrency.MaxActorsPerJob {
-			return repositoryBroadening("concurrency actors per job", candidate.MaxActorsPerJob, inherited.Concurrency.MaxActorsPerJob)
-		}
-		if candidate.MaxCandidatePreviewBytes > inherited.Concurrency.MaxCandidatePreviewBytes {
-			return repositoryBroadening("candidate preview bytes", candidate.MaxCandidatePreviewBytes, inherited.Concurrency.MaxCandidatePreviewBytes)
-		}
-		if candidate.MaxCandidatePreviewLines > inherited.Concurrency.MaxCandidatePreviewLines {
-			return repositoryBroadening("candidate preview lines", candidate.MaxCandidatePreviewLines, inherited.Concurrency.MaxCandidatePreviewLines)
+		if err := validateRepositoryConcurrency(inherited.Concurrency, *value.Concurrency); err != nil {
+			return err
 		}
 	}
 	if value.Delivery != nil {
-		candidate := preferenceDeliveryToApp(*value.Delivery)
-		if workspaceModeRank(candidate.DefaultPlan.Workspace) > workspaceModeRank(inherited.Delivery.DefaultPlan.Workspace) ||
-			gitModeRank(candidate.DefaultPlan.Git) > gitModeRank(inherited.Delivery.DefaultPlan.Git) ||
-			publishModeRank(candidate.DefaultPlan.Publish) > publishModeRank(inherited.Delivery.DefaultPlan.Publish) {
-			return repositoryBroadening("delivery plan", candidate.DefaultPlan, inherited.Delivery.DefaultPlan)
+		if err := validateRepositoryDelivery(inherited.Delivery, *value.Delivery); err != nil {
+			return err
 		}
-		if candidate.Remote != inherited.Delivery.Remote {
-			return repositoryOwnedField("delivery remote")
+	}
+	return nil
+}
+
+func validateRepositoryFix(inherited appconfig.FixDefaults, value preferences.Fix) error {
+	candidate, err := preferenceFixToApp(value)
+	if err != nil {
+		return err
+	}
+	if candidate.TargetScore > inherited.TargetScore {
+		return repositoryBroadening("fix target score", candidate.TargetScore, inherited.TargetScore)
+	}
+	if !metricSuperset(candidate.Focus, inherited.Focus) {
+		return fmt.Errorf("repository preferences cannot remove inherited fix focus metrics")
+	}
+	if mutationScopeRank(candidate.ChangeScope) > mutationScopeRank(inherited.ChangeScope) {
+		return repositoryBroadening("fix change scope", candidate.ChangeScope, inherited.ChangeScope)
+	}
+	for _, field := range []struct{ name, candidate, inherited string }{
+		{"fix profile", string(candidate.Profile), string(inherited.Profile)},
+		{"fix model", string(candidate.Model), string(inherited.Model)},
+		{"fix effort", string(candidate.Effort), string(inherited.Effort)},
+		{"fix prompt template", candidate.PromptTemplate, inherited.PromptTemplate},
+	} {
+		if field.candidate != field.inherited {
+			return repositoryOwnedField(field.name)
 		}
-		if candidate.BaseBranch != inherited.Delivery.BaseBranch {
-			return repositoryOwnedField("delivery base branch")
+	}
+	return nil
+}
+
+func validateRepositoryConcurrency(inherited appconfig.Concurrency, value preferences.Concurrency) error {
+	candidate := preferenceConcurrencyToApp(value)
+	for _, field := range []struct {
+		name      string
+		candidate int64
+		inherited int64
+	}{
+		{"concurrency max agents", int64(candidate.MaxAgents), int64(inherited.MaxAgents)},
+		{"concurrency max verifiers", int64(candidate.MaxVerifiers), int64(inherited.MaxVerifiers)},
+		{"concurrency actors per job", int64(candidate.MaxActorsPerJob), int64(inherited.MaxActorsPerJob)},
+		{"candidate preview bytes", candidate.MaxCandidatePreviewBytes, inherited.MaxCandidatePreviewBytes},
+		{"candidate preview lines", int64(candidate.MaxCandidatePreviewLines), int64(inherited.MaxCandidatePreviewLines)},
+	} {
+		if field.candidate > field.inherited {
+			return repositoryBroadening(field.name, field.candidate, field.inherited)
 		}
-		if candidate.BranchTemplate != inherited.Delivery.BranchTemplate {
-			return repositoryOwnedField("delivery branch template")
+	}
+	return nil
+}
+
+func validateRepositoryDelivery(inherited appconfig.Delivery, value preferences.Delivery) error {
+	candidate := preferenceDeliveryToApp(value)
+	if err := validateRepositoryDeliveryPlan(inherited.DefaultPlan, candidate.DefaultPlan); err != nil {
+		return err
+	}
+	for _, field := range []struct{ name, candidate, inherited string }{
+		{"delivery remote", candidate.Remote, inherited.Remote},
+		{"delivery base branch", candidate.BaseBranch, inherited.BaseBranch},
+		{"delivery branch template", candidate.BranchTemplate, inherited.BranchTemplate},
+		{"delivery publisher", candidate.Publisher, inherited.Publisher},
+	} {
+		if field.candidate != field.inherited {
+			return repositoryOwnedField(field.name)
 		}
-		if candidate.Publisher != inherited.Delivery.Publisher {
-			return repositoryOwnedField("delivery publisher")
+	}
+	if inherited.DraftPullRequests && !candidate.DraftPullRequests {
+		return repositoryBroadening("draft pull request policy", candidate.DraftPullRequests, inherited.DraftPullRequests)
+	}
+	if candidate.CommandOutputBytes > inherited.CommandOutputBytes {
+		return repositoryBroadening("delivery command output bytes", candidate.CommandOutputBytes, inherited.CommandOutputBytes)
+	}
+	for _, field := range []struct{ name, candidate, inherited string }{
+		{"delivery commit title template", candidate.CommitTitleTemplate, inherited.CommitTitleTemplate},
+		{"delivery commit body template", candidate.CommitBodyTemplate, inherited.CommitBodyTemplate},
+		{"delivery pull request title template", candidate.PullRequestTitleTemplate, inherited.PullRequestTitleTemplate},
+		{"delivery pull request body template", candidate.PullRequestBodyTemplate, inherited.PullRequestBodyTemplate},
+	} {
+		if field.candidate != field.inherited {
+			return repositoryOwnedField(field.name)
 		}
-		if inherited.Delivery.DraftPullRequests && !candidate.DraftPullRequests {
-			return repositoryBroadening("draft pull request policy", candidate.DraftPullRequests, inherited.Delivery.DraftPullRequests)
-		}
-		if candidate.CommandOutputBytes > inherited.Delivery.CommandOutputBytes {
-			return repositoryBroadening("delivery command output bytes", candidate.CommandOutputBytes, inherited.Delivery.CommandOutputBytes)
-		}
-		if candidate.CommitTitleTemplate != inherited.Delivery.CommitTitleTemplate {
-			return repositoryOwnedField("delivery commit title template")
-		}
-		if candidate.CommitBodyTemplate != inherited.Delivery.CommitBodyTemplate {
-			return repositoryOwnedField("delivery commit body template")
-		}
-		if candidate.PullRequestTitleTemplate != inherited.Delivery.PullRequestTitleTemplate {
-			return repositoryOwnedField("delivery pull request title template")
-		}
-		if candidate.PullRequestBodyTemplate != inherited.Delivery.PullRequestBodyTemplate {
-			return repositoryOwnedField("delivery pull request body template")
-		}
+	}
+	return nil
+}
+
+func validateRepositoryDeliveryPlan(inherited, candidate fix.DeliveryPlan) error {
+	if workspaceModeRank(candidate.Workspace) > workspaceModeRank(inherited.Workspace) {
+		return repositoryBroadening("delivery plan", candidate, inherited)
+	}
+	if gitModeRank(candidate.Git) > gitModeRank(inherited.Git) {
+		return repositoryBroadening("delivery plan", candidate, inherited)
+	}
+	if publishModeRank(candidate.Publish) > publishModeRank(inherited.Publish) {
+		return repositoryBroadening("delivery plan", candidate, inherited)
 	}
 	return nil
 }

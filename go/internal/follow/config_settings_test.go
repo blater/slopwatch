@@ -238,11 +238,21 @@ func TestFeatureSettingsSaveReportsConflictAndServiceErrors(t *testing.T) {
 }
 
 func TestFixDefaultsSaveEachChangeAndDoNotOfferReload(t *testing.T) {
+	model, store := fixDefaultsSaveModel()
+	assertFixDefaultsAutoSaved(t, model, store)
+	assertFixDefaultsNoReload(t, model)
+}
+
+func fixDefaultsSaveModel() (*Model, *settingsConfigStore) {
 	resolved := settingsResolved()
 	store := &settingsConfigStore{resolved: resolved}
 	model := settingsModel(configFix, resolved, store)
 	model.configSettings.cursor = 0
+	return model, store
+}
 
+func assertFixDefaultsAutoSaved(t *testing.T, model *Model, store *settingsConfigStore) {
+	t.Helper()
 	updated, save := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRight})
 	model = updated.(*Model)
 	if save == nil || !model.configSettings.saving || model.configSettings.working.Fix.TargetScore != 105 {
@@ -252,7 +262,10 @@ func TestFixDefaultsSaveEachChangeAndDoNotOfferReload(t *testing.T) {
 	if store.saveCalls != 1 || model.configSettings.dirty || model.configSettings.working.Fix.TargetScore != 105 {
 		t.Fatalf("automatic save did not settle: calls=%d state=%+v", store.saveCalls, model.configSettings)
 	}
+}
 
+func assertFixDefaultsNoReload(t *testing.T, model *Model) {
+	t.Helper()
 	before := model.configSettings.working.Fix.TargetScore
 	_, command := model.handleConfigSettingsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if command != nil || model.configSettings.loading || model.configSettings.working.Fix.TargetScore != before {
@@ -877,9 +890,14 @@ func TestCompactSettingsEditorKeepsApplyAndCancelFooterVisible(t *testing.T) {
 }
 
 func TestSettingsKeepDeliveryAndMasterPromptClear(t *testing.T) {
+	assertDeliverySettingsClear(t)
+	assertFixSettingsClear(t)
+}
+
+func assertDeliverySettingsClear(t *testing.T) {
+	t.Helper()
 	resolved := settingsResolved()
 	resolved.Fix.PromptTemplate = fixprompt.DefaultTemplate
-
 	deliveryModel := settingsModel(configDelivery, resolved, &settingsConfigStore{})
 	deliveryText := ansi.Strip(strings.Join(configSettingsLinesForState(deliveryModel.configSettings, deliveryModel.profileCatalog, 100), "\n"))
 	for _, unwanted := range []string{"Publisher", "only supported v1 adapter", "fixed v1", "explicit Discard", "Built-in default", "save creates user default"} {
@@ -887,16 +905,32 @@ func TestSettingsKeepDeliveryAndMasterPromptClear(t *testing.T) {
 			t.Fatalf("delivery settings contain obsolete hint %q: %q", unwanted, deliveryText)
 		}
 	}
+}
 
+func assertFixSettingsClear(t *testing.T) {
+	t.Helper()
+	resolved := settingsResolved()
+	resolved.Fix.PromptTemplate = fixprompt.DefaultTemplate
 	fixModel := settingsModel(configFix, resolved, &settingsConfigStore{})
 	fixModel.configSettings.cursor = fixSettingsPromptRow
 	fixText := ansi.Strip(strings.Join(configSettingsLinesForState(fixModel.configSettings, fixModel.profileCatalog, 75), "\n"))
+	assertFixSettingsLabels(t, fixText)
+	assertFixSettingsGrid(t, fixText)
+	assertFixSettingsNoHints(t, fixModel)
+}
+
+func assertFixSettingsLabels(t *testing.T, fixText string) {
+	t.Helper()
 	if !strings.Contains(fixText, "Agent prompt") || !strings.Contains(fixText, "[x] SCORE") {
 		t.Fatalf("master prompt or score metric missing: %q", fixText)
 	}
 	if strings.Count(fixText, "Focus metrics") != 1 || strings.Contains(fixText, "Focus metric ") || strings.Contains(fixText, "Change scope") || !strings.Contains(fixText, "May edit") {
 		t.Fatalf("Fix settings grouping or labels are wrong: %q", fixText)
 	}
+}
+
+func assertFixSettingsGrid(t *testing.T, fixText string) {
+	t.Helper()
 	gridRows := 0
 	for _, line := range strings.Split(fixText, "\n") {
 		if strings.Count(line, "[") == 3 {
@@ -906,6 +940,10 @@ func TestSettingsKeepDeliveryAndMasterPromptClear(t *testing.T) {
 	if gridRows != 3 {
 		t.Fatalf("focus metrics are not an aligned 3x3 grid: %q", fixText)
 	}
+}
+
+func assertFixSettingsNoHints(t *testing.T, fixModel *Model) {
+	t.Helper()
 	if text := ansi.Strip(strings.Join(configSettingsLinesForState(fixModel.configSettings, fixModel.profileCatalog, 100), "\n")); strings.Contains(text, "Master template used") || strings.Contains(text, "Built-in default") {
 		t.Fatalf("Fix settings contain an explanatory hint: %q", text)
 	}

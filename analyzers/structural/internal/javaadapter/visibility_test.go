@@ -3,9 +3,25 @@ package javaadapter
 import (
 	"os/exec"
 	"testing"
+
+	"slopslap.dev/structural/internal/facts"
 )
 
 func TestAdapterTreatsImplicitlyPublicInterfaceMethodsAsPublic(t *testing.T) {
+	root, adapter := implicitInterfaceFixture(t)
+	program, err := adapter.Analyze(
+		root,
+		[]string{"src/main/java/example/Participant.java", "src/main/java/example/StatusCode.java"},
+		map[string]any{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertImplicitInterfaceMethods(t, program)
+}
+
+func implicitInterfaceFixture(t *testing.T) (string, Adapter) {
+	t.Helper()
 	java, javaErr := exec.LookPath("java")
 	javac, javacErr := exec.LookPath("javac")
 	jar, jarErr := exec.LookPath("jar")
@@ -23,15 +39,11 @@ public interface Participant {
 	writeSource(t, root, "src/main/java/example/StatusCode.java", `
 package example;
 public final class StatusCode {}`)
+	return root, Adapter{JavaExecutable: java, HelperJar: helper}
+}
 
-	program, err := (Adapter{JavaExecutable: java, HelperJar: helper}).Analyze(
-		root,
-		[]string{"src/main/java/example/Participant.java", "src/main/java/example/StatusCode.java"},
-		map[string]any{},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
+func assertImplicitInterfaceMethods(t *testing.T, program *facts.Program) {
+	t.Helper()
 	if len(program.PublicOperations) != 2 {
 		t.Fatalf("public operations = %d, want 2: %#v", len(program.PublicOperations), program.PublicOperations)
 	}

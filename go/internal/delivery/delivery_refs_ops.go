@@ -27,7 +27,7 @@ func (service *GitService) CreateLocalRef(ctx context.Context, request Request, 
 		return result, err
 	}
 	defer lock.Close()
-	if exists, oid, err := service.ref(ctx, request.Candidate.RepositoryRoot, ref); err != nil {
+	if exists, oid, err := service.executor.ref(ctx, request.Candidate.RepositoryRoot, ref); err != nil {
 		return result, err
 	} else if exists {
 		if oid == string(result.Commit) {
@@ -57,7 +57,7 @@ func (service *GitService) verifyRequestRemote(ctx context.Context, request Requ
 	if request.ExpectedRemoteIdentity == "" {
 		return errors.New("delivery request lacks the exact admitted remote identity")
 	}
-	remoteURL, err := service.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
+	remoteURL, err := service.executor.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
 	if err != nil {
 		return err
 	}
@@ -76,14 +76,14 @@ func (service *GitService) CreateRemoteRef(ctx context.Context, request Request,
 		return result, err
 	}
 	defer lock.Close()
-	remoteURL, err := service.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
+	remoteURL, err := service.executor.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
 	if err != nil {
 		return result, err
 	}
 	if err := verifyExpectedRemote(remoteURL, request.ExpectedRemoteIdentity, request.ExpectedRemoteHost, request.HostRepository); err != nil {
 		return result, err
 	}
-	exists, oid, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
+	exists, oid, err := service.executor.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
 	if err != nil {
 		return result, err
 	}
@@ -107,7 +107,7 @@ func (service *GitService) CreateRemoteRef(ctx context.Context, request Request,
 		result.Diagnostic = err.Error()
 		return result, fmt.Errorf("create remote delivery ref: %w", err)
 	}
-	exists, remoteCommit, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
+	exists, remoteCommit, err := service.executor.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
 	if err != nil || !exists || remoteCommit != commit {
 		result.Ambiguous = true
 		result.Diagnostic = "remote ref could not be verified at the committed object"
@@ -128,7 +128,7 @@ func (service *GitService) Reconcile(ctx context.Context, request Request, previ
 	if ref == "" {
 		ref = "refs/heads/" + request.Branch
 	}
-	remoteURL, err := service.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
+	remoteURL, err := service.executor.resolveRemoteURL(ctx, request.Candidate.RepositoryRoot, request.Remote)
 	if err != nil {
 		return previous, err
 	}
@@ -137,7 +137,7 @@ func (service *GitService) Reconcile(ctx context.Context, request Request, previ
 	}
 	if previous.LocalRef == "" {
 		localRef := "refs/heads/" + request.Branch
-		exists, commit, err := service.ref(ctx, request.Candidate.RepositoryRoot, localRef)
+		exists, commit, err := service.executor.ref(ctx, request.Candidate.RepositoryRoot, localRef)
 		if err != nil {
 			return previous, err
 		}
@@ -156,7 +156,7 @@ func (service *GitService) Reconcile(ctx context.Context, request Request, previ
 		previous.Diagnostic = ""
 		return previous, nil
 	}
-	exists, commit, err := service.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
+	exists, commit, err := service.executor.remoteRefURL(ctx, request.Candidate.RepositoryRoot, remoteURL, ref)
 	if err != nil {
 		return previous, err
 	}

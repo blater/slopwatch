@@ -12,18 +12,7 @@ import (
 )
 
 func TestTargetManifestIsAvailableThroughDedicatedTool(t *testing.T) {
-	root := canonicalTempDir(t)
-	request := testRequest(t, root)
-	directory := filepath.Join(request.Workspace.StagingRoot, "agent-input")
-	if err := os.Mkdir(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	manifestPath := filepath.Join(directory, "targets.txt")
-	contents := "main.go\nother.go\n"
-	if err := os.WriteFile(manifestPath, []byte(contents), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	request.Task.Manifest = &agent.TargetManifest{Path: manifestPath, Count: 2}
+	request, contents := manifestFixture(t)
 	provider := &scriptedProvider{t: t, responses: []string{
 		functionResponse("call-manifest", "read_target_manifest", `{}`, 1, 1),
 		messageResponse("Updated both targets.", 1, 1, 0),
@@ -32,9 +21,36 @@ func TestTargetManifestIsAvailableThroughDedicatedTool(t *testing.T) {
 	if result.Status != agent.ResultCompleted {
 		t.Fatalf("Execute() = %#v", result)
 	}
+	assertManifestToolRequest(t, provider)
+	assertManifestToolResult(t, provider, contents)
+}
+
+func manifestFixture(t *testing.T) (agent.Request, string) {
+	t.Helper()
+	root := canonicalTempDir(t)
+	request := testRequest(t, root)
+	directory := filepath.Join(request.Workspace.StagingRoot, "agent-input")
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	contents := "main.go\nother.go\n"
+	manifestPath := filepath.Join(directory, "targets.txt")
+	if err := os.WriteFile(manifestPath, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	request.Task.Manifest = &agent.TargetManifest{Path: manifestPath, Count: 2}
+	return request, contents
+}
+
+func assertManifestToolRequest(t *testing.T, provider *scriptedProvider) {
+	t.Helper()
 	if len(provider.requests) != 2 || !strings.Contains(string(provider.requests[0]), `"name":"read_target_manifest"`) {
 		t.Fatalf("manifest tool was not offered: %s", provider.requests[0])
 	}
+}
+
+func assertManifestToolResult(t *testing.T, provider *scriptedProvider, contents string) {
+	t.Helper()
 	var sent apiRequest
 	if err := json.Unmarshal(provider.requests[1], &sent); err != nil {
 		t.Fatal(err)

@@ -571,6 +571,13 @@ func TestBranchEditorDoesNotSilentlyClipLongNames(t *testing.T) {
 }
 
 func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) {
+	model, service := liveJobsModel(t)
+	assertLiveJobsProject(t, &model)
+	assertLiveJobCancel(t, &model, service)
+}
+
+func liveJobsModel(t *testing.T) (Model, *fakeFixService) {
+	t.Helper()
 	service := &fakeFixService{input: readyFixInput("a.go")}
 	model := fixTestModel(service, 80, 24)
 	prepare := model.openFixForSelected()
@@ -580,13 +587,22 @@ func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) 
 		{ID: "two", Phase: fix.PhaseRunning, AllowedActions: []fix.JobAction{fix.ActionCancel}},
 	}
 	model.handleFixJobs(fixJobsMsg{jobs: jobs})
+	return model, service
+}
+
+func assertLiveJobsProject(t *testing.T, model *Model) {
+	t.Helper()
 	if len(model.agents.Jobs) != 2 || !overlayPresent(model.overlays, OverlayFixForm) {
 		t.Fatal("job update did not project behind the open form")
 	}
+}
+
+func assertLiveJobCancel(t *testing.T, model *Model, service *fakeFixService) {
+	t.Helper()
 	model.overlays.Pop()
 	model.mainView = MainViewAgents
 	model.agents.Selected = AgentRowID{JobID: "two"}
-	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	updated, _ := handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
 	result := updated.(*Model)
 	if !overlayPresent(result.overlays, OverlayConfirmation) || result.jobActions.confirmation.jobID != "two" {
 		t.Fatalf("cancel confirmation captured %+v", result.jobActions.confirmation)

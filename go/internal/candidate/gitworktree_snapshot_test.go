@@ -10,34 +10,57 @@ import (
 )
 
 func TestCandidateAppliesImmutableSnapshotAfterSourceChanges(t *testing.T) {
-	repository := initializeRepository(t)
-	const snapshotted = "package main\n// snapshotted\n"
-	if err := os.WriteFile(filepath.Join(repository, "main.go"), []byte(snapshotted), 0o600); err != nil {
+	fixture := newSnapshotFixture(t)
+	manifest := fixture.snapshot(t)
+	writeCandidateFile(t, fixture.repository, "main.go", "package main\n// later mutation\n", 0o600)
+	if err := applySeedManifest(t.Context(), fixture.staging, fixture.destination, manifest); err != nil {
 		t.Fatal(err)
 	}
+	assertSnapshotBytes(t, fixture.destination, "package main\n// snapshotted\n")
+}
+
+type snapshotFixture struct {
+	repository, staging, destination string
+	service                          *GitWorktreeService
+}
+
+func newSnapshotFixture(t *testing.T) snapshotFixture {
+	t.Helper()
+	repository := initializeRepository(t)
+	writeCandidateFile(t, repository, "main.go", "package main\n// snapshotted\n", 0o600)
 	state := t.TempDir()
 	staging := filepath.Join(state, "staging")
 	destination := filepath.Join(state, "destination")
-	if err := os.Mkdir(staging, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(destination, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	makeCandidateDirectory(t, staging)
+	makeCandidateDirectory(t, destination)
 	service, _ := NewGitWorktreeService(filepath.Join(state, "service"), directExecutor{}, testGitWorktreeConfig())
+	return snapshotFixture{repository: repository, staging: staging, destination: destination, service: service}
+}
+
+func makeCandidateDirectory(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (fixture snapshotFixture) snapshot(t *testing.T) seedManifest {
+	t.Helper()
 	target, _ := fix.ParseRepoPath("main.go")
-	manifest, err := service.executor.snapshotWorkingChanges(withCommandOutputBytes(t.Context(), testCandidateCommandOutputBytes), repository, staging, "targets", []fix.RepoPath{target})
+	manifest, err := fixture.service.executor.snapshotWorkingChanges(withCommandOutputBytes(t.Context(), testCandidateCommandOutputBytes), fixture.repository, fixture.staging, "targets", []fix.RepoPath{target})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repository, "main.go"), []byte("package main\n// later mutation\n"), 0o600); err != nil {
+	return manifest
+}
+
+func assertSnapshotBytes(t *testing.T, destination, want string) {
+	t.Helper()
+	got, err := os.ReadFile(filepath.Join(destination, "main.go"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := applySeedManifest(t.Context(), staging, destination, manifest); err != nil {
-		t.Fatal(err)
-	}
-	got, _ := os.ReadFile(filepath.Join(destination, "main.go"))
-	if string(got) != snapshotted {
+	if string(got) != want {
 		t.Fatalf("candidate used mutable source bytes: %q", got)
 	}
 }
@@ -50,20 +73,7 @@ func TestCandidateCleansAndRetriesPartialReservationWithoutCompletionMarker(t *t
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
 	request := PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets", AllowedPaths: []fix.RepoPath{target}}
-	identity, err := service.Prepare(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	jobRoot := filepath.Join(state, string(job))
-	if err := os.Remove(filepath.Join(jobRoot, ownershipName)); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(filepath.Join(jobRoot, seedCompletedName)); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(identity.RepositoryRoot, "main.go"), []byte("partial crash state\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	preparePartialReservation(t, service, request, state)
 	if err := service.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +82,31 @@ func TestCandidateCleansAndRetriesPartialReservationWithoutCompletionMarker(t *t
 	if err != nil {
 		t.Fatalf("partial reservation was not cleaned and retried: %v", err)
 	}
-	got, err := os.ReadFile(filepath.Join(recovered.RepositoryRoot, "main.go"))
+	assertRetriedReservation(t, recovered.RepositoryRoot, filepath.Join(state, string(job)))
+}
+
+func preparePartialReservation(t *testing.T, service *GitWorktreeService, request PrepareRequest, state string) {
+	t.Helper()
+	identity, err := service.Prepare(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobRoot := filepath.Join(state, string(request.Job))
+	removeCandidateMarker(t, filepath.Join(jobRoot, ownershipName))
+	removeCandidateMarker(t, filepath.Join(jobRoot, seedCompletedName))
+	writeCandidateFile(t, identity.RepositoryRoot, "main.go", "partial crash state\n", 0o600)
+}
+
+func removeCandidateMarker(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertRetriedReservation(t *testing.T, candidateRoot, jobRoot string) {
+	t.Helper()
+	got, err := os.ReadFile(filepath.Join(candidateRoot, "main.go"))
 	if err != nil || string(got) == "partial crash state\n" {
 		t.Fatalf("partial reservation bytes were adopted: %q, %v", got, err)
 	}

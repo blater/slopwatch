@@ -29,19 +29,39 @@ func TestProbeUsesAppServerAccountAndModelCatalog(t *testing.T) {
 	strategy := New()
 	strategy.workingDir = func() (string, error) { return t.TempDir(), nil }
 	result := strategy.Probe(t.Context(), testProfile(fakeAppServerExecutable(t, "complete", capture)))
+	assertProbeIdentity(t, result)
+	assertProbeCapabilities(t, result)
+	assertProbeIsolation(t, result)
+	assertProbeMethods(t, capture)
+}
+
+func assertProbeIdentity(t *testing.T, result agent.ProbeResult) {
+	t.Helper()
 	if result.State != agent.ProbeReady || result.Version != "0.149.1" {
 		t.Fatalf("Probe() = %#v", result)
 	}
 	if result.Authentication.Method != "chatgpt" || !strings.Contains(result.Authentication.Label, "Plus") {
 		t.Fatalf("authentication = %#v", result.Authentication)
 	}
+}
+
+func assertProbeCapabilities(t *testing.T, result agent.ProbeResult) {
+	t.Helper()
 	if len(result.Capabilities.Models) != 1 || result.Capabilities.Models[0].ID != "gpt-5.6-sol" || len(result.Capabilities.Efforts) != 2 {
 		t.Fatalf("capabilities = %#v", result.Capabilities)
 	}
+}
+
+func assertProbeIsolation(t *testing.T, result agent.ProbeResult) {
+	t.Helper()
 	isolation := result.Capabilities.Isolation
 	if !isolation.ProviderManagedCancellation || isolation.CrashContainment || isolation.SensitiveReadsDenied || isolation.TransportAuthIsolated || !isolation.EligibleForMutation() {
 		t.Fatalf("App Server lifecycle was misrepresented: %#v", isolation)
 	}
+}
+
+func assertProbeMethods(t *testing.T, capture string) {
+	t.Helper()
 	methods := capturedMethods(t, capture)
 	for _, wanted := range []string{"initialize", "initialized", "account/read", "model/list"} {
 		if !containsString(methods, wanted) {

@@ -27,6 +27,12 @@ func TestRegistryRejectsDuplicateAndUnknownKinds(t *testing.T) {
 	if err := registry.Register("codex-cli", testStrategy{}); err != nil {
 		t.Fatal(err)
 	}
+	assertRegistryRegistration(t, registry)
+	assertRegistryProbes(t, registry)
+}
+
+func assertRegistryRegistration(t *testing.T, registry *Registry) {
+	t.Helper()
 	if err := registry.Register("codex-cli", testStrategy{}); err == nil {
 		t.Fatal("duplicate registration succeeded")
 	}
@@ -36,6 +42,10 @@ func TestRegistryRejectsDuplicateAndUnknownKinds(t *testing.T) {
 	if got := registry.Kinds(); len(got) != 1 || got[0] != "codex-cli" {
 		t.Fatalf("Kinds() = %v", got)
 	}
+}
+
+func assertRegistryProbes(t *testing.T, registry *Registry) {
+	t.Helper()
 	probe := registry.Probe(context.Background(), Profile{Runtime: "codex-cli"})
 	if probe.State != ProbeReady || probe.Runtime != "codex-cli" || probe.Diagnostic != "test route" {
 		t.Fatalf("Probe() = %#v", probe)

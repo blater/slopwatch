@@ -30,32 +30,47 @@ func TestCandidateManifestCoversBytesModeAndRenameEndpoints(t *testing.T) {
 	workspace, _ := service.DiscoverWorkspace(context.Background(), repository)
 	target, _ := fix.ParseRepoPath("main.go")
 	job, _ := fix.NewJobID()
-	identity, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	identity := prepareLifecycleCandidate(t, service, job, workspace, target)
 	gitRun(t, identity.RepositoryRoot, "mv", "main.go", "renamed.go")
-	first, err := service.Diff(context.Background(), identity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(first.Files) != 1 || first.Files[0].Path != "renamed.go" || first.Files[0].Previous != "main.go" {
-		t.Fatalf("rename inventory = %+v", first.Files)
-	}
+	first := diffLifecycleCandidate(t, service, identity)
+	assertRenameInventory(t, first)
 	path := filepath.Join(identity.RepositoryRoot, "renamed.go")
-	if err := os.WriteFile(path, []byte("package changed\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	second, _ := service.Diff(context.Background(), identity)
+	writeCandidateFile(t, identity.RepositoryRoot, "renamed.go", "package changed\n", 0o644)
+	second := diffLifecycleCandidate(t, service, identity)
 	if first.Fingerprint == second.Fingerprint {
 		t.Fatal("content was absent from candidate fingerprint")
 	}
 	if err := os.Chmod(path, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	third, _ := service.Diff(context.Background(), identity)
+	third := diffLifecycleCandidate(t, service, identity)
 	if second.Fingerprint == third.Fingerprint {
 		t.Fatal("Git executable mode was absent from candidate fingerprint")
+	}
+}
+
+func prepareLifecycleCandidate(t *testing.T, service *GitWorktreeService, job fix.JobID, workspace fix.WorkspaceIdentity, target fix.RepoPath) fix.CandidateIdentity {
+	t.Helper()
+	identity, err := service.Prepare(context.Background(), PrepareRequest{CommandOutputBytes: testCandidateCommandOutputBytes, Job: job, Workspace: workspace, Targets: []fix.RepoPath{target}, AllowedScope: "targets"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return identity
+}
+
+func diffLifecycleCandidate(t *testing.T, service *GitWorktreeService, identity fix.CandidateIdentity) DiffSnapshot {
+	t.Helper()
+	diff, err := service.Diff(context.Background(), identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return diff
+}
+
+func assertRenameInventory(t *testing.T, diff DiffSnapshot) {
+	t.Helper()
+	if len(diff.Files) != 1 || diff.Files[0].Path != "renamed.go" || diff.Files[0].Previous != "main.go" {
+		t.Fatalf("rename inventory = %+v", diff.Files)
 	}
 }
 

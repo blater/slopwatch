@@ -115,12 +115,22 @@ func TestSaveRejectsStaleRevisionIncludingExternalEdit(t *testing.T) {
 	}
 	concurrency := initial.Concurrency
 	concurrency.MaxAgents = 3
-	if _, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Concurrency: &concurrency}, initial.Revision); err != nil {
+	assertRevisionConflictAfterSave(t, adapter, workspace, concurrency, initial.Revision)
+	assertRevisionConflictAfterExternalEdit(t, adapter, workspace, userPath, concurrency)
+}
+
+func assertRevisionConflictAfterSave(t *testing.T, adapter *Adapter, workspace fix.WorkspaceIdentity, concurrency appconfig.Concurrency, revision appconfig.Revision) {
+	t.Helper()
+	if _, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Concurrency: &concurrency}, revision); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Concurrency: &concurrency}, initial.Revision); !errors.Is(err, appconfig.ErrRevisionConflict) {
+	if _, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Concurrency: &concurrency}, revision); !errors.Is(err, appconfig.ErrRevisionConflict) {
 		t.Fatalf("stale Save() error = %v", err)
 	}
+}
+
+func assertRevisionConflictAfterExternalEdit(t *testing.T, adapter *Adapter, workspace fix.WorkspaceIdentity, userPath string, concurrency appconfig.Concurrency) {
+	t.Helper()
 	current, err := adapter.Resolve(context.Background(), workspace, appconfig.SessionOverrides{})
 	if err != nil {
 		t.Fatal(err)
@@ -204,12 +214,7 @@ func TestRepositoryNarrowingIsApplied(t *testing.T) {
 	}
 	userDelivery := initial.Delivery
 	userDelivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceCurrent, Git: fix.GitCommitNewBranch, Publish: fix.PublishPullRequest}
-	userSaved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{
-		Fix: &userFix, Concurrency: &userConcurrency, Delivery: &userDelivery,
-	}, initial.Revision)
-	if err != nil {
-		t.Fatal(err)
-	}
+	userSaved := saveRepositoryTestUser(t, adapter, workspace, initial.Revision, userFix, userConcurrency, userDelivery)
 
 	repositoryFix := userFix
 	repositoryFix.TargetScore = 80
@@ -220,20 +225,36 @@ func TestRepositoryNarrowingIsApplied(t *testing.T) {
 	}
 	repositoryDelivery := userDelivery
 	repositoryDelivery.DefaultPlan = fix.DeliveryPlan{Workspace: fix.WorkspaceWorktree, Git: fix.GitCommitNewBranch, Publish: fix.PublishPush}
-	saved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeRepository, appconfig.Patch{
-		Fix: &repositoryFix, Concurrency: &repositoryConcurrency, Delivery: &repositoryDelivery,
-	}, userSaved.Revision)
+	saved := saveRepositoryTestOverride(t, adapter, workspace, userSaved.Revision, repositoryFix, repositoryConcurrency, repositoryDelivery)
+	assertRepositoryNarrowing(t, saved.Resolved, repositoryConcurrency, repositoryDelivery)
+}
+
+func saveRepositoryTestUser(t *testing.T, adapter *Adapter, workspace fix.WorkspaceIdentity, revision appconfig.Revision, value appconfig.FixDefaults, concurrency appconfig.Concurrency, delivery appconfig.Delivery) appconfig.Saved {
+	t.Helper()
+	saved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Fix: &value, Concurrency: &concurrency, Delivery: &delivery}, revision)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Resolved.Fix.TargetScore != 80 || saved.Resolved.Fix.ChangeScope != "targets-only" ||
-		saved.Resolved.Concurrency != repositoryConcurrency ||
-		saved.Resolved.Delivery.DefaultPlan != repositoryDelivery.DefaultPlan {
-		t.Fatalf("repository narrowing was not applied: %#v", saved.Resolved)
+	return saved
+}
+
+func saveRepositoryTestOverride(t *testing.T, adapter *Adapter, workspace fix.WorkspaceIdentity, revision appconfig.Revision, value appconfig.FixDefaults, concurrency appconfig.Concurrency, delivery appconfig.Delivery) appconfig.Saved {
+	t.Helper()
+	saved, err := adapter.Save(context.Background(), workspace, appconfig.ScopeRepository, appconfig.Patch{Fix: &value, Concurrency: &concurrency, Delivery: &delivery}, revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return saved
+}
+
+func assertRepositoryNarrowing(t *testing.T, resolved appconfig.Resolved, concurrency appconfig.Concurrency, delivery appconfig.Delivery) {
+	t.Helper()
+	if resolved.Fix.TargetScore != 80 || resolved.Fix.ChangeScope != "targets-only" || resolved.Concurrency != concurrency || resolved.Delivery.DefaultPlan != delivery.DefaultPlan {
+		t.Fatalf("repository narrowing was not applied: %#v", resolved)
 	}
 	for _, key := range []string{"fix", "concurrency", "delivery"} {
-		if saved.Resolved.Origins[key] != appconfig.OriginRepository {
-			t.Errorf("origin[%q] = %q, want repository", key, saved.Resolved.Origins[key])
+		if resolved.Origins[key] != appconfig.OriginRepository {
+			t.Errorf("origin[%q] = %q, want repository", key, resolved.Origins[key])
 		}
 	}
 }

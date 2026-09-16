@@ -33,16 +33,36 @@ func TestStrategyImplementsControlledResponsesToolLoop(t *testing.T) {
 
 func assertLoopResult(t *testing.T, result agent.Result, root string, provider *scriptedProvider) {
 	t.Helper()
+	assertLoopStatus(t, result)
+	assertLoopUsage(t, result)
+	assertLoopContents(t, root)
+	assertLoopRequestCount(t, provider)
+}
+
+func assertLoopStatus(t *testing.T, result agent.Result) {
+	t.Helper()
 	if result.Status != agent.ResultCompleted || result.Failure != agent.FailureNone || result.Summary != "Refactored main.go and preserved behavior." {
 		t.Fatalf("Execute() = %#v", result)
 	}
+}
+
+func assertLoopUsage(t *testing.T, result agent.Result) {
+	t.Helper()
 	if result.Usage.InputTokens != 60 || result.Usage.OutputTokens != 15 || result.Usage.ReasoningTokens != 2 || !result.Usage.Cumulative {
 		t.Fatalf("usage = %#v", result.Usage)
 	}
+}
+
+func assertLoopContents(t *testing.T, root string) {
+	t.Helper()
 	contents, err := os.ReadFile(filepath.Join(root, "main.go"))
 	if err != nil || string(contents) != "package main\n\nfunc improved() {}\n" {
 		t.Fatalf("candidate contents=%q err=%v", contents, err)
 	}
+}
+
+func assertLoopRequestCount(t *testing.T, provider *scriptedProvider) {
+	t.Helper()
 	if len(provider.requests) != 3 {
 		t.Fatalf("provider requests=%d", len(provider.requests))
 	}
@@ -50,10 +70,23 @@ func assertLoopResult(t *testing.T, result agent.Result, root string, provider *
 
 func assertLoopRequests(t *testing.T, provider *scriptedProvider) {
 	t.Helper()
+	assertLoopPrompt(t, provider)
+	assertLoopBoundedRequests(t, provider)
+	assertLoopAuthHeaders(t, provider)
+	assertLoopReadOutput(t, provider)
+	assertLoopWriteOutput(t, provider)
+}
+
+func assertLoopPrompt(t *testing.T, provider *scriptedProvider) {
+	t.Helper()
 	firstRequest := string(provider.requests[0])
 	if !strings.Contains(firstRequest, "Trusted remediation envelope\\n\\nImprove main.go") || strings.Contains(firstRequest, "Apply the requested remediation") {
 		t.Fatalf("provider did not receive only the configured prompt: %s", provider.requests[0])
 	}
+}
+
+func assertLoopBoundedRequests(t *testing.T, provider *scriptedProvider) {
+	t.Helper()
 	for index, body := range provider.requests {
 		if bytesContainSecret(body) {
 			t.Fatalf("request %d leaked authentication: %s", index, body)
@@ -62,14 +95,26 @@ func assertLoopRequests(t *testing.T, provider *scriptedProvider) {
 			t.Fatalf("request %d does not use bounded local history: %s", index, body)
 		}
 	}
+}
+
+func assertLoopAuthHeaders(t *testing.T, provider *scriptedProvider) {
+	t.Helper()
 	for _, header := range provider.authHeaders {
 		if header != "Bearer "+testSecret {
 			t.Fatalf("authorization header=%q", header)
 		}
 	}
+}
+
+func assertLoopReadOutput(t *testing.T, provider *scriptedProvider) {
+	t.Helper()
 	if !strings.Contains(string(provider.requests[1]), `"type":"function_call_output"`) || !strings.Contains(string(provider.requests[1]), "func old") {
 		t.Fatalf("read result was not returned through controlled tool output: %s", provider.requests[1])
 	}
+}
+
+func assertLoopWriteOutput(t *testing.T, provider *scriptedProvider) {
+	t.Helper()
 	var third struct {
 		Input []struct {
 			Type   string `json:"type"`

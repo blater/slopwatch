@@ -288,6 +288,12 @@ func Clone(value Document) Document {
 // its input and preserves nil pointers (field presence).
 func ClonePartial(value PartialDocument) PartialDocument {
 	result := value
+	clonePartialScalarSections(&result, value)
+	clonePartialCollectionSections(&result, value)
+	return result
+}
+
+func clonePartialScalarSections(result *PartialDocument, value PartialDocument) {
 	if value.Version != nil {
 		version := *value.Version
 		result.Version = &version
@@ -296,14 +302,25 @@ func ClonePartial(value PartialDocument) PartialDocument {
 		item := *value.Appearance
 		result.Appearance = &item
 	}
+	if value.Interaction != nil {
+		item := *value.Interaction
+		result.Interaction = &item
+	}
+	if value.Concurrency != nil {
+		item := *value.Concurrency
+		result.Concurrency = &item
+	}
+	if value.Delivery != nil {
+		item := *value.Delivery
+		result.Delivery = &item
+	}
+}
+
+func clonePartialCollectionSections(result *PartialDocument, value PartialDocument) {
 	if value.Table != nil {
 		item := *value.Table
 		item.VisibleColumns = append([]string(nil), value.Table.VisibleColumns...)
 		result.Table = &item
-	}
-	if value.Interaction != nil {
-		item := *value.Interaction
-		result.Interaction = &item
 	}
 	if value.Scoring != nil {
 		item := *value.Scoring
@@ -326,15 +343,6 @@ func ClonePartial(value PartialDocument) PartialDocument {
 		item.Focus = append([]string(nil), value.Fix.Focus...)
 		result.Fix = &item
 	}
-	if value.Concurrency != nil {
-		item := *value.Concurrency
-		result.Concurrency = &item
-	}
-	if value.Delivery != nil {
-		item := *value.Delivery
-		result.Delivery = &item
-	}
-	return result
 }
 
 func cloneStrings(value map[string]string) map[string]string {

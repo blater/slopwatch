@@ -530,6 +530,12 @@ func TestOverviewShowsRawCouplingRatherThanThresholdedContribution(t *testing.T)
 }
 
 func TestFailedCoverageRendersXAndSortsAfterMeasuredFiles(t *testing.T) {
+	failed := failedCoverageFile()
+	assertFailedCoverageCells(t, failed)
+	assertFailedCoverageSort(t, failed)
+}
+
+func failedCoverageFile() report.File {
 	failed := testFile("broken.ts", 0)
 	failed.Complete = false
 	failed.ValidZero = false
@@ -538,6 +544,11 @@ func TestFailedCoverageRendersXAndSortsAfterMeasuredFiles(t *testing.T) {
 		failed.Coverage[id] = "failed"
 		failed.Components[id] = report.Component{Subjects: []report.SubjectContribution{{Value: 0}}}
 	}
+	return failed
+}
+
+func assertFailedCoverageCells(t *testing.T, failed report.File) {
+	t.Helper()
 	if _, available, _ := metric(failed, "cog"); available {
 		t.Fatal("failed coverage was treated as a measured metric")
 	}
@@ -550,6 +561,10 @@ func TestFailedCoverageRendersXAndSortsAfterMeasuredFiles(t *testing.T) {
 	if got := strings.Count(ansi.Strip(modelRenderFixedColumns(failed)), "X"); got < 7 {
 		t.Fatalf("failed displayed columns = %d X values, want score plus metrics", got)
 	}
+}
+
+func assertFailedCoverageSort(t *testing.T, failed report.File) {
+	t.Helper()
 	measured := testFile("measured.go", 4)
 	measured.Components["cognitive_complexity"] = report.Component{Subjects: []report.SubjectContribution{{Value: 4}}}
 	model := Model{
@@ -2175,6 +2190,14 @@ func sourceViewTestModel(t *testing.T) Model {
 
 func openAndLoadSourceView(t *testing.T, model Model) Model {
 	t.Helper()
+	var command tea.Cmd
+	model, command = openSourceViewTest(t, model)
+	model, command = loadRawSourceView(t, model, command)
+	return finishSourceHighlight(t, model, command)
+}
+
+func openSourceViewTest(t *testing.T, model Model) (Model, tea.Cmd) {
+	t.Helper()
 	updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
 	if command == nil || !updated.(*Model).source.view {
 		t.Fatal("v did not open source view")
@@ -2183,16 +2206,26 @@ func openAndLoadSourceView(t *testing.T, model Model) Model {
 	if loadingView := ansi.Strip(sourceViewView(model)); !strings.Contains(loadingView, "Loading source…") || !strings.Contains(loadingView, "loading") {
 		t.Fatalf("source popup did not render before loading completed: %q", loadingView)
 	}
-	updated, command = model.Update(command())
-	if command == nil {
+	return model, command
+}
+
+func loadRawSourceView(t *testing.T, model Model, command tea.Cmd) (Model, tea.Cmd) {
+	t.Helper()
+	updated, next := model.Update(command())
+	if next == nil {
 		t.Fatal("source load did not defer syntax highlighting")
 	}
 	model = *updated.(*Model)
 	if rawView := ansi.Strip(sourceViewView(model)); !strings.Contains(rawView, "func Run()") || model.source.loading {
 		t.Fatalf("raw source was not usable before highlighting completed: %q", rawView)
 	}
-	updated, command = model.Update(command())
-	if command != nil {
+	return model, next
+}
+
+func finishSourceHighlight(t *testing.T, model Model, command tea.Cmd) Model {
+	t.Helper()
+	updated, next := model.Update(command())
+	if next != nil {
 		t.Fatal("source highlighting unexpectedly returned a follow-up command")
 	}
 	return *updated.(*Model)

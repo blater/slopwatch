@@ -40,13 +40,24 @@ func view(model Model) string {
 	if model.width <= 0 || model.height <= 0 {
 		return ""
 	}
-	if frame, ok := model.overlays.Top(); ok && frame.Kind == OverlayShutdown && model.width >= 24 && model.height >= 2 {
-		return model.featureOverlayView(resizeView(model.width, model.height), frame)
-	}
-	if responsiveTier(model.width, model.height) == ResponsiveResize {
-		return resizeView(model.width, model.height)
+	if surface, ok := resizeSurface(model); ok {
+		return surface
 	}
 	base := model.mainViewContent()
+	return overlaySurfaceView(model, base)
+}
+
+func resizeSurface(model Model) (string, bool) {
+	if frame, ok := model.overlays.Top(); ok && frame.Kind == OverlayShutdown && model.width >= 24 && model.height >= 2 {
+		return model.featureOverlayView(resizeView(model.width, model.height), frame), true
+	}
+	if responsiveTier(model.width, model.height) == ResponsiveResize {
+		return resizeView(model.width, model.height), true
+	}
+	return "", false
+}
+
+func overlaySurfaceView(model Model, base string) string {
 	if frame, ok := model.overlays.Top(); ok && !frame.compatibility {
 		return model.featureOverlayView(base, frame)
 	}

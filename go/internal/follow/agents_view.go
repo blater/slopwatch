@@ -24,7 +24,7 @@ func agentsTableView(model Model) string {
 	lines = append(lines, agentsTopLine(model))
 	lines = append(lines, agentsHeader(model))
 	lines = append(lines, agentsRows(model)...)
-	lines = append(lines, agentsFooter(model))
+	lines = append(lines, agentsFooterForState(model.agents, model.width))
 	return joinScreenLines(lines)
 }
 
@@ -508,43 +508,60 @@ func nonemptyStrings(values ...string) []string {
 	return result
 }
 
-func agentsFooter(model Model) string {
+func agentsFooterForState(state AgentsState, width int) string {
 	background := lipgloss.NewStyle().Background(style.SurfaceFooter)
-	leftItems := []hintItem{{"Tab", "files"}}
-	if selected := model.agents.Selected; !selected.IsZero() {
-		if selected.IsJob() {
-			if job, ok := jobByID(model.agents.Jobs, model.agents.Selected.JobID); ok && containsFixAction(job.AllowedActions, fix.ActionCancel) {
-				leftItems = append(leftItems, hintItem{"C", "cancel"})
-			}
-			leftItems = append(leftItems, hintItem{"Enter", "expand"}, hintItem{"i", "inspect"}, hintItem{"d", "diff"}, hintItem{"l", "logs"})
-		} else {
-			leftItems = append(leftItems, hintItem{"Enter", "inspect"}, hintItem{"v", "view"}, hintItem{"d", "diff"}, hintItem{"l", "logs"}, hintItem{"i", "metrics"})
+	if state.FindEditing {
+		return agentFindFooter(state, width)
+	}
+	leftItems := agentFooterRowItems(state)
+	rightItems := agentFooterGlobalItems(state.ShowAll)
+	return agentFooterLayout(background, leftItems, rightItems, width)
+}
+
+func agentFindFooter(state AgentsState, width int) string {
+	input := style.InputField(state.FindInput.View(), max(8, min(24, width/3)))
+	return truncateANSI(hintRow(style.SurfaceFooter, hintItem{"Enter", "apply"}, hintItem{"Esc", "cancel"})+" "+input, width)
+}
+
+func agentFooterRowItems(state AgentsState) []hintItem {
+	items := []hintItem{{"Tab", "files"}}
+	selected := state.Selected
+	if selected.IsZero() {
+		return items
+	}
+	if selected.IsJob() {
+		if job, ok := jobByID(state.Jobs, selected.JobID); ok && containsFixAction(job.AllowedActions, fix.ActionCancel) {
+			items = append(items, hintItem{"C", "cancel"})
 		}
+		return append(items, hintItem{"Enter", "expand"}, hintItem{"i", "inspect"}, hintItem{"d", "diff"}, hintItem{"l", "logs"})
 	}
-	if model.agents.FindEditing {
-		input := style.InputField(model.agents.FindInput.View(), max(8, min(24, model.width/3)))
-		return truncateANSI(hintRow(style.SurfaceFooter, hintItem{"Enter", "apply"}, hintItem{"Esc", "cancel"})+" "+input, model.width)
-	}
+	return append(items, hintItem{"Enter", "inspect"}, hintItem{"v", "view"}, hintItem{"d", "diff"}, hintItem{"l", "logs"}, hintItem{"i", "metrics"})
+}
+
+func agentFooterGlobalItems(showAll bool) []hintItem {
 	filterLabel := "all"
-	if model.agents.ShowAll {
+	if showAll {
 		filterLabel = "active"
 	}
-	rightItems := []hintItem{{"a", filterLabel}, {"f", "find"}, {"o", "sort"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
+	return []hintItem{{"a", filterLabel}, {"f", "find"}, {"o", "sort"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
+}
+
+func agentFooterLayout(background lipgloss.Style, leftItems, rightItems []hintItem, width int) string {
 	left := hintRow(style.SurfaceFooter, leftItems...)
 	right := hintRow(style.SurfaceFooter, rightItems...)
-	for lipgloss.Width(left)+lipgloss.Width(right) > model.width && len(rightItems) > 1 {
+	for lipgloss.Width(left)+lipgloss.Width(right) > width && len(rightItems) > 1 {
 		rightItems = rightItems[:len(rightItems)-1]
 		right = hintRow(style.SurfaceFooter, rightItems...)
 	}
-	for lipgloss.Width(left)+lipgloss.Width(right) > model.width && len(leftItems) > 1 {
+	for lipgloss.Width(left)+lipgloss.Width(right) > width && len(leftItems) > 1 {
 		leftItems = leftItems[:len(leftItems)-1]
 		left = hintRow(style.SurfaceFooter, leftItems...)
 	}
-	if lipgloss.Width(left)+lipgloss.Width(right) > model.width {
+	if lipgloss.Width(left)+lipgloss.Width(right) > width {
 		right = ""
 	}
-	gap := max(0, model.width-lipgloss.Width(left)-lipgloss.Width(right))
-	return truncateANSI(left+background.Render(strings.Repeat(" ", gap))+right, model.width)
+	gap := max(0, width-lipgloss.Width(left)-lipgloss.Width(right))
+	return truncateANSI(left+background.Render(strings.Repeat(" ", gap))+right, width)
 }
 
 func joinScreenLines(lines []string) string { return strings.Join(lines, "\n") }

@@ -1,7 +1,6 @@
 package candidate
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,7 +9,6 @@ import (
 	"io"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/blater/slopwatch/internal/fix"
 )
@@ -23,10 +21,6 @@ func (executor gitExecutor) snapshotWorkingChanges(ctx context.Context, source, 
 	if err != nil {
 		return seedManifest{}, fmt.Errorf("list current workspace changes: %w", err)
 	}
-	allowedSet := make(map[fix.RepoPath]bool, len(allowed))
-	for _, path := range allowed {
-		allowedSet[path] = true
-	}
 	sourceRoot, err := os.OpenRoot(source)
 	if err != nil {
 		return seedManifest{}, fmt.Errorf("open source workspace: %w", err)
@@ -37,38 +31,9 @@ func (executor gitExecutor) snapshotWorkingChanges(ctx context.Context, source, 
 		return seedManifest{}, fmt.Errorf("open candidate staging area: %w", err)
 	}
 	defer stagingRoot.Close()
-	specs := map[fix.RepoPath]seedSpec{}
-	entries := bytes.Split(status, []byte{0})
-	for index := 0; index < len(entries); index++ {
-		entry := entries[index]
-		if len(entry) < 4 {
-			continue
-		}
-		statusCode := string(entry[:2])
-		path, parseErr := fix.ParseRepoPath(string(entry[3:]))
-		if parseErr != nil {
-			return seedManifest{}, fmt.Errorf("current workspace contains an unsupported changed path: %w", parseErr)
-		}
-		var original fix.RepoPath
-		if strings.ContainsAny(statusCode, "RC") && index+1 < len(entries) {
-			index++
-			original, parseErr = fix.ParseRepoPath(string(entries[index]))
-			if parseErr != nil {
-				return seedManifest{}, fmt.Errorf("current workspace contains an unsupported rename/copy source: %w", parseErr)
-			}
-		}
-		pathAllowed := scope == "repository" || allowedSet[path]
-		originalAllowed := original == "" || scope == "repository" || allowedSet[original]
-		if original != "" && pathAllowed != originalAllowed {
-			return seedManifest{}, fmt.Errorf("current workspace rename/copy crosses the allowed scope: %s and %s", original, path)
-		}
-		if !pathAllowed {
-			continue
-		}
-		specs[path] = seedSpec{path: path}
-		if original != "" {
-			specs[original] = seedSpec{path: original, forceDeletion: strings.Contains(statusCode, "R")}
-		}
+	specs, err := snapshotChangeSpecs(status, scope, allowed)
+	if err != nil {
+		return seedManifest{}, err
 	}
 	paths := make([]fix.RepoPath, 0, len(specs))
 	for path := range specs {

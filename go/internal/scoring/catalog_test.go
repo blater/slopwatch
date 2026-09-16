@@ -4,6 +4,12 @@ import "testing"
 
 func TestCatalogPreservesDashboardOrderDefaultsAndIsolation(t *testing.T) {
 	components := Components()
+	assertCatalogOrder(t, components)
+	assertCatalogIsolation(t, components)
+}
+
+func assertCatalogOrder(t *testing.T, components []Component) {
+	t.Helper()
 	if len(components) != 15 {
 		t.Fatalf("component count = %d, want 15", len(components))
 	}
@@ -16,7 +22,10 @@ func TestCatalogPreservesDashboardOrderDefaultsAndIsolation(t *testing.T) {
 	if components[8].Axis != "typescript_type_safety" || components[8].DefaultOn {
 		t.Fatalf("type-safety component = %#v", components[8])
 	}
+}
 
+func assertCatalogIsolation(t *testing.T, components []Component) {
+	t.Helper()
 	components[0].DefaultWeight = 99
 	if component, _ := ComponentByID("cognitive_complexity"); component.DefaultWeight != 10 {
 		t.Fatalf("caller mutated catalog: %#v", component)

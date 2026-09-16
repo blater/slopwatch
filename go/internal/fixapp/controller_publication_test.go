@@ -374,6 +374,20 @@ func TestPullRequestRunDefersMissingBaseBranchToPublication(t *testing.T) {
 }
 
 func TestRestoreDiscoversAndSavesCandidateLostBeforePreparedHandshake(t *testing.T) {
+	fixture := prepareInterruptedRecovery(t)
+	defer shutdownManager(t, fixture.manager)
+	assertInterruptedRecovery(t, fixture)
+}
+
+type interruptedRecoveryFixture struct {
+	manager  *Manager
+	store    *jobstore.Memory
+	job      fix.JobID
+	identity fix.CandidateIdentity
+}
+
+func prepareInterruptedRecovery(t *testing.T) interruptedRecoveryFixture {
+	t.Helper()
 	seed, _ := newTestManager(t, 1)
 	input := prepare(t, seed, "one.go")
 	dependencies := seed.deps
@@ -394,8 +408,12 @@ func TestRestoreDiscoversAndSavesCandidateLostBeforePreparedHandshake(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer shutdownManager(t, restarted)
-	records, err := store.Load(context.Background())
+	return interruptedRecoveryFixture{manager: restarted, store: store, job: job, identity: identity}
+}
+
+func assertInterruptedRecovery(t *testing.T, fixture interruptedRecoveryFixture) {
+	t.Helper()
+	records, err := fixture.store.Load(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,10 +421,10 @@ func TestRestoreDiscoversAndSavesCandidateLostBeforePreparedHandshake(t *testing
 		t.Fatalf("recovery state = %+v", records)
 	}
 	var recovered storedJobState
-	if err := json.Unmarshal(records[0].State, &recovered); err != nil || recovered.Candidate == nil || *recovered.Candidate != identity {
+	if err := json.Unmarshal(records[0].State, &recovered); err != nil || recovered.Candidate == nil || *recovered.Candidate != fixture.identity {
 		t.Fatalf("recovered candidate was not durably handshaked: %+v, %v", recovered.Candidate, err)
 	}
-	jobView, _ := restarted.Job(job)
+	jobView, _ := fixture.manager.Job(fixture.job)
 	if jobView.Phase != fix.PhaseFailed || jobView.Issue == nil || jobView.Issue.Code != "interrupted" {
 		t.Fatalf("restored job = %+v", jobView)
 	}

@@ -14,15 +14,27 @@ import (
 
 func TestFileStoresOnePlainJSONDocumentPerJob(t *testing.T) {
 	directory := t.TempDir()
-	store, err := Open(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := openTestStore(t, directory)
 	defer store.Close()
 	record := Record{JobID: fix.JobID("job-one"), State: json.RawMessage(`{"presentation":{"id":"job-one","revision":7,"phase":"running"}}`)}
 	if err := store.Save(t.Context(), record); err != nil {
 		t.Fatal(err)
 	}
+	assertPlainJobDocument(t, directory)
+	assertLoadedJobRecord(t, store, record)
+}
+
+func openTestStore(t *testing.T, directory string) *File {
+	t.Helper()
+	store, err := Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store
+}
+
+func assertPlainJobDocument(t *testing.T, directory string) {
+	t.Helper()
 	payload, err := os.ReadFile(filepath.Join(directory, "job-one.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -35,8 +47,12 @@ func TestFileStoresOnePlainJSONDocumentPerJob(t *testing.T) {
 	if !ok || presentation["id"] != "job-one" || presentation["revision"] != float64(7) {
 		t.Fatalf("job document = %#v", document)
 	}
+}
+
+func assertLoadedJobRecord(t *testing.T, store *File, want Record) {
+	t.Helper()
 	records, err := store.Load(context.Background())
-	if err != nil || len(records) != 1 || records[0].JobID != record.JobID || !json.Valid(records[0].State) {
+	if err != nil || len(records) != 1 || records[0].JobID != want.JobID || !json.Valid(records[0].State) {
 		t.Fatalf("Load() = %#v, %v", records, err)
 	}
 }

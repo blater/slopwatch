@@ -65,14 +65,34 @@ func javaTestAdapter(t *testing.T) (string, Adapter) {
 
 func assertBasicJavaFacts(t *testing.T, program *facts.Program) {
 	t.Helper()
-	if len(program.Functions) != 1 || program.Functions[0].Name != "calculate" {
+	assertBasicJavaDeclarations(t, program)
+	assertBasicJavaAPI(t, program)
+}
+
+func assertBasicJavaDeclarations(t *testing.T, program *facts.Program) {
+	t.Helper()
+	if len(program.Functions) != 1 {
 		t.Fatalf("unexpected functions: %#v", program.Functions)
 	}
-	if len(program.Types) != 1 || program.Types[0].Name != "Service" {
+	if program.Functions[0].Name != "calculate" {
+		t.Fatalf("unexpected function: %#v", program.Functions[0])
+	}
+	if len(program.Types) != 1 {
 		t.Fatalf("unexpected types: %#v", program.Types)
 	}
-	if len(program.PublicOperations) != 1 || len(program.PublicOperations[0].Parameters) != 2 || len(program.PublicOperations[0].Results) != 1 {
+	if program.Types[0].Name != "Service" {
+		t.Fatalf("unexpected type: %#v", program.Types[0])
+	}
+}
+
+func assertBasicJavaAPI(t *testing.T, program *facts.Program) {
+	t.Helper()
+	if len(program.PublicOperations) != 1 {
 		t.Fatalf("unexpected public operations: %#v", program.PublicOperations)
+	}
+	operation := program.PublicOperations[0]
+	if len(operation.Parameters) != 2 || len(operation.Results) != 1 {
+		t.Fatalf("unexpected public operation: %#v", operation)
 	}
 	if got := program.Types[0].MethodFields["calculate#0"]; len(got) != 1 || got[0] != "total" {
 		t.Fatalf("unexpected method fields: %#v", program.Types[0].MethodFields)

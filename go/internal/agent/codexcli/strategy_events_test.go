@@ -187,6 +187,13 @@ func TestActorLimitFailureWakesSilentAttempt(t *testing.T) {
 
 func TestCloseJoinsAppServerStdoutReader(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
+	client := startReaderJoinClient(t, started, release)
+	waitForReaderJoinStart(t, started)
+	assertCloseJoinsReader(t, client, release)
+}
+
+func startReaderJoinClient(t *testing.T, started, release chan struct{}) *appServerClient {
+	t.Helper()
 	client, err := startAppServer(fakeAppServerExecutable(t, "readerjoin", filepath.Join(t.TempDir(), "capture")), t.TempDir(), os.Environ(), 1<<20, func(message rpcMessage) {
 		if message.Method == "warning" {
 			close(started)
@@ -200,11 +207,20 @@ func TestCloseJoinsAppServerStdoutReader(t *testing.T) {
 	if err := client.Request(t.Context(), "initialize", map[string]any{}, &initialized); err != nil {
 		t.Fatal(err)
 	}
+	return client
+}
+
+func waitForReaderJoinStart(t *testing.T, started chan struct{}) {
+	t.Helper()
 	select {
 	case <-started:
 	case <-time.After(time.Second):
 		t.Fatal("stdout handler did not start")
 	}
+}
+
+func assertCloseJoinsReader(t *testing.T, client *appServerClient, release chan struct{}) {
+	t.Helper()
 	closed := make(chan error, 1)
 	go func() {
 		closed <- client.Close(500 * time.Millisecond)

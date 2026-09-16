@@ -25,10 +25,20 @@ func TestCrashLeftoverStagingCannotPoisonCandidateOrDeleteLookalikes(t *testing.
 	if _, err := tools.write(t.Context(), "main.go", "package main\n"); err != nil {
 		t.Fatal(err)
 	}
-	contents, err := os.ReadFile(lookalike)
+	assertLookalikePreserved(t, lookalike)
+	assertStagingArtifactsContained(t, root, lookalike)
+}
+
+func assertLookalikePreserved(t *testing.T, path string) {
+	t.Helper()
+	contents, err := os.ReadFile(path)
 	if err != nil || string(contents) != "tracked lookalike" {
 		t.Fatalf("lookalike changed: %q %v", contents, err)
 	}
+}
+
+func assertStagingArtifactsContained(t *testing.T, root, lookalike string) {
+	t.Helper()
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)

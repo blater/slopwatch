@@ -78,6 +78,28 @@ func assertStartupProjection(t *testing.T, document report.Document) {
 }
 
 func TestPersistentUnitCacheHitAndContentInvalidation(t *testing.T) {
+	workspace, analyzer := cacheHitFixture(t)
+	calls := 0
+	analyzer.runUnits = countingFakeBatchRunner(t, &calls)
+
+	first := analyzeTestDocument(t, analyzer)
+	assertCacheFirstRun(t, calls, first)
+	_ = analyzeTestDocument(t, analyzer)
+	hit := analyzeTestDocument(t, analyzer)
+	assertCacheWarmRun(t, calls, first, hit)
+
+	source := filepath.Join(workspace, "pkg", "a.go")
+	info := statCacheSource(t, source)
+	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nvar A = 2\n")
+	if err := os.Chtimes(source, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	_ = analyzeTestDocument(t, analyzer)
+	assertCacheInvalidated(t, calls)
+}
+
+func cacheHitFixture(t *testing.T) (string, *Analyzer) {
+	t.Helper()
 	workspace := t.TempDir()
 	writeTestFile(t, workspace, "go.mod", "module example\n")
 	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nvar A = 1\n")
@@ -86,36 +108,48 @@ func TestPersistentUnitCacheHitAndContentInvalidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	options := Options{Targets: []string{"."}, Languages: []string{"go"}, ReadCache: true}
-	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
-	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
-		calls++
+	return workspace, newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
+}
+
+func countingFakeBatchRunner(t *testing.T, calls *int) analyzerUnitsRunner {
+	t.Helper()
+	return func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
+		*calls = *calls + 1
 		return fakeBatchInputs(t, request), nil
 	}
+}
 
-	first := analyzeTestDocument(t, analyzer)
-	if calls != 1 || len(first.Files) != 1 {
-		t.Fatalf("first analysis calls/files = %d/%d", calls, len(first.Files))
+func assertCacheFirstRun(t *testing.T, calls int, document report.Document) {
+	t.Helper()
+	if calls != 1 {
+		t.Fatalf("first analysis calls = %d, want 1", calls)
 	}
-	_ = analyzeTestDocument(t, analyzer)
-	hit := analyzeTestDocument(t, analyzer)
+	if len(document.Files) != 1 {
+		t.Fatalf("first analysis files = %d, want 1", len(document.Files))
+	}
+}
+
+func assertCacheWarmRun(t *testing.T, calls int, first, warm report.Document) {
+	t.Helper()
 	if calls != 1 {
 		t.Fatalf("ReadCache=true did not reuse verified unit; calls = %d", calls)
 	}
-	if !reflect.DeepEqual(first.Files, hit.Files) {
-		t.Fatalf("warm files differ from fresh files:\n%#v\n%#v", first.Files, hit.Files)
+	if !reflect.DeepEqual(first.Files, warm.Files) {
+		t.Fatalf("warm files differ from fresh files:\n%#v\n%#v", first.Files, warm.Files)
 	}
+}
 
-	source := filepath.Join(workspace, "pkg", "a.go")
-	info, err := os.Stat(source)
+func statCacheSource(t *testing.T, path string) os.FileInfo {
+	t.Helper()
+	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nvar A = 2\n")
-	if err := os.Chtimes(source, info.ModTime(), info.ModTime()); err != nil {
-		t.Fatal(err)
-	}
-	_ = analyzeTestDocument(t, analyzer)
+	return info
+}
+
+func assertCacheInvalidated(t *testing.T, calls int) {
+	t.Helper()
 	if calls != 2 {
 		t.Fatalf("same-size/same-mtime content change was a cache hit; calls = %d", calls)
 	}
@@ -132,41 +166,58 @@ func TestPersistentCacheRetainsAndRepairsSyntaxFailure(t *testing.T) {
 	options := Options{Targets: []string{"."}, Languages: []string{"go"}, ReadCache: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
-		calls++
+	analyzer.runUnits = syntaxCacheRunner(t, &calls)
+	first := analyzeTestDocument(t, analyzer)
+	assertSyntaxFailure(t, calls, first, "initial")
+	warm := analyzeTestDocument(t, analyzer)
+	assertSyntaxFailure(t, calls, warm, "cached")
+	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nfunc valid() {}\n")
+	repaired := analyzeTestDocument(t, analyzer)
+	assertSyntaxRepair(t, calls, repaired)
+}
+
+func syntaxCacheRunner(t *testing.T, calls *int) analyzerUnitsRunner {
+	t.Helper()
+	return func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
+		*calls = *calls + 1
 		result := make(map[string]scoreInputs, len(request.Units))
 		for _, unit := range request.Units {
 			inputs := newScoreInputs()
 			for _, path := range unit.Paths {
-				contents, readErr := os.ReadFile(filepath.Join(request.Workspace, filepath.FromSlash(path)))
-				if readErr != nil {
-					return nil, readErr
+				contents, err := os.ReadFile(filepath.Join(request.Workspace, filepath.FromSlash(path)))
+				if err != nil {
+					return nil, err
 				}
 				inputs.languages[path] = unit.Language
-				if strings.Contains(string(contents), "broken") {
-					inputs.coverage[path] = map[string]string{"metric": "failed"}
-					inputs.diagnostics = append(inputs.diagnostics, map[string]any{"path": path, "code": "SYNTAX_ERROR", "message": path + ":2:14: syntax error"})
-				} else {
-					inputs.coverage[path] = map[string]string{"metric": "complete"}
-				}
+				addSyntaxCacheFact(&inputs, path, contents)
 			}
 			inputs.plans = []map[string]any{{"type": "execution_plan", "unit_id": unit.ID, "parsed_source_count": len(unit.Paths)}}
 			result[unit.ID] = inputs
 		}
 		return result, nil
 	}
-	first := analyzeTestDocument(t, analyzer)
-	if calls != 1 || len(first.Diagnostics) != 1 || first.Files[0].Complete {
-		t.Fatalf("initial syntax result calls=%d diagnostics=%v files=%#v", calls, first.Diagnostics, first.Files)
+}
+
+func addSyntaxCacheFact(inputs *scoreInputs, path string, contents []byte) {
+	if strings.Contains(string(contents), "broken") {
+		inputs.coverage[path] = map[string]string{"metric": "failed"}
+		inputs.diagnostics = append(inputs.diagnostics, map[string]any{"path": path, "code": "SYNTAX_ERROR", "message": path + ":2:14: syntax error"})
+		return
 	}
-	warm := analyzeTestDocument(t, analyzer)
-	if calls != 1 || len(warm.Diagnostics) != 1 || warm.Files[0].Complete {
-		t.Fatalf("cached syntax result calls=%d diagnostics=%v files=%#v", calls, warm.Diagnostics, warm.Files)
+	inputs.coverage[path] = map[string]string{"metric": "complete"}
+}
+
+func assertSyntaxFailure(t *testing.T, calls int, document report.Document, phase string) {
+	t.Helper()
+	if calls != 1 || len(document.Diagnostics) != 1 || document.Files[0].Complete {
+		t.Fatalf("%s syntax result calls=%d diagnostics=%v files=%#v", phase, calls, document.Diagnostics, document.Files)
 	}
-	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nfunc valid() {}\n")
-	repaired := analyzeTestDocument(t, analyzer)
-	if calls != 2 || len(repaired.Diagnostics) != 0 || !repaired.Files[0].Complete {
-		t.Fatalf("repaired syntax result calls=%d diagnostics=%v files=%#v", calls, repaired.Diagnostics, repaired.Files)
+}
+
+func assertSyntaxRepair(t *testing.T, calls int, document report.Document) {
+	t.Helper()
+	if calls != 2 || len(document.Diagnostics) != 0 || !document.Files[0].Complete {
+		t.Fatalf("repaired syntax result calls=%d diagnostics=%v files=%#v", calls, document.Diagnostics, document.Files)
 	}
 }
 
@@ -201,6 +252,15 @@ func TestCorruptUnitArtifactIsAMiss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	corruptCachedArtifacts(t, store, view)
+	if _, err := analyzer.Analyze(context.Background(), nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	assertCacheMiss(t, calls)
+}
+
+func corruptCachedArtifacts(t *testing.T, store *analysiscache.Store, view analysiscache.ViewKey) {
+	t.Helper()
 	generation, ok := store.LoadGeneration(view)
 	if !ok || len(generation.Units) != 1 {
 		t.Fatalf("generation = %#v, %v", generation, ok)
@@ -212,15 +272,34 @@ func TestCorruptUnitArtifactIsAMiss(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := analyzer.Analyze(context.Background(), nil, nil); err != nil {
-		t.Fatal(err)
-	}
+}
+
+func assertCacheMiss(t *testing.T, calls int) {
+	t.Helper()
 	if calls != 2 {
 		t.Fatalf("corrupt artifact was not treated as a miss; calls = %d", calls)
 	}
 }
 
 func TestUnitIndexReusesFullPackageAcrossTargetViews(t *testing.T) {
+	analyzer, calls := indexedCacheFixture(t)
+	first, err := analyzer.Analyze(context.Background(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertTargetDocument(t, first, "pkg/a.go", "first")
+	second, err := analyzer.Analyze(context.Background(), []string{"pkg/b.go"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *calls != 1 {
+		t.Fatalf("cross-view package reuse invoked analyzer; calls = %d", *calls)
+	}
+	assertTargetDocument(t, second, "pkg/b.go", "second")
+}
+
+func indexedCacheFixture(t *testing.T) (*Analyzer, *int) {
+	t.Helper()
 	workspace := t.TempDir()
 	writeTestFile(t, workspace, "go.mod", "module example\n")
 	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nvar A = 1\n")
@@ -231,27 +310,18 @@ func TestUnitIndexReusesFullPackageAcrossTargetViews(t *testing.T) {
 	}
 	options := Options{Targets: []string{"pkg/a.go"}, Languages: []string{"go"}, ReadCache: true}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
-	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
-		calls++
-		return fakeBatchInputs(t, request), nil
+	calls := new(int)
+	analyzer.runUnits = countingFakeBatchRunner(t, calls)
+	return analyzer, calls
+}
+
+func assertTargetDocument(t *testing.T, document report.Document, path, phase string) {
+	t.Helper()
+	if len(document.Files) != 1 {
+		t.Fatalf("%s target files = %#v", phase, document.Files)
 	}
-	first, err := analyzer.Analyze(context.Background(), nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(first.Files) != 1 || first.Files[0].Path != "pkg/a.go" {
-		t.Fatalf("first target files = %#v", first.Files)
-	}
-	second, err := analyzer.Analyze(context.Background(), []string{"pkg/b.go"}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if calls != 1 {
-		t.Fatalf("cross-view package reuse invoked analyzer; calls = %d", calls)
-	}
-	if len(second.Files) != 1 || second.Files[0].Path != "pkg/b.go" {
-		t.Fatalf("second target files = %#v", second.Files)
+	if document.Files[0].Path != path {
+		t.Fatalf("%s target path = %q, want %q", phase, document.Files[0].Path, path)
 	}
 }
 

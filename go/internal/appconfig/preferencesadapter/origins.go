@@ -22,25 +22,41 @@ func builtInOrigins() map[string]appconfig.Origin {
 }
 
 func markUserOrigins(resolved *appconfig.Resolved, partial preferences.PartialDocument, defaults, user preferences.Document) {
-	if partial.Fix != nil && !reflect.DeepEqual(defaults.Fix, user.Fix) {
-		resolved.Origins["fix"] = appconfig.OriginUser
-		markFixFieldOrigins(resolved.Origins, defaults.Fix, user.Fix, appconfig.OriginUser)
-		markFixListOrigins(resolved.Origins, defaults.Fix, user.Fix, appconfig.OriginUser)
-	}
-	if partial.Concurrency != nil && !reflect.DeepEqual(defaults.Concurrency, user.Concurrency) {
-		resolved.Origins["concurrency"] = appconfig.OriginUser
-		markConcurrencyFieldOrigins(resolved.Origins, defaults.Concurrency, user.Concurrency, appconfig.OriginUser)
-	}
-	if partial.Agents != nil && !reflect.DeepEqual(defaults.Agents, user.Agents) {
-		resolved.Origins["agents"] = appconfig.OriginUser
-		markProfileEntryOrigins(resolved.Origins, defaults.Agents.Profiles, user.Agents.Profiles, appconfig.OriginUser)
-	}
-	if partial.Delivery != nil && !reflect.DeepEqual(defaults.Delivery, user.Delivery) {
-		resolved.Origins["delivery"] = appconfig.OriginUser
-		markDeliveryFieldOrigins(resolved.Origins, defaults.Delivery, user.Delivery, appconfig.OriginUser)
-	}
+	markUserFixOrigins(resolved.Origins, partial.Fix, defaults.Fix, user.Fix)
+	markUserConcurrencyOrigins(resolved.Origins, partial.Concurrency, defaults.Concurrency, user.Concurrency)
+	markUserAgentOrigins(resolved.Origins, partial.Agents, defaults.Agents, user.Agents)
+	markUserDeliveryOrigins(resolved.Origins, partial.Delivery, defaults.Delivery, user.Delivery)
 	if partial.Interaction != nil && defaults.Interaction.TrendWindow != user.Interaction.TrendWindow {
 		resolved.Origins["interaction.trend_window"] = appconfig.OriginUser
+	}
+}
+
+func markUserFixOrigins(origins map[string]appconfig.Origin, partial *preferences.Fix, defaults, user preferences.Fix) {
+	if partial != nil && !reflect.DeepEqual(defaults, user) {
+		origins["fix"] = appconfig.OriginUser
+		markFixFieldOrigins(origins, defaults, user, appconfig.OriginUser)
+		markFixListOrigins(origins, defaults, user, appconfig.OriginUser)
+	}
+}
+
+func markUserConcurrencyOrigins(origins map[string]appconfig.Origin, partial *preferences.Concurrency, defaults, user preferences.Concurrency) {
+	if partial != nil && !reflect.DeepEqual(defaults, user) {
+		origins["concurrency"] = appconfig.OriginUser
+		markConcurrencyFieldOrigins(origins, defaults, user, appconfig.OriginUser)
+	}
+}
+
+func markUserAgentOrigins(origins map[string]appconfig.Origin, partial *preferences.Agents, defaults, user preferences.Agents) {
+	if partial != nil && !reflect.DeepEqual(defaults, user) {
+		origins["agents"] = appconfig.OriginUser
+		markProfileEntryOrigins(origins, defaults.Profiles, user.Profiles, appconfig.OriginUser)
+	}
+}
+
+func markUserDeliveryOrigins(origins map[string]appconfig.Origin, partial *preferences.Delivery, defaults, user preferences.Delivery) {
+	if partial != nil && !reflect.DeepEqual(defaults, user) {
+		origins["delivery"] = appconfig.OriginUser
+		markDeliveryFieldOrigins(origins, defaults, user, appconfig.OriginUser)
 	}
 }
 

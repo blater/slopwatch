@@ -58,6 +58,15 @@ func TestProfileCapabilitiesAndProbeAreProviderOwned(t *testing.T) {
 	provider := &scriptedProvider{t: t}
 	strategy := newTestStrategy(t, provider, Config{})
 	descriptor := strategy.ProfileDescriptor()
+	assertProfileDescriptor(t, descriptor)
+	profile := testProfile()
+	probe := strategy.Probe(t.Context(), profile)
+	assertProviderProbe(t, provider, probe)
+	assertInvalidProfiles(t, strategy)
+}
+
+func assertProfileDescriptor(t *testing.T, descriptor agent.ProfileDescriptor) {
+	t.Helper()
 	if descriptor.Runtime != RuntimeKind || len(descriptor.Fields) != 1+len(profileLimitFields) || descriptor.Fields[0].Kind != agent.ProfileFieldAuthReference {
 		t.Fatalf("descriptor=%#v", descriptor)
 	}
@@ -71,14 +80,20 @@ func TestProfileCapabilitiesAndProbeAreProviderOwned(t *testing.T) {
 			t.Fatalf("descriptor omitted, exposed, or malformed preference-only limit %q: %#v", definition.key, field)
 		}
 	}
-	profile := testProfile()
-	probe := strategy.Probe(t.Context(), profile)
+}
+
+func assertProviderProbe(t *testing.T, provider *scriptedProvider, probe agent.ProbeResult) {
+	t.Helper()
 	if probe.State != agent.ProbeReady || !probe.Capabilities.Isolation.EligibleForMutation() || probe.Capabilities.Network.ToolNetwork || !probe.Capabilities.Network.TransportRequired || probe.Capabilities.Resume {
 		t.Fatalf("probe=%#v", probe)
 	}
 	if len(provider.authHeaders) != 1 || provider.authHeaders[0] != "Bearer "+testSecret {
 		t.Fatalf("probe auth=%v", provider.authHeaders)
 	}
+}
+
+func assertInvalidProfiles(t *testing.T, strategy *Strategy) {
+	t.Helper()
 	for _, invalid := range []agent.Profile{
 		{ID: "gpt", Runtime: RuntimeKind, AuthenticationRef: testSecret},
 		{ID: "gpt", Runtime: RuntimeKind, AuthenticationRef: "env:KEY", Executable: "sh"},
