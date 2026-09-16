@@ -199,32 +199,45 @@ func (client *appServerClient) Request(ctx context.Context, method string, param
 	pending := make(chan rpcResponse, 1)
 	client.pending[id] = pending
 	client.mu.Unlock()
+	defer client.removePending(id)
 	if err := client.write(ctx, map[string]any{"id": id, "method": method, "params": params}); err != nil {
-		client.removePending(id)
 		return err
 	}
 	select {
 	case response := <-pending:
-		if response.err != nil {
-			if errors.Is(response.err, io.EOF) {
-				return client.protocolExitError()
-			}
-			return response.err
-		}
-		if destination == nil || len(response.result) == 0 || string(response.result) == "null" {
-			return nil
-		}
-		if err := json.Unmarshal(response.result, destination); err != nil {
-			return fmt.Errorf("decode %s response: %w", method, err)
-		}
-		return nil
+		return client.decodeResponse(response, method, destination)
 	case <-ctx.Done():
-		client.removePending(id)
 		return ctx.Err()
 	case <-client.done:
-		client.removePending(id)
+		return client.responseAfterExit(pending, method, destination)
+	}
+}
+
+func (client *appServerClient) responseAfterExit(pending <-chan rpcResponse, method string, destination any) error {
+	// The reader publishes every response outcome before closing done. Prefer
+	// that outcome even when Request observes the closed done channel first.
+	select {
+	case response := <-pending:
+		return client.decodeResponse(response, method, destination)
+	default:
 		return client.protocolExitError()
 	}
+}
+
+func (client *appServerClient) decodeResponse(response rpcResponse, method string, destination any) error {
+	if response.err != nil {
+		if errors.Is(response.err, io.EOF) {
+			return client.protocolExitError()
+		}
+		return response.err
+	}
+	if destination == nil || len(response.result) == 0 || string(response.result) == "null" {
+		return nil
+	}
+	if err := json.Unmarshal(response.result, destination); err != nil {
+		return fmt.Errorf("decode %s response: %w", method, err)
+	}
+	return nil
 }
 
 func (client *appServerClient) Notify(ctx context.Context, method string, params any) error {

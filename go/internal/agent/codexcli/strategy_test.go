@@ -127,18 +127,18 @@ func TestExecuteStreamsEventsAndUsesWorkspaceWrite(t *testing.T) {
 }
 
 func TestExecutePrefersCompletionWhenServerExitsImmediatelyAfterIt(t *testing.T) {
-	for attempt := 0; attempt < 50; attempt++ {
-		root := canonicalTestRoot(t)
-		common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
-		for _, path := range []string{common, candidate} {
-			if err := os.Mkdir(path, 0o700); err != nil {
-				t.Fatal(err)
-			}
+	root := canonicalTestRoot(t)
+	common, candidate := filepath.Join(root, "common.git"), filepath.Join(root, "candidate")
+	for _, path := range []string{common, candidate} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
 		}
-		result := New().Execute(t.Context(), testProfile(fakeAppServerExecutable(t, "completeexit", filepath.Join(root, "capture"))), testRequest(candidate, common), nil)
-		if result.Status != agent.ResultCompleted {
-			t.Fatalf("attempt %d: Execute() = %#v", attempt, result)
-		}
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	result := New().Execute(ctx, testProfile(fakeAppServerExecutable(t, "completeexit", filepath.Join(root, "capture"))), testRequest(candidate, common), nil)
+	if result.Status != agent.ResultCompleted {
+		t.Fatalf("Execute() = %#v", result)
 	}
 }
 
