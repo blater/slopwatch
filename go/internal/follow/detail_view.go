@@ -73,14 +73,19 @@ type detailLine struct {
 func detailContent(model Model, file report.File, width int) []string {
 	logical := detailHeaderLines(file)
 	logical = append(logical, detailMetricLines(file)...)
+	logical = append(logical, detailDiagnosticLines(model, file)...)
 	logical = append(logical, detailComponentLines(file)...)
 	return renderDetailLines(logical, width)
 }
 
 func detailHeaderLines(file report.File) []detailLine {
+	score := fmt.Sprintf("%.1f", file.Score)
+	if metricFailed(file, "score") {
+		score = "X"
+	}
 	logical := []detailLine{
 		{file.Path, style.TextPrimary, true},
-		{fmt.Sprintf("%s  ·  rank %d  ·  score %.1f", file.Language, file.Rank, file.Score), style.TextMuted, false},
+		{fmt.Sprintf("%s  ·  rank %d  ·  score %s", file.Language, file.Rank, score), style.TextMuted, false},
 	}
 	if file.Freshness != "" && file.Freshness != report.FreshnessCurrent {
 		state := strings.ToUpper(strings.ReplaceAll(string(file.Freshness), "_", " "))
@@ -112,6 +117,10 @@ func detailMetricLines(file report.File) []detailLine {
 	}
 	for _, item := range labels {
 		component, exists := file.Components[item.id]
+		if coverageFailed(file.Coverage[item.id]) {
+			logical = append(logical, detailLine{fmt.Sprintf("%-24s X", item.label), style.AccentCritical, true})
+			continue
+		}
 		if !exists {
 			logical = append(logical, detailLine{fmt.Sprintf("%-24s unavailable", item.label), style.TextMuted, false})
 			continue
@@ -133,6 +142,61 @@ func detailMetricLines(file report.File) []detailLine {
 	return logical
 }
 
+func detailDiagnosticLines(model Model, file report.File) []detailLine {
+	lines := make([]detailLine, 0)
+	for _, text := range fileDiagnosticText(model.document, file) {
+		lines = append(lines, detailLine{text, style.AccentCritical, false})
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	return append([]detailLine{{"", style.TextPrimary, false}, {"ANALYSIS DIAGNOSTICS", style.AccentCritical, true}}, lines...)
+}
+
+func fileDiagnosticText(document report.Document, file report.File) []string {
+	lines := make([]string, 0)
+	for _, diagnostic := range document.Diagnostics {
+		path, _ := diagnostic["path"].(string)
+		if path != file.Path {
+			continue
+		}
+		message, _ := diagnostic["message"].(string)
+		if message == "" {
+			continue
+		}
+		code, _ := diagnostic["code"].(string)
+		line := diagnosticPosition(diagnostic["line"])
+		column := diagnosticPosition(diagnostic["column"])
+		location := ""
+		if line > 0 {
+			location = fmt.Sprintf(" (%d", line)
+			if column > 0 {
+				location += fmt.Sprintf(":%d", column)
+			}
+			location += ")"
+		}
+		prefix := ""
+		if code != "" {
+			prefix = code + ": "
+		}
+		lines = append(lines, prefix+message+location)
+	}
+	return lines
+}
+
+func diagnosticPosition(value any) int {
+	switch value := value.(type) {
+	case float64:
+		return int(value)
+	case int:
+		return value
+	case int64:
+		return int(value)
+	default:
+		return 0
+	}
+}
+
 func maxSubjectValue(component report.Component) float64 {
 	maximum := 0.0
 	for _, subject := range component.Subjects {
@@ -150,6 +214,10 @@ func detailComponentLines(file report.File) []detailLine {
 	sort.Strings(componentIDs)
 	for _, id := range componentIDs {
 		component := file.Components[id]
+		if coverageFailed(file.Coverage[id]) {
+			logical = append(logical, detailLine{fmt.Sprintf("%s  X", id), style.AccentCritical, true})
+			continue
+		}
 		logical = append(logical, detailLine{fmt.Sprintf("%s  contribution %.1f  ·  observations %d", id, component.Contribution, component.Observations), style.TextPrimary, true})
 		for _, subject := range component.Subjects {
 			logical = append(logical, detailLine{fmt.Sprintf("  • %s = %s  (+%s)", subject.Subject, report.DisplayNumber(subject.Value), report.DisplayNumber(subject.Contribution)), style.TextMuted, false})

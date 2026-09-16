@@ -107,12 +107,19 @@ final class Facts {
         final List<FieldFact> fieldFacts = new ArrayList<>();
     }
 
+    static final class FileFailure {
+        String path;
+        String code;
+        String diagnostic;
+    }
+
     static final class Program {
         final List<Function> functions = new ArrayList<>();
         final List<TypeFact> types = new ArrayList<>();
         final List<PublicOperation> publicOperations = new ArrayList<>();
         final List<RepresentationExposure> representation = new ArrayList<>();
         final List<String> files = new ArrayList<>();
+        final List<FileFailure> failures = new ArrayList<>();
     }
 
     private Facts() { }

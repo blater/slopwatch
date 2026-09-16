@@ -186,6 +186,7 @@ function validateRequestEnvelope(request: Partial<AnalyzerRequest>): void {
 function syntaxDiagnostic(entry: {
   unitId: string;
   relativePath: string;
+  sourceFile: ts.SourceFile;
   syntaxErrors: readonly ts.Diagnostic[];
 }): Diagnostic[] {
   return entry.syntaxErrors.map((item) => ({
@@ -193,7 +194,11 @@ function syntaxDiagnostic(entry: {
     path: entry.relativePath,
     code: `typescript.syntax.${item.code}`,
     severity: "error" as const,
-    message: ts.flattenDiagnosticMessageText(item.messageText, "\n"),
+    message: (() => {
+      const position = item.start ?? 0;
+      const line = entry.sourceFile.getLineAndCharacterOfPosition(position);
+      return `${entry.relativePath}:${line.line + 1}:${line.character + 1}: ${ts.flattenDiagnosticMessageText(item.messageText, "\n")}`;
+    })(),
   }));
 }
 
@@ -212,7 +217,6 @@ function analyzeSyntaxSources(
 ): void {
   for (const entry of context.sources) {
     if (entry.syntaxErrors.length > 0) {
-      buffers.failedUnits.add(entry.unitId);
       for (const item of syntaxDiagnostic(entry))
         buffers.records.push(responseDiagnostic(invocationId, item));
       for (const component of requestedStructural) {
@@ -313,7 +317,10 @@ function markTypedAnalysisUnavailable(
 	unavailableReason: string | undefined,
 ): void {
   const reason = unavailableReason ?? "typed analysis is unavailable";
-  if (typeMode === "require" || typeMode === "off") {
+  const hasSyntaxUsableSource = context.sources.some(
+    (entry) => entry.syntaxErrors.length === 0,
+  );
+  if ((typeMode === "require" && hasSyntaxUsableSource) || typeMode === "off") {
     for (const unit of request.units) buffers.failedUnits.add(unit.unit_id);
   }
   if (typeMode === "off") {
@@ -327,7 +334,11 @@ function markTypedAnalysisUnavailable(
     );
   }
   for (const entry of context.sources) {
-	addTypedCoverage(entry, requestedTyped, buffers, "unavailable", reason);
+	if (entry.syntaxErrors.length > 0) {
+	  addTypedCoverage(entry, requestedTyped, buffers, "failed", "syntax errors prevent trustworthy typed analysis");
+	} else {
+	  addTypedCoverage(entry, requestedTyped, buffers, "unavailable", reason);
+	}
   }
 }
 

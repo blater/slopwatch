@@ -2,9 +2,11 @@
 package goadapter
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"go/types"
 	"os"
@@ -63,7 +65,7 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 		return nil, fmt.Errorf("absolute workspace: %w", err)
 	}
 	fset := token.NewFileSet()
-	sources, err := parseSources(root, requested, fset)
+	sources, failures, err := parseSources(root, requested, fset)
 	if err != nil {
 		return nil, err
 	}
@@ -77,31 +79,41 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 	sortOperations(b.operations)
 	return &facts.Program{
 		Functions: b.functions, Types: types, PublicOperations: b.operations,
-		Representation: representation, Files: sourcePaths(sources),
+		Representation: representation, Files: sourcePaths(sources), Failures: failures,
+		Unavailable: syntaxAffectedComponents(sources, failures),
 	}, nil
 }
 
-func parseSources(root string, requested []string, fset *token.FileSet) ([]source, error) {
+func parseSources(root string, requested []string, fset *token.FileSet) ([]source, []facts.FileFailure, error) {
 	sources := make([]source, 0, len(requested))
+	failures := make([]facts.FileFailure, 0)
 	seen := make(map[string]struct{}, len(requested))
 	for _, raw := range requested {
 		rel, absolute, err := canonicalSource(root, raw)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if _, exists := seen[rel]; exists {
-			return nil, fmt.Errorf("duplicate Go source path: %s", rel)
+			return nil, nil, fmt.Errorf("duplicate Go source path: %s", rel)
 		}
 		seen[rel] = struct{}{}
 		parsed, err := parser.ParseFile(fset, absolute, nil, parser.AllErrors)
 		if err != nil {
-			return nil, fmt.Errorf("parse %s: %w", rel, err)
+			var syntaxErrors scanner.ErrorList
+			if !errors.As(err, &syntaxErrors) || len(syntaxErrors) == 0 {
+				return nil, nil, fmt.Errorf("parse %s: %w", rel, err)
+			}
+			for _, syntaxErr := range syntaxErrors {
+				failures = append(failures, facts.FileFailure{Path: rel, Code: "SYNTAX_ERROR",
+					Diagnostic: fmt.Sprintf("%s:%d:%d: %s", rel, syntaxErr.Pos.Line, syntaxErr.Pos.Column, syntaxErr.Msg)})
+			}
+			continue
 		}
 		imports := make(map[string]string)
 		for _, spec := range parsed.Imports {
 			path, unquoteErr := strconv.Unquote(spec.Path.Value)
 			if unquoteErr != nil {
-				return nil, fmt.Errorf("parse import in %s: %w", rel, unquoteErr)
+				return nil, nil, fmt.Errorf("parse import in %s: %w", rel, unquoteErr)
 			}
 			name := filepath.Base(path)
 			if spec.Name != nil {
@@ -112,7 +124,30 @@ func parseSources(root string, requested []string, fset *token.FileSet) ([]sourc
 		sources = append(sources, source{rel: rel, file: parsed, imports: imports})
 	}
 	sort.Slice(sources, func(left, right int) bool { return sources[left].rel < sources[right].rel })
-	return sources, nil
+	sort.SliceStable(failures, func(left, right int) bool { return failures[left].Path < failures[right].Path })
+	return sources, failures, nil
+}
+
+func syntaxAffectedComponents(sources []source, failures []facts.FileFailure) map[string]map[string]string {
+	if len(failures) == 0 {
+		return nil
+	}
+	affectedDirs := make(map[string]bool, len(failures))
+	for _, failure := range failures {
+		affectedDirs[filepath.Dir(failure.Path)] = true
+	}
+	components := []string{"cyclomatic_class_complexity", "god_class", "coupling_between_objects"}
+	unavailable := make(map[string]map[string]string)
+	for _, item := range sources {
+		if !affectedDirs[filepath.Dir(item.rel)] {
+			continue
+		}
+		unavailable[item.rel] = make(map[string]string, len(components))
+		for _, component := range components {
+			unavailable[item.rel][component] = "syntax errors in this package prevent trustworthy cross-file type evidence"
+		}
+	}
+	return unavailable
 }
 
 func collectFunctions(b *analysisContext, sources []source) {

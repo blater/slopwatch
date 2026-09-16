@@ -10,14 +10,15 @@ import java.util.List;
 import java.util.Map;
 
 final class Protocol {
-    static final int SCHEMA_VERSION = 2;
+    static final int REQUEST_SCHEMA_VERSION = 2;
+    static final int RESPONSE_SCHEMA_VERSION = 3;
     private static final int REQUEST_MAGIC = 0x53534a46;
     private static final int RESPONSE_MAGIC = 0x53534a4f;
     record Request(String workspace, List<String> paths, boolean includeTests) { }
 
     static Request readRequest(InputStream input) throws IOException {
         DataInputStream data = new DataInputStream(input);
-        if (data.readInt() != REQUEST_MAGIC || data.readInt() != SCHEMA_VERSION) {
+        if (data.readInt() != REQUEST_MAGIC || data.readInt() != REQUEST_SCHEMA_VERSION) {
             throw new IOException("unsupported Java fact request");
         }
         boolean includeTests = data.readBoolean();
@@ -33,7 +34,7 @@ final class Protocol {
     static void writeSuccess(OutputStream output, Facts.Program program) throws IOException {
         DataOutputStream data = new DataOutputStream(output);
         data.writeInt(RESPONSE_MAGIC);
-        data.writeInt(SCHEMA_VERSION);
+        data.writeInt(RESPONSE_SCHEMA_VERSION);
         data.writeBoolean(true);
         writeProgram(data, program);
         data.flush();
@@ -42,7 +43,7 @@ final class Protocol {
     static void writeFailure(OutputStream output, String message) throws IOException {
         DataOutputStream data = new DataOutputStream(output);
         data.writeInt(RESPONSE_MAGIC);
-        data.writeInt(SCHEMA_VERSION);
+        data.writeInt(RESPONSE_SCHEMA_VERSION);
         data.writeBoolean(false);
         writeString(data, message);
         data.flush();
@@ -169,6 +170,12 @@ final class Protocol {
         writeList(data, value.publicOperations, Protocol::writeOperation);
         writeList(data, value.representation, Protocol::writeExposure);
         writeStrings(data, value.files);
+        data.writeInt(value.failures.size());
+        for (Facts.FileFailure failure : value.failures) {
+            writeString(data, failure.path);
+            writeString(data, failure.code);
+            writeString(data, failure.diagnostic);
+        }
     }
 
     private static void writeStrings(DataOutputStream data, List<String> values) throws IOException {

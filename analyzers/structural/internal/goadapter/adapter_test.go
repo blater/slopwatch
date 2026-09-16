@@ -134,6 +134,58 @@ func (s Service) Run(other missing.Peer) { _ = s.peer; _ = other.Value }
 	assertFallbackTypeFacts(t, program)
 }
 
+func TestAdapterKeepsValidSourcesWhenAnotherFileHasSyntaxErrors(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"broken.go": "package sample\nfunc broken( {\nfunc another( {\n",
+		"valid.go":  "package sample\nfunc Valid() { if true {} }\n",
+	}
+	for path, contents := range files {
+		if err := os.WriteFile(filepath.Join(root, path), []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	program, err := Analyze(root, []string{"broken.go", "valid.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(program.Files) != 1 || program.Files[0] != "valid.go" {
+		t.Fatalf("parsed files = %q, want only valid source", program.Files)
+	}
+	if len(program.Failures) < 1 {
+		t.Fatalf("syntax failures = %#v, want at least one diagnostic", program.Failures)
+	}
+	for _, failure := range program.Failures {
+		if failure.Path != "broken.go" || failure.Code != "SYNTAX_ERROR" || !strings.Contains(failure.Diagnostic, "broken.go:") {
+			t.Fatalf("syntax failure = %#v", failure)
+		}
+	}
+	if available, _ := program.Availability("valid.go", "god_class"); available {
+		t.Fatal("cross-file type evidence remained available beside a syntax failure")
+	}
+}
+
+func TestAdapterAllowsAllSyntaxFailuresWithoutDiscardingDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "broken.go"), []byte("package sample\nfunc broken( {\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	program, err := Analyze(root, []string{"broken.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(program.Files) != 0 || len(program.Functions) != 0 || len(program.Failures) == 0 {
+		t.Fatalf("all-broken program = files %q functions %d failures %#v", program.Files, len(program.Functions), program.Failures)
+	}
+}
+
+func TestAdapterPreservesHardSourceErrors(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Analyze(root, []string{"missing.go"}); err == nil {
+		t.Fatal("missing source was reported as a syntax failure")
+	}
+}
+
 func assertComponentsAvailable(t *testing.T, program *facts.Program, path string) {
 	t.Helper()
 	for _, component := range []string{"coupling_between_objects", "god_class"} {

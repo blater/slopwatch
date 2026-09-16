@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"slopslap.dev/structural/internal/adapters"
+	"slopslap.dev/structural/internal/facts"
 	"slopslap.dev/structural/internal/goadapter"
 	"slopslap.dev/structural/internal/javaadapter"
 	"slopslap.dev/structural/internal/metrics"
@@ -112,6 +113,57 @@ func failUnit(out emitter, item unit, components []component, message string) {
 	}
 }
 
+func emitProgramCoverage(out emitter, item unit, components []component, program *facts.Program) {
+	failedPaths := make(map[string]bool, len(program.Failures))
+	for _, failure := range program.Failures {
+		firstFailure := !failedPaths[failure.Path]
+		failedPaths[failure.Path] = true
+		out.emit("diagnostic", map[string]any{
+			"severity": "error", "code": failure.Code, "message": failure.Diagnostic,
+			"unit_id": item.ID, "path": failure.Path,
+		})
+		if !firstFailure {
+			continue
+		}
+		for _, requested := range components {
+			out.emit("coverage", map[string]any{
+				"unit_id": item.ID, "component_id": requested.ID,
+				"definition_version": requested.Version, "path": failure.Path,
+				"state": "failed", "reason": failure.Diagnostic,
+			})
+		}
+	}
+	warnings := make(map[string]map[string]bool)
+	for _, path := range item.Paths {
+		if failedPaths[path] {
+			continue
+		}
+		for _, requested := range components {
+			state, reason := "complete", ""
+			if available, detail := program.Availability(path, requested.ID); !available {
+				state, reason = "unavailable", detail
+				if reason != "" {
+					if warnings[path] == nil {
+						warnings[path] = make(map[string]bool)
+					}
+					if !warnings[path][reason] {
+						out.emit("diagnostic", map[string]any{
+							"severity": "warning", "code": "COVERAGE_UNAVAILABLE",
+							"message": reason, "unit_id": item.ID, "path": path,
+						})
+						warnings[path][reason] = true
+					}
+				}
+			}
+			out.emit("coverage", map[string]any{
+				"unit_id": item.ID, "component_id": requested.ID,
+				"definition_version": requested.Version, "path": path,
+				"state": state, "reason": reason,
+			})
+		}
+	}
+}
+
 func run(input request, writer io.Writer) int {
 	encoder := json.NewEncoder(writer)
 	encoder.SetEscapeHTML(false)
@@ -176,21 +228,7 @@ func run(input request, writer io.Writer) int {
 				},
 			})
 		}
-		for _, path := range item.Paths {
-			for _, component := range input.Components {
-				state := "complete"
-				reason := ""
-				if available, detail := program.Availability(path, component.ID); !available {
-					state = "unavailable"
-					reason = detail
-				}
-				out.emit("coverage", map[string]any{
-					"unit_id": item.ID, "component_id": component.ID,
-					"definition_version": component.Version, "path": path,
-					"state": state, "reason": reason,
-				})
-			}
-		}
+		emitProgramCoverage(out, item, input.Components, program)
 		out.emit("execution_plan", map[string]any{
 			"unit_id": item.ID, "parser_modes": languageAdapter.ParserModes(),
 			"kernels": kernels, "discovered_source_count": len(item.Paths),

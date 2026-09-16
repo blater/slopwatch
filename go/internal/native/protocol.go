@@ -161,10 +161,14 @@ func decodeProtocol(reader io.Reader, request analyzerRequest, consume func(prot
 		}
 		switch record.Type {
 		case "diagnostic":
+			var diagnosticPath any
+			if record.Path != nil {
+				diagnosticPath = *record.Path
+			}
 			record.Raw = map[string]any{
 				"type": record.Type, "protocol_version": record.Version,
 				"invocation_id": record.Invocation, "unit_id": record.UnitID,
-				"path": record.Path, "severity": record.Severity,
+				"path": diagnosticPath, "severity": record.Severity,
 				"code": record.Code, "message": record.Message,
 			}
 		case "execution_plan":

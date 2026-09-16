@@ -251,7 +251,7 @@ func less(model Model, left, right report.File) bool {
 func sortValue(model Model, file report.File) (float64, bool) {
 	switch model.sortKey {
 	case "score":
-		return file.Score, true
+		return file.Score, !metricFailed(file, "score")
 	case "cog", "npath", "cyclo", "deep", "god", "coupling", "nesting", "typesafety":
 		value, exists, _ := metric(file, model.sortKey)
 		return value, exists

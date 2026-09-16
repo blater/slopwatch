@@ -25,6 +25,7 @@ const (
 	parallelMinPaths      = 512
 	parallelBatchPathGoal = 512
 	parallelBatchLimit    = 2
+	javaResponseSchema    = 3
 )
 
 // Adapter invokes the bundled Java parser without annotation processing or project execution.
@@ -177,6 +178,7 @@ func mergePrograms(programs []*facts.Program) *facts.Program {
 		merged.PublicOperations = append(merged.PublicOperations, program.PublicOperations...)
 		merged.Representation = append(merged.Representation, program.Representation...)
 		merged.Files = append(merged.Files, program.Files...)
+		merged.Failures = append(merged.Failures, program.Failures...)
 		for path, components := range program.Unavailable {
 			if merged.Unavailable[path] == nil {
 				merged.Unavailable[path] = make(map[string]string, len(components))
@@ -225,6 +227,15 @@ func mergePrograms(programs []*facts.Program) *facts.Program {
 	sort.SliceStable(merged.Files, func(left, right int) bool {
 		return lessString(merged.Files[left], merged.Files[right])
 	})
+	sort.SliceStable(merged.Failures, func(left, right int) bool {
+		if merged.Failures[left].Path != merged.Failures[right].Path {
+			return lessString(merged.Failures[left].Path, merged.Failures[right].Path)
+		}
+		if merged.Failures[left].Code != merged.Failures[right].Code {
+			return merged.Failures[left].Code < merged.Failures[right].Code
+		}
+		return merged.Failures[left].Diagnostic < merged.Failures[right].Diagnostic
+	})
 	return merged
 }
 
@@ -264,7 +275,7 @@ func readResponse(reader io.Reader) (*facts.Program, error) {
 		return nil, fmt.Errorf("invalid Java fact response")
 	}
 	version, err := readUint32(data)
-	if err != nil || version != facts.SchemaVersion {
+	if err != nil || version != javaResponseSchema {
 		return nil, fmt.Errorf("Java fact schema %d is unsupported", version)
 	}
 	success, err := data.ReadByte()
@@ -306,6 +317,22 @@ func readProgram(data *bufio.Reader) (*facts.Program, error) {
 	}
 	if program.Files, err = readStrings(data); err != nil {
 		return nil, err
+	}
+	count, err := readCount(data)
+	if err != nil {
+		return nil, err
+	}
+	program.Failures = make([]facts.FileFailure, count)
+	for index := range program.Failures {
+		if program.Failures[index].Path, err = readString(data); err != nil {
+			return nil, err
+		}
+		if program.Failures[index].Code, err = readString(data); err != nil {
+			return nil, err
+		}
+		if program.Failures[index].Diagnostic, err = readString(data); err != nil {
+			return nil, err
+		}
 	}
 	return program, nil
 }

@@ -401,11 +401,43 @@ test("syntax failure is never represented as complete zero-score coverage", () =
       ],
     ),
   );
-  assert.equal(records.at(-1)?.status, "failure");
+  assert.equal(records.at(-1)?.status, "success");
+  assert.deepEqual(records.at(-1)?.analyzed_unit_ids, ["unit"]);
   assert.ok(
     recordsOf(records, "coverage").every((item) => item.state !== "complete"),
   );
   assert.equal(recordsOf(records, "measurement").length, 0);
+});
+
+test("syntax failure does not discard valid TypeScript peers", () => {
+  const root = workspace({
+    "broken.ts": "export function broken( {\nexport function another( {\n",
+    "valid.ts": "export function valid(ok: boolean) { if (ok) {} }\n",
+  });
+  const records = analyze(
+    request(
+      root,
+      ["broken.ts", "valid.ts"],
+      [
+        ["cognitive_complexity", "pmd-sonar-v1"],
+        ["unsafe_type_use", "typescript-local-sink-v1"],
+      ],
+    ),
+  );
+  assert.equal(records.at(-1)?.status, "success");
+  assert.deepEqual(records.at(-1)?.analyzed_unit_ids, ["unit"]);
+  const coverage = recordsOf(records, "coverage");
+  assert.equal(
+    coverage.filter((item) => item.path === "broken.ts" && item.state === "failed").length,
+    2,
+  );
+  assert.ok(
+    coverage.some((item) => item.path === "valid.ts" && item.component_id === "cognitive_complexity" && item.state === "complete"),
+  );
+  const syntax = recordsOf(records, "diagnostic").find(
+    (item) => String(item.code).startsWith("typescript.syntax.") && item.path === "broken.ts",
+  );
+  assert.match(String(syntax?.message), /broken\.ts:\d+:\d+:/u);
 });
 
 test("multiple tsconfig ownership candidates make typed coverage unavailable", () => {

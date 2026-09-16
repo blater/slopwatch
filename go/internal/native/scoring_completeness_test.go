@@ -26,3 +26,25 @@ func TestFortyFiveThousandZeroScoreJavaFilesRemainInReport(t *testing.T) {
 		}
 	}
 }
+
+func TestFailedCoverageRemainsIncompleteAndInvalidZero(t *testing.T) {
+	inputs := newScoreInputs()
+	inputs.coverage["broken.go"] = map[string]string{"cognitive_complexity": "failed"}
+	inputs.languages["broken.go"] = "go"
+	inputs.diagnostics = []map[string]any{{"path": "broken.go", "code": "SYNTAX_ERROR", "message": "broken.go:1:14: syntax error"}}
+	descriptors := []componentDescriptor{{ID: "cognitive_complexity", Version: "pmd-sonar-v1", Axis: "structural_core", Support: map[string]string{"go": "supported"}, Defaults: componentDefaults{Enabled: true, Weight: "1", Formula: "count"}}}
+	passScore := 10.0
+	document, err := scoreInputsReport(catalogDocument{Components: descriptors}, []string{"go"}, inputs, &passScore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(document.Files) != 1 || document.Files[0].Complete || document.Files[0].ValidZero {
+		t.Fatalf("failed syntax file was presented as complete/valid zero: %#v", document.Files)
+	}
+	if document.Files[0].Passed == nil || *document.Files[0].Passed {
+		t.Fatalf("failed syntax file passed threshold: %#v", document.Files[0].Passed)
+	}
+	if len(document.Diagnostics) != 1 || document.Diagnostics[0]["code"] != "SYNTAX_ERROR" {
+		t.Fatalf("syntax diagnostic was lost: %#v", document.Diagnostics)
+	}
+}

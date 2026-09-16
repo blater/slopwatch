@@ -121,6 +121,55 @@ func TestPersistentUnitCacheHitAndContentInvalidation(t *testing.T) {
 	}
 }
 
+func TestPersistentCacheRetainsAndRepairsSyntaxFailure(t *testing.T) {
+	workspace := t.TempDir()
+	writeTestFile(t, workspace, "go.mod", "module example\n")
+	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nfunc broken( {\n")
+	store, err := analysiscache.NewStore(filepath.Join(t.TempDir(), "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	options := Options{Targets: []string{"."}, Languages: []string{"go"}, ReadCache: true}
+	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
+	calls := 0
+	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
+		calls++
+		result := make(map[string]scoreInputs, len(request.Units))
+		for _, unit := range request.Units {
+			inputs := newScoreInputs()
+			for _, path := range unit.Paths {
+				contents, readErr := os.ReadFile(filepath.Join(request.Workspace, filepath.FromSlash(path)))
+				if readErr != nil {
+					return nil, readErr
+				}
+				inputs.languages[path] = unit.Language
+				if strings.Contains(string(contents), "broken") {
+					inputs.coverage[path] = map[string]string{"metric": "failed"}
+					inputs.diagnostics = append(inputs.diagnostics, map[string]any{"path": path, "code": "SYNTAX_ERROR", "message": path + ":2:14: syntax error"})
+				} else {
+					inputs.coverage[path] = map[string]string{"metric": "complete"}
+				}
+			}
+			inputs.plans = []map[string]any{{"type": "execution_plan", "unit_id": unit.ID, "parsed_source_count": len(unit.Paths)}}
+			result[unit.ID] = inputs
+		}
+		return result, nil
+	}
+	first := analyzeTestDocument(t, analyzer)
+	if calls != 1 || len(first.Diagnostics) != 1 || first.Files[0].Complete {
+		t.Fatalf("initial syntax result calls=%d diagnostics=%v files=%#v", calls, first.Diagnostics, first.Files)
+	}
+	warm := analyzeTestDocument(t, analyzer)
+	if calls != 1 || len(warm.Diagnostics) != 1 || warm.Files[0].Complete {
+		t.Fatalf("cached syntax result calls=%d diagnostics=%v files=%#v", calls, warm.Diagnostics, warm.Files)
+	}
+	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nfunc valid() {}\n")
+	repaired := analyzeTestDocument(t, analyzer)
+	if calls != 2 || len(repaired.Diagnostics) != 0 || !repaired.Files[0].Complete {
+		t.Fatalf("repaired syntax result calls=%d diagnostics=%v files=%#v", calls, repaired.Diagnostics, repaired.Files)
+	}
+}
+
 func analyzeTestDocument(t *testing.T, analyzer *Analyzer) report.Document {
 	t.Helper()
 	document, err := analyzer.Analyze(context.Background(), nil, nil)

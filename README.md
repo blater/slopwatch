@@ -79,6 +79,10 @@ Supported source file extensions are `.go`, `.java`, `.ts`, `.tsx`, `.mts`, `.ct
 `--pass-score` considers every analyzed file. Analysis returns 0 when all
 files pass, 3 when any file does not pass, and 2 for analysis errors.
 
+Syntax errors are shown as `X` with per-file Info diagnostics. Valid files
+continue to be measured; cross-file metrics affected by a broken sibling are
+marked incomplete and cannot pass their thresholds.
+
 ## Report measurements
 
 Lower numbers are better. A routine is a function, method, or constructor.

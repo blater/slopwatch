@@ -139,6 +139,15 @@ type Type struct {
 	Fields               []Field             `json:"fields,omitempty"`
 }
 
+// FileFailure records a source-local failure that did not prevent the rest of
+// the requested unit from being analyzed. Hard inventory and transport
+// failures continue to be returned as Analyze errors.
+type FileFailure struct {
+	Path       string `json:"path"`
+	Code       string `json:"code"`
+	Diagnostic string `json:"diagnostic"`
+}
+
 // LinkTypeMethods replaces adapter transport references with pointers to the
 // canonical functions already held by the program. Native adapters may fill
 // Methods directly and leave MethodLocations empty.
@@ -175,6 +184,7 @@ type Program struct {
 	Representation   []*RepresentationExposure    `json:"representation_exposure,omitempty"`
 	Files            []string                     `json:"files"`
 	Unavailable      map[string]map[string]string `json:"unavailable"`
+	Failures         []FileFailure                `json:"failures,omitempty"`
 }
 
 // Availability returns whether a component has complete evidence for a file.

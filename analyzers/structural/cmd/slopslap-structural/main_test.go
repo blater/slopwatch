@@ -44,6 +44,31 @@ func TestProtocolEmitsMeasurementsCoveragePlanAndTerminal(t *testing.T) {
 	}
 }
 
+func TestProtocolContinuesMixedGoSourcesAfterSyntaxFailure(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"broken.go": "package sample\nfunc broken( {\nfunc another( {\n",
+		"valid.go":  "package sample\nfunc Valid(ok bool) { if ok {} }\n",
+	}
+	for path, source := range files {
+		if err := os.WriteFile(filepath.Join(root, path), []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	input := request{
+		Type: "request", Version: 1, Invocation: "00000000-0000-0000-0000-000000000005", Workspace: root,
+		Units: []unit{{ID: "go-unit", Language: "go", Paths: []string{"broken.go", "valid.go"}}},
+		Components: []component{{ID: "cognitive_complexity", Version: "pmd-sonar-v1"},
+			{ID: "god_class", Version: "pmd-v1"}, {ID: "coupling_between_objects", Version: "pmd-v1"}},
+		Options: map[string]any{}, Limits: map[string]int{},
+	}
+	var output bytes.Buffer
+	if code := run(input, &output); code != 0 {
+		t.Fatalf("run returned %d", code)
+	}
+	assertMixedSyntaxProtocol(t, output.Bytes(), input.Components)
+}
+
 func TestDecodeRequestAcceptsLargeInventories(t *testing.T) {
 	input := request{
 		Type: "request", Version: 1, Invocation: "00000000-0000-0000-0000-000000000004", Workspace: t.TempDir(),

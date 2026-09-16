@@ -108,6 +108,52 @@ final class BodyFacts {
 	assertMethodBodyFacts(t, program)
 }
 
+func TestAdapterRetainsValidJavaFactsWhenOneSourceHasSyntaxErrors(t *testing.T) {
+	root, adapter := javaTestAdapter(t)
+	valid := "src/main/java/example/Valid.java"
+	broken := "src/main/java/example/Broken.java"
+	writeSource(t, root, valid, `
+package example;
+public class Valid { public int run() { return 7; } }`)
+	writeSource(t, root, broken, `
+package example;
+public class Broken { public int run() { return ; }`)
+	program, err := adapter.Analyze(root, []string{valid, broken}, map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(program.Files, []string{valid}) || len(program.Functions) != 1 {
+		t.Fatalf("valid Java facts were not retained: files=%v functions=%v", program.Files, program.Functions)
+	}
+	if len(program.Failures) == 0 || program.Failures[0].Path != broken || program.Failures[0].Code != "SYNTAX_ERROR" || !strings.Contains(program.Failures[0].Diagnostic, broken+":") {
+		t.Fatalf("syntax failure = %#v", program.Failures)
+	}
+}
+
+func TestAdapterReportsEveryBrokenJavaSource(t *testing.T) {
+	root, adapter := javaTestAdapter(t)
+	paths := []string{"src/A.java", "src/B.java"}
+	for _, path := range paths {
+		writeSource(t, root, path, "class Broken { void run( { }\n")
+	}
+	program, err := adapter.Analyze(root, paths, map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(program.Files) != 0 || len(program.Functions) != 0 || len(program.Failures) < len(paths) {
+		t.Fatalf("all-broken Java program = %#v", program)
+	}
+	got := map[string]bool{}
+	for _, failure := range program.Failures {
+		got[failure.Path] = failure.Code == "SYNTAX_ERROR" && strings.HasPrefix(failure.Diagnostic, failure.Path+":")
+	}
+	for _, path := range paths {
+		if !got[path] {
+			t.Fatalf("missing located syntax failure for %s: %#v", path, program.Failures)
+		}
+	}
+}
+
 func assertMethodBodyFacts(t *testing.T, program *facts.Program) {
 	t.Helper()
 	if len(program.Types) != 1 {

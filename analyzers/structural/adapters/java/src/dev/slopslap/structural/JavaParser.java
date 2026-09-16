@@ -17,9 +17,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
 
 final class JavaParser {
@@ -43,12 +44,15 @@ final class JavaParser {
             );
             List<CompilationUnitTree> units = new ArrayList<>();
             task.parse().forEach(units::add);
-            rejectSyntaxErrors(diagnostics);
+            Map<String, List<Diagnostic<? extends JavaFileObject>>> syntaxErrors = syntaxErrors(workspace, requestedPaths, diagnostics);
             JavaAnalyzer analyzer = new JavaAnalyzer(Trees.instance(task));
             for (CompilationUnitTree unit : units) {
                 String relative = relativePath(workspace, unit.getSourceFile());
                 if (!requestedPaths.contains(relative)) {
                     throw new IllegalArgumentException("JDK parser returned an unrequested Java source");
+                }
+                if (syntaxErrors.containsKey(relative)) {
+                    continue;
                 }
                 if (!request.includeTests() && testPackage(unit.getPackageName())) {
                     analyzer.skipUnit(relative);
@@ -57,18 +61,40 @@ final class JavaParser {
                 }
             }
             analyzer.order();
-            return analyzer.program();
+            Facts.Program program = analyzer.program();
+            for (Map.Entry<String, List<Diagnostic<? extends JavaFileObject>>> entry : syntaxErrors.entrySet()) {
+                for (Diagnostic<? extends JavaFileObject> diagnostic : entry.getValue()) {
+                    Facts.FileFailure failure = new Facts.FileFailure();
+                    failure.path = entry.getKey();
+                    failure.code = "SYNTAX_ERROR";
+                    failure.diagnostic = entry.getKey() + ":" + diagnostic.getLineNumber() + ":"
+                            + diagnostic.getColumnNumber() + ": " + diagnostic.getMessage(Locale.ROOT);
+                    program.failures.add(failure);
+                }
+            }
+            return program;
         }
     }
 
-    private static void rejectSyntaxErrors(DiagnosticCollector<JavaFileObject> diagnostics) {
-        Optional<Diagnostic<? extends JavaFileObject>> error = diagnostics.getDiagnostics()
-                .stream().filter(item -> item.getKind() == Diagnostic.Kind.ERROR).findFirst();
-        if (error.isPresent()) {
-            throw new IllegalArgumentException(
-                    "failed to parse Java source: " + error.get().getMessage(Locale.ROOT)
-            );
+    private static Map<String, List<Diagnostic<? extends JavaFileObject>>> syntaxErrors(
+            Path workspace, Set<String> requestedPaths, DiagnosticCollector<JavaFileObject> diagnostics) {
+        Map<String, List<Diagnostic<? extends JavaFileObject>>> failures = new LinkedHashMap<>();
+        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+            if (diagnostic.getKind() != Diagnostic.Kind.ERROR) {
+                continue;
+            }
+            JavaFileObject source = diagnostic.getSource();
+            if (source == null) {
+                throw new IllegalArgumentException("Java parser reported an error without a source file: "
+                        + diagnostic.getMessage(Locale.ROOT));
+            }
+            String relative = relativePath(workspace, source);
+            if (!requestedPaths.contains(relative)) {
+                throw new IllegalArgumentException("JDK parser returned an unrequested Java diagnostic source: " + relative);
+            }
+            failures.computeIfAbsent(relative, ignored -> new ArrayList<>()).add(diagnostic);
         }
+        return failures;
     }
 
     private static Path sourcePath(Path workspace, String requested) throws IOException {

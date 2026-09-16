@@ -58,8 +58,40 @@ func renderPath(path string, width, offset int, background lipgloss.Color) strin
 }
 
 func metric(file report.File, key string) (float64, bool, float64) {
+	if metricFailed(file, key) {
+		return 0, false, 0
+	}
 	value := scoring.Metric(file, key)
 	return value.Value, value.Available, value.Contribution
+}
+
+// metricFailed distinguishes a failed analysis from a real zero. Reports
+// without coverage metadata are legacy/in-memory fixtures and retain their
+// component availability semantics.
+func metricFailed(file report.File, key string) bool {
+	if len(file.Coverage) == 0 {
+		return false
+	}
+	if key == "score" {
+		return !file.Complete
+	}
+	definition, known := scoring.MetricDefinitionByID(scoring.MetricID(key))
+	if !known {
+		return false
+	}
+	if definition.Aggregation == scoring.AggregationAxis {
+		for _, component := range scoring.Components() {
+			if component.Axis == definition.Axis && coverageFailed(file.Coverage[component.ID]) {
+				return true
+			}
+		}
+		return false
+	}
+	return definition.ComponentID != "" && coverageFailed(file.Coverage[definition.ComponentID])
+}
+
+func coverageFailed(state string) bool {
+	return state != "" && state != "complete" && state != "not_requested"
 }
 
 func scoreColour(value float64) lipgloss.Color {

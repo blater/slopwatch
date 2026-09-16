@@ -31,7 +31,13 @@ func renderFixedColumns(model Model, file report.File, state rowState, backgroun
 	if marker != "" {
 		score += styleCell(marker, markerColour, background)
 	}
-	score += styleCell(pad(decimalWithin(file.Score, scoreWidth), scoreWidth, true), scoreColour(file.Score), background)
+	scoreText := decimalWithin(file.Score, scoreWidth)
+	scoreForeground := scoreColour(file.Score)
+	if metricFailed(file, "score") {
+		scoreText = "X"
+		scoreForeground = style.TextMuted
+	}
+	score += styleCell(pad(scoreText, scoreWidth, true), scoreForeground, background)
 	parts := []string{score}
 	activeColumns := model.activeColumns()
 	for _, column := range activeColumns {
@@ -107,6 +113,9 @@ func movementArrow(delta int) string {
 func renderMetricCell(file report.File, column column, background lipgloss.Color) string {
 	value, exists, _ := metric(file, column.key)
 	text := "-"
+	if metricFailed(file, column.key) {
+		text = "X"
+	}
 	if exists {
 		text = metricText(column.key, value)
 	}

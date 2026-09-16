@@ -132,6 +132,14 @@ pub struct Program {
     pub representation: Vec<RepresentationExposure>,
     pub files: Vec<String>,
     pub unavailable: BTreeMap<String, BTreeMap<String, String>>,
+    pub failures: Vec<FileFailure>,
+}
+
+#[derive(Default, Serialize)]
+pub struct FileFailure {
+    pub path: String,
+    pub code: String,
+    pub diagnostic: String,
 }
 
 pub mod expression_kind {

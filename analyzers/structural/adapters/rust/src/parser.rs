@@ -190,17 +190,56 @@ pub fn parse_program(
         .canonicalize()
         .map_err(|error| error.to_string())?;
     let mut parsed = Vec::with_capacity(paths.len());
+    let mut valid_files = Vec::with_capacity(paths.len());
+    let mut failures = Vec::new();
     for requested in paths {
         let (absolute, relative) = canonical_source(&workspace, requested)?;
         let source = fs::read_to_string(absolute).map_err(|error| error.to_string())?;
-        let syntax = syn::parse_file(&source)
-            .map_err(|error| format!("failed to parse {relative}: {error}"))?;
-        parsed.push((relative, syntax));
+        match syn::parse_file(&source) {
+            Ok(syntax) => {
+                valid_files.push(relative.clone());
+                parsed.push((relative, syntax));
+            }
+            Err(error) => {
+                let start = error.span().start();
+                failures.push(crate::model::FileFailure {
+                    path: relative.clone(),
+                    code: "SYNTAX_ERROR".to_owned(),
+                    diagnostic: format!(
+                        "{}:{}:{}: {}",
+                        relative,
+                        start.line,
+                        start.column + 1,
+                        error
+                    ),
+                });
+            }
+        }
     }
     let mut program = Program {
-        files: paths.to_vec(),
+        files: valid_files,
+        failures,
         ..Program::default()
     };
+    if !program.failures.is_empty() {
+        for path in &program.files {
+            let components = [
+                "cyclomatic_class_complexity",
+                "god_class",
+                "coupling_between_objects",
+            ]
+            .into_iter()
+            .map(|component| {
+                (
+                    component.to_owned(),
+                    "syntax errors in the requested Rust context prevent trustworthy cross-file type evidence"
+                        .to_owned(),
+                )
+            })
+            .collect();
+            program.unavailable.insert(path.clone(), components);
+        }
+    }
     for (path, syntax) in &parsed {
         declare_types(&syntax.items, path, &mut program.types, include_tests);
     }
@@ -250,6 +289,7 @@ pub fn parse_program(
 mod tests {
     use super::*;
     use crate::model::{expression_kind, statement_kind};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn builds_control_and_design_facts_from_real_syntax() {
@@ -347,5 +387,58 @@ mod tests {
         assert_eq!(types[0].method_locations.len(), 1);
         assert!(types[1].method_locations.is_empty());
         assert_eq!(types[0].method_fields["inspect"], vec!["first"]);
+    }
+
+    #[test]
+    fn retains_valid_rust_facts_and_locates_syntax_failures() {
+        let workspace = syntax_fixture_workspace("mixed");
+        fs::write(workspace.join("valid.rs"), "fn valid() { return; }\n").unwrap();
+        fs::write(workspace.join("broken.rs"), "fn broken( { }\n").unwrap();
+        let program = parse_program(
+            &workspace,
+            &["valid.rs".to_owned(), "broken.rs".to_owned()],
+            false,
+        )
+        .unwrap();
+        assert_eq!(program.files, vec!["valid.rs"]);
+        assert_eq!(program.functions.len(), 1);
+        assert_eq!(program.failures.len(), 1);
+        assert_eq!(program.failures[0].path, "broken.rs");
+        assert_eq!(program.failures[0].code, "SYNTAX_ERROR");
+        assert!(program.failures[0].diagnostic.starts_with("broken.rs:1:"));
+        assert!(program.failures[0].diagnostic.len() > "broken.rs:1:".len());
+        assert!(program.unavailable["valid.rs"].contains_key("god_class"));
+        let _ = fs::remove_dir_all(workspace);
+    }
+
+    #[test]
+    fn reports_all_broken_rust_sources_without_partial_files() {
+        let workspace = syntax_fixture_workspace("all-broken");
+        fs::write(workspace.join("first.rs"), "fn first( { }\n").unwrap();
+        fs::write(workspace.join("second.rs"), "fn second( { }\n").unwrap();
+        let program = parse_program(
+            &workspace,
+            &["first.rs".to_owned(), "second.rs".to_owned()],
+            false,
+        )
+        .unwrap();
+        assert!(program.files.is_empty());
+        assert!(program.functions.is_empty());
+        assert_eq!(program.failures.len(), 2);
+        assert!(program
+            .failures
+            .iter()
+            .all(|item| item.code == "SYNTAX_ERROR"));
+        let _ = fs::remove_dir_all(workspace);
+    }
+
+    fn syntax_fixture_workspace(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let workspace = std::env::temp_dir().join(format!("slopwatch-rust-{name}-{nanos}"));
+        fs::create_dir_all(&workspace).unwrap();
+        workspace
     }
 }
