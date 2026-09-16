@@ -49,7 +49,7 @@ func applyRepositoryPatch(value *preferences.PartialDocument, patch appconfig.Pa
 	return nil
 }
 
-func (adapter *Adapter) applyRepository(resolved *appconfig.Resolved, value preferences.PartialDocument) error {
+func (validator profileValidator) applyRepository(resolved *appconfig.Resolved, value preferences.PartialDocument) error {
 	if err := validateRepositoryPartial(value); err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (adapter *Adapter) applyRepository(resolved *appconfig.Resolved, value pref
 		resolved.TrendWindow = trend
 		resolved.Origins["interaction.trend_window"] = appconfig.OriginRepository
 	}
-	if err := adapter.validateResolved(*resolved); err != nil {
+	if err := validateResolved(*resolved, validator); err != nil {
 		return err
 	}
 	return nil

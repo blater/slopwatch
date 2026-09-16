@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 
@@ -29,12 +28,15 @@ type Options struct {
 }
 
 type Adapter struct {
-	mu             sync.Mutex
+	mu        sync.Mutex
+	storage   preferencesStore
+	validator profileValidator
+}
+
+type preferencesStore struct {
 	userPath       string
 	repositoryRoot string
 	defaults       preferences.Document
-	runtimeKinds   map[agent.RuntimeKind]struct{}
-	profileCatalog agent.ProfileCatalog
 }
 
 var _ appconfig.Resolver = (*Adapter)(nil)
@@ -48,7 +50,7 @@ func (adapter *Adapter) LoadEditable(ctx context.Context, workspace fix.Workspac
 	}
 	adapter.mu.Lock()
 	defer adapter.mu.Unlock()
-	user, loadErr := preferences.LoadOrCreate(adapter.userPath, adapter.defaults)
+	user, loadErr := preferences.LoadOrCreate(adapter.storage.userPath, adapter.storage.defaults)
 	if loadErr != nil {
 		return appconfig.Editable{}, loadErr
 	}
@@ -56,19 +58,19 @@ func (adapter *Adapter) LoadEditable(ctx context.Context, workspace fix.Workspac
 	if convertErr != nil {
 		return appconfig.Editable{}, convertErr
 	}
-	_, raw, _, loadErr := preferences.LoadPartial(adapter.userPath)
+	_, raw, _, loadErr := preferences.LoadPartial(adapter.storage.userPath)
 	if loadErr != nil {
 		return appconfig.Editable{}, loadErr
 	}
 	var repositoryRaw []byte
-	_, _, repositoryRaw, _, loadErr = adapter.loadRepository(workspace)
+	_, _, repositoryRaw, _, loadErr = adapter.storage.loadRepository(workspace)
 	if loadErr != nil {
 		return appconfig.Editable{}, loadErr
 	}
 	value.Origins = builtInOrigins()
-	markFixListOrigins(value.Origins, preferences.Fix{}, adapter.defaults.Fix, appconfig.OriginBuiltIn)
-	markProfileEntryOrigins(value.Origins, nil, adapter.defaults.Agents.Profiles, appconfig.OriginBuiltIn)
-	markUserOrigins(&value, preferences.PartialDocument{Fix: &user.Fix, Concurrency: &user.Concurrency, Agents: &user.Agents, Delivery: &user.Delivery, Interaction: &user.Interaction}, adapter.defaults, user)
+	markFixListOrigins(value.Origins, preferences.Fix{}, adapter.storage.defaults.Fix, appconfig.OriginBuiltIn)
+	markProfileEntryOrigins(value.Origins, nil, adapter.storage.defaults.Agents.Profiles, appconfig.OriginBuiltIn)
+	markUserOrigins(&value, preferences.PartialDocument{Fix: &user.Fix, Concurrency: &user.Concurrency, Agents: &user.Agents, Delivery: &user.Delivery, Interaction: &user.Interaction}, adapter.storage.defaults, user)
 	value.Revision = revision(raw, repositoryRaw)
 	return appconfig.Editable{Resolved: value, Diagnostics: []string{err.Error()}}, nil
 }
@@ -100,10 +102,8 @@ func New(options Options) (*Adapter, error) {
 		kinds[kind] = struct{}{}
 	}
 	return &Adapter{
-		userPath:       options.UserPath,
-		repositoryRoot: absoluteRepositoryRoot,
-		defaults:       preferences.Clone(defaults), profileCatalog: options.ProfileCatalog,
-		runtimeKinds: kinds,
+		storage:   preferencesStore{userPath: options.UserPath, repositoryRoot: absoluteRepositoryRoot, defaults: preferences.Clone(defaults)},
+		validator: profileValidator{runtimeKinds: kinds, catalog: options.ProfileCatalog},
 	}, nil
 }
 
@@ -119,7 +119,7 @@ func (adapter *Adapter) Save(ctx context.Context, workspace fix.WorkspaceIdentit
 	if err := ctx.Err(); err != nil {
 		return appconfig.Saved{}, err
 	}
-	currentRevision, err := adapter.revisionOnly(workspace)
+	currentRevision, err := adapter.storage.revisionOnly(workspace)
 	if err != nil {
 		return appconfig.Saved{}, err
 	}
@@ -128,9 +128,9 @@ func (adapter *Adapter) Save(ctx context.Context, workspace fix.WorkspaceIdentit
 	}
 	switch scope {
 	case appconfig.ScopeUser:
-		err = adapter.saveUser(workspace, patch)
+		err = adapter.storage.saveUser(workspace, patch, adapter.validator)
 	case appconfig.ScopeRepository:
-		err = adapter.saveRepository(workspace, patch)
+		err = adapter.storage.saveRepository(workspace, patch, adapter.validator)
 	default:
 		err = fmt.Errorf("unsupported preferences scope %q", scope)
 	}
@@ -144,15 +144,15 @@ func (adapter *Adapter) Save(ctx context.Context, workspace fix.WorkspaceIdentit
 	return appconfig.Saved{Revision: resolved.Revision, Resolved: resolved}, nil
 }
 
-func (adapter *Adapter) revisionOnly(workspace fix.WorkspaceIdentity) (appconfig.Revision, error) {
-	if _, err := preferences.LoadOrCreate(adapter.userPath, adapter.defaults); err != nil {
+func (store preferencesStore) revisionOnly(workspace fix.WorkspaceIdentity) (appconfig.Revision, error) {
+	if _, err := preferences.LoadOrCreate(store.userPath, store.defaults); err != nil {
 		return 0, err
 	}
-	_, userRaw, _, err := preferences.LoadPartial(adapter.userPath)
+	_, userRaw, _, err := preferences.LoadPartial(store.userPath)
 	if err != nil {
 		return 0, err
 	}
-	_, _, repositoryRaw, _, err := adapter.loadRepository(workspace)
+	_, _, repositoryRaw, _, err := store.loadRepository(workspace)
 	if err != nil {
 		return 0, err
 	}
@@ -163,7 +163,7 @@ func (adapter *Adapter) resolve(ctx context.Context, workspace fix.WorkspaceIden
 	if err := ctx.Err(); err != nil {
 		return appconfig.Resolved{}, err
 	}
-	user, userPartial, userRaw, err := adapter.loadValidUser()
+	user, userPartial, userRaw, err := adapter.storage.loadValidUser(adapter.validator)
 	if err != nil {
 		return appconfig.Resolved{}, err
 	}
@@ -173,16 +173,16 @@ func (adapter *Adapter) resolve(ctx context.Context, workspace fix.WorkspaceIden
 		return appconfig.Resolved{}, fmt.Errorf("resolve user preferences: %w", err)
 	}
 	resolved.Origins = builtInOrigins()
-	markFixListOrigins(resolved.Origins, preferences.Fix{}, adapter.defaults.Fix, appconfig.OriginBuiltIn)
-	markProfileEntryOrigins(resolved.Origins, nil, adapter.defaults.Agents.Profiles, appconfig.OriginBuiltIn)
-	markUserOrigins(&resolved, userPartial, adapter.defaults, user)
+	markFixListOrigins(resolved.Origins, preferences.Fix{}, adapter.storage.defaults.Fix, appconfig.OriginBuiltIn)
+	markProfileEntryOrigins(resolved.Origins, nil, adapter.storage.defaults.Agents.Profiles, appconfig.OriginBuiltIn)
+	markUserOrigins(&resolved, userPartial, adapter.storage.defaults, user)
 
-	repositoryPath, repository, repositoryRaw, exists, err := adapter.loadRepository(workspace)
+	repositoryPath, repository, repositoryRaw, exists, err := adapter.storage.loadRepository(workspace)
 	if err != nil {
 		return appconfig.Resolved{}, err
 	}
 	if exists {
-		if applyErr := adapter.applyRepository(&resolved, repository); applyErr != nil {
+		if applyErr := adapter.validator.applyRepository(&resolved, repository); applyErr != nil {
 			if quarantineErr := preferences.Quarantine(repositoryPath); quarantineErr != nil {
 				return appconfig.Resolved{}, fmt.Errorf("reset invalid repository preferences: %w", quarantineErr)
 			}
@@ -194,14 +194,14 @@ func (adapter *Adapter) resolve(ctx context.Context, workspace fix.WorkspaceIden
 	return cloneResolved(resolved), nil
 }
 
-func (adapter *Adapter) loadValidUser() (preferences.Document, preferences.PartialDocument, []byte, error) {
-	user, err := preferences.LoadOrCreate(adapter.userPath, adapter.defaults)
+func (store preferencesStore) loadValidUser(validator profileValidator) (preferences.Document, preferences.PartialDocument, []byte, error) {
+	user, err := preferences.LoadOrCreate(store.userPath, store.defaults)
 	if err != nil {
 		return preferences.Document{}, preferences.PartialDocument{}, nil, err
 	}
-	partial, raw, _, err := preferences.LoadPartial(adapter.userPath)
+	partial, raw, _, err := preferences.LoadPartial(store.userPath)
 	if err == nil {
-		err = adapter.validateDocument(user)
+		err = validateDocument(user, validator)
 	}
 	if err == nil {
 		_, err = documentToResolved(user)
@@ -209,21 +209,21 @@ func (adapter *Adapter) loadValidUser() (preferences.Document, preferences.Parti
 	if err == nil {
 		return user, partial, raw, nil
 	}
-	if defaultsErr := adapter.validateDocument(adapter.defaults); defaultsErr != nil {
+	if defaultsErr := validateDocument(store.defaults, validator); defaultsErr != nil {
 		return preferences.Document{}, preferences.PartialDocument{}, nil, fmt.Errorf("validate user preferences: %w", err)
 	}
-	if _, defaultsErr := documentToResolved(adapter.defaults); defaultsErr != nil {
+	if _, defaultsErr := documentToResolved(store.defaults); defaultsErr != nil {
 		return preferences.Document{}, preferences.PartialDocument{}, nil, fmt.Errorf("resolve user preferences: %w", err)
 	}
-	user, err = preferences.Recover(adapter.userPath, adapter.defaults)
+	user, err = preferences.Recover(store.userPath, store.defaults)
 	if err != nil {
 		return preferences.Document{}, preferences.PartialDocument{}, nil, err
 	}
-	partial, raw, _, err = preferences.LoadPartial(adapter.userPath)
+	partial, raw, _, err = preferences.LoadPartial(store.userPath)
 	if err != nil {
 		return preferences.Document{}, preferences.PartialDocument{}, nil, err
 	}
-	if err := adapter.validateDocument(user); err != nil {
+	if err := validateDocument(user, validator); err != nil {
 		return preferences.Document{}, preferences.PartialDocument{}, nil, fmt.Errorf("validate built-in preferences: %w", err)
 	}
 	if _, err := documentToResolved(user); err != nil {
@@ -232,8 +232,8 @@ func (adapter *Adapter) loadValidUser() (preferences.Document, preferences.Parti
 	return user, partial, raw, nil
 }
 
-func (adapter *Adapter) loadRepository(workspace fix.WorkspaceIdentity) (string, preferences.PartialDocument, []byte, bool, error) {
-	path, hasRepository := adapter.repositoryPreferencesPath(workspace)
+func (store preferencesStore) loadRepository(workspace fix.WorkspaceIdentity) (string, preferences.PartialDocument, []byte, bool, error) {
+	path, hasRepository := store.repositoryPreferencesPath(workspace)
 	if !hasRepository {
 		return "", preferences.PartialDocument{}, nil, false, nil
 	}
@@ -247,12 +247,12 @@ func (adapter *Adapter) loadRepository(workspace fix.WorkspaceIdentity) (string,
 	return path, preferences.PartialDocument{}, nil, false, nil
 }
 
-func (adapter *Adapter) repositoryPreferencesPath(workspace fix.WorkspaceIdentity) (string, bool) {
+func (store preferencesStore) repositoryPreferencesPath(workspace fix.WorkspaceIdentity) (string, bool) {
 	id := strings.TrimSpace(string(workspace.Repository))
 	if id == "" || id == "." || id == ".." || filepath.Base(id) != id || strings.ContainsAny(id, `/\\`) {
 		return "", false
 	}
-	return filepath.Join(adapter.repositoryRoot, id, "preferences.toml"), true
+	return filepath.Join(store.repositoryRoot, id, "preferences.toml"), true
 }
 
 func revision(user, repository []byte) appconfig.Revision {
@@ -269,131 +269,18 @@ func revision(user, repository []byte) appconfig.Revision {
 	return appconfig.Revision(value)
 }
 
-func builtInOrigins() map[string]appconfig.Origin {
-	result := map[string]appconfig.Origin{
-		"fix":                      appconfig.OriginBuiltIn,
-		"concurrency":              appconfig.OriginBuiltIn,
-		"agents":                   appconfig.OriginBuiltIn,
-		"delivery":                 appconfig.OriginBuiltIn,
-		"interaction.trend_window": appconfig.OriginBuiltIn,
-	}
-	for _, key := range []string{"fix.target_score", "fix.focus", "fix.change_scope", "fix.profile", "fix.model", "fix.effort", "fix.prompt_template", "concurrency.max_agents", "concurrency.max_verifiers", "concurrency.max_actors_per_job", "concurrency.max_candidate_preview_bytes", "concurrency.max_candidate_preview_lines", "delivery.workspace", "delivery.git", "delivery.publish", "delivery.remote", "delivery.base_branch", "delivery.branch_template", "delivery.publisher", "delivery.draft_pull_requests", "delivery.command_output_bytes"} {
-		result[key] = appconfig.OriginBuiltIn
-	}
-	return result
-}
-
-func markUserOrigins(resolved *appconfig.Resolved, partial preferences.PartialDocument, defaults, user preferences.Document) {
-	if partial.Fix != nil && !reflect.DeepEqual(defaults.Fix, user.Fix) {
-		resolved.Origins["fix"] = appconfig.OriginUser
-		markFixFieldOrigins(resolved.Origins, defaults.Fix, user.Fix, appconfig.OriginUser)
-		markFixListOrigins(resolved.Origins, defaults.Fix, user.Fix, appconfig.OriginUser)
-	}
-	if partial.Concurrency != nil && !reflect.DeepEqual(defaults.Concurrency, user.Concurrency) {
-		resolved.Origins["concurrency"] = appconfig.OriginUser
-		markConcurrencyFieldOrigins(resolved.Origins, defaults.Concurrency, user.Concurrency, appconfig.OriginUser)
-	}
-	if partial.Agents != nil && !reflect.DeepEqual(defaults.Agents, user.Agents) {
-		resolved.Origins["agents"] = appconfig.OriginUser
-		markProfileEntryOrigins(resolved.Origins, defaults.Agents.Profiles, user.Agents.Profiles, appconfig.OriginUser)
-	}
-	if partial.Delivery != nil && !reflect.DeepEqual(defaults.Delivery, user.Delivery) {
-		resolved.Origins["delivery"] = appconfig.OriginUser
-		markDeliveryFieldOrigins(resolved.Origins, defaults.Delivery, user.Delivery, appconfig.OriginUser)
-	}
-	if partial.Interaction != nil && defaults.Interaction.TrendWindow != user.Interaction.TrendWindow {
-		resolved.Origins["interaction.trend_window"] = appconfig.OriginUser
-	}
-}
-
-func markFixFieldOrigins(origins map[string]appconfig.Origin, before, after preferences.Fix, origin appconfig.Origin) {
-	values := []struct {
-		key     string
-		changed bool
-	}{{"fix.target_score", before.TargetScore != after.TargetScore}, {"fix.focus", !reflect.DeepEqual(before.Focus, after.Focus)}, {"fix.change_scope", before.ChangeScope != after.ChangeScope}, {"fix.profile", before.Profile != after.Profile}, {"fix.model", before.Model != after.Model}, {"fix.effort", before.Effort != after.Effort}, {"fix.prompt_template", before.PromptTemplate != after.PromptTemplate}}
-	for _, value := range values {
-		if value.changed {
-			origins[value.key] = origin
-		}
-	}
-}
-func markConcurrencyFieldOrigins(origins map[string]appconfig.Origin, before, after preferences.Concurrency, origin appconfig.Origin) {
-	values := []struct {
-		key     string
-		changed bool
-	}{{"concurrency.max_agents", before.MaxAgents != after.MaxAgents}, {"concurrency.max_verifiers", before.MaxVerifiers != after.MaxVerifiers}, {"concurrency.max_actors_per_job", before.MaxActorsPerJob != after.MaxActorsPerJob}, {"concurrency.max_candidate_preview_bytes", before.MaxCandidatePreviewBytes != after.MaxCandidatePreviewBytes}, {"concurrency.max_candidate_preview_lines", before.MaxCandidatePreviewLines != after.MaxCandidatePreviewLines}}
-	for _, v := range values {
-		if v.changed {
-			origins[v.key] = origin
-		}
-	}
-}
-func markDeliveryFieldOrigins(origins map[string]appconfig.Origin, before, after preferences.Delivery, origin appconfig.Origin) {
-	values := []struct {
-		key     string
-		changed bool
-	}{{"delivery.workspace", before.Workspace != after.Workspace}, {"delivery.git", before.Git != after.Git}, {"delivery.publish", before.Publish != after.Publish}, {"delivery.remote", before.Remote != after.Remote}, {"delivery.base_branch", before.BaseBranch != after.BaseBranch}, {"delivery.branch_template", before.BranchTemplate != after.BranchTemplate}, {"delivery.publisher", before.Publisher != after.Publisher}, {"delivery.draft_pull_requests", before.DraftPullRequests != after.DraftPullRequests}, {"delivery.command_output_bytes", before.CommandOutputBytes != after.CommandOutputBytes},
-		{"delivery.commit_title_template", before.CommitTitleTemplate != after.CommitTitleTemplate}, {"delivery.commit_body_template", before.CommitBodyTemplate != after.CommitBodyTemplate},
-		{"delivery.pull_request_title_template", before.PullRequestTitleTemplate != after.PullRequestTitleTemplate}, {"delivery.pull_request_body_template", before.PullRequestBodyTemplate != after.PullRequestBodyTemplate}}
-	for _, v := range values {
-		if v.changed {
-			origins[v.key] = origin
-		}
-	}
-}
-
-func markProfileEntryOrigins(origins map[string]appconfig.Origin, before, after []preferences.AgentProfile, origin appconfig.Origin) {
-	prior := make(map[string]preferences.AgentProfile, len(before))
-	for _, profile := range before {
-		prior[profile.ID] = profile
-	}
-	for _, profile := range after {
-		old, exists := prior[profile.ID]
-		prefix := "agents." + profile.ID + "."
-		if !exists || !reflect.DeepEqual(old, profile) {
-			origins["agents."+profile.ID] = origin
-		}
-		fields := []struct {
-			key     string
-			changed bool
-		}{{"label", !exists || old.Label != profile.Label}, {"runtime", !exists || old.Runtime != profile.Runtime}, {"executable", !exists || old.Executable != profile.Executable}, {"runtime_profile", !exists || old.RuntimeProfile != profile.RuntimeProfile}, {"authentication_ref", !exists || old.AuthenticationRef != profile.AuthenticationRef}, {"options", !exists || !reflect.DeepEqual(old.Options, profile.Options)}}
-		for _, field := range fields {
-			if field.changed {
-				origins[prefix+field.key] = origin
-			}
-		}
-		for key, value := range profile.Options {
-			if !exists || old.Options[key] != value {
-				origins[prefix+"options."+key] = origin
-			}
-		}
-	}
-}
-
-func markFixListOrigins(origins map[string]appconfig.Origin, before, after preferences.Fix, origin appconfig.Origin) {
-	prior := make(map[string]struct{}, len(before.Focus))
-	for _, metric := range before.Focus {
-		prior[metric] = struct{}{}
-	}
-	for _, metric := range after.Focus {
-		if _, exists := prior[metric]; !exists {
-			origins["fix.focus."+metric] = origin
-		}
-	}
-}
-
-func (adapter *Adapter) saveUser(workspace fix.WorkspaceIdentity, patch appconfig.Patch) error {
-	value, err := preferences.LoadOrCreate(adapter.userPath, adapter.defaults)
+func (store preferencesStore) saveUser(workspace fix.WorkspaceIdentity, patch appconfig.Patch, validator profileValidator) error {
+	value, err := preferences.LoadOrCreate(store.userPath, store.defaults)
 	if err != nil {
 		return err
 	}
 	if err := applyUserPatch(&value, patch); err != nil {
 		return err
 	}
-	if err := adapter.validateDocument(value); err != nil {
+	if err := validateDocument(value, validator); err != nil {
 		return fmt.Errorf("validate user preferences: %w", err)
 	}
-	if path, repository, _, exists, err := adapter.loadRepository(workspace); err != nil {
+	if path, repository, _, exists, err := store.loadRepository(workspace); err != nil {
 		return err
 	} else if exists {
 		candidate, err := documentToResolved(value)
@@ -401,21 +288,21 @@ func (adapter *Adapter) saveUser(workspace fix.WorkspaceIdentity, patch appconfi
 			return err
 		}
 		candidate.Origins = builtInOrigins()
-		if err := adapter.applyRepository(&candidate, repository); err != nil {
+		if err := validator.applyRepository(&candidate, repository); err != nil {
 			if quarantineErr := preferences.Quarantine(path); quarantineErr != nil {
 				return fmt.Errorf("reset invalid repository preferences: %w", quarantineErr)
 			}
 		}
 	}
-	return preferences.Save(adapter.userPath, value)
+	return preferences.Save(store.userPath, value)
 }
 
-func (adapter *Adapter) saveRepository(workspace fix.WorkspaceIdentity, patch appconfig.Patch) error {
-	path, hasRepository := adapter.repositoryPreferencesPath(workspace)
+func (store preferencesStore) saveRepository(workspace fix.WorkspaceIdentity, patch appconfig.Patch, validator profileValidator) error {
+	path, hasRepository := store.repositoryPreferencesPath(workspace)
 	if !hasRepository {
 		return errors.New("repository-scoped preferences require a repository identity")
 	}
-	_, value, _, _, err := adapter.loadRepository(workspace)
+	_, value, _, _, err := store.loadRepository(workspace)
 	if err != nil {
 		return err
 	}
@@ -427,7 +314,7 @@ func (adapter *Adapter) saveRepository(workspace fix.WorkspaceIdentity, patch ap
 	}
 	// Validate the complete effective configuration, including trusted-plan
 	// selection, before replacing the repository document.
-	user, err := preferences.LoadOrCreate(adapter.userPath, adapter.defaults)
+	user, err := preferences.LoadOrCreate(store.userPath, store.defaults)
 	if err != nil {
 		return err
 	}
@@ -436,7 +323,7 @@ func (adapter *Adapter) saveRepository(workspace fix.WorkspaceIdentity, patch ap
 		return err
 	}
 	candidate.Origins = builtInOrigins()
-	if err := adapter.applyRepository(&candidate, value); err != nil {
+	if err := validator.applyRepository(&candidate, value); err != nil {
 		return fmt.Errorf("validate repository preferences: %w", err)
 	}
 	return preferences.SavePartial(path, value)

@@ -151,7 +151,7 @@ func TestRepositoryScopeCannotPersistCommandsOrSecrets(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "cannot register agent profiles") {
 		t.Fatalf("repository profile Save() error = %v", err)
 	}
-	repositoryPath, _ := adapter.repositoryPreferencesPath(workspace)
+	repositoryPath, _ := adapter.storage.repositoryPreferencesPath(workspace)
 	if err := os.MkdirAll(filepath.Dir(repositoryPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +314,7 @@ func TestRepositoryBroadeningFromFileIsRejected(t *testing.T) {
 	candidate := initial.Concurrency
 	candidate.MaxAgents++
 	preference := appConcurrencyToPreference(candidate)
-	repositoryPath, _ := adapter.repositoryPreferencesPath(workspace)
+	repositoryPath, _ := adapter.storage.repositoryPreferencesPath(workspace)
 	if err := preferences.SavePartial(repositoryPath, preferences.PartialDocument{Concurrency: &preference}); err != nil {
 		t.Fatal(err)
 	}
