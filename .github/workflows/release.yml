@@ -159,6 +159,70 @@ jobs:
             jq '.files[] | select(.language == "go") | {coverage, coupling: .components.coupling_between_objects, god: .components.god_class}' "$RUNNER_TEMP/report.json"
             exit 1
           }
+          mixed="$RUNNER_TEMP/slopwatch-smoke-mixed"
+          cp -R "$source" "$mixed"
+          mkdir -p "$mixed/broken"
+          cat > "$mixed/broken/broken.go" <<'GO'
+          package broken
+          func Broken( {
+          GO
+          cat > "$mixed/broken/Broken.java" <<'JAVA'
+          class Broken { void broken( { }
+          JAVA
+          cat > "$mixed/broken/broken.rs" <<'RUST'
+          fn broken( {
+          RUST
+          cat > "$mixed/broken/broken.ts" <<'TYPESCRIPT'
+          export function broken(ok: boolean): void { if (ok) {
+          TYPESCRIPT
+          (
+            cd "$mixed"
+            env -u GOROOT "$unpack/build/slopmark" --format json . > "$RUNNER_TEMP/mixed-report.json"
+          )
+          jq -e '
+            . as $report
+            | [{path: "broken/broken.go", language: "go", code: "SYNTAX_ERROR"},
+               {path: "broken/Broken.java", language: "java", code: "SYNTAX_ERROR"},
+               {path: "broken/broken.rs", language: "rust", code: "SYNTAX_ERROR"},
+               {path: "broken/broken.ts", language: "typescript", code: "typescript.syntax."}] as $broken
+            | all($broken[];
+                . as $expected
+                | any($report.files[];
+                    .path == $expected.path
+                    and .language == $expected.language
+                    and (.complete == false)
+                    and ([(.coverage // {})[]] | length > 0 and all(.[]; . == "failed")))
+                and any(($report.diagnostics // [])[];
+                    .path == $expected.path
+                    and .severity == "error"
+                    and ((.message // "") | length > 0)
+                    and (if ($expected.code | endswith("."))
+                         then (.code | startswith($expected.code))
+                         else .code == $expected.code
+                         end)))
+            and (["main.go", "Main.java", "main.ts"]
+                | all(.[];
+                    . as $path
+                    | any($report.files[]; .path == $path and .complete == true)))
+            and any($report.files[];
+                .path == "main.go"
+                and .language == "go"
+                and .complete == true
+                and (.components.god_class.contribution > 0))
+            and any($report.files[];
+                .path == "main.rs"
+                and .language == "rust"
+                and (.coverage.cyclomatic_method_complexity == "complete")
+                and (.coverage.cognitive_complexity == "complete")
+                and (.coverage.npath_complexity == "complete")
+                and (.coverage.coupling_between_objects == "unavailable")
+                and any(.components.cyclomatic_method_complexity.evidence[];
+                    .routine == "rust_routine" and .value > 0))
+          ' "$RUNNER_TEMP/mixed-report.json" >/dev/null || {
+            echo "Packaged syntax recovery smoke test did not retain healthy files or failed broken-file coverage"
+            jq '{files: [.files[] | {path, language, complete, coverage}], diagnostics}' "$RUNNER_TEMP/mixed-report.json"
+            exit 1
+          }
           "$unpack/build/slopmark" --help >/dev/null
           "$unpack/build/slopwatch" --help >/dev/null
 

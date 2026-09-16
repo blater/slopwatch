@@ -132,8 +132,7 @@ type Model struct {
 	fixUpdates            fixSubscriptionState
 	fixGeneration         uint64
 	fixDialog             fixDialogState
-	jobCommand            jobCommandState
-	cancelConfirmation    cancelConfirmation
+	jobActions            jobActionState
 	jobMonitor            jobMonitorState
 	jobReader             jobReaderState
 	shutdown              shutdownState

@@ -54,7 +54,7 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	case jobReaderMsg:
 		return model, model.handleJobReader(message)
 	case shutdownCompleteMsg:
-		return model, model.handleShutdownComplete(message)
+		return model, model.shutdown.complete(message)
 	case tea.KeyMsg:
 		return handleKey(model, message)
 	default:
@@ -71,7 +71,7 @@ func handleWatcherReady(model *Model, message watcherReady) (tea.Model, tea.Cmd)
 		return model, nil
 	}
 	markFreshness(model, nil, report.FreshnessVerifying, "validating current workspace")
-	return model, tea.Batch(model.waitForChange(), model.analyze(nil, true))
+	return model, tea.Batch(waitForChange(model.watcher), model.analyze(nil, true))
 }
 
 func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -93,7 +93,7 @@ func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.C
 }
 
 func handleSourceChange(model *Model, message sourceChange) (tea.Model, tea.Cmd) {
-	command := model.waitForChange()
+	command := waitForChange(model.watcher)
 	if message.Err != nil {
 		model.status = message.Err.Error()
 		return model, command

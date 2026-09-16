@@ -1,10 +1,6 @@
 package follow
 
-import (
-	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
-)
+import tea "github.com/charmbracelet/bubbletea"
 
 func (model *Model) handleConfigSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	state := &model.configSettings
@@ -38,33 +34,12 @@ func (model *Model) applyConfigKeyAction(action configKeyAction) (tea.Model, tea
 }
 
 func (model *Model) handleMasterPromptKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	state := &model.configSettings
-	switch key.String() {
-	case "ctrl+s":
-		value := strings.TrimSpace(cleanEditorText(state.prompt.Value()))
-		if value == "" {
-			state.promptError = "Agent prompt cannot be empty"
-			resizeMasterPromptTextBox(&model.configSettings, model.width, model.height)
-			return model, nil
-		}
-		state.promptError = ""
-		state.working.Fix.PromptTemplate = value
-		state.promptOriginal = value
-		state.prompt.Blur()
-		state.dirty = true
+	result := model.configSettings.handlePromptKey(key, model.width, model.height)
+	if result.close {
 		model.overlays.Pop()
-		return model, model.saveConfigSettings()
-	case "esc", "escape":
-		state.prompt.SetValue(state.promptOriginal)
-		state.promptError = ""
-		state.prompt.Blur()
-		model.overlays.Pop()
-		return model, nil
-	default:
-		updated, command := state.prompt.Update(key)
-		state.prompt = updated
-		state.promptError = ""
-		resizeMasterPromptTextBox(&model.configSettings, model.width, model.height)
-		return model, command
 	}
+	if result.save {
+		return model, model.saveConfigSettings()
+	}
+	return model, result.command
 }

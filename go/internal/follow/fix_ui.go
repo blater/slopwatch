@@ -76,20 +76,6 @@ type targetScoreEditResult struct {
 	value    float64
 }
 
-type cancelConfirmation struct {
-	jobID     fix.JobID
-	action    fix.JobAction
-	allowed   bool
-	pending   bool
-	errorText string
-}
-
-type jobCommandState struct {
-	jobID   fix.JobID
-	action  fix.JobAction
-	pending bool
-}
-
 type jobMonitorState struct {
 	generation uint64
 	jobID      fix.JobID
@@ -363,7 +349,7 @@ func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 	if message.err != nil {
 		return model.fixUpdateError(message.err)
 	}
-	model.clearFixUpdateError()
+	model.fixNotice = model.fixUpdates.clearError(model.fixNotice)
 	previousMonitorUpdate, previousLogUpdate := model.openFixSurfaceUpdates()
 	model.agents.setPresentations(message.jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
 	monitorCommand, logCommand := model.refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpdate)
@@ -374,10 +360,6 @@ func (model *Model) fixUpdateError(err error) tea.Cmd {
 	var retry tea.Cmd
 	model.fixNotice, retry = model.fixUpdates.markUnavailable(err)
 	return retry
-}
-
-func (model *Model) clearFixUpdateError() {
-	model.fixNotice = model.fixUpdates.clearError(model.fixNotice)
 }
 
 func (model *Model) requestQuit() (tea.Model, tea.Cmd) {
@@ -411,10 +393,6 @@ func (model *Model) handleShutdownKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return model, outcome.command
 }
 
-func (model *Model) handleShutdownComplete(message shutdownCompleteMsg) tea.Cmd {
-	return model.shutdown.complete(message)
-}
-
 func (model *Model) openCancelConfirmation() {
 	jobID := model.agents.Selected.JobID
 	if jobID == "" {
@@ -442,13 +420,13 @@ func (model *Model) activateJobAction(jobID fix.JobID, choices ...fix.JobAction)
 		return model, nil
 	}
 	if jobActionRequiresConfirmation(action) {
-		model.cancelConfirmation = cancelConfirmation{
+		model.jobActions.confirmation = cancelConfirmation{
 			jobID: job.ID, action: action, allowed: true,
 		}
 		model.overlays.Push(OverlayConfirmation, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: job.ID}.String()})
 		return model, nil
 	}
-	model.jobCommand = jobCommandState{jobID: job.ID, action: action, pending: true}
+	model.jobActions.command = jobCommandState{jobID: job.ID, action: action, pending: true}
 	return model.executeSelectedJobAction(job.ID, action, false)
 }
 
@@ -475,14 +453,14 @@ func containsFixAction(actions []fix.JobAction, wanted fix.JobAction) bool {
 }
 
 func (model *Model) handleCancelConfirmationKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if (key.String() == "esc" || key.String() == "q") && !model.cancelConfirmation.pending {
+	if (key.String() == "esc" || key.String() == "q") && !model.jobActions.confirmation.pending {
 		model.overlays.Pop()
 		return model, nil
 	}
-	if key.String() != "enter" || model.cancelConfirmation.pending || !model.cancelConfirmation.allowed {
+	if key.String() != "enter" || model.jobActions.confirmation.pending || !model.jobActions.confirmation.allowed {
 		return model, nil
 	}
-	return model.executeSelectedJobAction(model.cancelConfirmation.jobID, model.cancelConfirmation.action, true)
+	return model.executeSelectedJobAction(model.jobActions.confirmation.jobID, model.jobActions.confirmation.action, true)
 }
 
 func jobActionPastTense(action fix.JobAction) string {

@@ -9,12 +9,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func (model Model) waitForChange() tea.Cmd {
-	return func() tea.Msg { return model.watcher.wait() }
+func waitForChange(watcher *sourceWatcher) tea.Cmd {
+	return func() tea.Msg { return watcher.wait() }
 }
 
-func (model Model) startWatcher() tea.Cmd {
-	return func() tea.Msg { return watcherReady{err: model.watcher.start()} }
+func startWatcher(watcher *sourceWatcher) tea.Cmd {
+	return func() tea.Msg { return watcherReady{err: watcher.start()} }
 }
 
 func (model Model) analyze(paths []string, full bool) tea.Cmd {

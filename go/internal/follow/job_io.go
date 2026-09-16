@@ -117,25 +117,13 @@ func (model *Model) handleJobMonitorKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case jobMonitorKeyNext:
 		return model, model.openJobMonitor(result.jobID, "")
 	case jobMonitorKeyLog:
-		return model, model.openJobLog(result.jobID)
+		return model, model.openJobReader(OverlayJobLog, result.jobID, "")
 	case jobMonitorKeyDiff:
-		return model, model.openJobDiff(result.jobID, result.path)
+		return model, model.openJobReader(OverlayJobDiff, result.jobID, result.path)
 	case jobMonitorKeyCancel:
 		return model.activateJobAction(result.jobID, fix.ActionCancel)
 	}
 	return model, nil
-}
-
-func (model *Model) openJobLog(jobID fix.JobID) tea.Cmd {
-	return model.openJobReader(OverlayJobLog, jobID, "")
-}
-
-func (model *Model) openJobDiff(jobID fix.JobID, path fix.RepoPath) tea.Cmd {
-	return model.openJobReader(OverlayJobDiff, jobID, path)
-}
-
-func (model *Model) openCandidateSource(jobID fix.JobID, path fix.RepoPath) tea.Cmd {
-	return model.openJobReader(OverlayCandidateSource, jobID, path)
 }
 
 func (model *Model) openJobReader(kind OverlayKind, jobID fix.JobID, path fix.RepoPath) tea.Cmd {

@@ -66,9 +66,9 @@ func TestJobMonitorAndReadersLoadThroughService(t *testing.T) {
 		open func() tea.Cmd
 		want string
 	}{
-		{OverlayJobLog, func() tea.Cmd { return model.openJobLog(job.ID) }, "Read a.go"},
-		{OverlayJobDiff, func() tea.Cmd { return model.openJobDiff(job.ID, "a.go") }, "modified"},
-		{OverlayCandidateSource, func() tea.Cmd { return model.openCandidateSource(job.ID, "a.go") }, "package sample"},
+		{OverlayJobLog, func() tea.Cmd { return model.openJobReader(OverlayJobLog, job.ID, "") }, "Read a.go"},
+		{OverlayJobDiff, func() tea.Cmd { return model.openJobReader(OverlayJobDiff, job.ID, "a.go") }, "modified"},
+		{OverlayCandidateSource, func() tea.Cmd { return model.openJobReader(OverlayCandidateSource, job.ID, "a.go") }, "package sample"},
 	} {
 		command = test.open()
 		if command == nil || !overlayPresent(model.overlays, test.kind) {
@@ -102,7 +102,7 @@ func TestJobReadersConsumeEveryServicePageAndExplainConfiguredTruncation(t *test
 
 func assertPagedLog(t *testing.T, model *Model, service *pagedReaderFixService) {
 	t.Helper()
-	logMessage := model.openJobLog("job-pages")().(jobReaderMsg)
+	logMessage := model.openJobReader(OverlayJobLog, "job-pages", "")().(jobReaderMsg)
 	logText := strings.Join(logMessage.lines, "\n")
 	if logMessage.err != nil || logMessage.truncated || !strings.Contains(logText, "first activity") || !strings.Contains(logText, "second activity") {
 		t.Fatalf("paged log=%+v", logMessage)
@@ -115,7 +115,7 @@ func assertPagedLog(t *testing.T, model *Model, service *pagedReaderFixService) 
 
 func assertPagedDiff(t *testing.T, model *Model, service *pagedReaderFixService) {
 	t.Helper()
-	diffMessage := model.openJobDiff("job-pages", "")().(jobReaderMsg)
+	diffMessage := model.openJobReader(OverlayJobDiff, "job-pages", "")().(jobReaderMsg)
 	if diffMessage.err != nil || diffMessage.truncated || !strings.Contains(strings.Join(diffMessage.lines, "\n"), "first.go") || !strings.Contains(strings.Join(diffMessage.lines, "\n"), "second.go") {
 		t.Fatalf("paged diff=%+v", diffMessage)
 	}
@@ -147,7 +147,7 @@ func TestJobLogOpensAtEndFollowsUpdatesAndScrollsBothWays(t *testing.T) {
 	}
 	model := fixTestModel(service, 60, 12)
 	model.agents.Jobs = []fix.JobPresentation{job}
-	model.handleJobReader(model.openJobLog(job.ID)().(jobReaderMsg))
+	model.handleJobReader(model.openJobReader(OverlayJobLog, job.ID, "")().(jobReaderMsg))
 	assertJobLogNavigation(t, &model)
 	pausedAt := assertJobLogHorizontalScroll(t, &model)
 	assertJobLogRefresh(t, &model, service, job, pausedAt)
@@ -339,7 +339,7 @@ func TestQuitWithActiveJobsConfirmsAndJoinsService(t *testing.T) {
 	if service.shutdowns != 1 || message.err != nil {
 		t.Fatalf("shutdown calls=%d err=%v", service.shutdowns, message.err)
 	}
-	if quit := result.handleShutdownComplete(message); quit == nil {
+	if quit := result.shutdown.complete(message); quit == nil {
 		t.Fatal("successful joined shutdown did not quit")
 	}
 }

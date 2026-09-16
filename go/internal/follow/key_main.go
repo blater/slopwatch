@@ -42,14 +42,14 @@ func dispatchAgentKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "i":
 		return model, model.openJobMonitor(model.agents.Selected.JobID, model.agents.Selected.Path)
 	case "d":
-		return model, model.openJobDiff(model.agents.Selected.JobID, model.agents.Selected.Path)
+		return model, model.openJobReader(OverlayJobDiff, model.agents.Selected.JobID, model.agents.Selected.Path)
 	case "l":
 		if !model.agents.Selected.IsZero() {
-			return model, model.openJobLog(model.agents.Selected.JobID)
+			return model, model.openJobReader(OverlayJobLog, model.agents.Selected.JobID, "")
 		}
 	case "v":
 		if !model.agents.Selected.IsJob() {
-			return model, model.openCandidateSource(model.agents.Selected.JobID, model.agents.Selected.Path)
+			return model, model.openJobReader(OverlayCandidateSource, model.agents.Selected.JobID, model.agents.Selected.Path)
 		}
 	case "C":
 		model.openCancelConfirmation()
@@ -104,7 +104,7 @@ func dispatchFileKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		model.clearMarkedFiles()
 	case " ":
 		if model.files.Marking {
-			model.toggleCurrentMark()
+			model.files.toggleCurrentMark(model.options.Limit)
 		}
 	case "v":
 		return model, openSourceView(model)

@@ -211,19 +211,19 @@ func TestResizeScreenGatesInputForEveryHiddenOverlay(t *testing.T) {
 			service := &fakeFixService{input: readyFixInput("a.go")}
 			model := fixTestModel(service, 35, 6)
 			model.fixDialog = fixDialogState{hasInput: true, input: readyFixInput("a.go"), cursor: fixFieldTargetScore}
-			model.jobCommand = jobCommandState{jobID: "job", action: fix.ActionCancel}
-			model.cancelConfirmation = cancelConfirmation{jobID: "job", action: fix.ActionCancel, allowed: true}
+			model.jobActions.command = jobCommandState{jobID: "job", action: fix.ActionCancel}
+			model.jobActions.confirmation = cancelConfirmation{jobID: "job", action: fix.ActionCancel, allowed: true}
 			model.configSettings = configSettingsState{open: true, dirty: true, dirtyCursor: 1}
 			model.overlays.Push(kind, OverlayCaller{MainView: MainViewFiles, Selected: "a.go"})
 			beforeLen := model.overlays.Len()
 			beforeCursor := model.fixDialog.cursor
-			beforePending := model.cancelConfirmation.pending
+			beforePending := model.jobActions.confirmation.pending
 
 			updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyEnter})
 			result := updated.(*Model)
 			top, ok := result.overlays.Top()
 			if command != nil || !ok || top.Kind != kind || result.overlays.Len() != beforeLen || result.fixDialog.cursor != beforeCursor ||
-				result.cancelConfirmation.pending != beforePending || service.executed.JobID != "" {
+				result.jobActions.confirmation.pending != beforePending || service.executed.JobID != "" {
 				t.Fatalf("hidden overlay %d consumed Enter: top=%+v len=%d command=%v executed=%+v", kind, top, result.overlays.Len(), command, service.executed)
 			}
 			if view := ansi.Strip(result.View()); !strings.Contains(view, "RESIZE TERMINAL") {

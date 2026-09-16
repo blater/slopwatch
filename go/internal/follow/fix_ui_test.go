@@ -588,8 +588,8 @@ func TestLiveJobsProjectWhileOverlayOpenAndCancelTargetsStableJob(t *testing.T) 
 	model.agents.Selected = AgentRowID{JobID: "two"}
 	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
 	result := updated.(*Model)
-	if !overlayPresent(result.overlays, OverlayConfirmation) || result.cancelConfirmation.jobID != "two" {
-		t.Fatalf("cancel confirmation captured %+v", result.cancelConfirmation)
+	if !overlayPresent(result.overlays, OverlayConfirmation) || result.jobActions.confirmation.jobID != "two" {
+		t.Fatalf("cancel confirmation captured %+v", result.jobActions.confirmation)
 	}
 	updated, command := handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)

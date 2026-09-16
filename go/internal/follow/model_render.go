@@ -17,9 +17,9 @@ func initModel(model Model) tea.Cmd {
 	if model.initialAnalysis {
 		// Establish the mutation barrier before the verifier reads any live
 		// input. This still runs after Bubble Tea renders the cached projection.
-		commands = append(commands, model.startWatcher(), hideStartupLogo())
+		commands = append(commands, startWatcher(model.watcher), hideStartupLogo())
 	} else {
-		commands = append(commands, model.waitForChange())
+		commands = append(commands, waitForChange(model.watcher))
 	}
 	return tea.Batch(commands...)
 }

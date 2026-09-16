@@ -5,10 +5,6 @@ func (model *Model) toggleMarkMode() {
 	model.files.HorizontalOffset = min(model.files.HorizontalOffset, maxPathOffset(*model))
 }
 
-func (model *Model) toggleCurrentMark() {
-	model.files.toggleCurrentMark(model.options.Limit)
-}
-
 func (model *Model) moveAndToggleMark(delta int) {
 	model.files.moveAndToggleMark(delta, model.options.Limit, model.bodyHeight())
 }

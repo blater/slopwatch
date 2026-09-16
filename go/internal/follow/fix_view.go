@@ -31,9 +31,9 @@ func (model Model) featureOverlayView(base string, frame OverlayFrame) string {
 		return jobMonitorView(base, model.jobMonitor, model.width, model.height, model.agentMetricPolicy())
 	case OverlayConfirmation:
 		if fullScreenSurface(model.width, model.height) {
-			return confirmationFullScreen(model.cancelConfirmation, model.width, model.height)
+			return confirmationFullScreen(model.jobActions.confirmation, model.width, model.height)
 		}
-		return model.overlay(base, confirmationPopup(model.cancelConfirmation, model.width))
+		return model.overlay(base, confirmationPopup(model.jobActions.confirmation, model.width))
 	case OverlayJobLog, OverlayJobDiff, OverlayCandidateSource:
 		return jobReaderView(base, model.jobReader, model.width, model.height)
 	case OverlaySettingsDirty:
