@@ -2,7 +2,6 @@ package follow
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/blater/slopwatch/internal/fix"
@@ -88,70 +87,10 @@ func cloneAgentPresentations(jobs []fix.JobPresentation) []fix.JobPresentation {
 }
 
 func (state AgentsState) visibleJobs() []fix.JobPresentation {
-	jobs := make([]fix.JobPresentation, 0, len(state.Jobs))
-	query := strings.ToLower(strings.TrimSpace(state.FindQuery))
-	for _, job := range state.Jobs {
-		if job.Phase == fix.PhaseDiscarded {
-			continue
-		}
-		if !state.ShowAll && (job.Phase == fix.PhaseCompleted || job.Phase == fix.PhaseCanceled) {
-			continue
-		}
-		if query != "" && !agentJobMatches(job, query) {
-			continue
-		}
-		jobs = append(jobs, job)
-	}
-	sort.SliceStable(jobs, func(left, right int) bool { return state.jobLess(jobs[left], jobs[right]) })
-	return jobs
+	return filterAgentJobs(state.Jobs, state.FindQuery, state.ShowAll, state.SortKey, state.SortReverse)
 }
 
 var agentSortKeys = []string{"attention", "state", "agent", "goal", "target", "time", "activity"}
-
-func (state AgentsState) jobLess(left, right fix.JobPresentation) bool {
-	key := state.SortKey
-	if key == "" {
-		key = "attention"
-	}
-	less, equal := agentSortComparison(key, left, right)
-	if equal {
-		less = left.ID < right.ID
-	}
-	if state.SortReverse && !equal {
-		return !less
-	}
-	return less
-}
-
-func agentSortComparison(key string, left, right fix.JobPresentation) (bool, bool) {
-	switch key {
-	case "state":
-		return compareAgentText(agentPhaseText(left), agentPhaseText(right))
-	case "agent":
-		return compareAgentText(left.ProfileLabel, right.ProfileLabel)
-	case "goal":
-		return compareAgentText(left.Goal, right.Goal)
-	case "target":
-		return firstAgentTarget(left) < firstAgentTarget(right), firstAgentTarget(left) == firstAgentTarget(right)
-	case "time":
-		return left.UpdatedAt.Before(right.UpdatedAt), left.UpdatedAt.Equal(right.UpdatedAt)
-	case "activity":
-		return compareAgentText(left.CurrentAction, right.CurrentAction)
-	default:
-		return agentJobPriority(left) < agentJobPriority(right), agentJobPriority(left) == agentJobPriority(right)
-	}
-}
-
-func compareAgentText(left, right string) (bool, bool) {
-	return strings.ToLower(left) < strings.ToLower(right), strings.EqualFold(left, right)
-}
-
-func firstAgentTarget(job fix.JobPresentation) string {
-	if len(job.Targets) == 0 {
-		return ""
-	}
-	return strings.ToLower(job.Targets[0].Path.String())
-}
 
 func (state *AgentsState) cycleSort(direction int, layout agentLayout) {
 	current := 0
@@ -248,25 +187,7 @@ func agentJobFinished(phase fix.Phase) bool {
 }
 
 func (state AgentsState) rows() []agentLogicalRow {
-	jobs := state.visibleJobs()
-	query := strings.ToLower(strings.TrimSpace(state.FindQuery))
-	rows := make([]agentLogicalRow, 0, len(jobs)*2)
-	for _, job := range jobs {
-		rows = append(rows, agentLogicalRow{ID: AgentRowID{JobID: job.ID}, Job: job})
-		expanded := state.Expanded[job.ID]
-		matchingFiles := query != "" && agentTargetMatches(job, query)
-		if !expanded && !matchingFiles {
-			continue
-		}
-		for index := range job.Targets {
-			file := job.Targets[index]
-			if query != "" && matchingFiles && !strings.Contains(strings.ToLower(file.Path.String()), query) {
-				continue
-			}
-			rows = append(rows, agentLogicalRow{ID: AgentRowID{JobID: job.ID, Path: file.Path}, Job: job, File: &file})
-		}
-	}
-	return rows
+	return projectAgentRows(state.visibleJobs(), state.Expanded, state.FindQuery)
 }
 
 func agentTargetMatches(job fix.JobPresentation, query string) bool {

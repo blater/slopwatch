@@ -381,6 +381,7 @@ func TestAgentPathScrollRangeUsesOnlyExactRenderedPathViewport(t *testing.T) {
 	job.Targets[0].Path = "new/location/with/a/very/long/name.go"
 	model = agentTestModel(60, 16, job)
 	model.agents.Expanded[job.ID] = true
+	policy = model.agentMetricPolicy()
 	want := max(0, lipgloss.Width(agentFileDisplayPath(job.Targets[0]))-agentFilePathViewport(job.Targets[0], ResponsiveMedium, 60, visibleAgentFileMetrics(job.Targets[0], policy.visible)))
 	if got := maximumAgentHorizontalOffset(model.agents.rows(), responsiveTier(model.width, model.height), model.width, policy.visible); got != want {
 		t.Fatalf("renamed path scroll maximum = %d, want exact %d", got, want)
