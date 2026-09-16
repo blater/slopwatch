@@ -2,15 +2,15 @@
 
 # SlopWatch: Watch the slop - in realtime
 
-Slopwatch exists because I wanted two things when working with agent teams - 1) to know when to take them off task and push them to resolve debt, and 2) to give them a way of measuring it themselves.
+**Slopwatch** exists because I wanted two things when working with agent teams - 
+  1) to give the agents an objective measure of slop that I can tell them to keep below.
+  2) to easily assess the level of slop in the codebase so that I know when to take the agents off task and push them to resolve their technical debt.
 
-For the agents, I build slopmark (packaged with slopwatch) which performs fast static analysis on a codebase/branch/worktree.  
-The focus is on design smells for long term code health, so its not a replacement for a linter. I give the agents a specific target they cannot breach and instructions to review and reword until the slopmark score passes.
+For the agents, I built **slopmark** (packaged with this) which performs fast static analysis on a codebase/branch/worktree.  Its focus is on design smells for long term code health (so its not a replacement for a linter). I like to give the agents a specific slopmark target they cannot breach and instructions to review and rework until the slopmark score passes. 
 
-For us humans there's slopwatch, which is kind of like [btop](https://github.com/aristocratos/btop) for code health, and lets you know the health of the codebase at a glance.  It is a TUI on top of slopmark and tracks various static analysis metrics - basically if its red its not good.
+For us humans there's *slopwatch*, a kind of [btop](https://github.com/aristocratos/btop) for code health, which lets you see the health of the codebase at a glance.  It is a TUI on top of *slopmark* which tracks and displays static analysis metrics - if its red its not good.
 
-It currently handles design and abstraction smells in Go, Java, TypeScript, and Rust, giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
-
+The system handles design and abstraction smells in Rust, Go, Typescript, and Java (please vote on what other languages you'd like to see!!), giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
 
 ## Install and usage
 
@@ -42,15 +42,26 @@ slopwatch .
 ```
 ![Slopmark follow-mode dashboard](docs/follow-mode.svg)
 
-In the dashboard, use the arrow keys or `j`/`k` to move, `g`/`G` to jump to
-the first or last result, `v` to view the selected file, `f` or `/` to find,
-`h` for topic-based help, and `q` to quit. Choose Settings → Appearance to
-switch between the dark and light themes.
+### keys
 
-Dashboard appearance, columns, sorting, scoring weights, and interaction
-defaults persist in a versioned, user-editable TOML file. See
-[Preferences](docs/preferences.md) for its location, complete schema, and
-command-line precedence rules.
+In the dashboard, use 
+* up/down arrow keys or `j`/`k` to move, 
+* left/right arrows to scroll the file path,
+* ^f/^b to jump forward/backward a page a time,
+* `g`/`G` to goto the top or bottom file in the list, 
+* `o` to choose what to sort by (aggregated score by default)
+* `v` to view the selected file, 
+* `f` or `/` to find a file,
+* `n` or `N` to find the next occurance of the search string (n=down, N=upwards)
+* `h` for topic-based help, 
+* `q` to quit. 
+
+### Settings 
+
+Choose Settings → Appearance to switch between the dark and light themes.
+There's a lot of other customization in settings as well. I'd love feedback o what should/shouldn't be options.
+
+Dashboard appearance, columns, sorting, scoring weights, and interaction defaults persist in a versioned, user-editable TOML file. See [Preferences](docs/preferences.md) for its location, complete schema, and command-line precedence rules.
 
 ### Running slopmark
 use `slopmark [TARGET ...]` to Analyze directories or files
@@ -176,12 +187,13 @@ An `if` or loop adds one, each non-default switch case adds one, boolean
 jumps and panics are accounted for where the language adapter exposes them.
 The report shows the total across routines and the maximum routine value.
 
-### SHALLOW — module shallowness penalty
+### SHALLOW — module depth (or lack thereof penalty)
 
-SHALLOW is an Ousterhout-inspired penalty: a module is deeper when it provides
-more useful functionality through a smaller caller-visible interface. Higher
-SHALLOW is worse. The calculation uses a COSMIC-inspired static approximation
-of functional capability, not LOC or private implementation size.
+SHALLOW is an Ousterhout-inspired penalty: a module is deeper when it provides more useful functionality through a smaller caller-visible interface. 
+Higher SHALLOW is worse. The calculation uses a COSMIC-inspired static approximation of functional capability, not LOC or private implementation size.
+This is my intuitively favourite measure - I feel this one really "gets" what bad code is all about. 
+*But* it is tricker to measure. The other measurements all have standard implementations, this one being relatively new doesn't.  
+I've implemented my take on what module depth _should_ mean - the formula is below - basically how well does the interface hide the complexity of the task. As with all of these measures, there is a certain arbitraryness to all the thresholds. Please give feedback on what you think I've got right or wrong, what what you'd change:
 
 *Formula*
 ```text
@@ -201,19 +213,11 @@ SHALLOW = round(clamp(0, 100,
     0.80 × depth penalty + 0.20 × leakage penalty))
 ```
 
-An entry is data or an event supplied to a public operation. An exit is a
-result or observable output. Reads and writes are recognized persistent-store
-movements. The analyzer estimates these terms from public operations, their
-signatures, public types, and exposed mutable representation.
+An entry is data or an event supplied to a public operation. An exit is a result or observable output. Reads and writes are recognized persistent-store movements. The analyzer estimates these terms from public operations, their signatures, public types, and exposed mutable representation.
 
-`D_ref` is selected from caller-visible role evidence by the versioned
-`role-shape-v2` policy. The report includes the raw `D`, the reference, and
-the penalty components. A module with no identifiable public interface is
-unavailable rather than being assigned a misleading zero.
+`D_ref` is selected from caller-visible role evidence by the versioned `role-shape-v2` policy. The report includes the raw `D`, the reference, and the penalty components. A module with no identifiable public interface is unavailable rather than being assigned a misleading zero.
 
-For nested types, each wrapper and child contributes one. The structural
-analyzers cap each type shape at 32 so one enormous type cannot dominate the
-metric.
+For nested types, each wrapper and child contributes 1 point. The structural analyzers cap each type shape at 32 so one enormous type can't dominate the metric.
 
 SHALLOW uses a threshold of `20`, a weight of `5`, and `log-ratio`. Therefore:
 
@@ -226,17 +230,13 @@ SHALLOW = 80  → contribution 15
 
 ### CPL — type coupling
 
-CPL shows the maximum number of distinct foreign types referenced by any type
-in the file. The displayed value is the raw coupling measurement; scoring uses
-the separately configured contribution. With the default threshold of `20`,
-values below `20` remain visible in CPL even though they contribute zero to
+How tightly coupled is the module/class/file.  CPL shows the maximum number of distinct foreign types referenced by any type in the file. The displayed value is the raw coupling measurement; scoring uses the separately configured contribution. With the default threshold of `20`, values below `20` remain visible in CPL even though they contribute zero to
 SCORE.
 
 
 ### GOD — responsibility concentration
 
-GOD uses PMD's God Class signal, generalized to the type systems supported by
-each analyzer. A type is a candidate when all three conditions hold:
+Has it got (much) too many responsibilities? GOD uses PMD's God Class signal, generalized to the type systems supported by each analyzer. A type is a GOD candidate when all 3 of these conditions hold:
 
 ```text
 WMC >= 47       weighted routine complexity is high
@@ -244,13 +244,9 @@ ATFD > 5        access to foreign data is high
 TCC < 1/3       type cohesion is low
 ```
 
-WMC is the sum of routine complexities, ATFD counts distinct foreign data
-accesses, and TCC is the proportion of routine pairs sharing access to state.
-The analyzer applies the test to the type-level declaration for which it has
-the required evidence. This may be a class, struct, record, or interface,
-depending on the language and analyzer. The displayed GOD value is the
-weighted penalty for the candidate; zero means the combined conditions did not
-trigger, and `-` means unavailable.
+WMC is the sum of routine complexities, ATFD counts distinct foreign data accesses, and TCC is the proportion of routine pairs sharing access to state.
+The analyzer applies the test to the type-level declaration for which it has the required evidence. This may be a class, struct, record, or interface, depending on the language and analyzer. 
+The displayed GOD value is the weighted penalty for the candidate; zero means the combined conditions did not trigger, and `-` means unavailable.
 
 
 ## Agent-assisted fixes
