@@ -44,25 +44,18 @@ func (model *Model) refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpd
 }
 
 func (model Model) nextFixUpdate(monitorCommand, logCommand tea.Cmd) tea.Cmd {
-	if model.fixService == nil || model.fixSubscription == nil {
-		return tea.Batch(monitorCommand, logCommand)
-	}
-	return tea.Batch(waitFixJobsCommand(model.fixService, model.fixSubscription), monitorCommand, logCommand)
+	return model.fixUpdates.next(model.fixService, monitorCommand, logCommand)
 }
 
 func (model *Model) retryFixSubscription(message fixRetrySubscriptionMsg) tea.Cmd {
-	if message.generation != model.fixRetryGeneration || model.fixService == nil {
+	recovery := model.fixUpdates.retry(model.fixService, message.generation)
+	if !recovery.accepted {
 		return nil
 	}
-	if model.fixSubscription != nil {
-		_ = model.fixSubscription.Close()
-	}
-	model.fixSubscription = model.fixService.Subscribe()
-	snapshot := model.fixService.Jobs(fixapp.JobFilter{IncludeFinished: true})
-	model.agents.setPresentations(snapshot.Jobs, makeAgentLayout(model.width, model.height, model.bodyHeight()))
-	model.fixUpdatesStale = false
-	model.fixNotice = "Fix updates restored"
-	return waitFixJobsCommand(model.fixService, model.fixSubscription)
+	snapshot := recovery.jobs
+	model.agents.setPresentations(snapshot, makeAgentLayout(model.width, model.height, model.bodyHeight()))
+	model.fixNotice = recovery.notice
+	return recovery.command
 }
 
 func (model *Model) openJobMonitor(jobID fix.JobID, focus fix.RepoPath) tea.Cmd {

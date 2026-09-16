@@ -227,10 +227,7 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case fixDialogActionScoreEditor:
 		return model, model.openFixTargetScoreEditor()
 	case fixDialogActionSaveTarget:
-		model.fixTargetDesired = model.fixDialog.input.TargetScore
-		if !model.fixTargetSaving {
-			return model, model.saveFixTargetPreference(model.fixDialog.input.Preferences)
-		}
+		return model, model.targetScorePreference.request(model.fixDialog.input.TargetScore, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace)
 	case fixDialogActionReloadProfile:
 		profile := result.profile
 		return model, model.reloadFixForm(&profile)

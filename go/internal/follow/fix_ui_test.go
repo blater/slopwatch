@@ -186,7 +186,7 @@ func startTargetScoreSave(t *testing.T, model *Model) tea.Cmd {
 	t.Helper()
 	model.fixDialog.cursor = fixFieldTargetScore
 	_, first := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyLeft})
-	if first == nil || !model.fixTargetSaving {
+	if first == nil || !model.targetScorePreference.saving {
 		t.Fatal("first target-score adjustment did not start a preference save")
 	}
 	return first
@@ -195,8 +195,8 @@ func startTargetScoreSave(t *testing.T, model *Model) tea.Cmd {
 func queueTargetScoreSave(t *testing.T, model *Model) {
 	t.Helper()
 	_, queued := model.handleFixFormKey(tea.KeyMsg{Type: tea.KeyLeft})
-	if queued != nil || model.fixTargetDesired != 80 {
-		t.Fatalf("rapid adjustment was not queued behind the active save: desired=%v command=%v", model.fixTargetDesired, queued)
+	if queued != nil || model.targetScorePreference.desired != 80 {
+		t.Fatalf("rapid adjustment was not queued behind the active save: desired=%v command=%v", model.targetScorePreference.desired, queued)
 	}
 }
 
@@ -215,7 +215,7 @@ func finishTargetScoreSaves(t *testing.T, model *Model, first tea.Cmd, store *ap
 	if next == nil {
 		t.Fatal("queued target score was not saved after the first write")
 	}
-	if trailing := model.handleFixTargetPreferenceSaved(next().(fixTargetPreferenceSavedMsg)); trailing != nil || model.fixTargetSaving {
+	if trailing := model.handleFixTargetPreferenceSaved(next().(fixTargetPreferenceSavedMsg)); trailing != nil || model.targetScorePreference.saving {
 		t.Fatal("serialized target-score saves did not settle")
 	}
 	saved, err := store.Resolve(t.Context(), fix.WorkspaceIdentity{}, appconfig.SessionOverrides{})

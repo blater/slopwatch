@@ -10,7 +10,6 @@ import (
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/appconfig"
 	"github.com/blater/slopwatch/internal/fix"
-	"github.com/blater/slopwatch/internal/fixapp"
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/style"
@@ -121,67 +120,64 @@ type sourceState struct {
 }
 
 type Model struct {
-	analyzer            Analyzer
-	watcher             *sourceWatcher
-	options             Options
-	mainView            MainView
-	files               FilesState
-	agents              AgentsState
-	overlays            OverlayStack
-	fixService          FixService
-	fixWorkspace        fix.WorkspaceIdentity
-	fixSubscription     fixapp.Subscription
-	fixGeneration       uint64
-	fixDialog           fixDialogState
-	jobCommand          jobCommandState
-	cancelConfirmation  cancelConfirmation
-	jobMonitor          jobMonitorState
-	jobReader           jobReaderState
-	shutdown            shutdownState
-	fixNotice           string
-	fixUpdatesStale     bool
-	fixRetryGeneration  uint64
-	fixTargetDesired    float64
-	fixTargetSaving     bool
-	configStore         ConfigStore
-	configWorkspace     fix.WorkspaceIdentity
-	profileProber       ProfileProber
-	profileCatalog      agent.ProfileCatalog
-	configSettings      configSettingsState
-	repositoryIdentity  string
-	width               int
-	height              int
-	analyzing           bool
-	queued              map[string]bool
-	status              string
-	initialAnalysis     bool
-	startupLogoExpired  bool
-	animationFrame      int
-	detail              bool
-	detailOffset        int
-	help                bool
-	helpCursor          int
-	helpTopic           string
-	infoOpen            bool
-	infoKey             string
-	columns             bool
-	columnCursor        int
-	sortOpen            bool
-	settings            bool
-	settingsCursor      int
-	appearance          bool
-	appearanceCursor    int
-	theme               style.Theme
-	weightsOpen         bool
-	weightCursor        int
-	weightsResetConfirm bool
-	weights             map[string]float64
-	weightEnabled       map[string]bool
-	weightStep          float64
-	maximumWeight       float64
-	preferencesPath     string
-	preferences         preferences.Document
-	columnsFromSettings bool
-	pendingFullAnalysis bool
-	source              sourceState
+	analyzer              Analyzer
+	watcher               *sourceWatcher
+	options               Options
+	mainView              MainView
+	files                 FilesState
+	agents                AgentsState
+	overlays              OverlayStack
+	fixService            FixService
+	fixWorkspace          fix.WorkspaceIdentity
+	fixUpdates            fixSubscriptionState
+	fixGeneration         uint64
+	fixDialog             fixDialogState
+	jobCommand            jobCommandState
+	cancelConfirmation    cancelConfirmation
+	jobMonitor            jobMonitorState
+	jobReader             jobReaderState
+	shutdown              shutdownState
+	fixNotice             string
+	targetScorePreference targetScorePreferenceState
+	configStore           ConfigStore
+	configWorkspace       fix.WorkspaceIdentity
+	profileProber         ProfileProber
+	profileCatalog        agent.ProfileCatalog
+	configSettings        configSettingsState
+	repositoryIdentity    string
+	width                 int
+	height                int
+	analyzing             bool
+	queued                map[string]bool
+	status                string
+	initialAnalysis       bool
+	startupLogoExpired    bool
+	animationFrame        int
+	detail                bool
+	detailOffset          int
+	help                  bool
+	helpCursor            int
+	helpTopic             string
+	infoOpen              bool
+	infoKey               string
+	columns               bool
+	columnCursor          int
+	sortOpen              bool
+	settings              bool
+	settingsCursor        int
+	appearance            bool
+	appearanceCursor      int
+	theme                 style.Theme
+	weightsOpen           bool
+	weightCursor          int
+	weightsResetConfirm   bool
+	weights               map[string]float64
+	weightEnabled         map[string]bool
+	weightStep            float64
+	maximumWeight         float64
+	preferencesPath       string
+	preferences           preferences.Document
+	columnsFromSettings   bool
+	pendingFullAnalysis   bool
+	source                sourceState
 }

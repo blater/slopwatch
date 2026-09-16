@@ -31,7 +31,7 @@ func agentsTableView(model Model) string {
 func agentsTopLine(model Model) string {
 	logo := "-=[slopwatch]=-"
 	left := logo + "  " + fixAggregateText(model.agents.Jobs)
-	if model.fixUpdatesStale {
+	if model.fixUpdates.stale {
 		left += " · UPDATES STALE"
 	}
 	if model.fixNotice != "" {

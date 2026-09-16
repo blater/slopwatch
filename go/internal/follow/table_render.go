@@ -67,7 +67,7 @@ func tableTopParts(model Model) (topLeft, topRight, bottomLeft, bottomRight stri
 	if len(model.agents.Jobs) > 0 {
 		topLeft += lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render("  " + fixAggregateText(model.agents.Jobs))
 	}
-	if model.fixUpdatesStale {
+	if model.fixUpdates.stale {
 		topLeft += lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(" · UPDATES STALE")
 	}
 	return topLeft, model.repositoryIdentity, bottomLeft, model.options.Workspace

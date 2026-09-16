@@ -65,17 +65,13 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	if len(document.Files) > 0 {
 		model.files.Selected = document.Files[0].Path
 	}
-	if model.fixService != nil {
-		model.fixSubscription = model.fixService.Subscribe()
-	}
+	model.fixUpdates = newFixSubscriptionState(model.fixService)
 	return model, nil
 }
 
 func (model *Model) Close() {
 	model.watcher.close()
-	if model.fixSubscription != nil {
-		_ = model.fixSubscription.Close()
-	}
+	model.fixUpdates.close()
 }
 
 // StartInitialAnalysis makes the first scan run after Bubble Tea has entered

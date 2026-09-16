@@ -1,6 +1,7 @@
 package follow
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -9,8 +10,82 @@ import (
 	"github.com/blater/slopwatch/internal/agent"
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/fixapp"
+	"github.com/blater/slopwatch/internal/style"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+func (state *fixDialogState) applyLoaded(message fixLoadedMsg) {
+	state.loading = false
+	if message.err != nil {
+		state.errorText = message.err.Error()
+		state.statusText = "Preparation failed"
+		return
+	}
+	old := *state
+	state.input = message.input
+	state.hasInput = true
+	state.errorText = ""
+	state.statusText = "Ready"
+	state.metrics = availableFixMetrics(message.input)
+	state.focus = map[fix.MetricID]bool{}
+	for _, goal := range message.input.Focus {
+		state.focus[goal.Metric] = true
+	}
+	if old.hasInput {
+		if old.input.Model != message.input.Model || old.input.Effort != message.input.Effort {
+			state.statusText = fmt.Sprintf("Profile changed · using %s / %s", message.input.Model, message.input.Effort)
+		}
+		edits := old.fixFormValues()
+		if revised, err := fixapp.ApplyFormValues(message.input, edits); err == nil {
+			state.input = revised
+		}
+		state.focus = old.focus
+		state.branch.SetValue(old.branch.Value())
+		state.branchOriginal = old.branchOriginal
+	} else {
+		state.branch.SetValue(message.input.BranchName)
+		state.branchOriginal = message.input.BranchName
+	}
+	state.ensureCursorVisible()
+}
+
+func (state *fixDialogState) prepareRun() (fixapp.FixInput, bool) {
+	if !state.syncInput() {
+		return fixapp.FixInput{}, false
+	}
+	if !state.runnable() {
+		state.errorText = "Run fix is unavailable: " + fixPreflightSummary(state.input)
+		return fixapp.FixInput{}, false
+	}
+	state.starting = true
+	state.statusText = "Starting fix…"
+	return state.input, true
+}
+
+func (state *fixDialogState) applyStarted(message fixStartedMsg) bool {
+	state.starting = false
+	if message.err != nil {
+		state.errorText = message.err.Error()
+		state.statusText = "Could not start fix · correct the reported error or retry"
+		return false
+	}
+	return true
+}
+
+func (state *fixDialogState) beginTargetScoreEditor() tea.Cmd {
+	state.scoreOriginal = state.input.TargetScore
+	state.score = textinput.New()
+	state.score.Prompt = ""
+	state.score.Width = 12
+	state.score.CharLimit = 32
+	style.ApplyTextInputStyle(&state.score, true)
+	state.score.SetValue(formatTargetScore(state.input.TargetScore))
+	state.score.CursorEnd()
+	state.scoreEditing = true
+	state.scoreError = ""
+	return state.score.Focus()
+}
 
 func (state fixDialogState) targetPaths() []fix.RepoPath {
 	if len(state.targets) > 0 {

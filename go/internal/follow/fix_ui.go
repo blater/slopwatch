@@ -2,10 +2,6 @@ package follow
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -247,54 +243,12 @@ func (model *Model) handleFixLoaded(message fixLoadedMsg) {
 	if message.generation != model.fixDialog.generation || !overlayPresent(model.overlays, OverlayFixForm) {
 		return
 	}
-	model.fixDialog.loading = false
-	if message.err != nil {
-		model.fixDialog.errorText = message.err.Error()
-		model.fixDialog.statusText = "Preparation failed"
-		return
-	}
-	old := model.fixDialog
-	model.fixDialog.input = message.input
-	model.fixDialog.hasInput = true
-	model.fixDialog.errorText = ""
-	model.fixDialog.statusText = "Ready"
-	model.fixDialog.metrics = availableFixMetrics(message.input)
-	model.fixDialog.focus = map[fix.MetricID]bool{}
-	for _, goal := range message.input.Focus {
-		model.fixDialog.focus[goal.Metric] = true
-	}
-	if old.hasInput {
-		if old.input.Model != message.input.Model || old.input.Effort != message.input.Effort {
-			model.fixDialog.statusText = fmt.Sprintf("Profile changed · using %s / %s", message.input.Model, message.input.Effort)
-		}
-		edits := old.fixFormValues()
-		if revised, err := fixapp.ApplyFormValues(message.input, edits); err == nil {
-			model.fixDialog.input = revised
-		}
-		model.fixDialog.focus = old.focus
-		model.fixDialog.branch.SetValue(old.branch.Value())
-		model.fixDialog.branchOriginal = old.branchOriginal
-	} else {
-		model.fixDialog.branch.SetValue(message.input.BranchName)
-		model.fixDialog.branchOriginal = message.input.BranchName
-	}
-	model.fixDialog.ensureCursorVisible()
+	model.fixDialog.applyLoaded(message)
 }
 
 func (model *Model) openFixTargetScoreEditor() tea.Cmd {
-	state := &model.fixDialog
-	state.scoreOriginal = state.input.TargetScore
-	state.score = textinput.New()
-	state.score.Prompt = ""
-	state.score.Width = 12
-	state.score.CharLimit = 32
-	style.ApplyTextInputStyle(&state.score, true)
-	state.score.SetValue(formatTargetScore(state.input.TargetScore))
-	state.score.CursorEnd()
-	state.scoreEditing = true
-	state.scoreError = ""
 	model.overlays.Push(OverlayTargetScoreEditor, OverlayCaller{MainView: model.mainView, Overlay: OverlayFixForm, Selected: model.mainSelection()})
-	return state.score.Focus()
+	return model.fixDialog.beginTargetScoreEditor()
 }
 
 func (model *Model) handleFixTargetScoreKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -307,11 +261,10 @@ func (model *Model) handleFixTargetScoreKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 		return model, command
 	}
 	model.overlays.Pop()
-	model.fixTargetDesired = result.value
-	if model.fixTargetSaving {
-		return model, command
+	if save := model.targetScorePreference.request(result.value, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace); save != nil {
+		return model, save
 	}
-	return model, model.saveFixTargetPreference(model.fixDialog.input.Preferences)
+	return model, command
 }
 
 type fixDialogChoice struct {
@@ -321,61 +274,26 @@ type fixDialogChoice struct {
 	disabled bool
 }
 
-func (model *Model) saveFixTargetPreference(preferences appconfig.Resolved) tea.Cmd {
-	if model.configStore == nil {
-		return nil
-	}
-	model.fixTargetSaving = true
-	store, workspace := model.configStore, model.configWorkspace
-	score, revision := model.fixTargetDesired, preferences.Revision
-	defaults := cloneConfigFix(preferences.Fix)
-	defaults.TargetScore = score
-	return func() tea.Msg {
-		saved, err := store.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Fix: &defaults}, revision)
-		if errors.Is(err, appconfig.ErrRevisionConflict) {
-			resolved, resolveErr := store.Resolve(context.Background(), workspace, appconfig.SessionOverrides{})
-			if resolveErr != nil {
-				err = resolveErr
-			} else {
-				defaults = cloneConfigFix(resolved.Fix)
-				defaults.TargetScore = score
-				saved, err = store.Save(context.Background(), workspace, appconfig.ScopeUser, appconfig.Patch{Fix: &defaults}, resolved.Revision)
-			}
-		}
-		return fixTargetPreferenceSavedMsg{score: score, saved: saved, err: err}
-	}
-}
-
 func (model *Model) handleFixTargetPreferenceSaved(message fixTargetPreferenceSavedMsg) tea.Cmd {
-	model.fixTargetSaving = false
+	outcome := model.targetScorePreference.complete(message, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace)
 	if message.err != nil {
 		model.fixNotice = "Target score preference was not saved: " + cleanAgentText(message.err.Error())
 	} else {
-		model.fixDialog.input.Preferences = message.saved.Resolved
+		model.fixDialog.input.Preferences = outcome.preferences
 	}
-	if model.fixTargetDesired != message.score {
-		preferences := model.fixDialog.input.Preferences
-		if message.err == nil {
-			preferences = message.saved.Resolved
-		}
-		return model.saveFixTargetPreference(preferences)
-	}
-	return nil
+	return outcome.command
 }
 
 func (model *Model) runFix() (tea.Model, tea.Cmd) {
-	if !model.fixDialog.syncInput() {
+	input, ok := model.fixDialog.prepareRun()
+	if !ok {
 		return model, nil
 	}
-	state := &model.fixDialog
-	if !model.fixDialog.runnable() {
-		state.errorText = "Run fix is unavailable: " + fixPreflightSummary(state.input)
-		return model, nil
-	}
-	state.starting = true
-	state.statusText = "Starting fix…"
-	service, generation, input := model.fixService, state.generation, state.input
-	return model, func() tea.Msg {
+	return model, runFixCommand(model.fixService, input, model.fixDialog.generation)
+}
+
+func runFixCommand(service FixService, input fixapp.FixInput, generation uint64) tea.Cmd {
+	return func() tea.Msg {
 		jobID, err := service.Run(context.Background(), input)
 		return fixStartedMsg{generation: generation, jobID: jobID, err: err}
 	}
@@ -385,10 +303,7 @@ func (model *Model) handleFixStarted(message fixStartedMsg) {
 	if message.generation != model.fixDialog.generation || !overlayPresent(model.overlays, OverlayFixForm) {
 		return
 	}
-	model.fixDialog.starting = false
-	if message.err != nil {
-		model.fixDialog.errorText = message.err.Error()
-		model.fixDialog.statusText = "Could not start fix · correct the reported error or retry"
+	if !model.fixDialog.applyStarted(message) {
 		return
 	}
 	model.overlays.Pop()
@@ -456,18 +371,13 @@ func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 }
 
 func (model *Model) fixUpdateError(err error) tea.Cmd {
-	model.fixNotice = "Fix updates unavailable: " + err.Error()
-	model.fixUpdatesStale = true
-	model.fixRetryGeneration++
-	generation := model.fixRetryGeneration
-	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg { return fixRetrySubscriptionMsg{generation: generation} })
+	var retry tea.Cmd
+	model.fixNotice, retry = model.fixUpdates.markUnavailable(err)
+	return retry
 }
 
 func (model *Model) clearFixUpdateError() {
-	model.fixUpdatesStale = false
-	if strings.HasPrefix(model.fixNotice, "Fix updates unavailable:") {
-		model.fixNotice = ""
-	}
+	model.fixNotice = model.fixUpdates.clearError(model.fixNotice)
 }
 
 func (model *Model) requestQuit() (tea.Model, tea.Cmd) {
@@ -494,30 +404,15 @@ func activeFixJobs(jobs []fix.JobPresentation) []fix.JobPresentation {
 }
 
 func (model *Model) handleShutdownKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if model.shutdown.pending {
-		return model, nil
-	}
-	switch key.String() {
-	case "esc", "q":
+	outcome := model.shutdown.handleKey(key, model.fixService)
+	if outcome.close {
 		model.overlays.Pop()
-		return model, nil
-	case "enter", "y":
-		model.shutdown.pending = true
-		service := model.fixService
-		return model, func() tea.Msg {
-			return shutdownCompleteMsg{err: service.Shutdown(context.Background())}
-		}
 	}
-	return model, nil
+	return model, outcome.command
 }
 
 func (model *Model) handleShutdownComplete(message shutdownCompleteMsg) tea.Cmd {
-	model.shutdown.pending = false
-	if message.err != nil {
-		model.shutdown.errorText = message.err.Error()
-		return nil
-	}
-	return tea.Quit
+	return model.shutdown.complete(message)
 }
 
 func (model *Model) openCancelConfirmation() {

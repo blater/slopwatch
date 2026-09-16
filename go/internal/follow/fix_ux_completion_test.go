@@ -373,13 +373,13 @@ func TestCanceledJobUsesCanceledText(t *testing.T) {
 func TestFixSubscriptionErrorIsRecoverable(t *testing.T) {
 	service := &fakeFixService{jobs: fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{{ID: "job-9", Phase: fix.PhaseRunning}}}}
 	model := fixTestModel(service, 80, 24)
-	if command := model.handleFixJobs(fixJobsMsg{err: errors.New("wake failed")}); command == nil || !model.fixUpdatesStale {
+	if command := model.handleFixJobs(fixJobsMsg{err: errors.New("wake failed")}); command == nil || !model.fixUpdates.stale {
 		t.Fatal("subscription error did not enter recoverable stale state")
 	}
-	generation := model.fixRetryGeneration
+	generation := model.fixUpdates.retryGeneration
 	command := model.retryFixSubscription(fixRetrySubscriptionMsg{generation: generation})
-	if command == nil || model.fixUpdatesStale || service.subscriptions != 1 {
-		t.Fatalf("subscription recovery failed: stale=%t subscriptions=%d", model.fixUpdatesStale, service.subscriptions)
+	if command == nil || model.fixUpdates.stale || service.subscriptions != 1 {
+		t.Fatalf("subscription recovery failed: stale=%t subscriptions=%d", model.fixUpdates.stale, service.subscriptions)
 	}
 }
 
