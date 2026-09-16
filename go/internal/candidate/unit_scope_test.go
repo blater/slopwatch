@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 func TestUnitScopePlannerFreezesTestsInTargetAnalysisUnitBelowRepoRoot(t *testing.T) {

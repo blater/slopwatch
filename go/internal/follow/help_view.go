@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/blater/slopmochi/internal/style"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func helpView(model Model) string {

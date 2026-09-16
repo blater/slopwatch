@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blater/slopmochi/internal/preferences"
-	"github.com/blater/slopmochi/internal/report"
-	"github.com/blater/slopmochi/internal/style"
+	"github.com/blater/slopwatch/internal/preferences"
+	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 type preferenceAnalyzer struct {

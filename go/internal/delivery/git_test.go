@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/isolation"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/isolation"
 )
 
 const testDeliveryOutputBytes = int64(4 << 20)

@@ -5,7 +5,7 @@ package candidate
 import (
 	"context"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 // ScopePlanner freezes the exact repository-relative paths admitted by a

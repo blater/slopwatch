@@ -10,14 +10,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopmochi/internal/agent"
-	"github.com/blater/slopmochi/internal/appconfig"
-	"github.com/blater/slopmochi/internal/candidate"
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/fixanalysis"
-	"github.com/blater/slopmochi/internal/fixapp"
-	"github.com/blater/slopmochi/internal/report"
-	"github.com/blater/slopmochi/internal/style"
+	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopwatch/internal/appconfig"
+	"github.com/blater/slopwatch/internal/candidate"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixanalysis"
+	"github.com/blater/slopwatch/internal/fixapp"
+	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func TestFixKeyWithoutServiceExplainsUnavailable(t *testing.T) {

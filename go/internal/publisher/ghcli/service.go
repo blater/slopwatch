@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blater/slopmochi/internal/isolation"
-	"github.com/blater/slopmochi/internal/publisher"
+	"github.com/blater/slopwatch/internal/isolation"
+	"github.com/blater/slopwatch/internal/publisher"
 )
 
 type Service struct {

@@ -8,9 +8,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/scoring"
-	"github.com/blater/slopmochi/internal/style"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/scoring"
+	"github.com/blater/slopwatch/internal/style"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )

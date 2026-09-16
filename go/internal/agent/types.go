@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 type RuntimeKind string

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/fixanalysis"
-	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixanalysis"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func TestPrepareBaselineAndVerifyUseFreshCandidateAnalyzer(t *testing.T) {

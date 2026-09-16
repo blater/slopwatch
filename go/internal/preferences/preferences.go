@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/blater/slopmochi/internal/fixprompt"
-	"github.com/blater/slopmochi/internal/scoring"
+	"github.com/blater/slopwatch/internal/fixprompt"
+	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/pelletier/go-toml/v2"
 
-	"github.com/blater/slopmochi/internal/userdata"
+	"github.com/blater/slopwatch/internal/userdata"
 )
 
 const CurrentVersion = 1

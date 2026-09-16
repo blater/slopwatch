@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/gitmanifest"
-	"github.com/blater/slopmochi/internal/isolation"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/gitmanifest"
+	"github.com/blater/slopwatch/internal/isolation"
 )
 
 // GitService implements an exact-ref, create-only publication workflow. It

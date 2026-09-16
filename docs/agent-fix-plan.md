@@ -3,7 +3,7 @@
 Status: implementation in progress on `feature/agent-assisted-fix`.
 
 The implemented coordinator and security behavior in this document become the
-Slopslap core under the product and MCP split defined in
+Swarm core under the product and MCP split defined in
 [product-split-mcp-implementation.md](product-split-mcp-implementation.md).
 
 ## Product outcome

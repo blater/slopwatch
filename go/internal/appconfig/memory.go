@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 // Memory is the deterministic resolver/store used by domain and TUI tests.

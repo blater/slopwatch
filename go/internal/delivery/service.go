@@ -5,7 +5,7 @@ package delivery
 import (
 	"context"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 type Request struct {

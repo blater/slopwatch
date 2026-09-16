@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 var ErrJobRunning = errors.New("fix job is running in another Slopmochi process")

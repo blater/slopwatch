@@ -6,7 +6,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 type Memory struct {

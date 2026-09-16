@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 type generationExpectation struct {

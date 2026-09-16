@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/unitplan"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/unitplan"
 )
 
 // UnitScopePlanner derives supporting test files from the same deterministic

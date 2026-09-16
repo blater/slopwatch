@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopwatch/internal/agent"
 )
 
 func TestCloseTerminatesOwnedSameGroupDescendants(t *testing.T) {

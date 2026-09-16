@@ -11,15 +11,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/blater/slopmochi/internal/agent"
-	"github.com/blater/slopmochi/internal/appconfig"
-	"github.com/blater/slopmochi/internal/candidate"
-	"github.com/blater/slopmochi/internal/delivery"
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/fixanalysis"
-	"github.com/blater/slopmochi/internal/fixprompt"
-	"github.com/blater/slopmochi/internal/jobstore"
-	"github.com/blater/slopmochi/internal/publisher"
+	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopwatch/internal/appconfig"
+	"github.com/blater/slopwatch/internal/candidate"
+	"github.com/blater/slopwatch/internal/delivery"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixanalysis"
+	"github.com/blater/slopwatch/internal/fixprompt"
+	"github.com/blater/slopwatch/internal/jobstore"
+	"github.com/blater/slopwatch/internal/publisher"
 )
 
 type Dependencies struct {

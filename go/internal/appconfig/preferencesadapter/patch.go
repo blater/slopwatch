@@ -3,8 +3,8 @@ package preferencesadapter
 import (
 	"errors"
 
-	"github.com/blater/slopmochi/internal/appconfig"
-	"github.com/blater/slopmochi/internal/preferences"
+	"github.com/blater/slopwatch/internal/appconfig"
+	"github.com/blater/slopwatch/internal/preferences"
 )
 
 func applyUserPatch(value *preferences.Document, patch appconfig.Patch) error {

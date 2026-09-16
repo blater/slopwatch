@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/blater/slopmochi/internal/analysiscache"
+	"github.com/blater/slopwatch/internal/analysiscache"
 )
 
 type cachedUnitLoad struct {

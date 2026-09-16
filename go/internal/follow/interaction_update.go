@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {

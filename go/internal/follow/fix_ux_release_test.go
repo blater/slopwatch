@@ -8,9 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopmochi/internal/agent"
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/fixapp"
+	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixapp"
 )
 
 func TestCompactJobInspectScrollsSummaryAndActorsWithoutLogs(t *testing.T) {

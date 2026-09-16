@@ -7,8 +7,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/blater/slopmochi/internal/scoring"
-	"github.com/blater/slopmochi/internal/style"
+	"github.com/blater/slopwatch/internal/scoring"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 type componentWeight struct {

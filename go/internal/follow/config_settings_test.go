@@ -14,12 +14,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopmochi/internal/agent"
-	"github.com/blater/slopmochi/internal/appconfig"
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/fixprompt"
-	userprefs "github.com/blater/slopmochi/internal/preferences"
-	"github.com/blater/slopmochi/internal/style"
+	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopwatch/internal/appconfig"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixprompt"
+	userprefs "github.com/blater/slopwatch/internal/preferences"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {

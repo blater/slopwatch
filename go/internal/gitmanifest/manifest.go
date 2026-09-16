@@ -14,7 +14,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 type Entry struct {

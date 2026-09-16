@@ -1,4 +1,6 @@
 .DS_Store
+.agents
+_bmad/
 node_modules/
 dist/
 build/

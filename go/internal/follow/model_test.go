@@ -16,8 +16,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopmochi/internal/report"
-	"github.com/blater/slopmochi/internal/style"
+	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/style"
 )
 
 type settingsAnalyzer struct {

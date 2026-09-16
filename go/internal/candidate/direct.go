@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 // DirectService lets the agent work in the user's current files. Its private

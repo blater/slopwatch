@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/blater/slopmochi/internal/userdata"
+	"github.com/blater/slopwatch/internal/userdata"
 )
 
 const envelopeMagic = "slopmochi-analysis-cache"

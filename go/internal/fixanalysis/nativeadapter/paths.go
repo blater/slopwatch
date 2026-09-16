@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 type pathMapper struct {

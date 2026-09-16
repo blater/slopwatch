@@ -3,7 +3,7 @@ package scoring
 import (
 	"testing"
 
-	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func TestPolicyCopiesInputsAndDistinguishesMissingFromExplicitZero(t *testing.T) {

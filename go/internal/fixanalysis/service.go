@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 type BaselineRequest struct {

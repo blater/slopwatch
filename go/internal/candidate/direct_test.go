@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 func TestDirectCandidateAllowsSupportingRefactorsAndNeverRollsBackCurrentFiles(t *testing.T) {

@@ -7,10 +7,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/blater/slopmochi/internal/appconfig"
-	"github.com/blater/slopmochi/internal/delivery"
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/publisher"
+	"github.com/blater/slopwatch/internal/appconfig"
+	"github.com/blater/slopwatch/internal/delivery"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/publisher"
 )
 
 func TestPullRequestPrepareDefersProviderValidationToPublication(t *testing.T) {

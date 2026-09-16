@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 func TestCompileAppliesTheSavedMasterTemplateDeterministically(t *testing.T) {

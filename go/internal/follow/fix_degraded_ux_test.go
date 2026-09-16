@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopwatch/internal/agent"
 )
 
 func TestDegradedAgentIsWarningAndRuntimeAttemptRemainsAvailable(t *testing.T) {

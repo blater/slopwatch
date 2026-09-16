@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/blater/slopmochi/internal/fix"
-	"github.com/blater/slopmochi/internal/report"
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func TestMainViewsSwitchAndRetainIndependentState(t *testing.T) {

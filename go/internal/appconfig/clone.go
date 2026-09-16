@@ -1,7 +1,7 @@
 package appconfig
 
 import (
-	"github.com/blater/slopmochi/internal/agent"
+	"github.com/blater/slopwatch/internal/agent"
 )
 
 func cloneResolved(value Resolved) Resolved {

@@ -14,8 +14,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blater/slopmochi/internal/agent"
-	"github.com/blater/slopmochi/internal/fix"
+	"github.com/blater/slopwatch/internal/agent"
+	"github.com/blater/slopwatch/internal/fix"
 )
 
 type candidateTools struct {

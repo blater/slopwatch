@@ -1,4 +1,4 @@
-# Slopmark, Slopslap, and Slopmochi implementation specification
+# Slopmark, Swarm, and Slopmochi implementation specification
 
 Status: approved architecture; implementation not started.
 
@@ -17,24 +17,24 @@ clean checkout and from the packaged artifacts produced by CI.
 Slopmark is the static-analysis product. It owns source discovery, analysis
 planning, analyzer execution, scoring, reporting, and analysis caches.
 
-Slopmark MUST be usable without Slopslap or Slopmochi through:
+Slopmark MUST be usable without Swarm or Slopmochi through:
 
 - a command-line interface suitable for CI/CD;
 - JSON output with a versioned schema; and
 - a read-only MCP server.
 
 Slopmark MUST NOT import UI, agent-provider, candidate, Git delivery, pull
-request, or Slopslap job-management packages. Its operational MCP surface MUST
+request, or Swarm job-management packages. Its operational MCP surface MUST
 be read-only with respect to the workspace and MUST NOT expose a general
 file-reading, shell, Git, or network tool.
 
-### 1.2 Slopslap
+### 1.2 Swarm
 
-Slopslap is the headless agent remediation product. It owns agent providers,
+Swarm is the headless agent remediation product. It owns agent providers,
 prompt compilation, candidate workspaces, job coordination, verification,
 delivery, publication, persistence, and recovery.
 
-Slopslap MUST be usable without Slopmochi as an MCP server. It MUST obtain all
+Swarm MUST be usable without Slopmochi as an MCP server. It MUST obtain all
 quality measurements from Slopmark through a Slopmark client boundary. It MUST
 NOT import Slopmark implementation packages.
 
@@ -42,14 +42,14 @@ NOT import Slopmark implementation packages.
 
 Slopmochi is the consumer-facing terminal application. It owns presentation,
 interaction, file watching, UI preferences, and process supervision for its
-packaged Slopmark and Slopslap children.
+packaged Slopmark and Swarm children.
 
-Slopmochi MUST communicate with Slopmark and Slopslap through MCP. It MUST NOT
+Slopmochi MUST communicate with Slopmark and Swarm through MCP. It MUST NOT
 import their implementation or domain packages. The released Slopmochi bundle
 MUST contain tested versions of all three executables and all analyzer
 runtimes.
 
-Slopmochi MUST remain useful when Slopslap is unavailable: analysis and file
+Slopmochi MUST remain useful when Swarm is unavailable: analysis and file
 browsing continue, while agent features show a precise unavailable reason.
 Slopmark is mandatory.
 
@@ -61,7 +61,7 @@ Slopmark is mandatory.
                         /             \
                MCP over STDIO     MCP over STDIO
                      /                 \
-                Slopmark             Slopslap
+                Slopmark             Swarm
              analysis server        job server
                                           \
                                       MCP client
@@ -80,11 +80,11 @@ fresh child process and private parent-child STDIO pipes:
 - no listening socket or named filesystem endpoint is created.
 
 Slopmochi MAY use one Slopmark child and share its client inside the UI. In the
-first implementation, Slopslap MUST launch its own Slopmark child. Sharing a
-Slopmark process between Slopmochi and Slopslap would require multiplexed
+first implementation, Swarm MUST launch its own Slopmark child. Sharing a
+Slopmark process between Slopmochi and Swarm would require multiplexed
 ownership and lifecycle semantics and is deferred.
 
-An independently launched Slopslap server MUST resolve Slopmark from an
+An independently launched Swarm server MUST resolve Slopmark from an
 explicit canonical `--slopmark` path or from a canonical sibling path in the
 same installation. It MUST NOT select Slopmark from ambient `PATH` at runtime.
 
@@ -103,9 +103,9 @@ products/
     cmd/slopmark/
     internal/
     analyzers/
-  slopslap/
+  swarm/
     go.mod
-    cmd/slopslap/
+    cmd/swarm/
     internal/
   slopmochi/
     go.mod
@@ -113,7 +113,7 @@ products/
     internal/
 contracts/
   slopmark/v1/
-  slopslap/v1/
+  swarm/v1/
 build/
 dist/
 ```
@@ -125,7 +125,7 @@ Permitted module dependencies:
 
 ```text
 slopmochi -> official MCP Go SDK
-slopslap  -> official MCP Go SDK
+swarm  -> official MCP Go SDK
 slopmark  -> official MCP Go SDK
 ```
 
@@ -142,8 +142,8 @@ Initial ownership mapping:
 | --- | --- |
 | `analysiscache`, `native`, `report`, `scoring`, `sourcepath`, `unitplan` | Slopmark |
 | structural and TypeScript analyzers and catalog | Slopmark |
-| `agent`, `candidate`, `delivery`, `fix`, `fixanalysis`, `fixapp`, `fixprompt` | Slopslap |
-| `appconfig`, `gitmanifest`, `isolation`, `jobstore`, `publisher` | Slopslap, with product-local helpers where required |
+| `agent`, `candidate`, `delivery`, `fix`, `fixanalysis`, `fixapp`, `fixprompt` | Swarm |
+| `appconfig`, `gitmanifest`, `isolation`, `jobstore`, `publisher` | Swarm, with product-local helpers where required |
 | `follow`, `style`, `workspace` | Slopmochi |
 | `preferences` | split into product-owned documents |
 | `userdata` | split into product-owned paths |
@@ -179,15 +179,15 @@ CI exit codes remain:
 - `2`: invocation, configuration, analysis, or output failure; and
 - `3`: analysis completed and a configured threshold failed.
 
-### 4.2 Slopslap commands
+### 4.2 Swarm commands
 
 ```text
-slopslap mcp --workspace ABSOLUTE_PATH --slopmark ABSOLUTE_PATH
+swarm mcp --workspace ABSOLUTE_PATH --slopmark ABSOLUTE_PATH
              [--config ABSOLUTE_PATH] [--admin] [SERVER OPTIONS]
-slopslap version [--json]
+swarm version [--json]
 ```
 
-A human-oriented `slopslap fix` CLI is outside the first split. The MCP server
+A human-oriented `swarm fix` CLI is outside the first split. The MCP server
 is the first public interface.
 
 For both servers, an omitted `--config` uses the product's standard user path.
@@ -219,7 +219,7 @@ negotiation; product code MUST NOT implement a parallel MCP codec.
 Servers are built with `mcp.NewServer`, typed `mcp.AddTool` handlers, and
 `mcp.StdioTransport`. Clients are built with `mcp.NewClient` and an
 `mcp.CommandTransport` configured with an already validated `exec.Cmd`.
-Before connection, Slopmochi/Slopslap set the exact executable, argument vector,
+Before connection, Slopmochi/Swarm set the exact executable, argument vector,
 working directory, allowlisted environment, bounded stderr writer, close-on-exec
 descriptors, and platform process-group controls. If the SDK transport cannot
 terminate the complete owned process group on a supported platform, a
@@ -273,8 +273,8 @@ Initial tool inventory:
 | --- | --- |
 | Slopmark operational | `analyze`, `list_findings`, `get_file_report`, `check_threshold`, `explain_metric` |
 | Slopmark admin additions | `get_settings`, `update_settings` |
-| Slopslap operational | `plan_fix`, `start_fix`, `list_jobs`, `get_job`, `get_job_log`, `get_job_diff`, `cancel_job`, `list_agent_profiles`, `probe_agent_profile` |
-| Slopslap admin additions | `get_settings`, `update_settings` |
+| Swarm operational | `plan_fix`, `start_fix`, `list_jobs`, `get_job`, `get_job_log`, `get_job_diff`, `cancel_job`, `list_agent_profiles`, `probe_agent_profile` |
+| Swarm admin additions | `get_settings`, `update_settings` |
 
 Every tool MUST provide both a JSON Schema input and structured output.
 Unknown input fields MUST be rejected. Numeric values MUST reject NaN and
@@ -299,7 +299,7 @@ authorization control.
 - In HTTP mode, handles MUST be bound server-side to the authenticated
   principal and workspace. Possession is never authentication.
 
-Slopslap retains the current readable job name as `display_id` and adds an
+Swarm retains the current readable job name as `display_id` and adds an
 opaque `job_handle`. Internal persistence uses a stable cryptographic job key;
 filenames MUST NOT be derived from unvalidated client input.
 
@@ -344,7 +344,7 @@ or expired cursors fail with `invalid_request`; they never restart silently.
 
 ### 6.4 Idempotency
 
-Every Slopslap mutation accepts `request_id`, a caller-generated opaque string
+Every Swarm mutation accepts `request_id`, a caller-generated opaque string
 of 16 to 128 ASCII characters. The server stores the result keyed by operation,
 principal, workspace, and request ID. Repeating an identical request returns
 the original result. Reusing a request ID with different normalized input
@@ -357,7 +357,7 @@ Idempotency records MUST survive process restart for `start_fix` and
 
 MCP protocol negotiation and product API versioning are independent. The MCP
 revision controls transport semantics; `api_version` controls Slopmark or
-Slopslap structured content.
+Swarm structured content.
 
 Within `v1`, servers may add optional output fields and new tools. They MUST NOT
 remove or rename fields, change field meanings, add required input fields, or
@@ -523,7 +523,7 @@ Slopmark MUST apply its existing analyzer output limits below the MCP result
 limit. Analyzer executables are installation-owned canonical paths and receive
 an allowlisted environment with no credentials and no network proxy variables.
 
-## 8. Slopslap service and MCP contract
+## 8. Swarm service and MCP contract
 
 ### 8.1 Core service boundary
 
@@ -541,7 +541,7 @@ type AnalysisService interface {
 ```
 
 The production implementation uses the Slopmark MCP client. Tests continue to
-use fakes. Slopslap MUST treat Slopmark results as authoritative and provider
+use fakes. Swarm MUST treat Slopmark results as authoritative and provider
 completion text as untrusted commentary.
 
 ### 8.2 `plan_fix`
@@ -611,7 +611,7 @@ Output:
 
 `start_fix` MUST NOT accept raw prompts, executable paths, environment
 variables, secret references, arbitrary commands, remote URLs, or credentials.
-The prompt is compiled from trusted Slopslap configuration and the typed plan.
+The prompt is compiled from trusted Swarm configuration and the typed plan.
 
 The default plan uses an isolated worktree and leaves the successful result
 uncommitted. Current-workspace edits, repository-wide scope, commits, pushes,
@@ -620,7 +620,7 @@ callers by default. A delivery-bearing plan is accepted only when server policy
 allows the exact operation. In future HTTP mode it additionally requires the
 corresponding delivery authorization scope.
 
-After `start_fix`, Slopslap owns the entire accepted lifecycle, including any
+After `start_fix`, Swarm owns the entire accepted lifecycle, including any
 delivery recorded in the immutable plan. Reconnects and Slopmochi restarts do
 not suppress an accepted delivery. This preserves the current durable delivery
 saga rather than introducing a second manual publish command.
@@ -656,11 +656,11 @@ provider response bodies, environment values, or private executable paths.
 
 Admin mode additionally exposes `get_settings` and `update_settings` using the
 revisioned, idempotent patch contract from section 7.7. The patch schema covers
-trusted Slopslap agent profiles, prompt templates, concurrency, candidate,
+trusted Swarm agent profiles, prompt templates, concurrency, candidate,
 delivery, and publication settings.
 
 Literal credentials are always rejected. Authentication values are references
-resolved by trusted Slopslap code at the final adapter boundary. Repository
+resolved by trusted Swarm code at the final adapter boundary. Repository
 configuration cannot call these admin tools or supply equivalent fields through
 `plan_fix`.
 
@@ -688,7 +688,7 @@ The delivery object uses these fields:
 `uncommitted` is valid only with `local`. `push` and `pull-request` require a
 commit mode. Fields that are irrelevant to the selected modes are rejected,
 not ignored. Remote, base branch, draft state, publisher, and message templates
-come from trusted Slopslap configuration and are returned in sanitized form by
+come from trusted Swarm configuration and are returned in sanitized form by
 `plan_fix`; an MCP request cannot replace them.
 
 Immediately before each side effect, the server revalidates candidate
@@ -697,7 +697,7 @@ provider repository. Delivery authorization is checked when the plan is
 created and again when execution reaches delivery. Losing authorization fails
 closed rather than silently downgrading the requested result.
 
-Slopslap never auto-merges and never force-updates an existing remote branch.
+Swarm never auto-merges and never force-updates an existing remote branch.
 Create-only push mechanics used to establish a new branch remain permitted.
 
 ### 8.8 Scheduler and operational limits
@@ -727,7 +727,7 @@ canonical executable:
 ```text
 <install>/bin/slopmochi
 <install>/bin/slopmark
-<install>/bin/slopslap
+<install>/bin/swarm
 ```
 
 Homebrew wrapper layouts MAY resolve into a private `libexec` tree, but the
@@ -746,19 +746,19 @@ Startup order:
 2. canonicalize the workspace and targets;
 3. start Slopmark in admin mode with private pipes and bounded stderr;
 4. connect and negotiate MCP, preferring `2026-07-28`;
-5. start Slopslap in admin mode and negotiate MCP;
+5. start Swarm in admin mode and negotiate MCP;
 6. perform any idempotent existing-user configuration/state migration;
 7. start initial analysis; and
 8. render the UI once analysis state or a precise startup error is available.
 
-Slopmark failure is fatal to the session. Slopslap failure degrades agent
+Slopmark failure is fatal to the session. Swarm failure degrades agent
 features but does not close analysis views.
 
 Shutdown order:
 
 1. stop accepting UI commands;
 2. cancel in-flight UI MCP requests;
-3. close the Slopslap MCP session without interpreting shutdown as job cancel;
+3. close the Swarm MCP session without interpreting shutdown as job cancel;
 4. close the Slopmark MCP session;
 5. close child stdin;
 6. wait for children for a bounded teardown grace;
@@ -772,10 +772,10 @@ or switch to an in-process implementation.
 ### 9.3 UI data model
 
 The UI defines its own view DTOs. MCP responses are translated at the client
-boundary; Bubble Tea state MUST NOT store Slopmark or Slopslap internal types.
+boundary; Bubble Tea state MUST NOT store Slopmark or Swarm internal types.
 
 File watching remains in Slopmochi. A debounced change triggers a new Slopmark
-analysis. The first implementation may poll Slopslap job state at one-second
+analysis. The first implementation may poll Swarm job state at one-second
 intervals while jobs are active and at a slower interval otherwise. Modern MCP
 subscriptions are a later optimization.
 
@@ -785,7 +785,7 @@ Configuration splits into:
 
 ```text
 Slopmark: analysis profiles, component weights, cache policy
-Slopslap: agents, prompts, concurrency, candidates, delivery, publication
+Swarm: agents, prompts, concurrency, candidates, delivery, publication
 Slopmochi: appearance, table, interaction, child locations
 ```
 
@@ -803,7 +803,7 @@ repository configuration MUST NOT introduce:
 - publication authority; or
 - higher operational limits than trusted user/server policy.
 
-Slopslap owns job and candidate state. Slopmochi owns no authoritative job
+Swarm owns job and candidate state. Slopmochi owns no authoritative job
 state. Slopmark owns analysis caches. Each state directory is created with
 owner-only permissions and rejects symlinks where the existing implementation
 does so.
@@ -815,7 +815,7 @@ the paths returned by the current `preferences` and `userdata` packages:
 
 1. Slopmochi reads the legacy combined preference document once.
 2. It projects analysis fields into a proposed Slopmark settings document,
-   agent/fix/delivery fields into a proposed Slopslap settings document, and UI
+   agent/fix/delivery fields into a proposed Swarm settings document, and UI
    fields into its own settings document.
 3. It starts both children in admin mode and applies the proposed documents
    through revisioned settings tools.
@@ -829,7 +829,7 @@ reported in a sanitized migration summary. A crash before the receipt causes a
 safe replay through compare-and-swap revisions.
 
 Slopmark MAY adopt the existing analysis cache directory in place after
-validating ownership and schema. Slopslap MUST discover existing job and
+validating ownership and schema. Swarm MUST discover existing job and
 candidate state through the current durable ownership records, acquire the
 same repository leases, and rewrite records to its new private state root only
 after successful validation. Legacy state is retained until the migrated copy
@@ -840,9 +840,9 @@ Migration tests MUST cover partial writes, stale revisions, conflicting new
 settings, corrupted legacy files, symlinked state, active candidate recovery,
 and a second identical startup.
 
-### 10.2 Slopslap authority policy
+### 10.2 Swarm authority policy
 
-Slopslap computes every plan against an immutable authority ceiling selected
+Swarm computes every plan against an immutable authority ceiling selected
 at process launch. The ceiling is not inferred from MCP `clientInfo` or tool
 annotations.
 
@@ -854,7 +854,7 @@ requested operation to be explicit in the typed plan.
 
 Repository configuration may narrow the ceiling but never widen it. A plan
 records the effective ceiling revision. If trusted policy narrows before a
-queued job reaches a privileged stage, Slopslap rechecks the current ceiling
+queued job reaches a privileged stage, Swarm rechecks the current ceiling
 and fails closed; policy expansion never retroactively widens an existing job.
 
 ## 11. Security requirements
@@ -886,7 +886,7 @@ boundary.
 - Analysis does not invoke repository-defined commands or package scripts.
 - MCP outputs never include arbitrary source contents.
 
-### 11.3 Slopslap invariants
+### 11.3 Swarm invariants
 
 - MCP cannot select executables, environment variables, credentials, provider
   endpoints, or arbitrary prompts.
@@ -901,7 +901,7 @@ boundary.
 - Human-readable job IDs and opaque handles are not authorization decisions.
 
 The current Codex adapter's use of `os.Environ()` MUST be replaced during the
-Slopslap extraction. Each adapter declares the environment names it requires;
+Swarm extraction. Each adapter declares the environment names it requires;
 composition supplies only those names plus a minimal deterministic process
 environment.
 
@@ -947,7 +947,7 @@ slopmochi-<bundle-version>-<os>-<arch>/
   bin/
     slopmochi
     slopmark
-    slopslap
+    swarm
   analyzers/
     structural/
     typescript/
@@ -966,7 +966,7 @@ slopmochi-<bundle-version>-<os>-<arch>/
   "components": {
     "slopmochi": {"version": "1.0.0", "path": "bin/slopmochi", "sha256": "..."},
     "slopmark": {"version": "1.2.0", "path": "bin/slopmark", "sha256": "..."},
-    "slopslap": {"version": "1.1.0", "path": "bin/slopslap", "sha256": "..."}
+    "swarm": {"version": "1.1.0", "path": "bin/swarm", "sha256": "..."}
   },
   "mcp": {
     "preferred": "2026-07-28",
@@ -976,7 +976,7 @@ slopmochi-<bundle-version>-<os>-<arch>/
   "files": [
     {"path": "bin/slopmochi", "sha256": "...", "mode": "0755"},
     {"path": "bin/slopmark", "sha256": "...", "mode": "0755"},
-    {"path": "bin/slopslap", "sha256": "...", "mode": "0755"},
+    {"path": "bin/swarm", "sha256": "...", "mode": "0755"},
     {"path": "component-catalog.json", "sha256": "...", "mode": "0644"}
   ]
 }
@@ -992,8 +992,8 @@ for installed bundles where wrappers do not alter the binaries.
 Separate release artifacts:
 
 - Slopmark standalone contains Slopmark and all analyzer runtimes.
-- Slopslap standalone contains Slopslap and the exact Slopmark/analyzer build
-  tested with that Slopslap release.
+- Swarm standalone contains Swarm and the exact Slopmark/analyzer build
+  tested with that Swarm release.
 - Slopmochi contains the complete tested stack.
 
 The first migration release may version all artifacts together. Independent
@@ -1014,7 +1014,7 @@ are operational.
 5. Rename internal analyzer executables from `slopslap-*` to `slopmark-*`, with
    packaging compatibility links for one release if already public.
 6. Rename `cmd/slopslap-go` to `cmd/slopmark` before creating the real
-   `cmd/slopslap`.
+   `cmd/swarm`.
 
 Exit: no user-visible behavior change; all existing tests and golden fixtures
 pass.
@@ -1043,19 +1043,19 @@ passes from an unpacked archive.
 Exit: CLI and MCP golden results are equivalent after removal of transport-only
 fields. Fuzz and escape tests pass.
 
-### Phase 3: isolate Slopslap
+### Phase 3: isolate Swarm
 
-1. Move the fix domain and manager into the Slopslap module.
+1. Move the fix domain and manager into the Swarm module.
 2. Move provider, candidate, delivery, publisher, store, and recovery code.
-3. Replace native analysis imports with Slopslap's typed Slopmark MCP client.
-4. Split trusted Slopslap preferences and state roots.
+3. Replace native analysis imports with Swarm's typed Slopmark MCP client.
+4. Split trusted Swarm preferences and state roots.
 5. Replace inherited child environments with allowlists.
 
-Exit: Slopslap has no Slopmochi or Slopmark-internal imports. Its full manager
+Exit: Swarm has no Slopmochi or Slopmark-internal imports. Its full manager
 test suite passes using both a fake analysis port and a real packaged Slopmark
 child.
 
-### Phase 4: implement Slopslap MCP
+### Phase 4: implement Swarm MCP
 
 1. Implement plan/start/read/cancel tools and immutable planned delivery.
 2. Add opaque handles, ownership, durable idempotency, and limits.
@@ -1070,9 +1070,9 @@ fail closed.
 
 1. Make the existing `cmd/slopmochi` the real Bubble Tea application.
 2. Replace direct analyzer calls with the Slopmark client.
-3. Replace direct fix-manager calls with the Slopslap client.
+3. Replace direct fix-manager calls with the Swarm client.
 4. Implement child discovery, manifest validation, process lifecycle, and
-   degraded Slopslap behavior.
+   degraded Swarm behavior.
 5. Split UI preferences from service preferences.
 
 Exit: Slopmochi imports neither product's internals and passes current visual,
@@ -1085,7 +1085,7 @@ integration tests.
 2. Build all three executables and analyzer runtimes.
 3. Generate and validate `manifest.json`.
 4. Update archive, Homebrew, checksums, smoke tests, and release scripts.
-5. Add standalone Slopmark and Slopslap release jobs.
+5. Add standalone Slopmark and Swarm release jobs.
 
 Exit: clean-machine tests prove all three distributions, and the Slopmochi
 bundle does not use ambient product executables.
@@ -1143,9 +1143,9 @@ For both servers, exercise:
 ### Packaging
 
 - Slopmark standalone analyzes Go, Java, Rust, and TypeScript;
-- Slopslap standalone launches only its packaged/configured Slopmark;
+- Swarm standalone launches only its packaged/configured Slopmark;
 - Slopmochi launches both packaged children with ambient `PATH` cleared;
-- Slopmochi remains usable when Slopslap is deliberately absent;
+- Slopmochi remains usable when Swarm is deliberately absent;
 - tampered manifest/component startup fails clearly;
 - `--help` and `version --json` work for all executables; and
 - archives contain no build caches, credentials, writable executable, or
@@ -1154,7 +1154,7 @@ For both servers, exercise:
 ### Quality gates
 
 - `go test ./...` independently in each module;
-- race tests for Slopslap coordinator, MCP sessions, and Slopmochi clients;
+- race tests for Swarm coordinator, MCP sessions, and Slopmochi clients;
 - all Java, Rust, TypeScript, and Go analyzer tests;
 - protocol conformance tests for the official SDK version in use;
 - `git diff --check`; and
@@ -1182,7 +1182,7 @@ paths or diff content.
 - network/HTTP MCP transports;
 - multi-tenant operation;
 - MCP Tasks and modern subscriptions;
-- a Slopslap human CLI;
+- a Swarm human CLI;
 - shared Slopmark process multiplexing;
 - automatic component downloading or updating;
 - separate source repositories; and
@@ -1198,7 +1198,7 @@ The split is complete when:
 
 1. each product builds and tests as an independent Go module;
 2. Slopmark works as a standalone CI CLI and MCP server;
-3. Slopslap works as a standalone MCP server using Slopmark through MCP;
+3. Swarm works as a standalone MCP server using Slopmark through MCP;
 4. Slopmochi uses only MCP to consume the two services;
 5. the Slopmochi release contains all three tested executables;
 6. `2026-07-28` is negotiated by default with tested legacy fallback;

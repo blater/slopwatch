@@ -1,4 +1,4 @@
-module github.com/blater/slopmochi
+module github.com/blater/slopwatch
 
 go 1.25.0
 
