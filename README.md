@@ -15,46 +15,25 @@ For humans there's _slopwatch_ - like [btop](https://github.com/aristocratos/bto
 Slopwatch analyzes design and abstraction smells in Rust, Go, Typescript, and Java (please vote on what other languages you'd like to see), giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
 For new projects I give agents a specific slopmark target they cannot breach and give a measure/rework loop until the slopmark score passes. For mature projects they get a target of no regression combined with a limit for new code.
 
-## Install and usage
+## Quick Install 
 
-The Homebrew package includes the `slopmark` analyzer and `slopwatch` live dashboard:
-
+On a mac...
 ```sh
 brew tap blater/tap
-
+brew trust blater/tap
 brew install slopwatch
 ```
-You'll probably need to run brew trust to trust this tap, if you prefer not to, then you can also build from source.
+See [Build & Install](#build-and-install) for details on installing on other platforms, or without needing to trust this tap.
 
+## Slopwatch
 
-Build from source (requires Git, Make, Go 1.25+, Rust/Cargo, a full JDK—CI uses
-JDK 25—and Node.js 22+ with npm):
+run with `slopwatch <project path>` e.g. `slopwatch ~/src/slopwatch`
 
-```sh
-git clone https://github.com/blater/slopwatch.git
-cd slopwatch
-go -C go mod download
-make build
-
-./build/slopwatch .
-# Or: ./build/slopmark .
-```
-Run the executables from `build/`; keep the checkout's supporting analyzer files in place.
-
-The TypeScript analyzer requires Node.js 22 or newer. Homebrew installs that runtime dependency automatically.
-
-## Usage
-
-Open the live dashboard with `slopwatch [TARGET ...]`
-e.g. to scan and show a project in the current directory:
-```sh
-slopwatch .
-```
 ![SlopWatch dashboard](docs/dashboard.png)
 
 ### keys
 
-In the dashboard, use 
+To navigate and use the dashboard:
 * up/down arrow keys or `j`/`k` to move, 
 * left/right arrows to scroll the file path,
 * ^f/^b to jump forward/backward a page a time,
@@ -69,20 +48,49 @@ In the dashboard, use
 ### Settings 
 
 Choose Settings → Appearance to switch between the dark and light themes.
-There's a lot of other customization in settings as well. I'd love feedback o what should/shouldn't be options.
 
-Dashboard appearance, columns, sorting, scoring weights, and interaction defaults persist in a versioned, user-editable TOML file. See [Preferences](docs/preferences.md) for its location, complete schema, and command-line precedence rules.
+Other settings that can be adjusted are: 
+* columns displayed, 
+* sorting defaults, 
+* scoring weights, 
+* interaction defaults,
+* auto-fix agent and prompt parameters
 
-### Running slopmark
-use `slopmark [TARGET ...]` to Analyze directories or files
+These are stored a versioned, user-editable TOML file. See [Preferences](docs/preferences.md) for its location, complete schema, and command-line precedence rules.
+
+
+## Report measurements
+
+Lower numbers are better. A routine is a function, method, or constructor.
+`-` means that the analyzer does not supply that measurement. 
+These short descriptions are also available in the dashboard with the `h` "help" shortcut key.
+
+| Column | Meaning |
+| --- | --- |
+| `SCORE` | Weighted sum of all enabled metrics and rules. Lower is better |
+| `COG` | Cognitive effort needed to understand nested decisions. Lower is better |
+| `NPATH` | Number of possible execution paths. Lower is better |
+| `CYCLO` | Cyclomatic complexity - independent control-flow paths. Lower is better |
+| `SHALLOW` | Caller burden relative to responsibility hidden behind the interface. Higher is worse |
+| `CPL` | Maximum number of foreign types referenced by a type. Lower is better |
+| `GOD` | Responsibility concentration in a type. Keep this low |
+| `PATH` | Source file being measured |
+
+See the [score details](#score-details) section for a full rundown.
+
+## Slopmark
+
+Slopmark is the raw command line tool and library that powers slopwatch, and is what agents should be directed to use.
+
+use `slopmark [options] [TARGET ...]` to Analyze directories or files
 e.g.
 ```sh
 slopmark src
 slopmark myproj/src anotherProj/prod/src
 ```
-Supported source file extensions are `.go`, `.java`, `.ts`, `.tsx`, `.mts`, `.cts`, and `.rs`:
+Supported source file extensions are `.go`, `.java`, `.ts`, `.tsx`, `.mts`, `.cts`, and `.rs`.
 
-### Common analysis options:
+### *slopmark* command line options:
 
 | Option | Purpose | Example |
 | --- | --- | --- |
@@ -97,29 +105,12 @@ Supported source file extensions are `.go`, `.java`, `.ts`, `.tsx`, `.mts`, `.ct
 | `--format json` | Emit the standard JSON report | `slopmark . --format json` |
 | `--use-cache` | Reuse verified cached analysis units; without this, `slopmark` only updates the cache | `slopmark --use-cache .` |
 
-`--pass-score` considers every analyzed file. Analysis returns 0 when all
-files pass, 3 when any file does not pass, and 2 for analysis errors.
+`--pass-score` considers every analyzed file. Analysis returns 0 when all files pass, 3 when any file does not pass, and 2 for analysis errors.
 
-Syntax errors are shown as `X` with per-file Info diagnostics. Valid files
-continue to be measured; cross-file metrics affected by a broken sibling are
-marked incomplete and cannot pass their thresholds.
+Syntax errors are shown as `X` with per-file Info diagnostics.
+Valid files continue to be measured; cross-file metrics affected by a broken sibling are marked incomplete and cannot pass their thresholds.
 
-## Report measurements
-
-Lower numbers are better. A routine is a function, method, or constructor.
-`-` means that the analyzer does not supply that measurement. These short
-descriptions are also available in the dashboard with `h`.
-
-| Column | Meaning |
-| --- | --- |
-| `SCORE` | Weighted sum of all enabled metrics and rules. Lower is better |
-| `COG` | Cognitive effort needed to understand nested decisions. Lower is better |
-| `NPATH` | Number of possible execution paths. Lower is better |
-| `CYCLO` | Cyclomatic complexity - independent control-flow paths. Lower is better |
-| `SHALLOW` | Caller burden relative to responsibility hidden behind the interface. Higher is worse |
-| `CPL` | Maximum number of foreign types referenced by a type. Lower is better |
-| `GOD` | Responsibility concentration in a type. Keep this low |
-| `PATH` | Source file being measured |
+## Score Details
 
 ### SCORE
 
@@ -322,3 +313,29 @@ I'll write up a proper description, but in the meantime, enjoy Codex's descripti
  publication actually runs; it does not block Fix preparation or admission and
  does not select either CLI from the ambient `PATH`.
 ```
+
+## Build & Install
+The Homebrew package includes the `slopmark` analyzer and `slopwatch` live dashboard:
+
+```sh
+brew tap blater/tap
+brew install slopwatch
+```
+You'll probably need to run brew trust to trust this tap, if you prefer not to, then you can also build from source.
+
+
+Build from source (requires Git, Make, Go 1.25+, Rust/Cargo, a full JDK—CI uses
+JDK 25—and Node.js 22+ with npm):
+
+```sh
+git clone https://github.com/blater/slopwatch.git
+cd slopwatch
+go -C go mod download
+make build
+
+./build/slopwatch .
+# Or: ./build/slopmark .
+```
+Run the executables from `build/`; keep the checkout's supporting analyzer files in place.
+
+The TypeScript analyzer requires Node.js 22 or newer. Homebrew installs that runtime dependency automatically.
