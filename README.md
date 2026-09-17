@@ -27,13 +27,20 @@ brew install slopwatch
 You'll probably need to run brew trust to trust this tap, if you prefer not to, then you can also build from source.
 
 
-For a source checkout:
+Build from source (requires Git, Make, Go 1.25+, Rust/Cargo, a full JDK—CI uses
+JDK 25—and Node.js 22+ with npm):
 
 ```sh
 git clone https://github.com/blater/slopwatch.git
 cd slopwatch
+go -C go mod download
 make build
+
+./build/slopwatch .
+# Or: ./build/slopmark .
 ```
+Run the executables from `build/`; keep the checkout's supporting analyzer files in place.
+
 The TypeScript analyzer requires Node.js 22 or newer. Homebrew installs that runtime dependency automatically.
 
 ## Usage
