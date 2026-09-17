@@ -314,7 +314,7 @@ I'll write up a proper description, but in the meantime, enjoy Codex's descripti
  does not select either CLI from the ambient `PATH`.
 ```
 
-## Build & Install
+## Build And Install
 The Homebrew package includes the `slopmark` analyzer and `slopwatch` live dashboard:
 
 ```sh
