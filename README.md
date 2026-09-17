@@ -106,7 +106,7 @@ descriptions are also available in the dashboard with `h`.
 | `COG` | Cognitive effort needed to understand nested decisions. Lower is better |
 | `NPATH` | Number of possible execution paths. Lower is better |
 | `CYCLO` | Cyclomatic complexity - independent control-flow paths. Lower is better |
-| `SHALLOW` | Functionality delivered per unit of interface complexity. Higher is worse |
+| `SHALLOW` | Caller burden relative to responsibility hidden behind the interface. Higher is worse |
 | `CPL` | Maximum number of foreign types referenced by a type. Lower is better |
 | `GOD` | Responsibility concentration in a type. Keep this low |
 | `PATH` | Source file being measured |
@@ -148,6 +148,16 @@ The score sums component contributions through their configured axes. A
 missing or unavailable component contributes zero and marks the file
 incomplete; it does not silently become a raw zero measurement.
 
+The follow dashboard's two line header includes a `0..100+` score distribution.
+The aggregate keeps five point buckets with a separate `100+` overflow bucket;
+the available header width resamples those buckets into the visible bar cells,
+keeping the overflow as the final cell. The second line labels the score range
+under the bars when the labels fit (⁰, ²⁵, ⁵⁰, ⁷⁵, ¹⁰⁰⁺). Bar height is proportional to the largest
+visible bucket. Cached or provisional results remain as a grey silhouette until
+a current verification replaces them. The graph and the repository/workspace
+labels share the remaining header width; long right labels keep their suffix
+with a twenty-cell floor where the terminal permits.
+
 ### COG — cognitive complexity
 
 COG follows the Sonar/PMD cognitive-complexity model. It estimates the mental
@@ -187,51 +197,49 @@ An `if` or loop adds one, each non-default switch case adds one, boolean
 jumps and panics are accounted for where the language adapter exposes them.
 The report shows the total across routines and the maximum routine value.
 
-### SHALLOW — module depth (or lack thereof penalty)
+### SHALLOW — module depth
 
-SHALLOW is an Ousterhout-inspired penalty: a module is deeper when it provides more useful functionality through a smaller caller-visible interface. 
-Higher SHALLOW is worse. The calculation uses a COSMIC-inspired static approximation of functional capability, not LOC or private implementation size.
-This is my intuitively favourite measure - I feel this one really "gets" what bad code is all about. 
-*But* it is tricker to measure. The other measurements all have standard implementations, this one being relatively new doesn't.  
-I've implemented my take on what module depth _should_ mean - the formula is below - basically how well does the interface hide the complexity of the task. As with all of these measures, there is a certain arbitraryness to all the thresholds. Please give feedback on what you think I've got right or wrong, what what you'd change:
+SHALLOW measures module "depth". This is the John Ousterhout suggestion of how to measure how good an interface/API is. If it abstracts a lot of complexity behind a simple interface it is better (deeper), if the amount of work going on in the backend is low compared to the complexity of the interface it is worse (shallower).
 
-*Formula*
+In summary: how much work an interface leaves to its callers compared with how much it handles for them (the caller burden).
+
+The caller's burden includes the operations and concepts they must understand, inputs and decisions they must supply, and steps they must perform in order.
+Exposing writable internal state adds to that burden. On the other side, the analyzer follows implementation and resolved calls for evidence of work handled inside: validating inputs, translating errors, managing resources and private state, coordinating concurrent access, and transforming data.
+
+The SHALLOW score runs from 0 to 100:
 ```text
-F = Functionality
-I = InterfaceCost
-D = DepthRatio
-
-F = entries + exits + reads + writes
-I = public operation count
-    + recursive costs of their parameter and result type shapes
-    + public type/state surface costs
-D = F / I
-
-depth penalty = 100 × max(0, 1 - D / D_ref)
-leakage penalty = 100 × min(1, exposed representation / I)
-SHALLOW = round(clamp(0, 100,
-    0.80 × depth penalty + 0.20 × leakage penalty))
+B = weighted caller burden
+H = weighted hidden responsibility
+SHALLOW = round(100 × B / (B + 2 × H))
 ```
 
-An entry is data or an event supplied to a public operation. An exit is a result or observable output. Reads and writes are recognized persistent-store movements. The analyzer estimates these terms from public operations, their signatures, public types, and exposed mutable representation.
+For example, an operation that opens a resource, uses it and handles cleanup
+hides more responsibility than an interface that leaves those steps to the caller.
+Repeated checks, extra loops and forwarding layers do not earn extra credit for the same work. 
+Defaults that simplify access to the same service can reduce caller burden.
 
-`D_ref` is selected from caller-visible role evidence by the versioned `role-shape-v2` policy. The report includes the raw `D`, the reference, and the penalty components. A module with no identifiable public interface is unavailable rather than being assigned a misleading zero.
+*Details*
+The unit measured is the usable API, which may span several files and include inherited or delegated behavior. 
+Moving a helper to another file does not make it deeper. 
+The file display shows its highest associated boundary score; shared boundaries count once in aggregate scoring. 
+Supporting contract members are assessed with the service they support, while passive data carriers and allocation-only factories are not assigned a depth penalty. 
+Recognized type constraints, defensive copies and useful adaptation are also taken into account.
 
-For nested types, each wrapper and child contributes 1 point. The structural analyzers cap each type shape at 32 so one enormous type can't dominate the metric.
+*Caveats (there are many)*
+This is an engineering estimate, not a verdict on design. It measures the kinds of responsibility hidden, not algorithmic sophistication: a small calculation and a substantial computation can receive the same credit. 
+The weights are policy choices, not an empirically calibrated scale. Missing dependencies, generated code or unsupported behavior can leave essential evidence unresolved; that produces `X`, not a guessed score, and prevents a complete pass. `–` means the metric does not apply. 
+The **info** view popup gives more details to explain the evidence and any gaps.
 
-SHALLOW uses a threshold of `20`, a weight of `5`, and `log-ratio`. Therefore:
+_This is a score best used as a composite component of the overall score_ - it's not one you should blindly tell an agent to optimize for on its own, as it is a lot more nuanced than say, the GOD metric.
 
-```text
-SHALLOW < 20  → contribution 0
-SHALLOW = 20  → contribution 5
-SHALLOW = 40  → contribution 10
-SHALLOW = 80  → contribution 15
-```
+*Score Contribution*
+With the default threshold of `20`, weight of `5` and `log-ratio` scoring,
+SHALLOW below 20 contributes nothing to SCORE; values of 20, 40 and 80 contribute
+5, 10 and 15 respectively.
 
 ### CPL — type coupling
 
-How tightly coupled is the module/class/file.  CPL shows the maximum number of distinct foreign types referenced by any type in the file. The displayed value is the raw coupling measurement; scoring uses the separately configured contribution. With the default threshold of `20`, values below `20` remain visible in CPL even though they contribute zero to
-SCORE.
+How tightly coupled is the module/class/file.  CPL shows the maximum number of distinct foreign types referenced by any type in the file. The displayed value is the raw coupling measurement; scoring uses the separately configured contribution. With the default threshold of `20`, values below `20` remain visible in CPL even though they contribute zero to SCORE.
 
 
 ### GOD — responsibility concentration
@@ -251,10 +259,15 @@ The displayed GOD value is the weighted penalty for the candidate; zero means th
 
 ## Agent-assisted fixes
 
-You can highlight files in the slopwatch file browser and request an agent to lower its score.
-I'll write up a proper description, but in the meantime, enjoy Codex's slop description - it has
-written a lot, so I think it was quite proud of this one:
+This feature is alpha. You can highlight files in the slopwatch file browser and request an agent to lower its score. This spins off an agent with a prompt to fix the marked files, along with a prompt and some guardrails:
 
+The prompt uses a template which can be changed in Settings → Fix Defaults → Agent prompt.  It uses placeholders such as {targets}, {target_score}, {focus_metrics}, {baseline_scores}, and {target_checklist}.
+
+The guardrails prohibit gaming scores by sharding files, relocating complexity, or emptying targets.  These are currently nothing complex - simply added to the prompt, and rely on the agent following instructions. This will get more attention in the future if agent-assisted-fixes turns out to be a useful feature.
+
+I'll write up a proper description, but in the meantime, enjoy Codex's description - it has written a lot, so I think it was quite proud of this one:
+
+```
  Install the Codex CLI, run `codex login`, then highlight a file and press `x`.
  Codex sign-in supports ChatGPT accounts and is the built-in default; it does
  not require an OpenAI API key. The Fix form lets you choose the score target,
@@ -298,3 +311,4 @@ written a lot, so I think it was quite proud of this one:
  authorization and the exact `github.com/owner/repository` target when selected
  publication actually runs; it does not block Fix preparation or admission and
  does not select either CLI from the ambient `PATH`.
+```
