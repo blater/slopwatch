@@ -50,7 +50,7 @@ e.g. to scan and show a project in the current directory:
 ```sh
 slopwatch .
 ```
-![Slopmark follow-mode dashboard](docs/follow-mode.svg)
+![SlopWatch dashboard](docs/dashboard.png)
 
 ### keys
 
