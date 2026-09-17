@@ -1,16 +1,19 @@
 ![SlopWatch](docs/shlopclawd.png)
 
-# SlopWatch: Watch the slop - in realtime
+# SlopWatch:
+* Code health at a glance
+* A quality bar for your agents
 
-**Slopwatch** exists because I wanted two things when working with agent teams - 
-  1) to give the agents an objective measure of slop that I can tell them to keep below.
-  2) to easily assess the level of slop in the codebase so that I know when to take the agents off task and push them to resolve their technical debt.
+_Slopwatch_ exists because I wanted two things when working with agent teams -
+* to give the agents an objective measure of slop that I can tell them to keep below.
+* to easily assess the level of slop in the codebase so that I know when to take the agents off task and push them to resolve their technical debt.
 
-For the agents, I built **slopmark** (packaged with this) which performs fast static analysis on a codebase/branch/worktree.  Its focus is on design smells for long term code health (so its not a replacement for a linter). I like to give the agents a specific slopmark target they cannot breach and instructions to review and rework until the slopmark score passes. 
+Agents get _slopmark_ (packaged with this) which performs fast static analysis on a codebase/branch/worktree and gives them an immediate, objective quality score. Its focus is on design smells for long term code health. 
 
-For us humans there's *slopwatch*, a kind of [btop](https://github.com/aristocratos/btop) for code health, which lets you see the health of the codebase at a glance.  It is a TUI on top of *slopmark* which tracks and displays static analysis metrics - if its red its not good.
+For humans there's _slopwatch_ - like [btop](https://github.com/aristocratos/btop) but for code design smells. It is a TUI on top of slopmark which tracks and displays static analysis metrics and shows you code health at a glance - if its red its not good.
 
-The system handles design and abstraction smells in Rust, Go, Typescript, and Java (please vote on what other languages you'd like to see!!), giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
+Slopwatch analyzes design and abstraction smells in Rust, Go, Typescript, and Java (please vote on what other languages you'd like to see), giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
+For new projects I give agents a specific slopmark target they cannot breach and give a measure/rework loop until the slopmark score passes. For mature projects they get a target of no regression combined with a limit for new code.
 
 ## Install and usage
 
