@@ -1,3 +1,5 @@
+.gocache/
+tools/__pycache__/
 .DS_Store
 .agents
 _bmad/
