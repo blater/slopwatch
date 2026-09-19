@@ -74,9 +74,9 @@ func gradedCallerBranchEffect(body []token, start int, receiver string) bool {
 	return false
 }
 
-func gradedCallerCollectConsumers(u unit, op *operation, units []unit, byKey map[string][]*operation, resolver gradedCallerResolver, bindings map[string]string) []consumerRecord {
+func gradedCallerCollectKnownConsumers(u unit, op *operation, units []unit, resolver gradedCallerResolver, bindings map[string]string, constraints []gradedConsumerConstraint) []consumerRecord {
 	consumers := []consumerRecord{}
-	for _, consumer := range gradedConsumerConstraints(op, u, units, byKey, map[string]map[string]bool{}, 0) {
+	for _, consumer := range constraints {
 		grouped := map[string][]fieldRef{}
 		for dep := range consumer.fields {
 			parts := strings.Split(dep, ".")

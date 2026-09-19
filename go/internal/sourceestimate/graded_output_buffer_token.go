@@ -30,7 +30,7 @@ func gradedOutputBufferToken(op *operation, units []unit, index map[string][]*op
 		} else {
 			aliases[t.text] = root
 		}
-	} else if gradedOutputAssignment(body, aliases, scopes, i, t) {
+	} else if gradedOutputAssignment(op, body, aliases, scopes, i, t) {
 		// Assignment aliases were updated by the helper.
 	}
 	root := aliases[t.text]

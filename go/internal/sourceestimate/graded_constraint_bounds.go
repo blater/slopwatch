@@ -17,7 +17,7 @@ func gradedBoundsProtection(op *operation, u unit, body []token, access int, dat
 		upper = index + ">size(" + data + ")"
 	}
 	for i := 0; i < access; i++ {
-		if body[i].text != "if" || !gradedUnconditional(body, i) {
+		if body[i].text != "if" || !operationBodyUnconditional(op, body, i) {
 			continue
 		}
 		open := i + 1

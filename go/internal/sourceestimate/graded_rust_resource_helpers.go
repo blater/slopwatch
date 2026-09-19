@@ -57,8 +57,14 @@ func gradedRustGenericBindings(header []token) map[string]bool {
 	return result
 }
 func gradedRustSynchronousHelper(source []token, owner, name string) bool {
+	return gradedRustSynchronousFunctions(source, owner, name, rustFunctions(source))
+}
+func gradedRustUnitSynchronousHelper(u unit, owner, name string) bool {
+	return gradedRustSynchronousFunctions(u.tokens, owner, name, rustUnitMembers(u, owner, name))
+}
+func gradedRustSynchronousFunctions(source []token, owner, name string, functions []rustFunction) bool {
 	matches := 0
-	for _, fn := range rustFunctions(source) {
+	for _, fn := range functions {
 		if fn.owner != owner || fn.name != name {
 			continue
 		}

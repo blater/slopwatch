@@ -4,6 +4,7 @@ import "strings"
 
 type call struct {
 	signature, name string
+	argumentTokens  []token
 	hasArguments    bool
 	actuals         [][]token
 	position        int
@@ -11,22 +12,56 @@ type call struct {
 
 func callsIn(body []token) []call {
 	result := make([]call, 0, 8)
-	for i := 0; i+1 < len(body); i++ {
+	// Most expression bodies contain no call candidate. Avoid token-sized
+	// indexes until a candidate actually needs delimiter resolution.
+	first := 0
+	for first+1 < len(body) && !callStart(body, first) {
+		first++
+	}
+	if first+1 >= len(body) {
+		return result
+	}
+	// Bound rescanning on tiny expressions to avoid allocating indexes for
+	// their few calls. The fixed cutoff preserves linear asymptotic work.
+	const directCallTokenLimit = 64
+	var index callDelimiterIndex
+	if len(body) > directCallTokenLimit {
+		index = indexCallDelimiters(body)
+	}
+	for i := first; i+1 < len(body); i++ {
 		if !callStart(body, i) {
 			continue
 		}
-		close := matching(body, i+1, "(", ")")
+		close := -1
+		if index.parentheses != nil {
+			close = index.parentheses[i+1]
+		} else {
+			close = matching(body, i+1, "(", ")")
+		}
 		if close < 0 {
 			continue
 		}
 		name := qualifiedCallName(body, i)
-		actuals := splitArguments(body[i+2 : close])
+		var actuals [][]token
+		if index.parentheses != nil {
+			actuals = index.arguments(body, i+2, close)
+		} else {
+			actuals = splitArguments(body[i+2 : close])
+		}
 		result = append(result, call{
-			signature: name + "/" + strings.TrimSpace(joinTokens(body[i+2:close])),
-			name:      name, hasArguments: close > i+2, actuals: actuals, position: i,
+			argumentTokens: body[i+2 : close],
+			name:           name, hasArguments: close > i+2, actuals: actuals, position: i,
 		})
 	}
 	return result
+}
+
+// callSignature materializes exact deduplication evidence only when consumed.
+func (c call) callSignature() string {
+	if c.signature != "" {
+		return c.signature
+	}
+	return c.name + "/" + strings.TrimSpace(joinTokens(c.argumentTokens))
 }
 
 func callStart(body []token, index int) bool {
@@ -39,10 +74,13 @@ func qualifiedCallName(body []token, index int) string {
 		if !isReceiverPart(body[cursor-1]) {
 			break
 		}
-		parts = append([]string{body[cursor-1].text}, parts...)
+		parts = append(parts, body[cursor-1].text)
 	}
 	if len(parts) == 1 {
 		return parts[0]
+	}
+	for left, right := 0, len(parts)-1; left < right; left, right = left+1, right-1 {
+		parts[left], parts[right] = parts[right], parts[left]
 	}
 	return strings.Join(parts, ".")
 }
@@ -122,10 +160,10 @@ func resolveCallOwner(caller *operation, callName string) (string, string, bool)
 	if dot := strings.LastIndexByte(name, '.'); dot >= 0 {
 		owner, name = name[:dot], name[dot+1:]
 	}
-	receiverType, hasReceiverType := caller.fieldTypes[owner]
+	receiverType, hasReceiverType := operationFieldType(caller, owner)
 	if !hasReceiverType {
 		if dot := strings.LastIndexByte(owner, '.'); dot >= 0 {
-			receiverType, hasReceiverType = caller.fieldTypes[owner[dot+1:]]
+			receiverType, hasReceiverType = operationFieldType(caller, owner[dot+1:])
 		}
 	}
 	if hasReceiverType {

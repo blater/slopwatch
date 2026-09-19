@@ -1,5 +1,7 @@
 package sourceestimate
 
+import "strings"
+
 func gradedCallerScanOperation(u unit, op0 *operation, units []unit, byKey map[string][]*operation, resolver gradedCallerResolver, controlled map[string]bool, transitions map[string]map[string]map[string]bool, record func(fieldRef, *operation)) []consumerRecord {
 	consumers := []consumerRecord{}
 	op := op0
@@ -9,17 +11,33 @@ func gradedCallerScanOperation(u unit, op0 *operation, units []unit, byKey map[s
 	op = &copy
 
 	for i, t := range op.body {
-		if t.text == "return" && gradedUnconditional(op.body, i) {
+		if t.text == "return" && normalizedEagerUnconditional(op0, i) {
 			op.body = op.body[:statementEnd(op.body, i)]
 			break
 		}
 	}
-	bindings := map[string]string{}
-	for name, f := range callerDeclaredFields(u, op.owner) {
-		bindings[name] = f.typeName
+	// Consumer dependencies can name a receiver used only inside a callee.
+	// Resolve just names needed by either witness source against shared maps.
+	constraints := gradedConsumerConstraints(op, u, units, byKey, map[string]map[string]bool{}, 0)
+	names := map[string]bool{}
+	for _, tok := range op.body {
+		names[tok.text] = true
 	}
-	for name, typ := range op.parameterTypes {
-		bindings[name] = typ
+	for _, consumer := range constraints {
+		for dep := range consumer.fields {
+			if dot := strings.IndexByte(dep, '.'); dot >= 0 {
+				names[dep[:dot]] = true
+			}
+		}
+	}
+	bindings := map[string]string{}
+	fields := callerDeclaredFields(u, op.owner)
+	for name := range names {
+		if typ, ok := op.parameterTypes[name]; ok {
+			bindings[name] = typ
+		} else if field, ok := fields[name]; ok {
+			bindings[name] = field.typeName
+		}
 	}
 	// A local declaration shadows a field/parameter; ambiguous inferred or
 	// assigned aliases are deliberately excluded from this bounded proof.
@@ -33,7 +51,7 @@ func gradedCallerScanOperation(u unit, op0 *operation, units []unit, byKey map[s
 			delete(bindings, t.text)
 		}
 	}
-	consumers = append(consumers, gradedCallerCollectConsumers(u, op, units, byKey, resolver, bindings)...)
+	consumers = append(consumers, gradedCallerCollectKnownConsumers(u, op, units, resolver, bindings, constraints)...)
 	refs, writes, _ := gradedCallerScanRefs(u, op, bindings, resolver, controlled, transitions)
 	for receiver, fields := range refs {
 		for name := range writes[receiver] {

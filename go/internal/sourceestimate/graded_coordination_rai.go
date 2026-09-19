@@ -77,7 +77,7 @@ func gradedRustGuardEscapes(body []token, close int, guard string) bool {
 func gradedRustGuardDrop(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool, guard gradedRustGuard) bool {
 	fields := callerDeclaredFields(u, op.owner)
 	fieldType := fields[guard.field].typeName
-	for _, function := range rustFunctions(u.tokens) {
+	for _, function := range rustUnitMembers(u, guard.typ, "drop") {
 		if function.name != "drop" || function.owner != guard.typ || function.impl == nil || function.impl.trait != "Drop" {
 			continue
 		}
@@ -90,8 +90,9 @@ func gradedRustGuardDrop(op *operation, u unit, body []token, units []unit, byKe
 }
 
 func gradedRustDropBody(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool, guard gradedRustGuard, fieldType string, dropBody []token) bool {
+	var flow unconditionalQueries
 	for _, c := range callsIn(dropBody) {
-		if !strings.HasPrefix(c.name, "self.0.") || !gradedUnconditional(dropBody, c.position) {
+		if !strings.HasPrefix(c.name, "self.0.") || !flow.unconditional(dropBody, c.position) {
 			continue
 		}
 		method := strings.TrimPrefix(c.name, "self.0.")
@@ -103,15 +104,11 @@ func gradedRustDropBody(op *operation, u unit, body []token, units []unit, byKey
 }
 
 func gradedRustRelease(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool, guard gradedRustGuard, fieldType, method string) bool {
-	for _, resourceUnit := range units {
-		for _, release := range rustFunctions(resourceUnit.tokens) {
-			if release.owner != fieldType || release.name != method {
-				continue
-			}
-			reset := gradedRustCleanupReset(release, resourceUnit, 0)
-			if len(reset) > 0 && gradedRustReleaseState(op, u, body, units, byKey, acquisition, guard, reset) {
-				return true
-			}
+	for _, candidate := range rustReleaseCandidates(units, fieldType, method) {
+		resourceUnit := units[candidate.unit]
+		reset := gradedRustCleanupReset(candidate.function, resourceUnit, 0)
+		if len(reset) > 0 && gradedRustReleaseState(op, u, body, units, byKey, acquisition, guard, reset) {
+			return true
 		}
 	}
 	return false
@@ -142,7 +139,7 @@ func gradedRustReleaseActual(op *operation, u unit, body []token, units []unit, 
 		for _, resolved := range gradedCleanupCandidates(op, u, units, actual, byKey) {
 			for effect, state := range reset {
 				if gradedOperationWritesField(resolved, units[resolved.file], effect) {
-					acquired[effect] = gradedHasBooleanWrite(resolved, units, effect, gradedOppositeBoolean(state)) && gradedUnconditional(body, actual.position)
+					acquired[effect] = gradedHasBooleanWrite(resolved, units, effect, gradedOppositeBoolean(state)) && operationBodyUnconditional(op, body, actual.position)
 					invalidated[effect] = !acquired[effect]
 				}
 			}

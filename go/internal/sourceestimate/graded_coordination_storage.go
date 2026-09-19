@@ -14,7 +14,7 @@ func gradedBooleanWrites(op *operation, units []unit, value string) []string {
 			continue
 		}
 		lastWrite[op.body[i].text] = i
-		final[op.body[i].text] = gradedExactBooleanAssignment(op.body, i, value) && gradedUnconditional(op.body, i)
+		final[op.body[i].text] = gradedExactBooleanAssignment(op.body, i, value) && operationBodyUnconditional(op, op.body, i)
 	}
 	// A later call may restore or otherwise mutate the same protocol state.
 	// Without a complete call effect contract, the earlier literal is not a
@@ -51,11 +51,11 @@ func gradedRustCleanupReset(function rustFunction, u unit, depth int) map[string
 		return reset
 	}
 	calls := callsIn(candidate.body)
-	if len(calls) != 1 || gradedHasAssignment(candidate.body) || !strings.HasPrefix(calls[0].name, "self.") || !gradedUnconditional(candidate.body, calls[0].position) {
+	if len(calls) != 1 || gradedHasAssignment(candidate.body) || !strings.HasPrefix(calls[0].name, "self.") || !operationBodyUnconditional(candidate, candidate.body, calls[0].position) {
 		return nil
 	}
 	name := strings.TrimPrefix(calls[0].name, "self.")
-	for _, helper := range rustFunctions(u.tokens) {
+	for _, helper := range rustUnitMembers(u, function.owner, name) {
 		if helper.owner == function.owner && helper.name == name {
 			return gradedRustCleanupReset(helper, u, depth+1)
 		}
@@ -75,7 +75,7 @@ func gradedStorageWriteAt(body []token, field int) bool {
 	start := gradedStorageReferenceStart(body, field)
 	return start > 0 && (body[start-1].text == "++" || body[start-1].text == "--")
 }
-func gradedTryProtected(body []token, finally int) (int, int) {
+func gradedTryProtected(op *operation, body []token, finally int) (int, int) {
 	for i := finally - 1; i >= 0; i-- {
 		if body[i].text != "try" || i+1 >= len(body) || body[i+1].text != "{" {
 			continue
@@ -103,7 +103,7 @@ func gradedTryProtected(body []token, finally int) (int, int) {
 			}
 			next = end + 1
 		}
-		if next == finally && gradedUnconditional(body, i) {
+		if next == finally && operationBodyUnconditional(op, body, i) {
 			return i + 2, finally - 1
 		}
 	}

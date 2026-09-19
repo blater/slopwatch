@@ -58,7 +58,7 @@ func gradedCallerPrepare(units []unit) (map[string][]*operation, map[string][]gr
 		// Context and attributed operations are now final for the owner pass.
 		// Replace the cache so earlier value copies cannot poison this context.
 		if units[index].inventory != nil {
-			units[index].inventory = &unitInventory{fields: units[index].inventory.fields}
+			units[index].inventory = &unitInventory{fields: units[index].inventory.fields, goReceivers: units[index].inventory.goReceivers, rust: units[index].inventory.rust, rustWorkspace: units[index].inventory.rustWorkspace}
 		}
 	}
 	return byKey, types

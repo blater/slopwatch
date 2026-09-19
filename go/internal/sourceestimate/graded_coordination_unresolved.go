@@ -16,12 +16,13 @@ func gradedUnresolvedCleanup(roots []*operation, units []unit, byKey map[string]
 func gradedUnresolvedOperation(op *operation, units []unit, byKey map[string][]*operation) bool {
 	body := normalizedPrunedBody(op)
 	for i := range body {
-		start, end, protectedStart, protectedEnd := gradedUnresolvedRegion(body, i)
+		start, end, protectedStart, protectedEnd := gradedUnresolvedRegion(op, body, i)
 		if start < 0 || end <= start || protectedStart < 0 {
 			continue
 		}
+		var regionFlow unconditionalQueries
 		for _, c := range callsIn(body[start:end]) {
-			if gradedUnresolvedCall(op, units, byKey, body, start, end, protectedStart, protectedEnd, c) {
+			if gradedUnresolvedCall(op, units, byKey, body, start, end, protectedStart, protectedEnd, c, &regionFlow) {
 				return true
 			}
 		}
@@ -29,13 +30,13 @@ func gradedUnresolvedOperation(op *operation, units []unit, byKey map[string][]*
 	return false
 }
 
-func gradedUnresolvedRegion(body []token, i int) (start, end, protectedStart, protectedEnd int) {
+func gradedUnresolvedRegion(op *operation, body []token, i int) (start, end, protectedStart, protectedEnd int) {
 	start, end, protectedStart, protectedEnd = -1, -1, -1, -1
 	if body[i].text == "finally" && i+1 < len(body) && body[i+1].text == "{" {
 		start, end = i+2, matching(body, i+1, "{", "}")
-		protectedStart, protectedEnd = gradedTryProtected(body, i)
+		protectedStart, protectedEnd = gradedTryProtected(op, body, i)
 	}
-	if body[i].text == "defer" && gradedUnconditional(body, i) {
+	if body[i].text == "defer" && operationBodyUnconditional(op, body, i) {
 		start = i + 1
 		open := start
 		for open < len(body) && body[open].text != "(" && body[open].text != ";" {
@@ -49,9 +50,9 @@ func gradedUnresolvedRegion(body []token, i int) (start, end, protectedStart, pr
 	return
 }
 
-func gradedUnresolvedCall(op *operation, units []unit, byKey map[string][]*operation, body []token, start, end, protectedStart, protectedEnd int, c call) bool {
+func gradedUnresolvedCall(op *operation, units []unit, byKey map[string][]*operation, body []token, start, end, protectedStart, protectedEnd int, c call, flow *unconditionalQueries) bool {
 	dot := strings.LastIndexByte(c.name, '.')
-	if dot < 0 || !gradedUnconditional(body[start:end], c.position) {
+	if dot < 0 || !flow.unconditional(body[start:end], c.position) {
 		return false
 	}
 	receiver := c.name[:dot]
@@ -76,52 +77,34 @@ func gradedUnresolvedUses(body []token, start, end, protectedStart, protectedEnd
 	}
 	return protected && !bad
 }
-func gradedUnconditional(body []token, position int) bool {
-	return gradedUnconditionalExits(body, position) && gradedUnconditionalGuards(body, position)
-}
 
-func gradedUnconditionalExits(body []token, position int) bool {
+// gradedUnconditional handles isolated queries. Repeated-query callers retain
+// a local or operation-owned index instead of rebuilding this one-off index.
+func gradedUnconditional(body []token, position int) bool {
+	if position <= 0 {
+		return true
+	}
+	answers := buildUnconditionalAnswers(body)
+	if position <= len(body) {
+		return answers[position] == 2
+	}
+	// Beyond the documented range the old scan can return early only upon a
+	// reachable depth-zero exit. Otherwise it indexes past the body and panics.
 	depth := 0
-	for i := 0; i < position; i++ {
-		if body[i].text == "{" {
+	for i, tok := range body {
+		if tok.text == "{" {
 			depth++
 		}
-		if body[i].text == "}" {
+		if tok.text == "}" {
 			depth--
 		}
-		if gradedUnconditionalExit(body, position, i, depth) {
+		isExit := tok.text == "return" || tok.text == "throw" || tok.text == "panic" && i+1 < len(body) && body[i+1].text == "("
+		if depth == 0 && isExit && answers[i] == 2 {
 			return false
 		}
 	}
-	return true
-}
-
-func gradedUnconditionalExit(body []token, position, i, depth int) bool {
-	isExit := body[i].text == "return" || body[i].text == "throw" || body[i].text == "panic" && i+1 < len(body) && body[i+1].text == "("
-	return depth == 0 && isExit && statementEnd(body, i) < position && gradedUnconditional(body, i)
-}
-
-func gradedUnconditionalGuards(body []token, position int) bool {
-	for i := 0; i < position; i++ {
-		if !gradedGuardKeyword(body[i].text) {
-			continue
-		}
-		start, ok := gradedGuardStart(body, i)
-		if !ok {
-			return false
-		}
-		if start >= len(body) {
-			continue
-		}
-		end := statementEnd(body, start)
-		if body[start].text == "{" {
-			end = matching(body, start, "{", "}")
-		}
-		if position >= start && position <= end {
-			return false
-		}
-	}
-	return true
+	_ = body[position-1] // Preserve out-of-range panic without recursive scanning.
+	return false
 }
 
 func gradedGuardKeyword(text string) bool {
@@ -133,22 +116,6 @@ func gradedGuardKeyword(text string) bool {
 	}
 }
 
-func gradedGuardStart(body []token, keyword int) (int, bool) {
-	start := keyword + 1
-	if start < len(body) && body[start].text == "(" {
-		end := matching(body, start, "(", ")")
-		if end < 0 {
-			return 0, false
-		}
-		return end + 1, true
-	}
-	if body[keyword].text != "else" {
-		for start < len(body) && body[start].text != "{" {
-			start++
-		}
-	}
-	return start, true
-}
 func gradedReceiverReplaced(body []token, start, end int, receiver string) bool {
 	parts := strings.Split(receiver, ".")
 	for i := start; i+1 < end && i+1 < len(body); i++ {

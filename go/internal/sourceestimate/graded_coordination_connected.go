@@ -41,7 +41,7 @@ func gradedConnectedCleanup(op *operation, u unit, units []unit, body []token, s
 			// supports cleanup owned by a complete() stage after caller acquisition.
 			if gradedStorageWriteAt(other.body, i) {
 				acquired[tok.text], invalidated[tok.text] = false, true
-				if gradedHasBooleanWrite(other, units, tok.text, gradedOppositeBoolean(reset[tok.text])) && c.position < start && gradedUnconditional(body, c.position) && gradedUnconditional(other.body, i) && !gradedReceiverReplaced(body, c.position, start, receiver) {
+				if gradedHasBooleanWrite(other, units, tok.text, gradedOppositeBoolean(reset[tok.text])) && c.position < start && operationBodyUnconditional(op, body, c.position) && operationBodyUnconditional(other, other.body, i) && !gradedReceiverReplaced(body, c.position, start, receiver) {
 					acquired[tok.text], invalidated[tok.text] = true, false
 					for _, tok := range body[c.position:maxInt(c.position, protectedStart)] {
 						if tok.text == "return" || tok.text == "throw" {

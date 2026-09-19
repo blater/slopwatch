@@ -2,59 +2,104 @@ package sourceestimate
 
 import "strings"
 
-func gradedCallerCallRoot(body []token, c call) string {
-	start := c.position
-	for start >= 2 && body[start-1].text == "." {
-		if body[start-2].text != ")" {
-			start -= 2
-			continue
+// Parenthesis pairs and fluent roots depend only on the immutable body. The
+// pair stack deliberately ignores other delimiter kinds, matching matching().
+type gradedCallerBodyIndex struct{ pairs, roots []int }
+
+func indexGradedCallerBody(body []token) gradedCallerBodyIndex {
+	index := gradedCallerBodyIndex{pairs: make([]int, len(body)), roots: make([]int, len(body))}
+	for i := range index.pairs {
+		index.pairs[i] = -1
+	}
+	stack := []int{}
+	for i, tok := range body {
+		if tok.text == "(" {
+			stack = append(stack, i)
 		}
-		open := -1
-		for j := start - 3; j >= 0; j-- {
-			if body[j].text == "(" && matching(body, j, "(", ")") == start-2 {
-				open = j
-				break
+		if tok.text == ")" && len(stack) > 0 {
+			open := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			index.pairs[open] = i
+			index.pairs[i] = open
+		}
+		root := i
+		if i >= 2 && body[i-1].text == "." {
+			if body[i-2].text != ")" {
+				root = index.roots[i-2]
+			} else if open := index.pairs[i-2]; open >= 1 {
+				root = index.roots[open-1]
+			} else {
+				root = -1
 			}
 		}
-		if open < 1 {
-			return ""
-		}
-		start = open - 1
+		index.roots[i] = root
 	}
-	if start >= 0 && start < len(body) {
-		return body[start].text
+	return index
+}
+
+func (index gradedCallerBodyIndex) callRoot(body []token, c call) string {
+	if c.position < 0 || c.position >= len(body) {
+		return ""
 	}
-	return ""
+	root := index.roots[c.position]
+	if root < 0 {
+		return ""
+	}
+	return body[root].text
+}
+
+func gradedCallerCallRoot(body []token, c call) string {
+	return indexGradedCallerBody(body).callRoot(body, c)
 }
 
 func gradedCallerPredicateRefs(body []token) map[int]int {
+	return gradedCallerPredicateRefsIndexed(body, indexGradedCallerBody(body))
+}
+
+func gradedCallerPredicateRefsIndexed(body []token, index gradedCallerBodyIndex) map[int]int {
 	refs := map[int]int{}
-	for j, t := range body {
-		if t.text != "if" || j+1 >= len(body) || body[j+1].text != "(" {
-			continue
+	ends := []int{}
+	for i := range body {
+		for len(ends) > 0 && ends[len(ends)-1] <= i {
+			ends = ends[:len(ends)-1]
 		}
-		close := matching(body, j+1, "(", ")")
-		if close <= j {
-			continue
+		if i >= 2 && body[i-2].text == "if" && body[i-1].text == "(" && index.pairs[i-1] > i {
+			ends = append(ends, index.pairs[i-1])
 		}
-		for k := j + 2; k < close; k++ {
-			refs[k] = close + 1
+		if len(ends) > 0 {
+			refs[i] = ends[len(ends)-1] + 1
 		}
 	}
 	return refs
 }
 
 func gradedCallerArgumentRefs(body []token, bindings map[string]string) map[string]bool {
+	return gradedCallerArgumentRefsIndexed(body, bindings, indexGradedCallerBody(body))
+}
+
+func gradedCallerArgumentRefsIndexed(body []token, bindings map[string]string, index gradedCallerBodyIndex) map[string]bool {
 	refs := map[string]bool{}
 	for _, c := range callsIn(body) {
-		for receiver := range bindings {
-			if !strings.HasPrefix(c.name, receiver+".") && gradedCallerCallRoot(body, c) != receiver {
-				continue
-			}
-			for _, arg := range c.actuals {
-				for dep := range gradedCallerDependencies(arg) {
-					refs[dep] = true
+		bound := false
+		// Preserve all prefix spellings, including dotted keys and empty-valued
+		// bindings: eligibility depends on membership, not the resolved type.
+		for i := 0; i < len(c.name); i++ {
+			if c.name[i] == '.' {
+				if _, ok := bindings[c.name[:i]]; ok {
+					bound = true
+					break
 				}
+			}
+		}
+		if !bound {
+			_, bound = bindings[index.callRoot(body, c)]
+		}
+		if !bound {
+			continue
+		}
+		for _, arg := range c.actuals {
+			for dep := range gradedCallerDependencies(arg) {
+				refs[dep] = true
 			}
 		}
 	}
@@ -65,8 +110,9 @@ func gradedCallerScanRefs(u unit, op *operation, bindings map[string]string, res
 	refs := map[string]map[string]fieldRef{}
 	writes := map[string]map[string]map[string]bool{}
 	conditions := map[string]map[string]bool{}
-	argumentRefs := gradedCallerArgumentRefs(op.body, bindings)
-	predicateRefs := gradedCallerPredicateRefs(op.body)
+	bodyIndex := indexGradedCallerBody(op.body)
+	argumentRefs := gradedCallerArgumentRefsIndexed(op.body, bindings, bodyIndex)
+	predicateRefs := gradedCallerPredicateRefsIndexed(op.body, bodyIndex)
 	epochs := map[string]int{}
 	for i := 0; i < len(op.body); i++ {
 		if i+1 < len(op.body) && gradedStorageWriteAt(op.body, i) {

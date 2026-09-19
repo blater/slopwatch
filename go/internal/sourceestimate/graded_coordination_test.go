@@ -91,12 +91,12 @@ func TestGradedDeferDoesNotCaptureFollowingStatements(t *testing.T) {
 
 func TestGradedUnconditionalGuardsHandlesTruncatedGuard(t *testing.T) {
 	truncated := []token{{text: "if"}, {text: "("}, {text: "ready"}, {text: ")"}}
-	if !gradedUnconditionalGuards(truncated, len(truncated)) {
+	if !gradedUnconditional(truncated, len(truncated)) {
 		t.Fatal("truncated guard at end should not invalidate the scan")
 	}
 
 	unmatched := []token{{text: "if"}, {text: "("}, {text: "ready"}}
-	if gradedUnconditionalGuards(unmatched, len(unmatched)) {
+	if gradedUnconditional(unmatched, len(unmatched)) {
 		t.Fatal("unmatched guard should remain invalid")
 	}
 }

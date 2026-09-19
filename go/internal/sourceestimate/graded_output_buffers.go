@@ -19,7 +19,7 @@ func gradedCallerOutputBuffers(op *operation, units []unit, index map[string][]*
 	u := units[op.file]
 	body := normalizedEagerBody(op)
 	for i, t := range body {
-		if t.text == "return" && gradedUnconditional(body, i) {
+		if t.text == "return" && normalizedEagerUnconditional(op, i) {
 			body = body[:statementEnd(body, i)]
 			break
 		}

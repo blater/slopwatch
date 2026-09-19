@@ -29,7 +29,7 @@ func gradedIndependentJDBCCleanup(op *operation, u unit, roots []*operation) boo
 	attempts := map[string]bool{}
 	body := op.body
 	for i, t := range body {
-		if t.text != "try" || i+1 >= len(body) || body[i+1].text != "{" || !gradedUnconditional(body, i) {
+		if t.text != "try" || i+1 >= len(body) || body[i+1].text != "{" || !operationBodyUnconditional(op, body, i) {
 			continue
 		}
 		close := matching(body, i+1, "{", "}")
@@ -55,12 +55,13 @@ func gradedIndependentJDBCCleanup(op *operation, u unit, roots []*operation) boo
 		if unsafe {
 			continue
 		}
+		var regionFlow unconditionalQueries
 		for _, c := range callsIn(body[i+2 : close]) {
 			if !strings.HasSuffix(c.name, ".close") || len(c.actuals) > 0 {
 				continue
 			}
 			receiver := strings.TrimPrefix(strings.TrimSuffix(c.name, ".close"), "this.")
-			if owned[receiver] && op.parameterTypes[receiver] == "" && gradedUnconditional(body[i+2:close], c.position) {
+			if owned[receiver] && op.parameterTypes[receiver] == "" && regionFlow.unconditional(body[i+2:close], c.position) {
 				attempts[receiver] = true
 			}
 		}

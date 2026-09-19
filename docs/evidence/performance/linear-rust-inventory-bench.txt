@@ -1,0 +1,42 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/blater/slopwatch/internal/sourceestimate
+cpu: Apple M5
+BenchmarkRustReleaseInventoryScaling/units=8/build-first-lookup-10         	    2077	     53984 ns/op	  122466 B/op	    1041 allocs/op
+BenchmarkRustReleaseInventoryScaling/units=8/lookup-10                     	  370372	       323.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRustReleaseInventoryScaling/units=32/build-first-lookup-10        	     538	    222441 ns/op	  501915 B/op	    4112 allocs/op
+BenchmarkRustReleaseInventoryScaling/units=32/lookup-10                    	   87326	      1373 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRustReleaseInventoryScaling/units=128/build-first-lookup-10       	     129	    907672 ns/op	 1953280 B/op	   16289 allocs/op
+BenchmarkRustReleaseInventoryScaling/units=128/lookup-10                   	   21546	      5551 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRustFunctionInventoryScaling/functions=8/manyImpls=false-10       	   46832	      2473 ns/op	    7136 B/op	      17 allocs/op
+BenchmarkRustFunctionInventoryScaling/functions=8/manyImpls=true-10        	   26893	      4433 ns/op	   12448 B/op	      19 allocs/op
+BenchmarkRustFunctionInventoryScaling/functions=32/manyImpls=false-10      	   15079	      7966 ns/op	   27808 B/op	      19 allocs/op
+BenchmarkRustFunctionInventoryScaling/functions=32/manyImpls=true-10       	    6328	     18691 ns/op	   57832 B/op	      32 allocs/op
+BenchmarkRustFunctionInventoryScaling/functions=128/manyImpls=false-10     	    3891	     30718 ns/op	  114208 B/op	      21 allocs/op
+BenchmarkRustFunctionInventoryScaling/functions=128/manyImpls=true-10      	    1545	     77112 ns/op	  230953 B/op	      42 allocs/op
+BenchmarkRustMalformedInventoryScaling/parameters/32-10                    	   37753	      3134 ns/op	    9696 B/op	      20 allocs/op
+BenchmarkRustMalformedInventoryScaling/header/32-10                        	   29844	      4008 ns/op	   11680 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/impl/32-10                          	   57445	      2099 ns/op	    6496 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/impl-unclosed/32-10                 	   55978	      2151 ns/op	    6816 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/struct/32-10                        	   39708	      3019 ns/op	    8928 B/op	      20 allocs/op
+BenchmarkRustMalformedInventoryScaling/attribute/32-10                     	   33199	      3641 ns/op	   10272 B/op	      20 allocs/op
+BenchmarkRustMalformedInventoryScaling/parameters/128-10                   	   10000	     10463 ns/op	   33120 B/op	      22 allocs/op
+BenchmarkRustMalformedInventoryScaling/header/128-10                       	    8752	     13982 ns/op	   44064 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/impl/128-10                         	   17587	      6838 ns/op	   22048 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/impl-unclosed/128-10                	   17541	      6916 ns/op	   23200 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/struct/128-10                       	   10000	     10193 ns/op	   33696 B/op	      22 allocs/op
+BenchmarkRustMalformedInventoryScaling/attribute/128-10                    	    9999	     11646 ns/op	   33760 B/op	      22 allocs/op
+BenchmarkRustMalformedInventoryScaling/parameters/512-10                   	    2708	     43030 ns/op	  132576 B/op	      24 allocs/op
+BenchmarkRustMalformedInventoryScaling/header/512-10                       	    2049	     57488 ns/op	  167200 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/impl/512-10                         	    4509	     26442 ns/op	   85536 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/impl-unclosed/512-10                	    4718	     26496 ns/op	   91168 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/struct/512-10                       	    2958	     39719 ns/op	  134049 B/op	      24 allocs/op
+BenchmarkRustMalformedInventoryScaling/attribute/512-10                    	    2497	     47292 ns/op	  138720 B/op	      24 allocs/op
+BenchmarkRustMalformedInventoryScaling/parameters/2048-10                  	     655	    180775 ns/op	  569184 B/op	      28 allocs/op
+BenchmarkRustMalformedInventoryScaling/header/2048-10                      	     510	    238347 ns/op	  664864 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/impl/2048-10                        	    1104	    111907 ns/op	  353568 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/impl-unclosed/2048-10               	    1015	    117463 ns/op	  389408 B/op	      17 allocs/op
+BenchmarkRustMalformedInventoryScaling/struct/2048-10                      	     668	    182572 ns/op	  598689 B/op	      27 allocs/op
+BenchmarkRustMalformedInventoryScaling/attribute/2048-10                   	     571	    206055 ns/op	  603490 B/op	      28 allocs/op
+PASS
+ok  	github.com/blater/slopwatch/internal/sourceestimate	5.540s

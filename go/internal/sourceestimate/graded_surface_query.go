@@ -45,7 +45,7 @@ func gradedOwnedQuery(u unit, op *operation, body []token) bool {
 		if body[i+1].text != "." {
 			continue
 		}
-		if _, typed := op.fieldTypes[fieldName]; !typed && field.typeName == "" {
+		if _, typed := operationFieldType(op, fieldName); !typed && field.typeName == "" {
 			continue
 		}
 		for _, prefix := range body[1:i] {

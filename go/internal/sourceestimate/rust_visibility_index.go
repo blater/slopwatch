@@ -42,7 +42,7 @@ func rustTraitEscapes(units []unit) map[string]bool {
 		for _, declaration := range rustNamedRanges(u.tokens, "trait") {
 			names[declaration.name] = true
 		}
-		for _, function := range rustFunctions(u.tokens) {
+		for _, function := range rustUnitFunctions(u) {
 			if function.impl != nil && function.impl.trait != "" {
 				names[function.impl.trait] = true
 			}

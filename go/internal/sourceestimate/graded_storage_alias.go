@@ -23,7 +23,7 @@ func gradeOwnerAlias(op *operation, body []token, name string, before int) bool 
 		}
 		rhs := body[i+2].text
 		terminal := i+3 >= len(body) || body[i+3].text == ";" || op.language == "go" && isIdentifier(body[i+3].text)
-		alias = gradedUnconditional(body, i) && (rhs == "this" || rhs == "self" || rhs == op.receiverName) && terminal
+		alias = operationBodyUnconditional(op, body, i) && (rhs == "this" || rhs == "self" || rhs == op.receiverName) && terminal
 	}
 	return alias
 }

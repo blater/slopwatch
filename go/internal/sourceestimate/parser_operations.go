@@ -154,9 +154,12 @@ func buildOperation(file File, index int, tokens []token, pkg, language string, 
 	}
 	owner, receiverName := owners[nameIndex], ""
 	opFields := fields
+	if language == "go" {
+		opFields = nil
+	}
 	if language == "go" && candidate.receiverStart >= 0 && candidate.receiverEnd >= candidate.receiverStart {
 		owner, receiverName = goReceiver(tokens[candidate.receiverStart:candidate.receiverEnd])
-		opFields = receiverFields(fields, receiverName, owner)
+		opFields = receiverFields(opFields, receiverName, owner)
 	}
 	if language == "go" {
 		opFields = goLocalReceiverTypes(body, opFields)
@@ -167,8 +170,11 @@ func buildOperation(file File, index int, tokens []token, pkg, language string, 
 		owner: owner, receiverName: receiverName, returnType: operationReturnType(tokens, close, bodyStart, language),
 		language: language, pkg: pkg, file: index, params: parameterCount(parameters),
 		paramNames: parameterNames(parameters, language), requiredParamNames: requiredParameterNames(parameters, language),
-		stringParams: stringParameterNames(parameters, language), fieldTypes: opFields, exposed: candidate.exported,
+		stringParams: stringParameterNames(parameters, language), fieldTypes: fields, exposed: candidate.exported,
 		packageVisible: packageVisible, body: body,
+	}
+	if language == "go" {
+		op.fieldTypeBindings = opFields
 	}
 	op.parameterTypes = gradedParameterTypes(parameters, language)
 	op.expressionBody = tokens[bodyStart].text == "=>" && bodyStart+1 < len(tokens) && tokens[bodyStart+1].text != "{"

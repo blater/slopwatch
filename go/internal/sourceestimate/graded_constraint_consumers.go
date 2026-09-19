@@ -26,16 +26,12 @@ func gradedConsumerConstraintsBounded(op *operation, u unit, units []unit, index
 	}
 	bindings["#visited:"+op.id] = map[string]bool{}
 	body := normalizedEagerBody(op)
+	sourceOp := op
 	copy := *op
-	copy.fieldTypes = cloneStringMap(op.fieldTypes)
-	if copy.fieldTypes == nil {
-		copy.fieldTypes = map[string]string{}
-	}
-	for name, field := range callerDeclaredFields(u, op.owner) {
-		copy.fieldTypes[name] = field.typeName
-	}
-	for name, typ := range op.parameterTypes {
-		copy.fieldTypes[name] = typ
+	copy.fieldTypeContext = &operationTypeContext{
+		parameters: op.parameterTypes,
+		fields:     callerDeclaredFields(u, op.owner),
+		previous:   op.fieldTypeContext,
 	}
 	op = &copy
 	deps := func(expression []token) map[string]bool {
@@ -59,13 +55,13 @@ func gradedConsumerConstraintsBounded(op *operation, u unit, units []unit, index
 	result := []gradedConsumerConstraint{}
 	for i, t := range body {
 		if (t.text == "=" || t.text == ":=") && i > 0 && isIdentifier(body[i-1].text) && (i < 2 || body[i-2].text != ".") {
-			if gradedUnconditional(body, i) {
+			if normalizedEagerUnconditional(sourceOp, i) {
 				bindings[body[i-1].text] = deps(body[i+1 : statementEnd(body, i+1)])
 			} else {
 				bindings[body[i-1].text] = map[string]bool{}
 			}
 		}
-		if t.text == "if" && i+1 < len(body) && gradedUnconditional(body, i) {
+		if t.text == "if" && i+1 < len(body) && normalizedEagerUnconditional(sourceOp, i) {
 			condition, valid := gradedRejectingConsumerCondition(body, i, calls)
 			if !valid {
 				continue

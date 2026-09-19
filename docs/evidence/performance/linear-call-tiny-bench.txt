@@ -1,0 +1,12 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/blater/slopwatch/internal/sourceestimate
+cpu: Apple M5
+BenchmarkCallExtractionTiny/f()/current-10         	  580988	       183.8 ns/op	     896 B/op	       1 allocs/op
+BenchmarkCallExtractionTiny/f()/reference-10       	  621921	       194.2 ns/op	     898 B/op	       2 allocs/op
+BenchmarkCallExtractionTiny/this.service.run(value)/current-10         	  368247	       306.0 ns/op	    1056 B/op	       5 allocs/op
+BenchmarkCallExtractionTiny/this.service.run(value)/reference-10       	  313015	       372.1 ns/op	    1104 B/op	       9 allocs/op
+BenchmarkCallExtractionTiny/if_(valid)_{_a(b(),_c(value));_}/current-10         	  415608	       294.0 ns/op	     992 B/op	       3 allocs/op
+BenchmarkCallExtractionTiny/if_(valid)_{_a(b(),_c(value));_}/reference-10       	  244369	       459.5 ns/op	    1056 B/op	       9 allocs/op
+PASS
+ok  	github.com/blater/slopwatch/internal/sourceestimate	1.033s

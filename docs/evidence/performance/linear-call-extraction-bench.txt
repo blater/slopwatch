@@ -1,0 +1,18 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/blater/slopwatch/internal/sourceestimate
+cpu: Apple M5
+BenchmarkCallExtractionIndexed/nested/16/indexed-10         	   69332	      1693 ns/op	    3408 B/op	      17 allocs/op
+BenchmarkCallExtractionIndexed/nested/16/reference-10       	   22858	      5220 ns/op	    4832 B/op	      76 allocs/op
+BenchmarkCallExtractionIndexed/nested/16/eager-signatures-10         	   23875	      5017 ns/op	    4832 B/op	      76 allocs/op
+BenchmarkCallExtractionIndexed/nested/64/indexed-10                  	   18804	      6370 ns/op	   24784 B/op	      78 allocs/op
+BenchmarkCallExtractionIndexed/nested/64/reference-10                	    1314	     91222 ns/op	   42080 B/op	     429 allocs/op
+BenchmarkCallExtractionIndexed/nested/64/eager-signatures-10         	    2755	     45712 ns/op	   48864 B/op	     440 allocs/op
+BenchmarkCallExtractionIndexed/nested/256/indexed-10                 	    5360	     24136 ns/op	  103248 B/op	     276 allocs/op
+BenchmarkCallExtractionIndexed/nested/256/reference-10               	      75	   1554607 ns/op	  456839 B/op	    2222 allocs/op
+BenchmarkCallExtractionIndexed/nested/256/eager-signatures-10        	     218	    547940 ns/op	  483717 B/op	    2237 allocs/op
+BenchmarkCallExtractionIndexed/nested/1024/indexed-10                	    1141	    101480 ns/op	  411985 B/op	    1052 allocs/op
+BenchmarkCallExtractionIndexed/nested/1024/reference-10              	       4	  25896979 ns/op	 6909968 B/op	   11524 allocs/op
+BenchmarkCallExtractionIndexed/nested/1024/eager-signatures-10       	      14	   7829744 ns/op	 7036716 B/op	   11545 allocs/op
+PASS
+ok  	github.com/blater/slopwatch/internal/sourceestimate	2.160s

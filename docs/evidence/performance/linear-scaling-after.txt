@@ -1,0 +1,126 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/blater/slopwatch/internal/sourceestimate
+cpu: Apple M5
+BenchmarkUnconditionalBalancedExits/tokens_176/construct_all-10         	   27537	      4306 ns/op	    4544 B/op	       4 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_176/construct_all-10         	   27940	      4280 ns/op	    4544 B/op	       4 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_176/original_all-10          	      58	   2026761 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_176/original_all-10          	      66	   1963096 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_704/construct_all-10         	    7180	     16578 ns/op	   19200 B/op	       4 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_704/construct_all-10         	    7530	     16520 ns/op	   19200 B/op	       4 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_2816/construct_all-10        	    1808	     66027 ns/op	   76800 B/op	       4 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_2816/construct_all-10        	    1796	     66429 ns/op	   76800 B/op	       4 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_11264/construct_all-10       	     448	    268994 ns/op	  290816 B/op	       4 allocs/op
+BenchmarkUnconditionalBalancedExits/tokens_11264/construct_all-10       	     448	    268363 ns/op	  290817 B/op	       4 allocs/op
+BenchmarkWorkspaceDependencyScaling/java/files=8-10                     	     380	    306693 ns/op	  363026 B/op	    3584 allocs/op
+BenchmarkWorkspaceDependencyScaling/java/files=8-10                     	     394	    307250 ns/op	  363027 B/op	    3584 allocs/op
+BenchmarkWorkspaceDependencyScaling/java/files=32-10                    	      97	   1337367 ns/op	 1603519 B/op	   14643 allocs/op
+BenchmarkWorkspaceDependencyScaling/java/files=32-10                    	      97	   1325408 ns/op	 1603515 B/op	   14643 allocs/op
+BenchmarkWorkspaceDependencyScaling/java/files=128-10                   	      19	   5897160 ns/op	 6531554 B/op	   58565 allocs/op
+BenchmarkWorkspaceDependencyScaling/java/files=128-10                   	      21	   5894095 ns/op	 6531288 B/op	   58565 allocs/op
+BenchmarkWorkspaceDependencyScaling/java/files=512-10                   	       5	  24650050 ns/op	26263208 B/op	  234105 allocs/op
+BenchmarkWorkspaceDependencyScaling/java/files=512-10                   	       5	  24523625 ns/op	26262198 B/op	  234105 allocs/op
+BenchmarkWorkspaceDependencyScaling/go/files=8-10                       	     422	    276830 ns/op	  350627 B/op	    2949 allocs/op
+BenchmarkWorkspaceDependencyScaling/go/files=8-10                       	     433	    275663 ns/op	  350627 B/op	    2949 allocs/op
+BenchmarkWorkspaceDependencyScaling/go/files=32-10                      	     100	   1190587 ns/op	 1531771 B/op	   11627 allocs/op
+BenchmarkWorkspaceDependencyScaling/go/files=32-10                      	     100	   1184808 ns/op	 1531763 B/op	   11627 allocs/op
+BenchmarkWorkspaceDependencyScaling/go/files=128-10                     	      22	   5269977 ns/op	 6229354 B/op	   45985 allocs/op
+BenchmarkWorkspaceDependencyScaling/go/files=128-10                     	      21	   5287518 ns/op	 6229329 B/op	   45985 allocs/op
+BenchmarkWorkspaceDependencyScaling/go/files=512-10                     	       5	  21575442 ns/op	25045563 B/op	  183232 allocs/op
+BenchmarkWorkspaceDependencyScaling/go/files=512-10                     	       5	  21514675 ns/op	25045518 B/op	  183232 allocs/op
+BenchmarkWorkspaceDependencyScaling/typescript/files=8-10               	     436	    273254 ns/op	  335505 B/op	    2898 allocs/op
+BenchmarkWorkspaceDependencyScaling/typescript/files=8-10               	     436	    273514 ns/op	  335506 B/op	    2898 allocs/op
+BenchmarkWorkspaceDependencyScaling/typescript/files=32-10              	     100	   1199914 ns/op	 1479157 B/op	   11634 allocs/op
+BenchmarkWorkspaceDependencyScaling/typescript/files=32-10              	     100	   1207294 ns/op	 1479164 B/op	   11634 allocs/op
+BenchmarkWorkspaceDependencyScaling/typescript/files=128-10             	      22	   5423097 ns/op	 6028784 B/op	   46252 allocs/op
+BenchmarkWorkspaceDependencyScaling/typescript/files=128-10             	      22	   5352866 ns/op	 6028792 B/op	   46252 allocs/op
+BenchmarkWorkspaceDependencyScaling/typescript/files=512-10             	       5	  21593842 ns/op	24281121 B/op	  184560 allocs/op
+BenchmarkWorkspaceDependencyScaling/typescript/files=512-10             	       5	  21517592 ns/op	24281032 B/op	  184559 allocs/op
+BenchmarkWorkspaceDependencyScaling/rust/files=8-10                     	     278	    423733 ns/op	  643484 B/op	    4384 allocs/op
+BenchmarkWorkspaceDependencyScaling/rust/files=8-10                     	     285	    422024 ns/op	  643484 B/op	    4384 allocs/op
+BenchmarkWorkspaceDependencyScaling/rust/files=32-10                    	      61	   1948984 ns/op	 2715215 B/op	   18947 allocs/op
+BenchmarkWorkspaceDependencyScaling/rust/files=32-10                    	      62	   1934903 ns/op	 2715227 B/op	   18947 allocs/op
+BenchmarkWorkspaceDependencyScaling/rust/files=128-10                   	      13	   9086737 ns/op	10936923 B/op	   76888 allocs/op
+BenchmarkWorkspaceDependencyScaling/rust/files=128-10                   	      12	   9104281 ns/op	10936896 B/op	   76888 allocs/op
+BenchmarkWorkspaceDependencyScaling/rust/files=512-10                   	       3	  33991472 ns/op	43940232 B/op	  308505 allocs/op
+BenchmarkWorkspaceDependencyScaling/rust/files=512-10                   	       3	  34209945 ns/op	43940242 B/op	  308505 allocs/op
+BenchmarkWorkspaceFileScaling/java/files=8-10                           	     295	    395859 ns/op	   3.62 MB/s	  352968 B/op	    3155 allocs/op
+BenchmarkWorkspaceFileScaling/java/files=8-10                           	     303	    396079 ns/op	   3.62 MB/s	  352952 B/op	    3154 allocs/op
+BenchmarkWorkspaceFileScaling/java/files=32-10                          	      79	   1599181 ns/op	   3.60 MB/s	 1447542 B/op	   12577 allocs/op
+BenchmarkWorkspaceFileScaling/java/files=32-10                          	      80	   1610412 ns/op	   3.57 MB/s	 1447537 B/op	   12577 allocs/op
+BenchmarkWorkspaceFileScaling/java/files=128-10                         	      16	   7147237 ns/op	   3.23 MB/s	 5795776 B/op	   49987 allocs/op
+BenchmarkWorkspaceFileScaling/java/files=128-10                         	      16	   7118013 ns/op	   3.24 MB/s	 5796149 B/op	   49989 allocs/op
+BenchmarkWorkspaceFileScaling/java/files=512-10                         	       4	  27023365 ns/op	   3.43 MB/s	23206076 B/op	  199415 allocs/op
+BenchmarkWorkspaceFileScaling/java/files=512-10                         	       4	  26669198 ns/op	   3.47 MB/s	23205110 B/op	  199409 allocs/op
+BenchmarkWorkspaceFileScaling/go/files=8-10                             	     235	    502096 ns/op	   2.87 MB/s	  429442 B/op	    4443 allocs/op
+BenchmarkWorkspaceFileScaling/go/files=8-10                             	     240	    502414 ns/op	   2.87 MB/s	  429456 B/op	    4443 allocs/op
+BenchmarkWorkspaceFileScaling/go/files=32-10                            	      54	   2111887 ns/op	   2.75 MB/s	 1856855 B/op	   17619 allocs/op
+BenchmarkWorkspaceFileScaling/go/files=32-10                            	      52	   2102036 ns/op	   2.76 MB/s	 1854428 B/op	   17619 allocs/op
+BenchmarkWorkspaceFileScaling/go/files=128-10                           	      12	   9588608 ns/op	   2.43 MB/s	 7514529 B/op	   69989 allocs/op
+BenchmarkWorkspaceFileScaling/go/files=128-10                           	      12	   9544372 ns/op	   2.44 MB/s	 7468598 B/op	   69984 allocs/op
+BenchmarkWorkspaceFileScaling/go/files=512-10                           	       3	  36253819 ns/op	   2.59 MB/s	30014410 B/op	  279216 allocs/op
+BenchmarkWorkspaceFileScaling/go/files=512-10                           	       3	  35351569 ns/op	   2.66 MB/s	30068560 B/op	  279212 allocs/op
+BenchmarkWorkspaceFileScaling/typescript/files=8-10                     	     302	    391589 ns/op	   3.66 MB/s	  370952 B/op	    3231 allocs/op
+BenchmarkWorkspaceFileScaling/typescript/files=8-10                     	     307	    387946 ns/op	   3.69 MB/s	  370957 B/op	    3231 allocs/op
+BenchmarkWorkspaceFileScaling/typescript/files=32-10                    	      81	   1580550 ns/op	   3.64 MB/s	 1521977 B/op	   12851 allocs/op
+BenchmarkWorkspaceFileScaling/typescript/files=32-10                    	      80	   1579267 ns/op	   3.64 MB/s	 1521983 B/op	   12851 allocs/op
+BenchmarkWorkspaceFileScaling/typescript/files=128-10                   	      16	   7041260 ns/op	   3.27 MB/s	 6102419 B/op	   51034 allocs/op
+BenchmarkWorkspaceFileScaling/typescript/files=128-10                   	      16	   7124000 ns/op	   3.24 MB/s	 6102549 B/op	   51035 allocs/op
+BenchmarkWorkspaceFileScaling/typescript/files=512-10                   	       4	  27405500 ns/op	   3.38 MB/s	24472890 B/op	  203544 allocs/op
+BenchmarkWorkspaceFileScaling/typescript/files=512-10                   	       4	  27358740 ns/op	   3.38 MB/s	24473114 B/op	  203546 allocs/op
+BenchmarkWorkspaceFileScaling/rust/files=8-10                           	     229	    513894 ns/op	   2.82 MB/s	  680827 B/op	    4521 allocs/op
+BenchmarkWorkspaceFileScaling/rust/files=8-10                           	     232	    509823 ns/op	   2.84 MB/s	  680796 B/op	    4521 allocs/op
+BenchmarkWorkspaceFileScaling/rust/files=32-10                          	      56	   2099971 ns/op	   2.78 MB/s	 2756546 B/op	   17956 allocs/op
+BenchmarkWorkspaceFileScaling/rust/files=32-10                          	      56	   2122521 ns/op	   2.75 MB/s	 2756544 B/op	   17956 allocs/op
+BenchmarkWorkspaceFileScaling/rust/files=128-10                         	      12	   9604188 ns/op	   2.44 MB/s	11032388 B/op	   71406 allocs/op
+BenchmarkWorkspaceFileScaling/rust/files=128-10                         	      12	   9629514 ns/op	   2.44 MB/s	11032120 B/op	   71403 allocs/op
+BenchmarkWorkspaceFileScaling/rust/files=512-10                         	       3	  35765139 ns/op	   2.64 MB/s	44207954 B/op	  284980 allocs/op
+BenchmarkWorkspaceFileScaling/rust/files=512-10                         	       3	  35486111 ns/op	   2.66 MB/s	44206909 B/op	  284970 allocs/op
+BenchmarkNestedCallScaling/depth=16-10                                  	   53797	      2190 ns/op	    3456 B/op	      18 allocs/op
+BenchmarkNestedCallScaling/depth=16-10                                  	   53985	      2174 ns/op	    3456 B/op	      18 allocs/op
+BenchmarkNestedCallScaling/depth=64-10                                  	   12770	      9354 ns/op	   25344 B/op	      79 allocs/op
+BenchmarkNestedCallScaling/depth=64-10                                  	   12784	      9363 ns/op	   25344 B/op	      79 allocs/op
+BenchmarkNestedCallScaling/depth=256-10                                 	    3448	     35694 ns/op	  104064 B/op	     277 allocs/op
+BenchmarkNestedCallScaling/depth=256-10                                 	    3264	     35674 ns/op	  104064 B/op	     277 allocs/op
+BenchmarkDeclarationScaling/java/declarations=8-10                      	     789	    147560 ns/op	   4.06 MB/s	  195145 B/op	    1297 allocs/op
+BenchmarkDeclarationScaling/java/declarations=8-10                      	     810	    147689 ns/op	   4.06 MB/s	  195144 B/op	    1297 allocs/op
+BenchmarkDeclarationScaling/java/declarations=32-10                     	     205	    584511 ns/op	   4.06 MB/s	  820494 B/op	    4896 allocs/op
+BenchmarkDeclarationScaling/java/declarations=32-10                     	     204	    586161 ns/op	   4.04 MB/s	  820496 B/op	    4896 allocs/op
+BenchmarkDeclarationScaling/java/declarations=128-10                    	      49	   2454848 ns/op	   3.88 MB/s	 3189871 B/op	   18824 allocs/op
+BenchmarkDeclarationScaling/java/declarations=128-10                    	      48	   2367537 ns/op	   4.03 MB/s	 3189867 B/op	   18824 allocs/op
+BenchmarkDeclarationScaling/java/declarations=256-10                    	      21	   5393391 ns/op	   3.57 MB/s	 6326783 B/op	   37292 allocs/op
+BenchmarkDeclarationScaling/java/declarations=256-10                    	      21	   5353996 ns/op	   3.60 MB/s	 6326761 B/op	   37292 allocs/op
+BenchmarkDeclarationScaling/go/declarations=8-10                        	     602	    196353 ns/op	   3.17 MB/s	  281393 B/op	    1792 allocs/op
+BenchmarkDeclarationScaling/go/declarations=8-10                        	     610	    195687 ns/op	   3.18 MB/s	  281393 B/op	    1792 allocs/op
+BenchmarkDeclarationScaling/go/declarations=32-10                       	     154	    762635 ns/op	   3.17 MB/s	 1140430 B/op	    6610 allocs/op
+BenchmarkDeclarationScaling/go/declarations=32-10                       	     154	    766734 ns/op	   3.15 MB/s	 1140430 B/op	    6610 allocs/op
+BenchmarkDeclarationScaling/go/declarations=128-10                      	      37	   3045440 ns/op	   3.18 MB/s	 4156913 B/op	   25381 allocs/op
+BenchmarkDeclarationScaling/go/declarations=128-10                      	      37	   3058904 ns/op	   3.16 MB/s	 4173185 B/op	   25382 allocs/op
+BenchmarkDeclarationScaling/go/declarations=256-10                      	      18	   6533817 ns/op	   2.99 MB/s	 8194480 B/op	   50301 allocs/op
+BenchmarkDeclarationScaling/go/declarations=256-10                      	      18	   6496637 ns/op	   3.01 MB/s	 8241530 B/op	   50303 allocs/op
+BenchmarkDeclarationScaling/typescript/declarations=8-10                	     804	    147933 ns/op	   3.94 MB/s	  213800 B/op	    1313 allocs/op
+BenchmarkDeclarationScaling/typescript/declarations=8-10                	     824	    147883 ns/op	   3.94 MB/s	  213801 B/op	    1313 allocs/op
+BenchmarkDeclarationScaling/typescript/declarations=32-10               	     206	    572807 ns/op	   4.03 MB/s	  844764 B/op	    4894 allocs/op
+BenchmarkDeclarationScaling/typescript/declarations=32-10               	     208	    570976 ns/op	   4.04 MB/s	  844763 B/op	    4894 allocs/op
+BenchmarkDeclarationScaling/typescript/declarations=128-10              	      51	   2323946 ns/op	   3.99 MB/s	 3221673 B/op	   18822 allocs/op
+BenchmarkDeclarationScaling/typescript/declarations=128-10              	      50	   2291059 ns/op	   4.05 MB/s	 3221676 B/op	   18822 allocs/op
+BenchmarkDeclarationScaling/typescript/declarations=256-10              	      25	   4867943 ns/op	   3.85 MB/s	 6385960 B/op	   37290 allocs/op
+BenchmarkDeclarationScaling/typescript/declarations=256-10              	      24	   4897130 ns/op	   3.83 MB/s	 6385977 B/op	   37290 allocs/op
+BenchmarkDeclarationScaling/rust/declarations=8-10                      	     568	    206386 ns/op	   3.01 MB/s	  378858 B/op	    1741 allocs/op
+BenchmarkDeclarationScaling/rust/declarations=8-10                      	     580	    205948 ns/op	   3.02 MB/s	  378858 B/op	    1741 allocs/op
+BenchmarkDeclarationScaling/rust/declarations=32-10                     	     150	    796715 ns/op	   3.03 MB/s	 1527008 B/op	    6288 allocs/op
+BenchmarkDeclarationScaling/rust/declarations=32-10                     	     151	    823949 ns/op	   2.93 MB/s	 1527009 B/op	    6288 allocs/op
+BenchmarkDeclarationScaling/rust/declarations=128-10                    	      36	   3273951 ns/op	   2.95 MB/s	 5967526 B/op	   23974 allocs/op
+BenchmarkDeclarationScaling/rust/declarations=128-10                    	      36	   3214571 ns/op	   3.01 MB/s	 5967553 B/op	   23974 allocs/op
+BenchmarkDeclarationScaling/rust/declarations=256-10                    	      16	   6759573 ns/op	   2.89 MB/s	11898870 B/op	   47441 allocs/op
+BenchmarkDeclarationScaling/rust/declarations=256-10                    	      16	   6751818 ns/op	   2.89 MB/s	11898851 B/op	   47441 allocs/op
+BenchmarkTypedDeclarationScaling/declarations=8-10                      	     811	    145307 ns/op	   3.22 MB/s	  205313 B/op	    1366 allocs/op
+BenchmarkTypedDeclarationScaling/declarations=8-10                      	     828	    146395 ns/op	   3.20 MB/s	  205313 B/op	    1366 allocs/op
+BenchmarkTypedDeclarationScaling/declarations=32-10                     	     218	    548719 ns/op	   3.16 MB/s	  826679 B/op	    4737 allocs/op
+BenchmarkTypedDeclarationScaling/declarations=32-10                     	     218	    547654 ns/op	   3.17 MB/s	  826678 B/op	    4737 allocs/op
+BenchmarkTypedDeclarationScaling/declarations=128-10                    	      55	   2203295 ns/op	   3.13 MB/s	 3151453 B/op	   17741 allocs/op
+BenchmarkTypedDeclarationScaling/declarations=128-10                    	      56	   2204373 ns/op	   3.13 MB/s	 3151453 B/op	   17741 allocs/op
+BenchmarkTypedDeclarationScaling/declarations=256-10                    	      24	   4680938 ns/op	   3.01 MB/s	 6254397 B/op	   34968 allocs/op
+BenchmarkTypedDeclarationScaling/declarations=256-10                    	      25	   4678055 ns/op	   3.01 MB/s	 6254351 B/op	   34968 allocs/op
+PASS
+ok  	github.com/blater/slopwatch/internal/sourceestimate	20.331s

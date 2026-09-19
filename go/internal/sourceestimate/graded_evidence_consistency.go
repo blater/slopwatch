@@ -8,7 +8,7 @@ func gradeConsistentWrites(op *operation, u unit, body []token) bool {
 		if constraint.derivedTarget != "" {
 			stored := map[string]string{}
 			for i, t := range body {
-				if t.text != "=" || i == 0 || !gradeOwnedFieldReference(op, u, body, i-1) || !gradedUnconditional(body, i) {
+				if t.text != "=" || i == 0 || !gradeOwnedFieldReference(op, u, body, i-1) || !operationBodyUnconditional(op, body, i) {
 					continue
 				}
 				rhs := gradedConstraintExpression(op, u, body[i+1:statementEnd(body, i+1)])
@@ -42,7 +42,7 @@ func gradeConsistentWrites(op *operation, u unit, body []token) bool {
 				}
 				writtenData := false
 				for i, t := range body {
-					if t.text != "=" || i == 0 || !gradeOwnedFieldReference(op, u, body, i-1) || !gradedUnconditional(body, i) {
+					if t.text != "=" || i == 0 || !gradeOwnedFieldReference(op, u, body, i-1) || !operationBodyUnconditional(op, body, i) {
 						continue
 					}
 					if body[i-1].text == data {

@@ -5,11 +5,12 @@ package sourceestimate
 // chooses roots. Public trait implementations remain roots even when their
 // representation type is private; called private helpers do not become roots.
 func annotateRustAttribution(units []unit) map[string]rustFunction {
+	prepareRustWorkspace(units)
 	typeVisibility, traitVisibility, knownTraits := rustVisibilityMaps(units)
 
 	for index := range units {
 		if normalizeLanguage(units[index].file.Language, units[index].file.Path) == "rust" {
-			units[index].ops = rustOperations(units[index].file, units[index].index, units[index].tokens, units[index].pkg, rustFunctions(units[index].tokens))
+			units[index].ops = rustOperations(units[index].file, units[index].index, units[index].tokens, units[index].pkg, rustUnitFunctions(units[index]))
 		}
 	}
 	// An imported trait is not necessarily private merely because its
@@ -33,7 +34,7 @@ func annotateRustAttribution(units []unit) map[string]rustFunction {
 		if normalizeLanguage(u.file.Language, u.file.Path) != "rust" {
 			continue
 		}
-		functions := rustFunctions(u.tokens)
+		functions := rustUnitFunctions(*u)
 		for functionIndex, op := range u.ops {
 			if functionIndex >= len(functions) {
 				// A malformed or macro-generated item is never promoted by a
@@ -69,7 +70,6 @@ func (v rustVisibility) annotate(u unit, op *operation, info rustFunction) rustF
 	}
 	info.traitPub = info.impl != nil && (v.traitVisibility[traitKey] || (!v.knownTraits[traitKey] && v.traitEscapes[traitKey]))
 	info.selfPub = info.impl != nil && v.typeVisibility[u.pkg+"#"+info.impl.selfType]
-	info.modulePub = rustModuleVisible(u.tokens, info.start)
 
 	if rustExternalRoute(info) {
 		op.exposed = true

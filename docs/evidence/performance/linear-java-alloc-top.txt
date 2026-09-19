@@ -1,0 +1,160 @@
+File: after.test
+Type: alloc_space
+Time: 2026-09-19 11:56:27 BST
+Showing nodes accounting for 618.47MB, 92.84% of 666.15MB total
+Dropped 167 nodes (cum <= 3.33MB)
+      flat  flat%   sum%        cum   cum%
+  101.70MB 15.27% 15.27%   222.01MB 33.33%  github.com/blater/slopwatch/internal/sourceestimate.callsIn
+   97.31MB 14.61% 29.87%    97.31MB 14.61%  github.com/blater/slopwatch/internal/sourceestimate.indexCallDelimiters
+   83.47MB 12.53% 42.40%    84.47MB 12.68%  github.com/blater/slopwatch/internal/sourceestimate.lex
+   40.18MB  6.03% 48.44%    40.18MB  6.03%  slices.Grow[go.shape.[]uint8,go.shape.uint8] (inline)
+   33.23MB  4.99% 53.42%    33.23MB  4.99%  os.readFileContents
+   28.15MB  4.23% 57.65%    28.15MB  4.23%  github.com/blater/slopwatch/internal/sourceestimate.substituteBody
+   25.01MB  3.75% 61.40%    90.65MB 13.61%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraintsBounded
+   22.45MB  3.37% 64.77%    22.45MB  3.37%  bytes.Clone (inline)
+   21.80MB  3.27% 68.05%    21.80MB  3.27%  internal/bytealg.MakeNoZero
+      10MB  1.50% 69.55%       10MB  1.50%  github.com/blater/slopwatch/internal/sourceestimate.callDelimiterIndex.arguments (inline)
+    9.57MB  1.44% 70.98%    11.07MB  1.66%  github.com/blater/slopwatch/internal/native.scoreComponent
+    9.35MB  1.40% 72.39%    19.65MB  2.95%  github.com/blater/slopwatch/internal/sourceestimate.sourceSurfaceExcluded
+    9.07MB  1.36% 73.75%     9.57MB  1.44%  github.com/blater/slopwatch/internal/native.(*scoreInputs).add
+    8.26MB  1.24% 74.99%     8.26MB  1.24%  io.ReadAll
+       8MB  1.20% 76.19%        8MB  1.20%  github.com/blater/slopwatch/internal/sourceestimate.javaInstanceFieldNames
+    7.63MB  1.14% 77.33%    49.31MB  7.40%  encoding/json/v2.makeStructArshaler.func2
+    6.52MB  0.98% 78.31%     6.52MB  0.98%  github.com/blater/slopwatch/internal/sourceestimate.buildUnconditionalAnswers
+       6MB   0.9% 79.21%        6MB   0.9%  github.com/blater/slopwatch/internal/sourceestimate.scopedOperationKey (inline)
+    5.50MB  0.83% 80.04%    29.07MB  4.36%  github.com/blater/slopwatch/internal/native.decodeProtocolStream
+    5.50MB  0.83% 80.87%     5.50MB  0.83%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerDependencies
+    5.50MB  0.83% 81.69%       10MB  1.50%  github.com/blater/slopwatch/internal/sourceestimate.qualifiedCallName
+    5.01MB  0.75% 82.44%    11.08MB  1.66%  github.com/blater/slopwatch/internal/sourceestimate.annotateConstraintWitnesses
+       5MB  0.75% 83.19%    75.78MB 11.38%  github.com/blater/slopwatch/internal/sourceestimate.appendCallMeasure
+       5MB  0.75% 83.95%        5MB  0.75%  reflect.unsafe_New
+    4.95MB  0.74% 84.69%     4.95MB  0.74%  github.com/blater/slopwatch/internal/sourceestimate.lexicalOwners
+    4.61MB  0.69% 85.38%     4.61MB  0.69%  github.com/blater/slopwatch/internal/sourceestimate.markStringParams (inline)
+    4.50MB  0.68% 86.06%     4.50MB  0.68%  reflect.mapassign_faststr0
+    4.07MB  0.61% 86.67%   205.60MB 30.86%  github.com/blater/slopwatch/internal/sourceestimate.estimateRoots
+       4MB   0.6% 87.27%    65.27MB  9.80%  github.com/blater/slopwatch/internal/sourceestimate.appendResolvedMeasure
+       4MB   0.6% 87.87%        4MB   0.6%  strings.(*Builder).WriteString (inline)
+    3.50MB  0.53% 88.39%   114.22MB 17.15%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanOperation
+    3.50MB  0.53% 88.92%        5MB  0.75%  github.com/blater/slopwatch/internal/sourceestimate.buildOperation
+    3.50MB  0.53% 89.45%     3.50MB  0.53%  encoding/json/v2.makeString
+       3MB  0.45% 89.90%     4.50MB  0.68%  github.com/blater/slopwatch/internal/sourceestimate.(*transformationState).operation
+       2MB   0.3% 90.20%     7.50MB  1.13%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraintsBounded.func1 (inline)
+       2MB   0.3% 90.50%    15.03MB  2.26%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceCallReceivers
+       2MB   0.3% 90.80%        6MB   0.9%  github.com/blater/slopwatch/internal/sourceestimate.findCallMatches
+    1.57MB  0.24% 91.03%     3.57MB  0.54%  github.com/blater/slopwatch/internal/sourceestimate.indexOperation
+    1.50MB  0.23% 91.26%    11.02MB  1.65%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerSurface
+    1.50MB  0.23% 91.48%    18.55MB  2.78%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerOutputBuffers
+    1.50MB  0.23% 91.71%    13.07MB  1.96%  github.com/blater/slopwatch/internal/native.scoreFile
+    1.50MB  0.23% 91.93%    18.56MB  2.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanRefs
+       1MB  0.15% 92.08%     5.50MB  0.83%  github.com/blater/slopwatch/internal/sourceestimate.returnedTransformation
+    0.52MB 0.079% 92.16%   488.08MB 73.27%  github.com/blater/slopwatch/internal/sourceestimate.analyzeWithAttribution
+    0.52MB 0.077% 92.24%    14.09MB  2.11%  github.com/blater/slopwatch/internal/native.scoreInputsReport
+    0.51MB 0.076% 92.32%    32.19MB  4.83%  github.com/blater/slopwatch/internal/sourceestimate.annotateSourceSurfaceInputs
+    0.50MB 0.075% 92.39%   117.71MB 17.67%  github.com/blater/slopwatch/internal/sourceestimate.assessGradedEvidence
+    0.50MB 0.075% 92.47%   115.22MB 17.30%  github.com/blater/slopwatch/internal/sourceestimate.annotateCallerObligations
+    0.50MB 0.075% 92.54%    45.59MB  6.84%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceRootResponsibilities
+    0.50MB 0.075% 92.62%     8.52MB  1.28%  github.com/blater/slopwatch/internal/sourceestimate.gradedReceiverCalls
+    0.50MB 0.075% 92.69%   214.11MB 32.14%  github.com/blater/slopwatch/internal/sourceestimate.analyzeJavaUnits
+    0.50MB 0.075% 92.77%        7MB  1.05%  github.com/blater/slopwatch/internal/sourceestimate.localOperationMeasure
+    0.50MB 0.075% 92.84%    20.53MB  3.08%  github.com/blater/slopwatch/internal/sourceestimate.newGradedEvidenceAssessment
+         0     0% 92.84%     3.93MB  0.59%  compress/flate.(*Writer).Write (inline)
+         0     0% 92.84%     3.93MB  0.59%  compress/flate.(*compressor).deflateFast
+         0     0% 92.84%     3.93MB  0.59%  compress/flate.(*compressor).write
+         0     0% 92.84%     5.78MB  0.87%  compress/gzip.(*Writer).Write
+         0     0% 92.84%       14MB  2.10%  encoding/json.(*Decoder).Decode
+         0     0% 92.84%    71.76MB 10.77%  encoding/json.Marshal (inline)
+         0     0% 92.84%    40.18MB  6.03%  encoding/json/internal/jsonwire.AppendQuote
+         0     0% 92.84%    23.27MB  3.49%  encoding/json/jsontext.(*Encoder).WriteToken (inline)
+         0     0% 92.84%    23.27MB  3.49%  encoding/json/jsontext.(*encoderState).WriteToken
+         0     0% 92.84%    23.27MB  3.49%  encoding/json/jsontext.Token.appendString
+         0     0% 92.84%    71.76MB 10.77%  encoding/json/v2.Marshal
+         0     0% 92.84%       14MB  2.10%  encoding/json/v2.Unmarshal
+         0     0% 92.84%    40.18MB  6.03%  encoding/json/v2.makeInterfaceArshaler.func1
+         0     0% 92.84%        6MB   0.9%  encoding/json/v2.makeInterfaceArshaler.func2
+         0     0% 92.84%    48.30MB  7.25%  encoding/json/v2.makeMapArshaler.func2
+         0     0% 92.84%       12MB  1.80%  encoding/json/v2.makeMapArshaler.func3
+         0     0% 92.84%    48.12MB  7.22%  encoding/json/v2.makeSliceArshaler.func2
+         0     0% 92.84%    16.91MB  2.54%  encoding/json/v2.makeStringArshaler.func1
+         0     0% 92.84%     3.50MB  0.53%  encoding/json/v2.makeStringArshaler.func2
+         0     0% 92.84%       14MB  2.10%  encoding/json/v2.makeStructArshaler.func3
+         0     0% 92.84%     7.95MB  1.19%  encoding/json/v2.marshalArrayAny
+         0     0% 92.84%    49.31MB  7.40%  encoding/json/v2.marshalEncode
+         0     0% 92.84%    16.40MB  2.46%  encoding/json/v2.marshalObjectAny
+         0     0% 92.84%    39.68MB  5.96%  encoding/json/v2.marshalValueAny
+         0     0% 92.84%       14MB  2.10%  encoding/json/v2.unmarshalDecode
+         0     0% 92.84%     4.34MB  0.65%  github.com/blater/slopwatch/internal/analysiscache.(*Store).PutProjection (inline)
+         0     0% 92.84%    70.04MB 10.51%  github.com/blater/slopwatch/internal/analysiscache.(*Store).PutUnit (inline)
+         0     0% 92.84%    74.38MB 11.17%  github.com/blater/slopwatch/internal/analysiscache.artifactStore.putArtifact
+         0     0% 92.84%     4.34MB  0.65%  github.com/blater/slopwatch/internal/analysiscache.artifactStore.putProjection
+         0     0% 92.84%    70.04MB 10.51%  github.com/blater/slopwatch/internal/analysiscache.artifactStore.putUnit
+         0     0% 92.84%     5.14MB  0.77%  github.com/blater/slopwatch/internal/analysiscache.encodeArtifactStorage
+         0     0% 92.84%    69.25MB 10.39%  github.com/blater/slopwatch/internal/analysiscache.makeEnvelope
+         0     0% 92.84%    34.84MB  5.23%  github.com/blater/slopwatch/internal/native.(*Analyzer).Analyze
+         0     0% 92.84%    40.06MB  6.01%  github.com/blater/slopwatch/internal/native.TestPerformanceProfile
+         0     0% 92.84%     3.71MB  0.56%  github.com/blater/slopwatch/internal/native.TestPerformanceProfile.func2
+         0     0% 92.84%    29.07MB  4.36%  github.com/blater/slopwatch/internal/native.TestPerformanceProfile.func4.1
+         0     0% 92.84%    33.34MB  5.00%  github.com/blater/slopwatch/internal/native.analyzeWithPersistentCache
+         0     0% 92.84%    33.34MB  5.00%  github.com/blater/slopwatch/internal/native.analyzeWithPersistentCacheOnce
+         0     0% 92.84%    34.84MB  5.23%  github.com/blater/slopwatch/internal/native.analyzeWithPlan
+         0     0% 92.84%     8.55MB  1.28%  github.com/blater/slopwatch/internal/native.assemblePersistentReport
+         0     0% 92.84%    18.93MB  2.84%  github.com/blater/slopwatch/internal/native.backendDigest
+         0     0% 92.84%     9.13MB  1.37%  github.com/blater/slopwatch/internal/native.backendDigests
+         0     0% 92.84%    29.07MB  4.36%  github.com/blater/slopwatch/internal/native.decodeProtocol
+         0     0% 92.84%     9.57MB  1.44%  github.com/blater/slopwatch/internal/native.decodeProtocol.func1
+         0     0% 92.84%    29.07MB  4.36%  github.com/blater/slopwatch/internal/native.decodeUnitScoreInputs
+         0     0% 92.84%     9.57MB  1.44%  github.com/blater/slopwatch/internal/native.decodeUnitScoreInputs.func1
+         0     0% 92.84%    18.93MB  2.84%  github.com/blater/slopwatch/internal/native.digestFiles
+         0     0% 92.84%     9.39MB  1.41%  github.com/blater/slopwatch/internal/native.hashWorkspacePaths.func1
+         0     0% 92.84%    76.58MB 11.50%  github.com/blater/slopwatch/internal/native.persistMissingUnits.func1
+         0     0% 92.84%     4.84MB  0.73%  github.com/blater/slopwatch/internal/native.persistPersistentReport
+         0     0% 92.84%    10.14MB  1.52%  github.com/blater/slopwatch/internal/native.prepareCacheUnits
+         0     0% 92.84%    10.14MB  1.52%  github.com/blater/slopwatch/internal/native.preparePersistentCache
+         0     0% 92.84%   500.34MB 75.11%  github.com/blater/slopwatch/internal/native.recoverAnalyzerInputs
+         0     0% 92.84%    29.07MB  4.36%  github.com/blater/slopwatch/internal/native.runAnalyzerDecoded[go.shape.map[string]github.com/blater/slopwatch/internal/native.scoreInputs]
+         0     0% 92.84%    29.07MB  4.36%  github.com/blater/slopwatch/internal/native.runAnalyzerUnits (inline)
+         0     0% 92.84%   532.78MB 79.98%  github.com/blater/slopwatch/internal/native.runMissingLanguage
+         0     0% 92.84%   532.78MB 79.98%  github.com/blater/slopwatch/internal/native.runMissingUnits.func1
+         0     0% 92.84%    33.34MB  5.00%  github.com/blater/slopwatch/internal/native.runPersistentCache
+         0     0% 92.84%     9.80MB  1.47%  github.com/blater/slopwatch/internal/native.verifyPersistentCache
+         0     0% 92.84%   500.34MB 75.11%  github.com/blater/slopwatch/internal/native.withSourceDepthEstimates
+         0     0% 92.84%     6.52MB  0.98%  github.com/blater/slopwatch/internal/sourceestimate.(*unconditionalQueries).unconditional
+         0     0% 92.84%   488.08MB 73.27%  github.com/blater/slopwatch/internal/sourceestimate.AnalyzeWithAttribution (inline)
+         0     0% 92.84%     3.50MB  0.53%  github.com/blater/slopwatch/internal/sourceestimate.annotateConstraintWitnesses.func1
+         0     0% 92.84%    18.55MB  2.78%  github.com/blater/slopwatch/internal/sourceestimate.annotateOutputObligations (inline)
+         0     0% 92.84%        8MB  1.20%  github.com/blater/slopwatch/internal/sourceestimate.classifyJavaShape
+         0     0% 92.84%     9.95MB  1.49%  github.com/blater/slopwatch/internal/sourceestimate.findOperations
+         0     0% 92.84%     8.52MB  1.28%  github.com/blater/slopwatch/internal/sourceestimate.gradeLocalCoordination
+         0     0% 92.84%    46.07MB  6.92%  github.com/blater/slopwatch/internal/sourceestimate.gradeOwnedOperations
+         0     0% 92.84%    46.07MB  6.92%  github.com/blater/slopwatch/internal/sourceestimate.gradeOwnedOperations.func1
+         0     0% 92.84%     9.01MB  1.35%  github.com/blater/slopwatch/internal/sourceestimate.gradeTransparentCall
+         0     0% 92.84%     4.02MB   0.6%  github.com/blater/slopwatch/internal/sourceestimate.gradeTypedAlternatives
+         0     0% 92.84%    16.54MB  2.48%  github.com/blater/slopwatch/internal/sourceestimate.gradeUnresolvedResultCall
+         0     0% 92.84%    32.57MB  4.89%  github.com/blater/slopwatch/internal/sourceestimate.gradeUnresolvedReturnedDuty
+         0     0% 92.84%    11.55MB  1.73%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerArgumentRefsIndexed
+         0     0% 92.84%   114.22MB 17.15%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanJava
+         0     0% 92.84%     9.01MB  1.35%  github.com/blater/slopwatch/internal/sourceestimate.gradedConstraintRoots
+         0     0% 92.84%    90.65MB 13.61%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraints (inline)
+         0     0% 92.84%    28.57MB  4.29%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceOperationResponsibilities
+         0     0% 92.84%     3.51MB  0.53%  github.com/blater/slopwatch/internal/sourceestimate.gradedOutputBufferCall
+         0     0% 92.84%     5.52MB  0.83%  github.com/blater/slopwatch/internal/sourceestimate.gradedOutputBufferScan (inline)
+         0     0% 92.84%     5.52MB  0.83%  github.com/blater/slopwatch/internal/sourceestimate.gradedOutputBufferToken
+         0     0% 92.84%    14.53MB  2.18%  github.com/blater/slopwatch/internal/sourceestimate.gradedUnresolvedCleanup
+         0     0% 92.84%        8MB  1.20%  github.com/blater/slopwatch/internal/sourceestimate.javaClassShapes
+         0     0% 92.84%    79.31MB 11.91%  github.com/blater/slopwatch/internal/sourceestimate.measureOperation
+         0     0% 92.84%    32.75MB  4.92%  github.com/blater/slopwatch/internal/sourceestimate.measuredBody
+         0     0% 92.84%     4.50MB  0.68%  github.com/blater/slopwatch/internal/sourceestimate.normalizeLanguage
+         0     0% 92.84%     4.01MB   0.6%  github.com/blater/slopwatch/internal/sourceestimate.normalizedEagerUnconditional
+         0     0% 92.84%    11.53MB  1.73%  github.com/blater/slopwatch/internal/sourceestimate.observeSurfaceCalls
+         0     0% 92.84%     6.52MB  0.98%  github.com/blater/slopwatch/internal/sourceestimate.operationBodyUnconditional
+         0     0% 92.84%        6MB   0.9%  github.com/blater/slopwatch/internal/sourceestimate.resolveCall
+         0     0% 92.84%     4.50MB  0.68%  github.com/blater/slopwatch/internal/sourceestimate.supportingJavaOwners
+         0     0% 92.84%    33.23MB  4.99%  os.ReadFile
+         0     0% 92.84%     5.21MB  0.78%  path/filepath.WalkDir
+         0     0% 92.84%     5.21MB  0.78%  path/filepath.walkDir
+         0     0% 92.84%     4.50MB  0.68%  reflect.Value.SetMapIndex
+         0     0% 92.84%     4.50MB  0.68%  reflect.mapassign_faststr
+         0     0% 92.84%    21.80MB  3.27%  strings.(*Builder).Grow
+         0     0% 92.84%    21.80MB  3.27%  strings.(*Builder).grow
+         0     0% 92.84%        7MB  1.05%  strings.Join
+         0     0% 92.84%    14.80MB  2.22%  strings.ToLower
+         0     0% 92.84%    40.06MB  6.01%  testing.tRunner

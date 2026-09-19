@@ -142,7 +142,7 @@ func gradedCoordinationOwnedReceiver(op *operation, u unit, receiver string) boo
 		if !ok {
 			continue
 		}
-		if _, typed := op.fieldTypes[part]; typed || field.typeName != "" {
+		if _, typed := operationFieldType(op, part); typed || field.typeName != "" {
 			return true
 		}
 		if i+1 < len(parts) && parts[i+1] == "0" {

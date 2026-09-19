@@ -47,14 +47,17 @@ func appendTransparent(values map[string]bool, id string) map[string]bool {
 	values[id] = true
 	return values
 }
-func gradedEvidenceLimits(evidence []evidenceItem, rootOwners map[string]bool, protocol map[string]map[string]bool) (map[string]bool, bool, map[string]bool) {
+func gradedEvidenceLimits(evidence []evidenceItem, rootOwners map[string]bool, protocol map[string]map[string]bool, limitations []string) (map[string]bool, bool, map[string]bool) {
 	excludedLimits, storageSnapshots := map[string]bool{}, map[string]bool{}
 	ownedUnknown := false
+	needed := neededCallLimitations(limitations)
+	seen := map[*operation]bool{}
 	for _, item := range evidence {
 		excluded := item.origin != nil && !rootOwners[item.origin.owner] && len(protocol[itoa(item.origin.file)+"#"+item.origin.owner]) > 0
 		if excluded {
-			for _, c := range callsIn(item.origin.body) {
-				excludedLimits["unresolved_call_range_0_2:"+c.signature] = true
+			if !seen[item.origin] && len(needed) > 0 {
+				seen[item.origin] = true
+				matchCallLimitations(item.origin.body, needed, excludedLimits)
 			}
 		} else if strings.HasPrefix(item.category, "unknown_") {
 			ownedUnknown = true

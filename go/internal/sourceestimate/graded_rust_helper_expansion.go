@@ -12,8 +12,8 @@ func gradedRustExpandHelpers(body []token, u unit, owner string, depth int, seen
 		if i+4 < len(body) && body[i].text == "self" && body[i+1].text == "." && body[i+3].text == "(" && body[i+4].text == ")" && (i+5 == len(body) || body[i+5].text == ";" || body[i+5].text == "}") && (i == 0 || body[i-1].text == ";" || body[i-1].text == "{" || body[i-1].text == "}") {
 			var helper *operation
 			ambiguous := false
-			for _, op := range rustOperations(u.file, u.index, u.tokens, u.pkg, rustFunctions(u.tokens)) {
-				if op.owner == owner && op.name == body[i+2].text && !op.exposed && op.params == 0 && gradedRustSynchronousHelper(u.tokens, owner, op.name) {
+			for _, op := range rustUnitRawMembers(u, owner, body[i+2].text) {
+				if op.owner == owner && op.name == body[i+2].text && !op.exposed && op.params == 0 && gradedRustUnitSynchronousHelper(u, owner, op.name) {
 					if helper != nil {
 						ambiguous = true
 					}

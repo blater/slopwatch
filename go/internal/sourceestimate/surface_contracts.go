@@ -4,7 +4,7 @@ func surfaceContractOperations(u unit) map[*operation]bool {
 	result := make(map[*operation]bool)
 	lang := normalizeLanguage(u.file.Language, u.file.Path)
 	if lang == "rust" {
-		functions := rustFunctions(u.tokens)
+		functions := rustUnitFunctions(u)
 		for index, candidate := range u.ops {
 			if index >= len(functions) {
 				continue

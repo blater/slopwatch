@@ -67,15 +67,27 @@ func rustParameterCount(tokens []token) int {
 
 func rustFunctions(tokens []token) []rustFunction {
 	result := make([]rustFunction, 0, 8)
-	impls := rustImplRanges(tokens)
-	types := rustNamedRanges(tokens, "struct")
+	context := newRustParseContext(tokens)
+	impls := rustImplRangesWithContext(tokens, context)
+	types := rustNamedRangesWithContext(tokens, "struct", context)
+	firstType := map[string]bool{}
+	for _, declaration := range types {
+		if _, exists := firstType[declaration.name]; !exists {
+			firstType[declaration.name] = declaration.public
+		}
+	}
+	traits := map[string]bool{}
+	for _, declaration := range rustNamedRangesWithContext(tokens, "trait", context) {
+		traits[declaration.name] = traits[declaration.name] || declaration.public
+	}
+	implIndex := 0
 	for i := 0; i < len(tokens); i++ {
 		if tokens[i].text != "fn" || i+1 >= len(tokens) || !isIdentifier(tokens[i+1].text) {
 			continue
 		}
 		j := i + 2
 		if j < len(tokens) && tokens[j].text == "<" {
-			end := matching(tokens, j, "<", ">")
+			end := context.angleEnds[j]
 			if end < 0 {
 				continue
 			}
@@ -84,38 +96,30 @@ func rustFunctions(tokens []token) []rustFunction {
 		if j >= len(tokens) || tokens[j].text != "(" {
 			continue
 		}
-		close := matching(tokens, j, "(", ")")
+		close := context.parenEnds[j]
 		if close < 0 {
 			continue
 		}
-		bodyStart := close + 1
-		for bodyStart < len(tokens) && tokens[bodyStart].text != "{" && tokens[bodyStart].text != "=>" && tokens[bodyStart].text != ";" {
-			bodyStart++
-		}
+		bodyStart := context.nextFunctionBoundary[close+1]
 		if bodyStart >= len(tokens) || tokens[bodyStart].text != "{" {
 			continue
 		}
-		bodyEnd := matching(tokens, bodyStart, "{", "}")
+		bodyEnd := context.braceEnds[bodyStart]
 		if bodyEnd < 0 {
 			continue
 		}
 		info := rustFunction{start: i, paramOpen: j, paramClose: close, bodyStart: bodyStart, bodyEnd: bodyEnd, name: tokens[i+1].text,
-			pubFn: rustBarePubBefore(tokens, i), restricted: rustRestrictedBefore(tokens, i), testOnly: rustTestOnly(tokens, i), modulePub: rustModuleVisible(tokens, i)}
-		for index := range impls {
-			if i > impls[index].start && i < impls[index].end {
-				info.impl = &impls[index]
-				info.owner = impls[index].selfType
-				break
-			}
+			pubFn: context.barePub[i], restricted: context.restricted[i], testOnly: context.testOnly[i], modulePub: context.moduleVisible[i]}
+		for implIndex < len(impls) && impls[implIndex].end <= i {
+			implIndex++
 		}
-		for _, declaration := range types {
-			if info.owner == declaration.name {
-				info.selfPub = declaration.public
-				break
-			}
+		if implIndex < len(impls) && i > impls[implIndex].start && i < impls[implIndex].end {
+			info.impl = &impls[implIndex]
+			info.owner = impls[implIndex].selfType
 		}
-		if info.impl != nil {
-			info.traitPub = rustTraitPublic(tokens, info.impl.trait)
+		info.selfPub = firstType[info.owner]
+		if info.impl != nil && info.impl.trait != "" {
+			info.traitPub = traits[info.impl.trait]
 		}
 		result = append(result, info)
 		i = bodyEnd
@@ -124,9 +128,15 @@ func rustFunctions(tokens []token) []rustFunction {
 }
 
 func rustImplRanges(tokens []token) []rustImplRange {
+	return rustImplRangesWithContext(tokens, newRustParseContext(tokens))
+}
+func rustImplRangesWithContext(tokens []token, context rustParseContext) []rustImplRange {
 	result := make([]rustImplRange, 0, 4)
 	for i := 0; i < len(tokens); i++ {
 		if tokens[i].text != "impl" {
+			continue
+		}
+		if context.nextMatchedBrace[i+1] == len(tokens) {
 			continue
 		}
 		bodyStart := i + 1
@@ -159,32 +169,32 @@ func rustImplRanges(tokens []token) []rustImplRange {
 		if bodyStart >= len(tokens) {
 			continue
 		}
-		bodyEnd := matching(tokens, bodyStart, "{", "}")
+		bodyEnd := context.braceEnds[bodyStart]
 		if bodyEnd < 0 {
 			continue
 		}
 		header := tokens[i+1 : bodyStart]
 		traitName, selfType := rustImplIdentity(header)
-		result = append(result, rustImplRange{start: i, end: bodyEnd, trait: traitName, selfType: selfType, modulePub: rustModuleVisible(tokens, i)})
+		result = append(result, rustImplRange{start: i, end: bodyEnd, trait: traitName, selfType: selfType, modulePub: context.moduleVisible[i]})
 		i = bodyEnd
 	}
 	return result
 }
 
 func rustNamedRanges(tokens []token, keyword string) []rustRange {
+	return rustNamedRangesWithContext(tokens, keyword, newRustParseContext(tokens))
+}
+func rustNamedRangesWithContext(tokens []token, keyword string, context rustParseContext) []rustRange {
 	result := make([]rustRange, 0, 4)
 	for i := 0; i+1 < len(tokens); i++ {
 		if tokens[i].text != keyword || !isIdentifier(tokens[i+1].text) {
 			continue
 		}
 		name := tokens[i+1].text
-		public := rustBarePubBefore(tokens, i) && rustModuleVisible(tokens, i)
-		end := i + 2
-		for end < len(tokens) && tokens[end].text != "{" && tokens[end].text != ";" {
-			end++
-		}
+		public := context.barePub[i] && context.moduleVisible[i]
+		end := context.nextBoundary[i+2]
 		if end < len(tokens) && tokens[end].text == "{" {
-			if close := matching(tokens, end, "{", "}"); close >= 0 {
+			if close := context.braceEnds[end]; close >= 0 {
 				result = append(result, rustRange{start: i, end: close, name: name, public: public})
 				i = close
 			}

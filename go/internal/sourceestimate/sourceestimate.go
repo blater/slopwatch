@@ -71,6 +71,8 @@ type operation struct {
 	requiredParamNames             []string
 	stringParams                   map[string]bool
 	fieldTypes                     map[string]string
+	fieldTypeBindings              map[string]string
+	fieldTypeContext               *operationTypeContext
 	imports                        map[string]sourceImport
 	exposed                        bool
 	packageVisible                 bool
@@ -319,10 +321,7 @@ func canonicalBody(body []token) string {
 // Resolve an owned local constructed with T{} or &T{} without requiring types.
 // Ambiguous/reassigned bindings are deliberately not used for helper attribution.
 func goLocalReceiverTypes(body []token, fields map[string]string) map[string]string {
-	result := cloneStringMap(fields)
-	if result == nil {
-		result = map[string]string{}
-	}
+	result := fields
 	writes := map[string]int{}
 	candidates := map[string]string{}
 	for i := 0; i+2 < len(body); i++ {
@@ -339,8 +338,16 @@ func goLocalReceiverTypes(body []token, fields map[string]string) map[string]str
 			candidates[name] = body[j].text
 		}
 	}
+	cloned := false
 	for name, typ := range candidates {
 		if writes[name] == 1 {
+			if !cloned {
+				result = cloneStringMap(fields)
+				if result == nil {
+					result = map[string]string{}
+				}
+				cloned = true
+			}
 			result[name] = typ
 		}
 	}

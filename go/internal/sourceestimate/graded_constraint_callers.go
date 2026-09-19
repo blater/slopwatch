@@ -36,17 +36,53 @@ func annotateConstraintWitnesses(units []unit) {
 	writes := map[string]map[string]map[string]bool{}
 
 	for _, u := range units {
+		// Candidate storage bindings are immutable for this unit and registry.
+		// Retain all viable names (even absent locally): callees can supply uses.
+		ownerBindings := map[string]map[string]string{}
+		candidateType := func(typ string) bool {
+			typ = strings.TrimSpace(strings.TrimLeft(typ, "*&"))
+			typ = strings.TrimPrefix(typ, "mut")
+			return len(registry[normalizeLanguage(u.file.Language, u.file.Path)+"#"+u.pkg+"#"+typ]) == 1
+		}
 		for _, original := range u.ops {
 			eager := *original
 			eager.body = normalizedEagerBody(original)
 			op := &eager
-			bindings := map[string]string{}
-			for name, typ := range op.parameterTypes {
-				bindings[name] = typ
+			fields, cached := ownerBindings[op.owner]
+			if !cached {
+				fields = map[string]string{}
+				for name, field := range callerDeclaredFields(u, op.owner) {
+					if candidateType(field.typeName) {
+						fields[name] = field.typeName
+					}
+				}
+				ownerBindings[op.owner] = fields
 			}
-			for name, field := range callerDeclaredFields(u, op.owner) {
-				if bindings[name] == "" {
-					bindings[name] = field.typeName
+			// Direct witnesses require a receiver token in this normalized body.
+			// Callee witnesses may introduce receiver prefixes absent from it.
+			names := map[string]bool{}
+			for _, tok := range op.body {
+				names[tok.text] = true
+			}
+			var consumers []gradedConsumerConstraint
+			if op.language != "java" {
+				consumers = gradedConsumerConstraints(op, u, units, byKey, map[string]map[string]bool{}, 0)
+				for _, consumer := range consumers {
+					for field := range consumer.fields {
+						if dot := strings.IndexByte(field, '.'); dot >= 0 {
+							names[field[:dot]] = true
+						}
+					}
+				}
+			}
+			bindings := map[string]string{}
+			for name := range names {
+				typ := op.parameterTypes[name]
+				if typ == "" {
+					typ = fields[name]
+				}
+				if candidateType(typ) {
+					bindings[name] = typ
 				}
 			}
 			for receiver, typ := range bindings {
@@ -84,7 +120,7 @@ func annotateConstraintWitnesses(units []unit) {
 						}
 						writes[key][value][op.id] = true
 					}
-					for _, consumer := range gradedConsumerConstraints(op, u, units, byKey, map[string]map[string]bool{}, 0) {
+					for _, consumer := range consumers {
 						names := []string{}
 						for field := range consumer.fields {
 							prefix := receiver + "."

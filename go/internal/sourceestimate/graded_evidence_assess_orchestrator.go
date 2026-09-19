@@ -8,7 +8,7 @@ import (
 
 func assessGradedEvidence(u unit, roots []*operation, units []unit, byKey map[string][]*operation, evidence []evidenceItem, result Result) *GradedEvidence {
 	a := newGradedEvidenceAssessment(u, roots, units, byKey, evidence)
-	excludedLimits, ownedUnknown, storageSnapshots := gradedEvidenceLimits(evidence, a.rootOwners, a.protocol)
+	excludedLimits, ownedUnknown, storageSnapshots := gradedEvidenceLimits(evidence, a.rootOwners, a.protocol, result.Limitations)
 	if !ownedUnknown {
 		excludedLimits["unsupported_outcome_range_0_2"] = true
 	}

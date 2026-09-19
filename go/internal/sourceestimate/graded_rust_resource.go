@@ -25,16 +25,16 @@ func gradedRustResourceEffects(u unit, roots []*operation) (resource, relocation
 		fields := gradedRustPointerFields(u, owner)
 		for _, op := range roots {
 			if op.owner == owner {
-				_, moved := gradedRustPointerEffects(gradedRustExpandHelpers(op.body, u, owner, 0, nil), u.tokens, fields, "self")
+				_, moved := gradedRustUnitPointerEffects(gradedRustExpandHelpers(op.body, u, owner, 0, nil), u, fields, "self")
 				relocation = relocation || moved
 			}
 		}
-		for _, fn := range rustFunctions(u.tokens) {
+		for _, fn := range rustUnitMembers(u, owner, "drop") {
 			if fn.owner != owner || fn.name != "drop" || fn.impl == nil || !gradedRustStandardDrop(u.tokens, *fn.impl) {
 				continue
 			}
 			body := u.tokens[fn.bodyStart+1 : fn.bodyEnd]
-			destroyed, moved := gradedRustPointerEffects(gradedRustExpandHelpers(body, u, owner, 0, nil), u.tokens, fields, "self")
+			destroyed, moved := gradedRustUnitPointerEffects(gradedRustExpandHelpers(body, u, owner, 0, nil), u, fields, "self")
 			resource = resource || destroyed
 			relocation = relocation || moved
 		}

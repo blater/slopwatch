@@ -236,10 +236,10 @@ func rustResolveCall(caller *operation, call call, index map[string][]*operation
 		matches = index[rustCallKey(caller.pkg, name, "")]
 	}
 	if len(matches) == 0 && owner != "" {
-		if receiverType, ok := caller.fieldTypes[owner]; ok {
+		if receiverType, ok := operationFieldType(caller, owner); ok {
 			owner = receiverType
 		} else if dot := strings.LastIndexByte(owner, '.'); dot >= 0 {
-			if receiverType, ok := caller.fieldTypes[owner[dot+1:]]; ok {
+			if receiverType, ok := operationFieldType(caller, owner[dot+1:]); ok {
 				owner = receiverType
 			}
 		}

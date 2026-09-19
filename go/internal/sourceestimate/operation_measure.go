@@ -147,7 +147,7 @@ func appendCallMeasure(m operationMeasure, op *operation, body []token, units []
 			m = appendResolvedMeasure(m, op, call, candidates[0], units, byKey, seen, depth, budget)
 			continue
 		}
-		unknownCalls[call.signature] = true
+		unknownCalls[call.callSignature()] = true
 	}
 	if len(unknownCalls) != 0 {
 		m.evidence = append(m.evidence, evidenceItem{category: "unknown_call", key: "unknown_call|" + op.id})

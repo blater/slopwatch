@@ -5,8 +5,11 @@ package sourceestimate
 // context changes. Units are value-passed, so lazy cache fills share this pointer.
 // Analysis passes are sequential; no cache is shared between analysis calls.
 type unitInventory struct {
-	fields      map[string]map[string]gradedSurfaceField
-	constraints map[string][]gradedConstraint
+	goReceivers   *goReceiverInventory
+	rust          *rustInventory
+	rustWorkspace *rustWorkspaceInventory
+	fields        map[string]map[string]gradedSurfaceField
+	constraints   map[string][]gradedConstraint
 }
 
 // Only full-unit roots in the prepared annotation context may use this wrapper.
@@ -37,6 +40,7 @@ type operationBodies struct {
 	pruned, eager     []token
 	ready, eagerReady bool
 	isNil             bool
+	flow              *unconditionalQueries
 }
 
 // normalizedPrunedBody and normalizedEagerBody return read-only capped slices.

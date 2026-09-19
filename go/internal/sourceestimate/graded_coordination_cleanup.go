@@ -34,7 +34,7 @@ func gradedFinallyCleanup(op *operation, u unit, units []unit, body []token, byK
 			}
 			start, end = start+1, close
 		}
-		protectedStart, protectedEnd := gradedTryProtected(body, i)
+		protectedStart, protectedEnd := gradedTryProtected(op, body, i)
 		if protectedStart < 0 {
 			continue
 		}
@@ -46,7 +46,7 @@ func gradedFinallyCleanup(op *operation, u unit, units []unit, body []token, byK
 }
 func gradedDeferCleanup(op *operation, u unit, units []unit, body []token, byKey map[string][]*operation, acquisition bool) bool {
 	for i, item := range body {
-		if item.text != "defer" || !gradedUnconditional(body, i) {
+		if item.text != "defer" || !operationBodyUnconditional(op, body, i) {
 			continue
 		}
 		end := i + 1
@@ -115,7 +115,7 @@ func gradedCleanupCandidates(op *operation, u unit, units []unit, c call, byKey 
 	for depth := 0; len(matches) == 1 && depth < maxCallDepth; depth++ {
 		candidate := matches[0]
 		calls := callsIn(candidate.body)
-		if len(calls) != 1 || gradedHasAssignment(candidate.body) || !gradedUnconditional(candidate.body, calls[0].position) {
+		if len(calls) != 1 || gradedHasAssignment(candidate.body) || !operationBodyUnconditional(candidate, candidate.body, calls[0].position) {
 			break
 		}
 		if len(gradedBooleanWrites(candidate, units, "true")) > 0 || len(gradedBooleanWrites(candidate, units, "false")) > 0 {

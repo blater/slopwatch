@@ -1,0 +1,344 @@
+File: after.test
+Type: cpu
+Time: 2026-09-19 11:56:23 BST
+Duration: 3.67s, Total samples = 1.27s (34.57%)
+Showing nodes accounting for 1.27s, 100% of 1.27s total
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      0.50s 39.37%  github.com/blater/slopwatch/internal/native.runMissingUnits.func1
+         0     0%     0%      0.49s 38.58%  github.com/blater/slopwatch/internal/native.runMissingLanguage
+         0     0%     0%      0.42s 33.07%  github.com/blater/slopwatch/internal/native.recoverAnalyzerInputs
+         0     0%     0%      0.42s 33.07%  github.com/blater/slopwatch/internal/native.withSourceDepthEstimates
+         0     0%     0%      0.42s 33.07%  github.com/blater/slopwatch/internal/sourceestimate.AnalyzeWithAttribution (inline)
+         0     0%     0%      0.42s 33.07%  github.com/blater/slopwatch/internal/sourceestimate.analyzeWithAttribution
+         0     0%     0%      0.39s 30.71%  runtime.systemstack
+     0.26s 20.47% 20.47%      0.26s 20.47%  syscall.rawsyscalln
+         0     0% 20.47%      0.26s 20.47%  syscall.syscalln
+         0     0% 20.47%      0.25s 19.69%  syscall.syscall
+         0     0% 20.47%      0.22s 17.32%  github.com/blater/slopwatch/internal/sourceestimate.analyzeJavaUnits
+         0     0% 20.47%      0.22s 17.32%  github.com/blater/slopwatch/internal/sourceestimate.estimateRoots
+         0     0% 20.47%      0.21s 16.54%  runtime.(*mheap).alloc.func1
+         0     0% 20.47%      0.21s 16.54%  runtime.(*mheap).allocSpan
+         0     0% 20.47%      0.21s 16.54%  runtime.mallocgc
+     0.18s 14.17% 34.65%      0.18s 14.17%  runtime.madvise
+         0     0% 34.65%      0.18s 14.17%  runtime.sysUsed (inline)
+         0     0% 34.65%      0.18s 14.17%  runtime.sysUsedOS (inline)
+         0     0% 34.65%      0.17s 13.39%  runtime.gcBgMarkWorker.func2
+         0     0% 34.65%      0.17s 13.39%  runtime.gcDrain
+         0     0% 34.65%      0.16s 12.60%  os.ignoringEINTR (inline)
+         0     0% 34.65%      0.16s 12.60%  runtime.gcBgMarkWorker
+         0     0% 34.65%      0.14s 11.02%  github.com/blater/slopwatch/internal/sourceestimate.assessGradedEvidence
+         0     0% 34.65%      0.14s 11.02%  os.OpenFile
+         0     0% 34.65%      0.14s 11.02%  os.open (inline)
+         0     0% 34.65%      0.14s 11.02%  os.openFileNolog
+         0     0% 34.65%      0.14s 11.02%  os.openFileNolog.func1 (inline)
+         0     0% 34.65%      0.14s 11.02%  syscall.Open
+         0     0% 34.65%      0.13s 10.24%  github.com/blater/slopwatch/internal/analysiscache.materializeSnapshotFile
+         0     0% 34.65%      0.13s 10.24%  github.com/blater/slopwatch/internal/analysiscache.snapshotWorker
+     0.13s 10.24% 44.88%      0.13s 10.24%  runtime.memclrNoHeapPointers
+     0.07s  5.51% 50.39%      0.12s  9.45%  runtime.scanObject
+         0     0% 50.39%      0.10s  7.87%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 50.39%      0.10s  7.87%  runtime.gcDrainMarkWorkerIdle (inline)
+         0     0% 50.39%      0.09s  7.09%  github.com/blater/slopwatch/internal/analysiscache.artifactStore.putArtifact
+         0     0% 50.39%      0.09s  7.09%  github.com/blater/slopwatch/internal/sourceestimate.annotateCallerObligations
+         0     0% 50.39%      0.09s  7.09%  github.com/blater/slopwatch/internal/sourceestimate.callsIn
+         0     0% 50.39%      0.09s  7.09%  os.ReadFile
+         0     0% 50.39%      0.09s  7.09%  runtime.(*mcache).nextFree
+         0     0% 50.39%      0.09s  7.09%  runtime.(*mcache).refill
+         0     0% 50.39%      0.09s  7.09%  runtime.(*mcentral).cacheSpan
+         0     0% 50.39%      0.08s  6.30%  github.com/blater/slopwatch/internal/analysiscache.(*Store).PutUnit (inline)
+         0     0% 50.39%      0.08s  6.30%  github.com/blater/slopwatch/internal/analysiscache.artifactStore.putUnit
+         0     0% 50.39%      0.08s  6.30%  github.com/blater/slopwatch/internal/native.persistMissingUnits.func1
+         0     0% 50.39%      0.08s  6.30%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanJava
+         0     0% 50.39%      0.08s  6.30%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanOperation
+         0     0% 50.39%      0.08s  6.30%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceRootResponsibilities
+         0     0% 50.39%      0.08s  6.30%  github.com/blater/slopwatch/internal/sourceestimate.measureOperation
+         0     0% 50.39%      0.07s  5.51%  encoding/json.Marshal (inline)
+         0     0% 50.39%      0.07s  5.51%  encoding/json/v2.Marshal
+         0     0% 50.39%      0.07s  5.51%  github.com/blater/slopwatch/internal/analysiscache.makeEnvelope
+         0     0% 50.39%      0.07s  5.51%  github.com/blater/slopwatch/internal/native.hashWorkspacePaths.func1
+         0     0% 50.39%      0.07s  5.51%  github.com/blater/slopwatch/internal/sourceestimate.appendCallMeasure
+         0     0% 50.39%      0.07s  5.51%  github.com/blater/slopwatch/internal/sourceestimate.appendResolvedMeasure
+         0     0% 50.39%      0.07s  5.51%  internal/runtime/maps.newGroups (inline)
+         0     0% 50.39%      0.07s  5.51%  internal/runtime/maps.newarray
+         0     0% 50.39%      0.07s  5.51%  os.Open (inline)
+         0     0% 50.39%      0.07s  5.51%  runtime.gcDrainMarkWorkerDedicated (inline)
+         0     0% 50.39%      0.07s  5.51%  runtime.makeslice
+         0     0% 50.39%      0.07s  5.51%  runtime.newarray
+     0.01s  0.79% 51.18%      0.06s  4.72%  encoding/json/v2.makeStructArshaler.func2
+         0     0% 51.18%      0.06s  4.72%  encoding/json/v2.marshalEncode
+         0     0% 51.18%      0.06s  4.72%  github.com/blater/slopwatch/internal/native.TestPerformanceProfile.func4.1
+         0     0% 51.18%      0.06s  4.72%  github.com/blater/slopwatch/internal/native.runAnalyzerDecoded[go.shape.map[string]github.com/blater/slopwatch/internal/native.scoreInputs]
+         0     0% 51.18%      0.06s  4.72%  github.com/blater/slopwatch/internal/native.runAnalyzerUnits (inline)
+         0     0% 51.18%      0.06s  4.72%  internal/runtime/maps.(*table).reset
+         0     0% 51.18%      0.06s  4.72%  internal/runtime/maps.newTable
+         0     0% 51.18%      0.05s  3.94%  encoding/json.(*Decoder).Decode
+         0     0% 51.18%      0.05s  3.94%  github.com/blater/slopwatch/internal/native.decodeProtocol
+         0     0% 51.18%      0.05s  3.94%  github.com/blater/slopwatch/internal/native.decodeProtocolStream
+         0     0% 51.18%      0.05s  3.94%  github.com/blater/slopwatch/internal/native.decodeUnitScoreInputs
+         0     0% 51.18%      0.05s  3.94%  github.com/blater/slopwatch/internal/sourceestimate.gradeOwnedOperations
+         0     0% 51.18%      0.05s  3.94%  github.com/blater/slopwatch/internal/sourceestimate.gradeOwnedOperations.func1
+         0     0% 51.18%      0.05s  3.94%  internal/poll.(*FD).Read
+         0     0% 51.18%      0.05s  3.94%  internal/poll.(*FD).Write
+         0     0% 51.18%      0.05s  3.94%  internal/runtime/maps.(*table).grow
+         0     0% 51.18%      0.05s  3.94%  internal/runtime/maps.(*table).rehash
+         0     0% 51.18%      0.05s  3.94%  os.(*File).Read
+         0     0% 51.18%      0.05s  3.94%  os.(*File).Write
+         0     0% 51.18%      0.05s  3.94%  os.(*File).read (inline)
+         0     0% 51.18%      0.05s  3.94%  os.(*File).write (inline)
+         0     0% 51.18%      0.05s  3.94%  runtime.(*mcentral).grow
+         0     0% 51.18%      0.05s  3.94%  runtime.growslice
+         0     0% 51.18%      0.05s  3.94%  runtime.mallocgcSmallNoscan
+         0     0% 51.18%      0.05s  3.94%  runtime.mallocgcSmallScanHeader
+         0     0% 51.18%      0.05s  3.94%  runtime.mapassign_faststr
+         0     0% 51.18%      0.05s  3.94%  runtime.schedule
+         0     0% 51.18%      0.05s  3.94%  syscall.Read (inline)
+         0     0% 51.18%      0.05s  3.94%  syscall.Write (inline)
+         0     0% 51.18%      0.05s  3.94%  syscall.read
+         0     0% 51.18%      0.05s  3.94%  syscall.write
+         0     0% 51.18%      0.04s  3.15%  encoding/json/jsontext.(*Decoder).ReadValue (inline)
+         0     0% 51.18%      0.04s  3.15%  encoding/json/jsontext.(*decoderState).ReadValue
+         0     0% 51.18%      0.04s  3.15%  encoding/json/jsontext.(*decoderState).consumeWhitespace
+         0     0% 51.18%      0.04s  3.15%  encoding/json/jsontext.(*decoderState).fetch
+         0     0% 51.18%      0.04s  3.15%  encoding/json/v2.makeMapArshaler.func2
+         0     0% 51.18%      0.04s  3.15%  encoding/json/v2.makeSliceArshaler.func2
+         0     0% 51.18%      0.04s  3.15%  github.com/blater/slopwatch/internal/native.(*Analyzer).Analyze
+         0     0% 51.18%      0.04s  3.15%  github.com/blater/slopwatch/internal/native.TestPerformanceProfile
+         0     0% 51.18%      0.04s  3.15%  github.com/blater/slopwatch/internal/native.analyzeWithPersistentCache
+         0     0% 51.18%      0.04s  3.15%  github.com/blater/slopwatch/internal/native.analyzeWithPersistentCacheOnce
+         0     0% 51.18%      0.04s  3.15%  github.com/blater/slopwatch/internal/native.analyzeWithPlan
+         0     0% 51.18%      0.04s  3.15%  github.com/blater/slopwatch/internal/native.runPersistentCache
+         0     0% 51.18%      0.04s  3.15%  github.com/blater/slopwatch/internal/sourceestimate.annotateConstraintWitnesses
+     0.01s  0.79% 51.97%      0.04s  3.15%  github.com/blater/slopwatch/internal/sourceestimate.gradeOwnedFieldReference
+         0     0% 51.97%      0.04s  3.15%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraints (inline)
+         0     0% 51.97%      0.04s  3.15%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraintsBounded
+         0     0% 51.97%      0.04s  3.15%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceOperationResponsibilities
+     0.01s  0.79% 52.76%      0.04s  3.15%  github.com/blater/slopwatch/internal/sourceestimate.indexCallDelimiters
+         0     0% 52.76%      0.04s  3.15%  github.com/blater/slopwatch/internal/sourceestimate.localOperationMeasure
+         0     0% 52.76%      0.04s  3.15%  github.com/blater/slopwatch/internal/sourceestimate.newGradedEvidenceAssessment
+     0.04s  3.15% 55.91%      0.04s  3.15%  runtime.(*gcBits).bytep (inline)
+         0     0% 55.91%      0.04s  3.15%  runtime.(*mspan).initHeapBits
+         0     0% 55.91%      0.04s  3.15%  runtime.(*mspan).refillAllocCache
+         0     0% 55.91%      0.04s  3.15%  runtime.findRunnable
+     0.01s  0.79% 56.69%      0.04s  3.15%  runtime.mallocgcSmallScanNoHeader
+         0     0% 56.69%      0.04s  3.15%  runtime.mcall
+     0.04s  3.15% 59.84%      0.04s  3.15%  runtime.memmove
+         0     0% 59.84%      0.04s  3.15%  runtime.park_m
+     0.04s  3.15% 62.99%      0.04s  3.15%  runtime.pthread_cond_signal
+     0.02s  1.57% 64.57%      0.04s  3.15%  runtime.scanObjectsSmall
+         0     0% 64.57%      0.04s  3.15%  runtime.scanSpan
+         0     0% 64.57%      0.04s  3.15%  runtime.semawakeup
+     0.03s  2.36% 66.93%      0.04s  3.15%  runtime.tryDeferToSpanScan
+         0     0% 66.93%      0.04s  3.15%  testing.tRunner
+         0     0% 66.93%      0.03s  2.36%  github.com/blater/slopwatch/internal/sourceestimate.annotateOutputObligations (inline)
+         0     0% 66.93%      0.03s  2.36%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerOutputBuffers
+         0     0% 66.93%      0.03s  2.36%  github.com/blater/slopwatch/internal/sourceestimate.gradedOwnerConstraints
+     0.01s  0.79% 67.72%      0.03s  2.36%  github.com/blater/slopwatch/internal/sourceestimate.gradedScopeContains
+         0     0% 67.72%      0.03s  2.36%  runtime.(*mheap).initSpan
+     0.01s  0.79% 68.50%      0.03s  2.36%  runtime.lock2
+         0     0% 68.50%      0.03s  2.36%  runtime.lockWithRank (inline)
+         0     0% 68.50%      0.03s  2.36%  runtime.mallocgcSmallScanNoHeaderSC5
+         0     0% 68.50%      0.03s  2.36%  runtime.mapaccess1_faststr
+         0     0% 68.50%      0.03s  2.36%  runtime.mapaccess2_faststr
+         0     0% 68.50%      0.03s  2.36%  runtime.newobject
+         0     0% 68.50%      0.03s  2.36%  runtime.notewakeup
+         0     0% 68.50%      0.03s  2.36%  runtime.startm
+         0     0% 68.50%      0.03s  2.36%  runtime.wakep
+         0     0% 68.50%      0.02s  1.57%  crypto/internal/fips140/sha256.(*Digest).Write
+         0     0% 68.50%      0.02s  1.57%  crypto/internal/fips140/sha256.block
+     0.02s  1.57% 70.08%      0.02s  1.57%  crypto/internal/fips140/sha256.blockSHA2
+         0     0% 70.08%      0.02s  1.57%  crypto/sha256.Sum256
+         0     0% 70.08%      0.02s  1.57%  encoding/json/internal/jsonwire.AppendQuote
+         0     0% 70.08%      0.02s  1.57%  encoding/json/jsontext.(*Encoder).WriteToken (inline)
+         0     0% 70.08%      0.02s  1.57%  encoding/json/jsontext.(*Encoder).WriteValue (inline)
+         0     0% 70.08%      0.02s  1.57%  encoding/json/jsontext.(*encoderState).WriteToken
+         0     0% 70.08%      0.02s  1.57%  encoding/json/jsontext.(*encoderState).WriteValue
+         0     0% 70.08%      0.02s  1.57%  encoding/json/jsontext.(*encoderState).reformatArray
+         0     0% 70.08%      0.02s  1.57%  encoding/json/jsontext.(*encoderState).reformatObject
+         0     0% 70.08%      0.02s  1.57%  encoding/json/jsontext.(*encoderState).reformatValue
+     0.01s  0.79% 70.87%      0.02s  1.57%  encoding/json/jsontext.Token.appendString
+         0     0% 70.87%      0.02s  1.57%  encoding/json/v2.makeInterfaceArshaler.func1
+         0     0% 70.87%      0.02s  1.57%  encoding/json/v2.makeMethodArshaler.func3
+         0     0% 70.87%      0.02s  1.57%  encoding/json/v2.marshalValueAny
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/analysiscache.DigestBytes
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/native.backendDigest
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/native.digestFiles
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.canonicalBody
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.findCallMatches
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradeComputedAssignment (inline)
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradeTypedAlternatives
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanRefs
+         0     0% 70.87%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerSurface
+     0.02s  1.57% 72.44%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedEagerArrowEnd
+         0     0% 72.44%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedEagerBody
+         0     0% 72.44%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceCallReceivers
+     0.02s  1.57% 74.02%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedFindSurfaceOwner
+         0     0% 74.02%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedOutputBufferScan (inline)
+         0     0% 74.02%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedOutputBufferToken
+     0.01s  0.79% 74.80%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedOwnerClause
+         0     0% 74.80%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedOwnerRelational
+     0.01s  0.79% 75.59%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.gradedStorageEffects
+     0.01s  0.79% 76.38%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.isIdentifier
+     0.02s  1.57% 77.95%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.lex
+     0.02s  1.57% 79.53%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.matching (inline)
+         0     0% 79.53%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.measuredBody
+         0     0% 79.53%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.operationBodyUnconditional
+         0     0% 79.53%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.publicProtocolPrerequisites
+         0     0% 79.53%      0.02s  1.57%  github.com/blater/slopwatch/internal/sourceestimate.resolveCall
+     0.01s  0.79% 80.31%      0.02s  1.57%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+         0     0% 80.31%      0.02s  1.57%  internal/runtime/maps.(*Map).growToSmall
+         0     0% 80.31%      0.02s  1.57%  internal/runtime/maps.NewEmptyMap (inline)
+         0     0% 80.31%      0.02s  1.57%  os.RemoveAll (partial-inline)
+         0     0% 80.31%      0.02s  1.57%  os.readFileContents
+         0     0% 80.31%      0.02s  1.57%  os.removeAll
+         0     0% 80.31%      0.02s  1.57%  os.removeAllFrom
+         0     0% 80.31%      0.02s  1.57%  runtime.gopreempt_m (inline)
+         0     0% 80.31%      0.02s  1.57%  runtime.goschedImpl
+         0     0% 80.31%      0.02s  1.57%  runtime.lock (inline)
+         0     0% 80.31%      0.02s  1.57%  runtime.makemap_small
+         0     0% 80.31%      0.02s  1.57%  runtime.mapassign_fast64
+     0.02s  1.57% 81.89%      0.02s  1.57%  runtime.mmap
+         0     0% 81.89%      0.02s  1.57%  runtime.morestack
+         0     0% 81.89%      0.02s  1.57%  runtime.newArenaMayUnlock
+         0     0% 81.89%      0.02s  1.57%  runtime.newMarkBits
+         0     0% 81.89%      0.02s  1.57%  runtime.newstack
+         0     0% 81.89%      0.02s  1.57%  runtime.osyield (inline)
+         0     0% 81.89%      0.02s  1.57%  runtime.stopm
+         0     0% 81.89%      0.02s  1.57%  runtime.sysAlloc
+         0     0% 81.89%      0.02s  1.57%  runtime.sysAllocOS (inline)
+     0.02s  1.57% 83.46%      0.02s  1.57%  runtime.typePointers.next
+     0.02s  1.57% 85.04%      0.02s  1.57%  runtime.usleep
+         0     0% 85.04%      0.01s  0.79%  bytes.Clone (inline)
+         0     0% 85.04%      0.01s  0.79%  compress/flate.(*Writer).Write (inline)
+         0     0% 85.04%      0.01s  0.79%  compress/flate.(*compressor).deflateFast
+         0     0% 85.04%      0.01s  0.79%  compress/flate.(*compressor).write
+         0     0% 85.04%      0.01s  0.79%  compress/flate.(*huffmanBitWriter).writeBlockDynamic
+     0.01s  0.79% 85.83%      0.01s  0.79%  compress/flate.(*huffmanBitWriter).writeTokens
+         0     0% 85.83%      0.01s  0.79%  compress/gzip.(*Writer).Write
+     0.01s  0.79% 86.61%      0.01s  0.79%  encoding/json/internal/jsonwire.ConsumeSimpleString (inline)
+     0.01s  0.79% 87.40%      0.01s  0.79%  encoding/json/internal/jsonwire.ConsumeWhitespace (inline)
+         0     0% 87.40%      0.01s  0.79%  encoding/json/v2.Unmarshal
+         0     0% 87.40%      0.01s  0.79%  encoding/json/v2.makeMapArshaler.func3
+         0     0% 87.40%      0.01s  0.79%  encoding/json/v2.makeStringArshaler.func1
+         0     0% 87.40%      0.01s  0.79%  encoding/json/v2.makeStructArshaler.func3
+         0     0% 87.40%      0.01s  0.79%  encoding/json/v2.marshalArrayAny
+         0     0% 87.40%      0.01s  0.79%  encoding/json/v2.marshalObjectAny
+         0     0% 87.40%      0.01s  0.79%  encoding/json/v2.unmarshalDecode
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/analysiscache.(*Store).MaterializeWorkspaceSnapshot.func1
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/analysiscache.(*Store).PutProjection (inline)
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/analysiscache.artifactStore.putProjection
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/analysiscache.encodeArtifactStorage
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/analysiscache.materializeSnapshot.func1
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/analysiscache.materializeSnapshot.func1.1
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/analysiscache.removeSnapshot
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/native.backendDigests
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/native.loadPersistentCache
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/native.missingLanguageRequest
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/native.persistPersistentReport
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/native.prepareCacheUnits
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/native.preparePersistentCache
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/native.runPersistentMisses
+         0     0% 87.40%      0.01s  0.79%  github.com/blater/slopwatch/internal/native.verifyPersistentCache
+     0.01s  0.79% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.(*unconditionalQueries).matches (inline)
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.(*unconditionalQueries).unconditional
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.annotateConstraintWitnesses.func1
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.annotateSourceSurfaceInputs
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.buildUnconditionalAnswers
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.callDelimiterIndex.arguments (inline)
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.callStart
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.callerDeclaredFields
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerPredicateRefsIndexed
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedDeclaredConstraintOwners
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceLimits
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedFullOwnerConstraints
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedOutputAssignment
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedOutputBufferCall
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedStorageEffectAt
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.gradedUnresolvedCleanup
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.markStringParams (inline)
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.neededCallLimitations
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.normalizeLanguage
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.normalizedEagerUnconditional
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.observeSurfaceCalls
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.qualifiedCallName
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.scopedOperationKey (inline)
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.splitArguments (inline)
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.substituteBody
+         0     0% 88.19%      0.01s  0.79%  github.com/blater/slopwatch/internal/sourceestimate.uncachedCallerDeclaredFields
+         0     0% 88.19%      0.01s  0.79%  internal/bytealg.MakeNoZero
+     0.01s  0.79% 88.98%      0.01s  0.79%  internal/runtime/atomic.(*UnsafePointer).Load (inline)
+     0.01s  0.79% 89.76%      0.01s  0.79%  internal/runtime/maps.(*Map).directoryIndex (inline)
+     0.01s  0.79% 90.55%      0.01s  0.79%  internal/runtime/maps.(*ctrlGroup).setEmpty (inline)
+         0     0% 90.55%      0.01s  0.79%  internal/runtime/maps.NewMap
+     0.01s  0.79% 91.34%      0.01s  0.79%  internal/runtime/maps.memHashAES
+         0     0% 91.34%      0.01s  0.79%  internal/syscall/unix.Openat (inline)
+         0     0% 91.34%      0.01s  0.79%  internal/syscall/unix.Unlinkat (inline)
+         0     0% 91.34%      0.01s  0.79%  os.openDirAt
+         0     0% 91.34%      0.01s  0.79%  os.removefileat (inline)
+         0     0% 91.34%      0.01s  0.79%  os.removefileat.func1 (inline)
+         0     0% 91.34%      0.01s  0.79%  os.rootOpenDir (inline)
+         0     0% 91.34%      0.01s  0.79%  os.rootOpenDir.func1 (inline)
+         0     0% 91.34%      0.01s  0.79%  reflect.Value.SetMapIndex
+         0     0% 91.34%      0.01s  0.79%  reflect.mapassign_faststr
+         0     0% 91.34%      0.01s  0.79%  reflect.mapassign_faststr0
+         0     0% 91.34%      0.01s  0.79%  runtime.(*gcControllerState).enlistWorker
+         0     0% 91.34%      0.01s  0.79%  runtime.(*mheap).alloc
+     0.01s  0.79% 92.13%      0.01s  0.79%  runtime.(*mspan).init
+         0     0% 92.13%      0.01s  0.79%  runtime.(*mspan).initInlineMarkBits (inline)
+     0.01s  0.79% 92.91%      0.01s  0.79%  runtime.(*mspan).moveInlineMarks
+     0.01s  0.79% 93.70%      0.01s  0.79%  runtime.(*spanInlineMarkBits).init
+         0     0% 93.70%      0.01s  0.79%  runtime.(*spanInlineMarkBits).tryAcquire
+     0.01s  0.79% 94.49%      0.01s  0.79%  runtime.(*spanScanOwnership).or (inline)
+         0     0% 94.49%      0.01s  0.79%  runtime.(*sweepLocked).sweep
+         0     0% 94.49%      0.01s  0.79%  runtime.bgsweep
+         0     0% 94.49%      0.01s  0.79%  runtime.checkIdleGCNoP
+         0     0% 94.49%      0.01s  0.79%  runtime.concatstring5
+         0     0% 94.49%      0.01s  0.79%  runtime.concatstrings
+     0.01s  0.79% 95.28%      0.01s  0.79%  runtime.extractHeapBitsSmall
+         0     0% 95.28%      0.01s  0.79%  runtime.forEachP.func1
+         0     0% 95.28%      0.01s  0.79%  runtime.forEachPInternal
+         0     0% 95.28%      0.01s  0.79%  runtime.gcMarkTermination.func4
+         0     0% 95.28%      0.01s  0.79%  runtime.gcMarkTermination.func4.1
+     0.01s  0.79% 96.06%      0.01s  0.79%  runtime.heapSetTypeSmallHeader (inline)
+     0.01s  0.79% 96.85%      0.01s  0.79%  runtime.kevent
+         0     0% 96.85%      0.01s  0.79%  runtime.mPark (inline)
+         0     0% 96.85%      0.01s  0.79%  runtime.mProf_Malloc
+         0     0% 96.85%      0.01s  0.79%  runtime.makemap
+         0     0% 96.85%      0.01s  0.79%  runtime.mallocgcLarge
+         0     0% 96.85%      0.01s  0.79%  runtime.mallocgcSmallNoScanSC5
+         0     0% 96.85%      0.01s  0.79%  runtime.mallocgcSmallNoScanSC6
+         0     0% 96.85%      0.01s  0.79%  runtime.mallocgcSmallScanNoHeaderSC4
+         0     0% 96.85%      0.01s  0.79%  runtime.mapaccess1_fast64
+     0.01s  0.79% 97.64%      0.01s  0.79%  runtime.mapaccess2_fast64
+         0     0% 97.64%      0.01s  0.79%  runtime.memclrNoHeapPointersChunked
+         0     0% 97.64%      0.01s  0.79%  runtime.netpoll
+         0     0% 97.64%      0.01s  0.79%  runtime.newAllocBits (inline)
+         0     0% 97.64%      0.01s  0.79%  runtime.notesleep
+         0     0% 97.64%      0.01s  0.79%  runtime.profilealloc
+     0.01s  0.79% 98.43%      0.01s  0.79%  runtime.pthread_cond_wait
+         0     0% 98.43%      0.01s  0.79%  runtime.rawstring (inline)
+         0     0% 98.43%      0.01s  0.79%  runtime.rawstringtmp
+     0.01s  0.79% 99.21%      0.01s  0.79%  runtime.releasem (inline)
+         0     0% 99.21%      0.01s  0.79%  runtime.resetspinning
+         0     0% 99.21%      0.01s  0.79%  runtime.semasleep
+         0     0% 99.21%      0.01s  0.79%  runtime.semrelease1
+         0     0% 99.21%      0.01s  0.79%  runtime.stkbucket
+         0     0% 99.21%      0.01s  0.79%  runtime.sweepone
+         0     0% 99.21%      0.01s  0.79%  runtime.typedslicecopy
+         0     0% 99.21%      0.01s  0.79%  runtime.unlock (inline)
+         0     0% 99.21%      0.01s  0.79%  runtime.unlock2
+         0     0% 99.21%      0.01s  0.79%  runtime.unlock2Wake
+         0     0% 99.21%      0.01s  0.79%  runtime.unlockWithRank (inline)
+         0     0% 99.21%      0.01s  0.79%  slices.Grow[go.shape.[]uint8,go.shape.uint8] (inline)
+         0     0% 99.21%      0.01s  0.79%  strings.(*Builder).Grow
+         0     0% 99.21%      0.01s  0.79%  strings.(*Builder).WriteString (inline)
+         0     0% 99.21%      0.01s  0.79%  strings.(*Builder).grow
+         0     0% 99.21%      0.01s  0.79%  strings.ToLower
+         0     0% 99.21%      0.01s  0.79%  sync.(*Once).Do (inline)
+         0     0% 99.21%      0.01s  0.79%  sync.(*Once).doSlow
+         0     0% 99.21%      0.01s  0.79%  sync.(*WaitGroup).Add
+         0     0% 99.21%      0.01s  0.79%  sync.(*WaitGroup).Done
+         0     0% 99.21%      0.01s  0.79%  sync.runtime_Semrelease
+         0     0% 99.21%      0.01s  0.79%  syscall.openat
+         0     0% 99.21%      0.01s  0.79%  syscall.syscall6
+         0     0% 99.21%      0.01s  0.79%  syscall.unlinkat
+     0.01s  0.79%   100%      0.01s  0.79%  unicode.IsLetter (inline)

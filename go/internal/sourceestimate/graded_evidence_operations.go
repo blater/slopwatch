@@ -83,25 +83,52 @@ func gradedMutableGoReceiver(op *operation, u unit) bool {
 	if op.language != "go" {
 		return true
 	}
-	for i, t := range u.tokens {
-		if t.text != "func" || i+1 >= len(u.tokens) || u.tokens[i+1].text != "(" {
+	var source *token
+	if len(u.tokens) > 0 {
+		source = &u.tokens[0]
+	}
+	if u.inventory == nil {
+		return indexGoReceivers(u.tokens)[goReceiverKey{op.name, op.owner}]
+	}
+	cached := u.inventory.goReceivers
+	if cached == nil || cached.source != source || cached.length != len(u.tokens) {
+		cached = &goReceiverInventory{source: source, length: len(u.tokens), receivers: indexGoReceivers(u.tokens)}
+		u.inventory.goReceivers = cached
+	}
+	return cached.receivers[goReceiverKey{op.name, op.owner}]
+}
+
+type goReceiverInventory struct {
+	source    *token
+	length    int
+	receivers map[goReceiverKey]bool
+}
+
+// Preserve the scanner's first matching declaration, including every receiver
+// token as an owner candidate rather than inferring owner from parsed operations.
+type goReceiverKey struct{ name, owner string }
+
+func indexGoReceivers(tokens []token) map[goReceiverKey]bool {
+	result := map[goReceiverKey]bool{}
+	for i, t := range tokens {
+		if t.text != "func" || i+1 >= len(tokens) || tokens[i+1].text != "(" {
 			continue
 		}
-		close := matching(u.tokens, i+1, "(", ")")
-		if close < 0 || close+1 >= len(u.tokens) || u.tokens[close+1].text != op.name {
+		close := matching(tokens, i+1, "(", ")")
+		if close < 0 || close+1 >= len(tokens) {
 			continue
 		}
-		receiver := u.tokens[i+2 : close]
-		ownerMatches := false
+		receiver := tokens[i+2 : close]
 		pointer := false
-		for _, token := range receiver {
-			ownerMatches = ownerMatches || token.text == op.owner
-			pointer = pointer || token.text == "*"
+		for _, tok := range receiver {
+			pointer = pointer || tok.text == "*"
 		}
-		if ownerMatches {
-			return pointer
+		for _, tok := range receiver {
+			key := goReceiverKey{tokens[close+1].text, tok.text}
+			if _, found := result[key]; !found {
+				result[key] = pointer
+			}
 		}
 	}
-
-	return false
+	return result
 }

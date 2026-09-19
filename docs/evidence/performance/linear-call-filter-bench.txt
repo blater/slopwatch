@@ -1,0 +1,14 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/blater/slopwatch/internal/sourceestimate
+cpu: Apple M5
+BenchmarkNeededCallLimitations/16/needed-10         	   33810	      3558 ns/op	    7432 B/op	      40 allocs/op
+BenchmarkNeededCallLimitations/16/reference-10      	    2410	     48649 ns/op	   47768 B/op	     744 allocs/op
+BenchmarkNeededCallLimitations/64/needed-10         	   10000	     11416 ns/op	   31752 B/op	      96 allocs/op
+BenchmarkNeededCallLimitations/64/reference-10      	     154	    774129 ns/op	  410204 B/op	    3956 allocs/op
+BenchmarkNeededCallLimitations/256/needed-10        	    2872	     41357 ns/op	  125832 B/op	     296 allocs/op
+BenchmarkNeededCallLimitations/256/reference-10     	       8	  12852646 ns/op	 4567484 B/op	   19840 allocs/op
+BenchmarkNeededCallLimitations/1024/needed-10       	     742	    160090 ns/op	  503306 B/op	    1075 allocs/op
+BenchmarkNeededCallLimitations/1024/reference-10    	       1	 216287875 ns/op	69019400 B/op	  100409 allocs/op
+PASS
+ok  	github.com/blater/slopwatch/internal/sourceestimate	1.552s

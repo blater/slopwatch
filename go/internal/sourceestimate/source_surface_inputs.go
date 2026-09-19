@@ -15,6 +15,7 @@ import (
 // escapes, contract methods, optional parameters, generated/deprecated source,
 // and incomplete declarations are left alone.
 func annotateSourceSurfaceInputs(units []unit, byKey map[string][]*operation) {
+	prepareRustWorkspace(units)
 	if len(units) == 0 || len(byKey) == 0 {
 		return
 	}

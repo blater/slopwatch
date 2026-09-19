@@ -33,7 +33,7 @@ func typeScriptModuleUses(op *operation, storage map[string]string, units []unit
 		body = gradedEagerBody(normalizedPrunedBody(op), "typescript")
 	}
 	for i, t := range body {
-		if t.text == "return" && gradedUnconditional(body, i) {
+		if t.text == "return" && operationBodyUnconditional(op, body, i) {
 			body = body[:statementEnd(body, i)]
 			break
 		}
@@ -93,7 +93,7 @@ func (s *typeScriptModuleScan) declare(i int, t token) bool {
 			}
 		}
 		root := ""
-		if len(declaration.initializer) == 1 && gradedUnconditional(s.body, i) {
+		if len(declaration.initializer) == 1 && operationBodyUnconditional(s.op, s.body, i) {
 			root = s.aliases[declaration.initializer[0].text]
 		}
 		delete(s.aliases, t.text)

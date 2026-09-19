@@ -1,6 +1,6 @@
 package sourceestimate
 
-func gradedOutputAssignment(body []token, aliases map[string]string, scopes *[]map[string]string, i int, t token) bool {
+func gradedOutputAssignment(op *operation, body []token, aliases map[string]string, scopes *[]map[string]string, i int, t token) bool {
 	if !isIdentifier(t.text) || i > 0 && body[i-1].text == "." || i+1 >= len(body) || body[i+1].text != "=" && body[i+1].text != ":=" {
 		return false
 	}
@@ -12,7 +12,7 @@ func gradedOutputAssignment(body []token, aliases map[string]string, scopes *[]m
 		}
 	}
 	root := ""
-	if i+2 < len(body) && statementEnd(body, i+2) == i+3 && gradedUnconditional(body, i) {
+	if i+2 < len(body) && statementEnd(body, i+2) == i+3 && operationBodyUnconditional(op, body, i) {
 		root = aliases[body[i+2].text]
 	}
 	if root == "" {

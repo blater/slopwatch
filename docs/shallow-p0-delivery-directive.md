@@ -63,3 +63,18 @@ Preserve rating coverage and deterministic results while optimizing. Avoid
 repeated whole-project work, bound analysis and evidence growth, and validate
 cache invalidation for changed dependencies. Report remaining performance gaps
 explicitly; neither P0 is complete merely because unit tests pass.
+
+## All-language scaling requirement (user mandate, 2026-09-19)
+
+Target linear or near-linear cold analysis across Java, TypeScript, Go and Rust,
+measured against source size plus dependency edges and emitted evidence. A Java-only
+speedup does not satisfy this requirement. Test growing file counts, method sizes,
+nested calls and declaration inventories separately; repeated prefix scans,
+workspace searches and reparsing must not hide behind fixed small-file limits.
+
+Unchanged and incremental analysis should reuse prior work and scale with the
+affected dependency closure. Cold analysis must read the input, and rendering a
+complete report must emit its output; sublinear claims apply only to work avoided
+through valid reuse, not to skipping required source or evidence. Preserve
+conservative invalidation when dependencies are unknown. The 30K-file capacity,
+peak-memory and idle-watch requirements above remain mandatory for release.
