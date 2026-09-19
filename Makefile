@@ -35,6 +35,9 @@ TS_SOURCES := $(wildcard $(TYPESCRIPT_DIR)/src/*.ts) $(wildcard $(TYPESCRIPT_DIR
 all: build
 
 build: build-structural build-rust build-java build-go build-typescript
+ifeq ($(filter test%,$(MAKECMDGOALS)),)
+	@$(MAKE) --no-print-directory clean-go-cache
+endif
 
 # Normative source conformance, including currently unsupported capabilities.
 # This deliberately fails when any expected result is not delivered.
@@ -51,6 +54,9 @@ test-shallow-values: build
 	@python3 tools/shallow_value_acceptance.py
 
 dev-build: build-structural build-typescript build-go
+ifeq ($(filter test%,$(MAKECMDGOALS)),)
+	@$(MAKE) --no-print-directory clean-go-cache
+endif
 
 $(STRUCTURAL_BIN): $(STRUCTURAL_GO_SOURCES) $(STRUCTURAL_DIR)/go.mod
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
@@ -119,9 +125,17 @@ test-go: build
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./...
 
 test: test-structural test-typescript test-go
+	@$(MAKE) --no-print-directory clean-go-cache
 
 test-clean: clean
 	@$(MAKE) test
+
+# Compiler intermediates are useful within a build, but must not accumulate
+# across normal builds. Keep the finished binaries; only discard this cache.
+# Test goals defer build cleanup so parallel test prerequisites can finish first.
+.PHONY: clean-go-cache
+clean-go-cache:
+	@rm -rf "$(BUILD_DIR)/go-cache"
 
 clean:
 	@rm -rf $(BUILD_DIR) \

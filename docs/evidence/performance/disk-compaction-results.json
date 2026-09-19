@@ -1,0 +1,22 @@
+{
+  "files_verified": 5372,
+  "compressed_files": 5372,
+  "before_bytes": 3126896090,
+  "after_bytes": 260964911,
+  "mismatches": [],
+  "sample": {
+    "before_artifact_bytes": 26130974,
+    "after_artifact_bytes": 2170529,
+    "complete_cold_report_equal": true,
+    "cold_ns": 5587608750,
+    "warm_ns": 98801625,
+    "edit_ns": 5508597334,
+    "fresh_ns": 5476137375
+  },
+  "make_cleanup": {
+    "normal_make_exit": 0,
+    "go_cache_absent": true,
+    "slopmark_exists": true,
+    "slopwatch_exists": true
+  }
+}

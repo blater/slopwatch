@@ -16,7 +16,11 @@ func (store artifactStore) putArtifact(kind string, schema int, key string, valu
 	}
 	digest := DigestBytes(encoded)
 	path, _ := cachePath(store.root, "artifacts", digest)
-	if err := writeImmutable(path, encoded); err != nil {
+	stored, err := encodeArtifactStorage(encoded)
+	if err != nil {
+		return ArtifactRef{}, err
+	}
+	if err := writeArtifact(path, encoded, stored); err != nil {
 		return ArtifactRef{}, fmt.Errorf("store %s artifact: %w", kind, err)
 	}
 	return ArtifactRef{Digest: digest}, nil
@@ -28,6 +32,10 @@ func (store artifactStore) loadArtifact(ref ArtifactRef, kind string, schema int
 		return false
 	}
 	encoded, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	encoded, err = decodeArtifactStorage(encoded)
 	if err != nil || DigestBytes(encoded) != ref.Digest {
 		return false
 	}

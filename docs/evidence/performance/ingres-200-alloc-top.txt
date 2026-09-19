@@ -1,0 +1,37 @@
+File: native.test
+Type: alloc_space
+Time: 2026-09-19 10:12:22 BST
+Showing nodes accounting for 6151.60MB, 95.92% of 6413.47MB total
+Dropped 273 nodes (cum <= 32.07MB)
+Showing top 30 nodes out of 66
+      flat  flat%   sum%        cum   cum%
+ 3664.99MB 57.15% 57.15%  3664.99MB 57.15%  github.com/blater/slopwatch/internal/sourceestimate.gradedEagerBody
+ 1687.92MB 26.32% 83.46%  1687.92MB 26.32%  github.com/blater/slopwatch/internal/sourceestimate.pruneDeadFalseBranches
+  436.08MB  6.80% 90.26%   436.08MB  6.80%  github.com/blater/slopwatch/internal/sourceestimate.gradedJavaFields
+   80.78MB  1.26% 91.52%   584.63MB  9.12%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraintsBounded
+   77.94MB  1.22% 92.74%    80.94MB  1.26%  github.com/blater/slopwatch/internal/sourceestimate.lex
+   69.60MB  1.09% 93.82%   107.10MB  1.67%  github.com/blater/slopwatch/internal/sourceestimate.callsIn
+   43.88MB  0.68% 94.51%    43.88MB  0.68%  slices.Grow[go.shape.[]uint8,go.shape.uint8] (inline)
+   34.54MB  0.54% 95.05%    34.54MB  0.54%  os.readFileContents
+    8.50MB  0.13% 95.18%   444.58MB  6.93%  github.com/blater/slopwatch/internal/sourceestimate.gradedSurfaceFields
+    7.63MB  0.12% 95.30%    55.01MB  0.86%  encoding/json/v2.makeStructArshaler.func2
+    7.14MB  0.11% 95.41%  5165.46MB 80.54%  github.com/blater/slopwatch/internal/sourceestimate.estimateRoots
+    5.01MB 0.078% 95.49%   668.56MB 10.42%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanOperation
+       4MB 0.062% 95.55%   153.65MB  2.40%  github.com/blater/slopwatch/internal/sourceestimate.appendResolvedMeasure
+       4MB 0.062% 95.61%   162.15MB  2.53%  github.com/blater/slopwatch/internal/sourceestimate.appendCallMeasure
+    3.50MB 0.055% 95.67%   448.08MB  6.99%  github.com/blater/slopwatch/internal/sourceestimate.gradedFindSurfaceOwner
+    2.01MB 0.031% 95.70%   137.98MB  2.15%  github.com/blater/slopwatch/internal/sourceestimate.annotateConstraintWitnesses
+       2MB 0.031% 95.73%  4662.63MB 72.70%  github.com/blater/slopwatch/internal/sourceestimate.gradedOwnerConstraints
+       2MB 0.031% 95.76%   108.85MB  1.70%  github.com/blater/slopwatch/internal/sourceestimate.localOperationMeasure
+       2MB 0.031% 95.79%   227.71MB  3.55%  github.com/blater/slopwatch/internal/sourceestimate.gradedOwnerIndexAt
+    1.06MB 0.017% 95.81%  6233.55MB 97.19%  github.com/blater/slopwatch/internal/sourceestimate.analyzeWithAttribution
+    1.01MB 0.016% 95.82%    72.38MB  1.13%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerOutputBuffers
+       1MB 0.016% 95.84%    54.12MB  0.84%  github.com/blater/slopwatch/internal/sourceestimate.gradedConstraintRoots
+       1MB 0.016% 95.85%   130.62MB  2.04%  github.com/blater/slopwatch/internal/sourceestimate.newGradedEvidenceAssessment
+       1MB 0.016% 95.87%   113.97MB  1.78%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerSurface
+       1MB 0.016% 95.89%   110.31MB  1.72%  github.com/blater/slopwatch/internal/sourceestimate.gradedBoundsProtection
+       1MB 0.016% 95.90%   224.71MB  3.50%  github.com/blater/slopwatch/internal/sourceestimate.gradedConstraintExpression
+    0.50MB 0.0078% 95.91%  4659.66MB 72.65%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceRootResponsibilities
+    0.50MB 0.0078% 95.92%  4941.05MB 77.04%  github.com/blater/slopwatch/internal/sourceestimate.assessGradedEvidence
+         0     0% 95.92%    79.92MB  1.25%  encoding/json.Marshal
+         0     0% 95.92%    43.88MB  0.68%  encoding/json/internal/jsonwire.AppendQuote

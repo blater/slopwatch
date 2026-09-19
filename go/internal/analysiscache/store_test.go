@@ -265,6 +265,10 @@ func assertCorruptArtifactMiss(t *testing.T, mutate func(*testing.T, []byte) []b
 	if err != nil {
 		t.Fatal(err)
 	}
+	data, err = decodeArtifactStorage(data)
+	if err != nil {
+		t.Fatal(err)
+	}
 	mutated := mutate(t, data)
 	mutatedRef := ArtifactRef{Digest: DigestBytes(mutated)}
 	mutatedPath, _ := store.casPath("artifacts", mutatedRef.Digest)

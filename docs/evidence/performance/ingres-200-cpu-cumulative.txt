@@ -1,0 +1,38 @@
+File: native.test
+Type: cpu
+Time: 2026-09-19 10:12:16 BST
+Duration: 5.75s, Total samples = 4.60s (80.00%)
+Showing nodes accounting for 1.31s, 28.48% of 4.60s total
+Dropped 187 nodes (cum <= 0.02s)
+Showing top 30 nodes out of 161
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      3.24s 70.43%  github.com/blater/slopwatch/internal/native.runMissingLanguage
+         0     0%     0%      3.24s 70.43%  github.com/blater/slopwatch/internal/native.runMissingUnits.func1
+         0     0%     0%      3.22s 70.00%  github.com/blater/slopwatch/internal/native.recoverAnalyzerInputs
+         0     0%     0%      3.22s 70.00%  github.com/blater/slopwatch/internal/native.withSourceDepthEstimates
+         0     0%     0%      3.21s 69.78%  github.com/blater/slopwatch/internal/sourceestimate.AnalyzeWithAttribution (inline)
+         0     0%     0%      3.21s 69.78%  github.com/blater/slopwatch/internal/sourceestimate.analyzeWithAttribution
+         0     0%     0%      2.36s 51.30%  github.com/blater/slopwatch/internal/sourceestimate.analyzeJavaUnits
+         0     0%     0%      2.35s 51.09%  github.com/blater/slopwatch/internal/sourceestimate.estimateRoots
+         0     0%     0%      2.06s 44.78%  github.com/blater/slopwatch/internal/sourceestimate.assessGradedEvidence
+         0     0%     0%      1.95s 42.39%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceRootResponsibilities
+         0     0%     0%      1.93s 41.96%  github.com/blater/slopwatch/internal/sourceestimate.gradedEvidenceOperationResponsibilities
+         0     0%     0%      1.81s 39.35%  github.com/blater/slopwatch/internal/sourceestimate.gradedOwnerConstraints
+         0     0%     0%      1.76s 38.26%  github.com/blater/slopwatch/internal/sourceestimate.gradeConsistentWrites
+         0     0%     0%      1.66s 36.09%  github.com/blater/slopwatch/internal/sourceestimate.callerDeclaredFields
+     0.10s  2.17%  2.17%      1.63s 35.43%  github.com/blater/slopwatch/internal/sourceestimate.gradedFindSurfaceOwner
+         0     0%  2.17%      1.01s 21.96%  github.com/blater/slopwatch/internal/sourceestimate.gradedOwnerIndexAt
+         0     0%  2.17%      1.01s 21.96%  github.com/blater/slopwatch/internal/sourceestimate.gradedOwnerIndexed
+     0.26s  5.65%  7.83%      0.98s 21.30%  github.com/blater/slopwatch/internal/sourceestimate.gradedSurfaceFields
+     0.94s 20.43% 28.26%      0.96s 20.87%  github.com/blater/slopwatch/internal/sourceestimate.matching (inline)
+         0     0% 28.26%      0.93s 20.22%  github.com/blater/slopwatch/internal/sourceestimate.gradedConstraintExpression
+         0     0% 28.26%      0.82s 17.83%  runtime.systemstack
+         0     0% 28.26%      0.73s 15.87%  github.com/blater/slopwatch/internal/sourceestimate.annotateCallerObligations
+         0     0% 28.26%      0.71s 15.43%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanJava
+         0     0% 28.26%      0.71s 15.43%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanOperation
+         0     0% 28.26%      0.61s 13.26%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerCollectConsumers
+         0     0% 28.26%      0.61s 13.26%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraints (inline)
+         0     0% 28.26%      0.61s 13.26%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraintsBounded
+         0     0% 28.26%      0.61s 13.26%  runtime.gcBgMarkWorker.func2
+         0     0% 28.26%      0.61s 13.26%  runtime.gcDrain
+     0.01s  0.22% 28.48%      0.55s 11.96%  github.com/blater/slopwatch/internal/sourceestimate.gradedBoundsProtection
