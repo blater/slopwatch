@@ -8,7 +8,7 @@ import (
 )
 
 func (model *Model) handleFixCommand(message fixCommandMsg) {
-	outcome := model.jobActions.handle(message, overlayPresent(model.overlays, OverlayConfirmation), model.fixService)
+	outcome := model.runtime.jobActions.handle(message, overlayPresent(model.overlays, OverlayConfirmation), model.fixService)
 	if !outcome.matched {
 		return
 	}
@@ -36,7 +36,7 @@ func (model *Model) handleFixCommand(message fixCommandMsg) {
 }
 
 func (model *Model) executeSelectedJobAction(jobID fix.JobID, action fix.JobAction, confirmation bool) (tea.Model, tea.Cmd) {
-	command, notice := model.jobActions.execute(model.fixService, jobID, action, confirmation)
+	command, notice := model.runtime.jobActions.execute(model.fixService, jobID, action, confirmation)
 	if notice != "" {
 		showRuntimeError(model, errors.New(notice))
 	}

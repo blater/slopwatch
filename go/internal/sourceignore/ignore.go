@@ -161,79 +161,21 @@ func glob(pattern string) string {
 				return "["
 			}
 		case '*':
-			end := i
-			for end+1 < len(pattern) && pattern[end+1] == '*' {
-				end++
-			}
-			if end > i && (i == 0 || pattern[i-1] == '/') && (end+1 == len(pattern) || pattern[end+1] == '/') {
-				if end+1 < len(pattern) {
-					out.WriteString("(?:.*/)?")
-					end++
-				} else {
-					out.WriteString(".*")
-				}
-			} else {
-				out.WriteString("[^/]*")
-			}
+			fragment, end := globStar(pattern, i)
+			out.WriteString(fragment)
 			i = end
 		case '?':
 			out.WriteString("[^/]")
 		case '[':
-			end := i + 1
-			if end < len(pattern) && (pattern[end] == '!' || pattern[end] == '^') {
-				end++
-			}
-			if end < len(pattern) && pattern[end] == ']' {
-				end++
-			}
-			for end < len(pattern) && pattern[end] != ']' {
-				if pattern[end] == '[' && end+1 < len(pattern) && pattern[end+1] == ':' {
-					if close := strings.Index(pattern[end+2:], ":]"); close >= 0 {
-						end += close + 4
-						continue
-					}
-				}
-				if pattern[end] == '\\' && end+1 < len(pattern) {
-					end++
-				}
-				end++
-			}
+			end := globClassEnd(pattern, i)
 			if end == len(pattern) {
 				return "["
 			}
-			body := pattern[i+1 : end]
-			if strings.HasPrefix(body, "!") {
-				body = "^" + body[1:]
-			}
-			class, err := syntax.Parse("["+byteRunes(body)+"]", syntax.Perl)
-			if err != nil {
+			class, ok := globClass(pattern[i+1 : end])
+			if !ok {
 				return "["
 			}
-			if class.Op == syntax.OpLiteral {
-				if len(class.Rune) == 1 && class.Rune[0] == '/' {
-					return "["
-				}
-			} else if class.Op == syntax.OpCharClass {
-				ranges := []rune{}
-				for at := 0; at < len(class.Rune); at += 2 {
-					lo, hi := class.Rune[at], class.Rune[at+1]
-					if lo <= '/' && hi >= '/' {
-						if lo < '/' {
-							ranges = append(ranges, lo, '/'-1)
-						}
-						if hi > '/' {
-							ranges = append(ranges, '/'+1, hi)
-						}
-					} else {
-						ranges = append(ranges, lo, hi)
-					}
-				}
-				if len(ranges) == 0 {
-					return "["
-				}
-				class.Rune = ranges
-			}
-			out.WriteString(class.String())
+			out.WriteString(class)
 			i = end
 
 		default:
@@ -241,6 +183,83 @@ func glob(pattern string) string {
 		}
 	}
 	return out.String()
+}
+
+func globStar(pattern string, start int) (string, int) {
+	end := start
+	for end+1 < len(pattern) && pattern[end+1] == '*' {
+		end++
+	}
+	wholeSegment := (start == 0 || pattern[start-1] == '/') && (end+1 == len(pattern) || pattern[end+1] == '/')
+	if end == start || !wholeSegment {
+		return "[^/]*", end
+	}
+	if end+1 < len(pattern) {
+		return "(?:.*/)?", end + 1
+	}
+	return ".*", end
+}
+
+func globClassEnd(pattern string, start int) int {
+	end := start + 1
+	if end < len(pattern) && (pattern[end] == '!' || pattern[end] == '^') {
+		end++
+	}
+	if end < len(pattern) && pattern[end] == ']' {
+		end++
+	}
+	for end < len(pattern) && pattern[end] != ']' {
+		if pattern[end] == '[' && end+1 < len(pattern) && pattern[end+1] == ':' {
+			if close := strings.Index(pattern[end+2:], ":]"); close >= 0 {
+				end += close + 4
+				continue
+			}
+		}
+		if pattern[end] == '\\' && end+1 < len(pattern) {
+			end++
+		}
+		end++
+	}
+	return end
+}
+
+// Character classes cannot consume a path separator, even when negated.
+func globClass(body string) (string, bool) {
+	if strings.HasPrefix(body, "!") {
+		body = "^" + body[1:]
+	}
+	class, err := syntax.Parse("["+byteRunes(body)+"]", syntax.Perl)
+	if err != nil {
+		return "", false
+	}
+	if class.Op == syntax.OpLiteral && len(class.Rune) == 1 && class.Rune[0] == '/' {
+		return "", false
+	}
+	if class.Op == syntax.OpCharClass {
+		class.Rune = withoutSeparator(class.Rune)
+		if len(class.Rune) == 0 {
+			return "", false
+		}
+	}
+	return class.String(), true
+}
+
+func withoutSeparator(ranges []rune) []rune {
+	result := []rune{}
+	for at := 0; at < len(ranges); at += 2 {
+		lo, hi := ranges[at], ranges[at+1]
+		if lo > '/' || hi < '/' {
+			result = append(result, lo, hi)
+			continue
+		}
+		if lo < '/' {
+			result = append(result, lo, '/'-1)
+		}
+		if hi > '/' {
+			result = append(result, '/'+1, hi)
+		}
+	}
+	return result
 }
 
 // AncestorInputs includes missing files so creation of a new ancestor rule is

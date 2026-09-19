@@ -227,8 +227,8 @@ func assertFullChurnWaiting(t *testing.T, model Model, retry tea.Cmd) {
 	if retry == nil {
 		t.Fatal("full workspace churn did not schedule a retry")
 	}
-	if !model.analyzing || !model.pendingFullAnalysis || !model.initialAnalysis {
-		t.Fatalf("full workspace churn state = analyzing:%t pending:%t initial:%t", model.analyzing, model.pendingFullAnalysis, model.initialAnalysis)
+	if !model.analyzing || !model.runtime.pendingFullAnalysis || !model.initialAnalysis {
+		t.Fatalf("full workspace churn state = analyzing:%t pending:%t initial:%t", model.analyzing, model.runtime.pendingFullAnalysis, model.initialAnalysis)
 	}
 }
 
@@ -250,8 +250,8 @@ func assertFullRetryStarted(t *testing.T, model Model, command tea.Cmd) {
 	if command == nil {
 		t.Fatal("full retry was not dispatched")
 	}
-	if !model.analyzing || model.pendingFullAnalysis {
-		t.Fatalf("full retry state = analyzing:%t pending:%t", model.analyzing, model.pendingFullAnalysis)
+	if !model.analyzing || model.runtime.pendingFullAnalysis {
+		t.Fatalf("full retry state = analyzing:%t pending:%t", model.analyzing, model.runtime.pendingFullAnalysis)
 	}
 }
 

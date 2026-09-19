@@ -21,7 +21,7 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	case configSavedMsg:
 		return model, model.handleConfigSaved(message)
 	case watcherReconfigureRetry:
-		if message.generation != model.watchGeneration {
+		if message.generation != model.runtime.watchGeneration {
 			return model, nil
 		}
 		return model, model.refreshIgnorePolicy()
@@ -67,7 +67,7 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	case jobReaderMsg:
 		return model, model.handleJobReader(message)
 	case shutdownCompleteMsg:
-		return model, model.shutdown.complete(message)
+		return model, model.runtime.shutdown.complete(message)
 	case tea.KeyMsg:
 		return handleKey(model, message)
 	default:
@@ -79,8 +79,8 @@ func handleWatcherReady(model *Model, message watcherReady) (tea.Model, tea.Cmd)
 	if message.watcher != nil && message.watcher != model.watcher {
 		return model, nil
 	}
-	model.startupWatcherPending = false
-	if model.watchReconfigurePending {
+	model.runtime.startupWatcherPending = false
+	if model.runtime.watchReconfigurePending {
 		model.analyzing = false
 		return model, model.resumeWatcherWait()
 	}
@@ -118,9 +118,9 @@ func handleSourceChange(model *Model, message sourceChange) (tea.Model, tea.Cmd)
 	if message.watcher != nil && message.watcher != model.watcher {
 		return model, nil
 	}
-	model.watchNeedsWait = true
+	model.runtime.watchNeedsWait = true
 	if message.IgnoreRules {
-		model.watchRetryCount = 0
+		model.runtime.watchRetryCount = 0
 		return model, model.refreshIgnorePolicy()
 	}
 	command := model.resumeWatcherWait()
@@ -128,7 +128,7 @@ func handleSourceChange(model *Model, message sourceChange) (tea.Model, tea.Cmd)
 		showRuntimeError(model, message.Err)
 		return model, command
 	}
-	if model.watchReconfigurePending {
+	if model.runtime.watchReconfigurePending {
 		return model, command
 	}
 	if message.Full {
@@ -140,7 +140,7 @@ func handleSourceChange(model *Model, message sourceChange) (tea.Model, tea.Cmd)
 func handleFullSourceChange(model *Model, message sourceChange, command tea.Cmd) (tea.Model, tea.Cmd) {
 	markFreshness(model, nil, report.FreshnessRefreshing, "workspace inputs changed")
 	if model.analyzing {
-		model.pendingFullAnalysis = true
+		model.runtime.pendingFullAnalysis = true
 		return model, command
 	}
 	model.analyzing = true
@@ -176,21 +176,21 @@ func queueChangedPaths(model *Model, paths []string) {
 }
 
 func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.Cmd) {
-	if model.discardAnalysis {
-		model.discardAnalysis = false
+	if model.runtime.discardAnalysis {
+		model.runtime.discardAnalysis = false
 		model.analyzing = false
 		return continueQueuedAnalysis(model)
 	}
 	if errors.Is(message.err, native.ErrWorkspaceChanged) {
 		if message.full {
-			model.pendingFullAnalysis = true
+			model.runtime.pendingFullAnalysis = true
 		} else {
 			queueChangedPaths(model, message.paths)
 		}
-		if model.analysisRetryPending {
+		if model.runtime.analysisRetryPending {
 			return model, nil
 		}
-		model.analysisRetryPending = true
+		model.runtime.analysisRetryPending = true
 		// Keep the in-flight marker set while waiting so watcher events
 		// continue to coalesce into the queued retry.
 		model.analyzing = true
@@ -219,10 +219,10 @@ func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.
 }
 
 func handleAnalysisRetry(model *Model) (tea.Model, tea.Cmd) {
-	if !model.analysisRetryPending {
+	if !model.runtime.analysisRetryPending {
 		return model, nil
 	}
-	model.analysisRetryPending = false
+	model.runtime.analysisRetryPending = false
 	model.analyzing = false
 	return continueQueuedAnalysis(model)
 }
@@ -276,11 +276,11 @@ func currentSourceMessage(model *Model, generation uint64, path string) bool {
 }
 
 func continueQueuedAnalysis(model *Model) (tea.Model, tea.Cmd) {
-	if model.watchReconfigurePending {
+	if model.runtime.watchReconfigurePending {
 		return model, nil
 	}
-	if model.pendingFullAnalysis {
-		model.pendingFullAnalysis = false
+	if model.runtime.pendingFullAnalysis {
+		model.runtime.pendingFullAnalysis = false
 		model.queued = map[string]bool{}
 		model.analyzing = true
 		markFreshness(model, nil, report.FreshnessRefreshing, "workspace inputs changed")

@@ -227,7 +227,7 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case fixDialogActionScoreEditor:
 		return model, model.openFixTargetScoreEditor()
 	case fixDialogActionSaveTarget:
-		return model, model.targetScorePreference.request(model.fixDialog.input.TargetScore, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace)
+		return model, model.runtime.targetScorePreference.request(model.fixDialog.input.TargetScore, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace)
 	case fixDialogActionReloadProfile:
 		profile := result.profile
 		return model, model.reloadFixForm(&profile)
@@ -236,8 +236,8 @@ func (model *Model) handleFixFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (model *Model) reloadFixForm(profile *agent.ProfileID) tea.Cmd {
-	model.fixGeneration++
-	model.fixDialog.generation = model.fixGeneration
+	model.runtime.fixGeneration++
+	model.fixDialog.generation = model.runtime.fixGeneration
 	var delivery *fixapp.LoadDelivery
 	if model.fixDialog.hasInput {
 		delivery = &fixapp.LoadDelivery{Plan: model.fixDialog.input.DeliveryPlan, Branch: model.fixDialog.input.BranchName}

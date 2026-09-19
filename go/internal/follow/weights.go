@@ -127,7 +127,7 @@ func (model *Model) syncTypeScriptTypes() tea.Cmd {
 		return nil
 	}
 	if model.analyzing {
-		model.pendingFullAnalysis = true
+		model.runtime.pendingFullAnalysis = true
 		return nil
 	}
 	model.analyzing = true
@@ -168,19 +168,19 @@ func settingsIndex(key string) int {
 }
 
 func handleSettingsKey(model *Model, name string) (tea.Model, tea.Cmd) {
-	if model.filesSettings {
+	if model.runtime.filesSettings {
 		if isToggleKey(name) {
 			return model, model.toggleGitignore()
 		}
 		if name == "esc" || name == "escape" || name == "q" {
-			model.filesSettings = false
+			model.runtime.filesSettings = false
 		}
 		return model, nil
 	}
 	switch name {
 	case "esc", "escape", "q", "s":
-		if model.filesSettings {
-			model.filesSettings = false
+		if model.runtime.filesSettings {
+			model.runtime.filesSettings = false
 		} else if model.settingsGroup != "" {
 			model.settingsGroup = ""
 			model.settingsCursor = model.settingsRootCursor
@@ -209,7 +209,7 @@ func openSetting(model *Model, key string) tea.Cmd {
 	switch key {
 	case "files":
 		model.settings = true
-		model.filesSettings = true
+		model.runtime.filesSettings = true
 	case "theme":
 		model.appearance = true
 		model.appearanceCursor = 0
@@ -218,11 +218,11 @@ func openSetting(model *Model, key string) tea.Cmd {
 		}
 	case "columns":
 		model.columns = true
-		model.columnsFromSettings = true
+		model.runtime.columnsFromSettings = true
 	case "weights":
 		model.weightsOpen = true
 		model.weightCursor = 0
-		model.weightsResetConfirm = false
+		model.runtime.weightsResetConfirm = false
 	case "agent-setup":
 		return model.openConfigSettings(configAgents)
 	case "fix", "concurrency", "delivery":
@@ -232,14 +232,14 @@ func openSetting(model *Model, key string) tea.Cmd {
 }
 
 func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
-	if model.weightsResetConfirm {
+	if model.runtime.weightsResetConfirm {
 		switch name {
 		case "y", "Y":
 			resetAllWeights(model)
-			model.weightsResetConfirm = false
+			model.runtime.weightsResetConfirm = false
 			return model, model.syncTypeScriptTypes()
 		case "n", "N", "esc", "escape":
-			model.weightsResetConfirm = false
+			model.runtime.weightsResetConfirm = false
 		}
 		return model, nil
 	}
@@ -250,7 +250,7 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	switch name {
 	case "esc", "escape", "q":
 		model.weightsOpen = false
-		model.weightsResetConfirm = false
+		model.runtime.weightsResetConfirm = false
 		model.settings = true
 	case "up", "k":
 		model.weightCursor = max(0, model.weightCursor-1)
@@ -264,7 +264,7 @@ func handleWeightsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		resetWeight(model)
 		return model, model.syncTypeScriptTypes()
 	case "c":
-		model.weightsResetConfirm = true
+		model.runtime.weightsResetConfirm = true
 	case "i":
 		openInfo(model, weightInfoKey(componentWeights[model.weightCursor].id))
 	}
@@ -356,7 +356,7 @@ func weightsView(model Model) string {
 	}
 	content := scrollModalLines(body, selectedLine, max(1, model.modalBodyHeight()-1))
 	footer := ""
-	if model.weightsResetConfirm {
+	if model.runtime.weightsResetConfirm {
 		footer = hintRow(style.SurfaceModal, hintItem{"Y/N", "are you sure?"})
 	} else {
 		footer = hintRow(style.SurfaceModal,

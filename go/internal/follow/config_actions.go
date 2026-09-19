@@ -17,7 +17,7 @@ func (model *Model) openSelectedAgentProvider() tea.Cmd {
 	state := &model.configSettings
 	if state.cursor == len(agentProviderChoices) {
 		parent := *state
-		model.configParent = &parent
+		model.runtime.configParent = &parent
 		*state = newConfigSettingsState(configConcurrency, parent.generation+1)
 		state.loading = false
 		state.resolved = cloneConfigResolved(parent.resolved)
@@ -48,15 +48,15 @@ func (model *Model) closeConfigSettings() tea.Cmd {
 }
 
 func (model *Model) closeConfigSettingsNow() tea.Cmd {
-	if model.configParent != nil {
-		parent := *model.configParent
+	if model.runtime.configParent != nil {
+		parent := *model.runtime.configParent
 		parent.resolved.Revision = model.configSettings.resolved.Revision
 		parent.working.Revision = model.configSettings.working.Revision
 		parent.working.Concurrency = model.configSettings.working.Concurrency
 		parent.resolved.Concurrency = model.configSettings.resolved.Concurrency
 		parent.generation = model.configSettings.generation + 1
 		model.configSettings = parent
-		model.configParent = nil
+		model.runtime.configParent = nil
 		return model.configSettings.probeProfilesCommand(model.profileProber)
 	}
 	returnToFix := model.configSettings.returnToFix
@@ -70,8 +70,8 @@ func (model *Model) closeConfigSettingsNow() tea.Cmd {
 		if !overlayPresent(model.overlays, OverlayFixForm) || !model.fixDialog.hasInput && len(model.fixDialog.targetPaths()) == 0 {
 			return nil
 		}
-		model.fixGeneration++
-		model.fixDialog.generation = model.fixGeneration
+		model.runtime.fixGeneration++
+		model.fixDialog.generation = model.runtime.fixGeneration
 		model.fixDialog.loading = true
 		model.fixDialog.errorText = ""
 		model.fixDialog.statusText = "Rechecking settings, runtime, and workspace readiness…"

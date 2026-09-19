@@ -11,7 +11,7 @@ import (
 )
 
 func (model *Model) toggleGitignore() tea.Cmd {
-	model.watchRetryCount = 0
+	model.runtime.watchRetryCount = 0
 	model.options.DisableGitignore = !model.options.DisableGitignore
 	persistUserPreferences(model)
 	return model.refreshIgnorePolicy()
@@ -27,21 +27,21 @@ type watcherReconfigured struct {
 }
 
 func (model *Model) refreshIgnorePolicy() tea.Cmd {
-	if model.watchReconfigureCancel != nil {
-		model.watchReconfigureCancel()
+	if model.runtime.watchReconfigureCancel != nil {
+		model.runtime.watchReconfigureCancel()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	model.watchReconfigureCancel = cancel
-	model.watchGeneration++
-	generation, options := model.watchGeneration, model.options
-	model.watchReconfigurePending = true
-	model.pendingFullAnalysis = true
-	model.discardAnalysis = model.analyzing && !model.analysisRetryPending && !model.startupWatcherPending
-	if model.analysisRetryPending {
-		model.analysisRetryPending = false
+	model.runtime.watchReconfigureCancel = cancel
+	model.runtime.watchGeneration++
+	generation, options := model.runtime.watchGeneration, model.options
+	model.runtime.watchReconfigurePending = true
+	model.runtime.pendingFullAnalysis = true
+	model.runtime.discardAnalysis = model.analyzing && !model.runtime.analysisRetryPending && !model.runtime.startupWatcherPending
+	if model.runtime.analysisRetryPending {
+		model.runtime.analysisRetryPending = false
 		model.analyzing = false
 	}
-	if model.startupWatcherPending {
+	if model.runtime.startupWatcherPending {
 		model.analyzing = false
 	}
 	if controller, ok := model.analyzer.(gitignoreController); ok {
@@ -72,34 +72,34 @@ func (model *Model) handleWatcherReconfigured(message watcherReconfigured) tea.C
 	if message.stopCleanup != nil {
 		message.stopCleanup()
 	}
-	if message.generation != model.watchGeneration {
+	if message.generation != model.runtime.watchGeneration {
 		if message.watcher != nil {
 			message.watcher.close()
 		}
 		return nil
 	}
-	model.watchReconfigurePending = false
+	model.runtime.watchReconfigurePending = false
 	if message.err != nil {
 		commands := []tea.Cmd{}
-		if model.watchNeedsWait {
+		if model.runtime.watchNeedsWait {
 			commands = append(commands, model.resumeWatcherWait())
 		}
-		if model.watchRetryCount < 3 {
-			model.watchRetryCount++
-			generation := model.watchGeneration
-			commands = append(commands, tea.Tick(time.Duration(model.watchRetryCount)*250*time.Millisecond, func(time.Time) tea.Msg { return watcherReconfigureRetry{generation: generation} }))
+		if model.runtime.watchRetryCount < 3 {
+			model.runtime.watchRetryCount++
+			generation := model.runtime.watchGeneration
+			commands = append(commands, tea.Tick(time.Duration(model.runtime.watchRetryCount)*250*time.Millisecond, func(time.Time) tea.Msg { return watcherReconfigureRetry{generation: generation} }))
 		} else {
 			showRuntimeError(model, message.err)
 		}
 
-		if !model.analyzing && !model.startupWatcherPending {
+		if !model.analyzing && !model.runtime.startupWatcherPending {
 			_, command := continueQueuedAnalysis(model)
 			commands = append(commands, command)
 		}
 		return tea.Batch(commands...)
 	}
-	model.watchRetryCount = 0
-	model.startupWatcherPending = false
+	model.runtime.watchRetryCount = 0
+	model.runtime.startupWatcherPending = false
 	previous := model.watcher
 	model.watcher = message.watcher
 	if previous != nil {
@@ -132,6 +132,6 @@ func (model *Model) pruneIgnoredRows() {
 }
 
 func (model *Model) resumeWatcherWait() tea.Cmd {
-	model.watchNeedsWait = false
+	model.runtime.watchNeedsWait = false
 	return waitForChange(model.watcher)
 }

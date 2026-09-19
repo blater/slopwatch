@@ -19,7 +19,7 @@ func (model Model) openFixSurfaceUpdates() (time.Time, time.Time) {
 		}
 	}
 	if overlayPresent(model.overlays, OverlayJobLog) {
-		if job, ok := jobByID(model.agents.Jobs, model.jobReader.jobID); ok {
+		if job, ok := jobByID(model.agents.Jobs, model.runtime.jobReader.jobID); ok {
 			logUpdate = job.UpdatedAt
 		}
 	}
@@ -36,7 +36,7 @@ func (model *Model) refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpd
 		}
 	}
 	if overlayPresent(model.overlays, OverlayJobLog) {
-		if job, ok := jobByID(model.agents.Jobs, model.jobReader.jobID); ok && !job.UpdatedAt.Equal(previousLogUpdate) {
+		if job, ok := jobByID(model.agents.Jobs, model.runtime.jobReader.jobID); ok && !job.UpdatedAt.Equal(previousLogUpdate) {
 			logCommand = model.beginJobLogRefresh()
 		}
 	}
@@ -59,12 +59,12 @@ func (model *Model) openJobMonitor(jobID fix.JobID, focus fix.RepoPath) tea.Cmd 
 		model.fixNotice = "Select a fix job to inspect"
 		return nil
 	}
-	model.fixGeneration++
-	model.jobMonitor = jobMonitorState{generation: model.fixGeneration, jobID: jobID, focusPath: focus, loading: true, refreshing: true}
+	model.runtime.fixGeneration++
+	model.jobMonitor = jobMonitorState{generation: model.runtime.fixGeneration, jobID: jobID, focusPath: focus, loading: true, refreshing: true}
 	if !overlayPresent(model.overlays, OverlayJobMonitor) {
 		model.overlays.Push(OverlayJobMonitor, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: jobID, Path: focus}.String()})
 	}
-	service, generation := model.fixService, model.fixGeneration
+	service, generation := model.fixService, model.runtime.fixGeneration
 	return loadJobMonitorCommand(service, jobID, generation)
 }
 
@@ -76,11 +76,11 @@ func (model *Model) beginJobMonitorRefresh() tea.Cmd {
 	if model.fixService == nil || model.jobMonitor.jobID == "" {
 		return nil
 	}
-	nextGeneration := model.fixGeneration + 1
+	nextGeneration := model.runtime.fixGeneration + 1
 	if !model.jobMonitor.beginRefresh(nextGeneration) {
 		return nil
 	}
-	model.fixGeneration = nextGeneration
+	model.runtime.fixGeneration = nextGeneration
 	return loadJobMonitorCommand(model.fixService, model.jobMonitor.jobID, model.jobMonitor.generation)
 }
 
@@ -127,9 +127,9 @@ func (model *Model) openJobReader(kind OverlayKind, jobID fix.JobID, path fix.Re
 		showRuntimeError(model, errors.New("Job details are unavailable"))
 		return nil
 	}
-	model.fixGeneration++
-	model.jobReader = jobReaderState{
-		generation: model.fixGeneration,
+	model.runtime.fixGeneration++
+	model.runtime.jobReader = jobReaderState{
+		generation: model.runtime.fixGeneration,
 		kind:       kind,
 		jobID:      jobID,
 		path:       path,
@@ -138,7 +138,7 @@ func (model *Model) openJobReader(kind OverlayKind, jobID fix.JobID, path fix.Re
 		follow:     kind == OverlayJobLog,
 	}
 	model.overlays.Push(kind, OverlayCaller{MainView: MainViewAgents, Overlay: OverlayJobMonitor, Selected: AgentRowID{JobID: jobID, Path: path}.String()})
-	return loadJobReaderCommand(model.fixService, kind, jobID, path, model.fixGeneration, 0, false)
+	return loadJobReaderCommand(model.fixService, kind, jobID, path, model.runtime.fixGeneration, 0, false)
 }
 
 func loadJobReaderCommand(service FixService, kind OverlayKind, jobID fix.JobID, path fix.RepoPath, generation uint64, cursor fixapp.LogCursor, increment bool) tea.Cmd {
@@ -170,15 +170,15 @@ func wholeSecondTimestamp(value string) string {
 }
 
 func (model *Model) beginJobLogRefresh() tea.Cmd {
-	if model.jobReader.kind != OverlayJobLog || !overlayPresent(model.overlays, OverlayJobLog) || model.fixService == nil {
+	if model.runtime.jobReader.kind != OverlayJobLog || !overlayPresent(model.overlays, OverlayJobLog) || model.fixService == nil {
 		return nil
 	}
-	nextGeneration := model.fixGeneration + 1
-	if !model.jobReader.beginRefresh(nextGeneration) {
+	nextGeneration := model.runtime.fixGeneration + 1
+	if !model.runtime.jobReader.beginRefresh(nextGeneration) {
 		return nil
 	}
-	model.fixGeneration = nextGeneration
-	return loadJobReaderCommand(model.fixService, OverlayJobLog, model.jobReader.jobID, "", model.fixGeneration, model.jobReader.logCursor, true)
+	model.runtime.fixGeneration = nextGeneration
+	return loadJobReaderCommand(model.fixService, OverlayJobLog, model.runtime.jobReader.jobID, "", model.runtime.fixGeneration, model.runtime.jobReader.logCursor, true)
 }
 
 func loadTranscript(ctx context.Context, service FixService, jobID fix.JobID, cursor fixapp.LogCursor) (fixapp.LogPage, error) {
@@ -202,17 +202,17 @@ func loadTranscript(ctx context.Context, service FixService, jobID fix.JobID, cu
 }
 
 func (model *Model) handleJobReader(message jobReaderMsg) tea.Cmd {
-	if message.generation != model.jobReader.generation || message.kind != model.jobReader.kind || !overlayPresent(model.overlays, message.kind) {
+	if message.generation != model.runtime.jobReader.generation || message.kind != model.runtime.jobReader.kind || !overlayPresent(model.overlays, message.kind) {
 		return nil
 	}
-	if model.jobReader.apply(message, model.width, model.height, fullScreenSurface(model.width, model.height)) {
+	if model.runtime.jobReader.apply(message, model.width, model.height, fullScreenSurface(model.width, model.height)) {
 		return model.beginJobLogRefresh()
 	}
 	return nil
 }
 
 func (model *Model) handleJobReaderKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	action := model.jobReader.handleKey(key, model.width, model.height, fullScreenSurface(model.width, model.height))
+	action := model.runtime.jobReader.handleKey(key, model.width, model.height, fullScreenSurface(model.width, model.height))
 	switch action {
 	case jobReaderKeyClose:
 		model.overlays.Pop()
@@ -220,7 +220,7 @@ func (model *Model) handleJobReaderKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, model.beginJobLogRefresh()
 	case jobReaderKeyReopen:
 		model.overlays.Pop()
-		return model, model.openJobReader(model.jobReader.kind, model.jobReader.jobID, model.jobReader.path)
+		return model, model.openJobReader(model.runtime.jobReader.kind, model.runtime.jobReader.jobID, model.runtime.jobReader.path)
 	}
 	return model, nil
 }

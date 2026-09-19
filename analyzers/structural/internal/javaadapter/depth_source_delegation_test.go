@@ -1,11 +1,40 @@
 package javaadapter
 
 import (
+	"strings"
 	"testing"
 
 	"slopslap.dev/structural/internal/facts"
 	"slopslap.dev/structural/internal/metrics"
 )
+
+func TestJavaDepthSourceHelpersShareWorkBudget(t *testing.T) {
+	root, adapter := javaTestAdapter(t)
+	// Each helper fits the budget alone; expanding both must consume the same
+	// boundary budget rather than resetting it for each recursive scanner.
+	body := strings.Repeat("n++;", 5000)
+	writeSource(t, root, "Service.java", `public final class Service {
+    private static int n;
+    private Service() {}
+    private static void first() { `+body+` }
+    private static void second() { `+body+` }
+    public static void run() { first(); second(); }
+}`)
+	program, err := adapter.Analyze(root, []string{"Service.java"}, map[string]any{"depth_profile": "responsibility-v4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bounded := javaDepthBoundaryBySymbol(t, program, "Service").BoundedAssessment
+	if bounded == nil {
+		t.Fatal("missing bounded assessment")
+	}
+	for _, reason := range bounded.Reasons {
+		if reason.Code == "bounded_source_work_limit" {
+			return
+		}
+	}
+	t.Fatalf("source helpers did not share their work budget: %+v", bounded.Reasons)
+}
 
 func TestJavaDepthSourceStaticHelperMatchesInlineComputation(t *testing.T) {
 	root, adapter := javaTestAdapter(t)

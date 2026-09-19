@@ -12,15 +12,15 @@ func (model Model) settingsUnderlay(base string) string {
 		parent.settingsGroup = ""
 		parent.settingsCursor = model.settingsRootCursor
 		base = model.settingsParentLayer(base, settingsView(parent), 2)
-		if !model.settings || model.filesSettings {
+		if !model.settings || model.runtime.filesSettings {
 			base = model.settingsParentLayer(base, settingsView(model), 1)
 		}
 	}
-	if model.configSettings.returnToFix || model.configParent != nil && model.configParent.returnToFix {
+	if model.configSettings.returnToFix || model.runtime.configParent != nil && model.runtime.configParent.returnToFix {
 		base = model.overlay(base, fixDialogPopup(model.fixDialog, model.profileCatalog, model.width, model.height))
 	}
-	if model.configParent != nil {
-		base = model.overlay(base, configSettingsPopup(*model.configParent, model.profileCatalog, model.width, model.height))
+	if model.runtime.configParent != nil {
+		base = model.overlay(base, configSettingsPopup(*model.runtime.configParent, model.profileCatalog, model.width, model.height))
 	}
 	if top, ok := model.overlays.Top(); ok && top.Kind == OverlaySettingsDirty {
 		base = model.overlay(base, configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))

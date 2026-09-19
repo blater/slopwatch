@@ -433,8 +433,8 @@ func handleColumnKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	switch name {
 	case "esc", "escape", "q":
 		model.columns = false
-		if model.columnsFromSettings {
-			model.columnsFromSettings = false
+		if model.runtime.columnsFromSettings {
+			model.runtime.columnsFromSettings = false
 			model.settings = true
 		}
 	case "up", "k":

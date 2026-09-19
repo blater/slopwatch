@@ -76,8 +76,8 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 }
 
 func (model *Model) Close() {
-	if model.watchReconfigureCancel != nil {
-		model.watchReconfigureCancel()
+	if model.runtime.watchReconfigureCancel != nil {
+		model.runtime.watchReconfigureCancel()
 	}
 	model.watcher.close()
 	model.fixUpdates.close()
@@ -89,6 +89,6 @@ func (model *Model) Close() {
 func (model *Model) StartInitialAnalysis() {
 	model.analyzing = true
 	model.initialAnalysis = true
-	model.startupWatcherPending = true
+	model.runtime.startupWatcherPending = true
 	model.startupLogoExpired = false
 }

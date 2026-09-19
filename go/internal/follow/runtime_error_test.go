@@ -48,9 +48,9 @@ func TestRuntimeFailuresOpenPopup(t *testing.T) {
 func TestRuntimePopupOwnsKeysAndPreservesCaller(t *testing.T) {
 	m := Model{width: 80, height: 24, help: true}
 	showRuntimeError(&m, errors.New(strings.Repeat("line\n", 60)))
-	m.runtimeErrorOffset = 5
+	m.runtime.runtimeErrorOffset = 5
 	showRuntimeError(&m, errors.New(m.runtimeError))
-	if m.runtimeErrorOffset != 5 || m.overlays.Len() != 2 {
+	if m.runtime.runtimeErrorOffset != 5 || m.overlays.Len() != 2 {
 		t.Fatal("duplicate reset popup")
 	}
 	assertRuntimeScrollBounds(t, &m)
@@ -90,13 +90,13 @@ func TestRuntimePopupDefersToShutdown(t *testing.T) {
 func assertRuntimeScrollBounds(t *testing.T, m *Model) {
 	t.Helper()
 	handleRuntimeErrorKey(m, "end")
-	last := m.runtimeErrorOffset
+	last := m.runtime.runtimeErrorOffset
 	handleRuntimeErrorKey(m, "down")
-	if m.runtimeErrorOffset != last {
+	if m.runtime.runtimeErrorOffset != last {
 		t.Fatal("scroll escaped last page")
 	}
 	handleRuntimeErrorKey(m, "up")
-	if m.runtimeErrorOffset != last-1 {
+	if m.runtime.runtimeErrorOffset != last-1 {
 		t.Fatal("scroll did not move back")
 	}
 }

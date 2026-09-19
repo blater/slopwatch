@@ -149,8 +149,8 @@ func assertPagedDiff(t *testing.T, model *Model, service *pagedReaderFixService)
 
 func assertCandidateTruncation(t *testing.T, model *Model) {
 	t.Helper()
-	model.jobReader = jobReaderState{kind: OverlayCandidateSource, jobID: "job-pages", lines: []string{"partial"}, truncated: true}
-	if text := ansi.Strip(strings.Join(model.jobReader.content(80, 5), "\n")); !strings.Contains(text, "configured candidate byte/line limit") || strings.Contains(text, "retained transcript") {
+	model.runtime.jobReader = jobReaderState{kind: OverlayCandidateSource, jobID: "job-pages", lines: []string{"partial"}, truncated: true}
+	if text := ansi.Strip(strings.Join(model.runtime.jobReader.content(80, 5), "\n")); !strings.Contains(text, "configured candidate byte/line limit") || strings.Contains(text, "retained transcript") {
 		t.Fatalf("candidate truncation label=%q", text)
 	}
 }
@@ -186,35 +186,35 @@ func assertJobLogNavigation(t *testing.T, model *Model) {
 
 func assertJobLogStartsAtBottom(t *testing.T, model *Model) {
 	t.Helper()
-	if !model.jobReader.follow || model.jobReader.offset != model.jobReader.maxOffset(model.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))) {
-		t.Fatalf("log did not open following its end: %+v", model.jobReader)
+	if !model.runtime.jobReader.follow || model.runtime.jobReader.offset != model.runtime.jobReader.maxOffset(model.runtime.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))) {
+		t.Fatalf("log did not open following its end: %+v", model.runtime.jobReader)
 	}
 }
 
 func assertJobLogPages(t *testing.T, model *Model) {
 	t.Helper()
-	bottom := model.jobReader.offset
-	page := model.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))
+	bottom := model.runtime.jobReader.offset
+	page := model.runtime.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))
 	handleKey(model, tea.KeyMsg{Type: tea.KeyCtrlB})
-	if model.jobReader.offset != max(0, bottom-page) || model.jobReader.follow {
-		t.Fatalf("Ctrl-B did not move one page back: %+v", model.jobReader)
+	if model.runtime.jobReader.offset != max(0, bottom-page) || model.runtime.jobReader.follow {
+		t.Fatalf("Ctrl-B did not move one page back: %+v", model.runtime.jobReader)
 	}
 	handleKey(model, tea.KeyMsg{Type: tea.KeyCtrlF})
-	if model.jobReader.offset != bottom || !model.jobReader.follow {
-		t.Fatalf("Ctrl-F did not move one page forward: %+v", model.jobReader)
+	if model.runtime.jobReader.offset != bottom || !model.runtime.jobReader.follow {
+		t.Fatalf("Ctrl-F did not move one page forward: %+v", model.runtime.jobReader)
 	}
 }
 
 func assertJobLogJumps(t *testing.T, model *Model) {
 	t.Helper()
-	bottom := model.jobReader.offset
+	bottom := model.runtime.jobReader.offset
 	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
-	if model.jobReader.offset != 0 || model.jobReader.follow {
-		t.Fatalf("g did not jump to the top: %+v", model.jobReader)
+	if model.runtime.jobReader.offset != 0 || model.runtime.jobReader.follow {
+		t.Fatalf("g did not jump to the top: %+v", model.runtime.jobReader)
 	}
 	handleKey(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
-	if model.jobReader.offset != bottom || !model.jobReader.follow {
-		t.Fatalf("G did not jump to the bottom and resume following: %+v", model.jobReader)
+	if model.runtime.jobReader.offset != bottom || !model.runtime.jobReader.follow {
+		t.Fatalf("G did not jump to the bottom and resume following: %+v", model.runtime.jobReader)
 	}
 	visible := ansi.Strip(model.View())
 	if !strings.Contains(visible, "entry-29") || !strings.Contains(visible, "entry-22") {
@@ -225,17 +225,17 @@ func assertJobLogJumps(t *testing.T, model *Model) {
 func assertJobLogHorizontalScroll(t *testing.T, model *Model) int {
 	t.Helper()
 	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyUp})
-	pausedAt := model.jobReader.offset
-	if model.jobReader.follow {
+	pausedAt := model.runtime.jobReader.offset
+	if model.runtime.jobReader.follow {
 		t.Fatal("scrolling back did not pause live following")
 	}
 	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyRight})
-	if model.jobReader.horizontal == 0 {
+	if model.runtime.jobReader.horizontal == 0 {
 		t.Fatal("right arrow did not scroll a long log line horizontally")
 	}
 	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyLeft})
-	if model.jobReader.horizontal != 0 {
-		t.Fatalf("left arrow did not restore the horizontal position: %d", model.jobReader.horizontal)
+	if model.runtime.jobReader.horizontal != 0 {
+		t.Fatalf("left arrow did not restore the horizontal position: %d", model.runtime.jobReader.horizontal)
 	}
 	return pausedAt
 }
@@ -253,22 +253,22 @@ func assertJobLogRefresh(t *testing.T, model *Model, service *fakeFixService, jo
 		t.Fatalf("live refresh reloaded old transcript entries: %+v", refreshMessage)
 	}
 	model.handleJobReader(refreshMessage)
-	if model.jobReader.offset != pausedAt || model.jobReader.follow {
-		t.Fatalf("live refresh moved a paused reader: %+v", model.jobReader)
+	if model.runtime.jobReader.offset != pausedAt || model.runtime.jobReader.follow {
+		t.Fatalf("live refresh moved a paused reader: %+v", model.runtime.jobReader)
 	}
 }
 
 func assertJobLogClose(t *testing.T, model *Model) {
 	t.Helper()
 	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyEnd})
-	if !model.jobReader.follow || model.jobReader.offset != model.jobReader.maxOffset(model.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))) {
-		t.Fatalf("End did not resume following at the latest entry: %+v", model.jobReader)
+	if !model.runtime.jobReader.follow || model.runtime.jobReader.offset != model.runtime.jobReader.maxOffset(model.runtime.jobReader.pageSize(model.width, model.height, fullScreenSurface(model.width, model.height))) {
+		t.Fatalf("End did not resume following at the latest entry: %+v", model.runtime.jobReader)
 	}
 	if text := ansi.Strip(model.View()); !strings.Contains(text, "new live entry") {
 		t.Fatalf("resumed log did not show the latest entry: %q", text)
 	}
 	model.handleJobReaderKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if model.jobReader.lines != nil {
+	if model.runtime.jobReader.lines != nil {
 		t.Fatal("closing the log retained its display copy")
 	}
 }
@@ -350,19 +350,19 @@ func TestQuitWithActiveJobsConfirmsAndJoinsService(t *testing.T) {
 	model.agents.Jobs = []fix.JobPresentation{{ID: "job-running", Phase: fix.PhaseRunning}}
 	updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	result := updated.(*Model)
-	if command != nil || !overlayPresent(result.overlays, OverlayShutdown) || result.shutdown.active != 1 {
+	if command != nil || !overlayPresent(result.overlays, OverlayShutdown) || result.runtime.shutdown.active != 1 {
 		t.Fatal("active-job quit bypassed confirmation")
 	}
 	updated, command = result.handleShutdownKey(tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
-	if command == nil || !result.shutdown.pending {
+	if command == nil || !result.runtime.shutdown.pending {
 		t.Fatal("shutdown did not start a joined command")
 	}
 	message := command().(shutdownCompleteMsg)
 	if service.shutdowns != 1 || message.err != nil {
 		t.Fatalf("shutdown calls=%d err=%v", service.shutdowns, message.err)
 	}
-	if quit := result.shutdown.complete(message); quit == nil {
+	if quit := result.runtime.shutdown.complete(message); quit == nil {
 		t.Fatal("successful joined shutdown did not quit")
 	}
 }
@@ -477,11 +477,11 @@ func TestMonitorReaderAndDirtyOverlaysRemainOperableAtResponsiveSizes(t *testing
 				model.overlays.Push(OverlayJobMonitor, OverlayCaller{MainView: MainViewAgents})
 			},
 			func(model *Model) {
-				model.jobReader = jobReaderState{kind: OverlayCandidateSource, jobID: "job-1", path: "a.go", lines: []string{"package sample"}}
+				model.runtime.jobReader = jobReaderState{kind: OverlayCandidateSource, jobID: "job-1", path: "a.go", lines: []string{"package sample"}}
 				model.overlays.Push(OverlayCandidateSource, OverlayCaller{MainView: MainViewAgents})
 			},
 			func(model *Model) {
-				model.shutdown = shutdownState{active: 2}
+				model.runtime.shutdown = shutdownState{active: 2}
 				model.overlays.Push(OverlayShutdown, OverlayCaller{MainView: MainViewAgents})
 			},
 		} {

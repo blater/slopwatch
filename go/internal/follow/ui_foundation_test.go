@@ -227,19 +227,19 @@ func TestResizeScreenGatesInputForEveryHiddenOverlay(t *testing.T) {
 			service := &fakeFixService{input: readyFixInput("a.go")}
 			model := fixTestModel(service, 35, 6)
 			model.fixDialog = fixDialogState{hasInput: true, input: readyFixInput("a.go"), cursor: fixFieldTargetScore}
-			model.jobActions.command = jobCommandState{jobID: "job", action: fix.ActionCancel}
-			model.jobActions.confirmation = cancelConfirmation{jobID: "job", action: fix.ActionCancel, allowed: true}
+			model.runtime.jobActions.command = jobCommandState{jobID: "job", action: fix.ActionCancel}
+			model.runtime.jobActions.confirmation = cancelConfirmation{jobID: "job", action: fix.ActionCancel, allowed: true}
 			model.configSettings = configSettingsState{open: true, dirty: true, dirtyCursor: 1}
 			model.overlays.Push(kind, OverlayCaller{MainView: MainViewFiles, Selected: "a.go"})
 			beforeLen := model.overlays.Len()
 			beforeCursor := model.fixDialog.cursor
-			beforePending := model.jobActions.confirmation.pending
+			beforePending := model.runtime.jobActions.confirmation.pending
 
 			updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyEnter})
 			result := updated.(*Model)
 			top, ok := result.overlays.Top()
 			if command != nil || !ok || top.Kind != kind || result.overlays.Len() != beforeLen || result.fixDialog.cursor != beforeCursor ||
-				result.jobActions.confirmation.pending != beforePending || service.executed.JobID != "" {
+				result.runtime.jobActions.confirmation.pending != beforePending || service.executed.JobID != "" {
 				t.Fatalf("hidden overlay %d consumed Enter: top=%+v len=%d command=%v executed=%+v", kind, top, result.overlays.Len(), command, service.executed)
 			}
 			if view := ansi.Strip(result.View()); !strings.Contains(view, "RESIZE TERMINAL") {
@@ -258,13 +258,13 @@ func TestResizeScreenAllowsOnlyVisibleShutdownConfirmation(t *testing.T) {
 func assertVisibleShutdown(t *testing.T, service *fakeFixService) {
 	t.Helper()
 	visible := fixTestModel(service, 35, 6)
-	visible.shutdown = shutdownState{active: 1}
+	visible.runtime.shutdown = shutdownState{active: 1}
 	visible.overlays.Push(OverlayShutdown, OverlayCaller{MainView: MainViewAgents})
 	if view := ansi.Strip(visible.View()); !strings.Contains(view, "ACTIVE FIX JOBS") || !strings.Contains(view, "Enter cancel all + quit") {
 		t.Fatalf("visible compact shutdown was not rendered: %q", view)
 	}
 	_, command := handleKey(&visible, tea.KeyMsg{Type: tea.KeyEnter})
-	if command == nil || !visible.shutdown.pending {
+	if command == nil || !visible.runtime.shutdown.pending {
 		t.Fatal("visible shutdown confirmation did not accept Enter")
 	}
 }
@@ -272,7 +272,7 @@ func assertVisibleShutdown(t *testing.T, service *fakeFixService) {
 func assertHiddenShutdown(t *testing.T, service *fakeFixService) {
 	t.Helper()
 	hidden := fixTestModel(service, 20, 1)
-	hidden.shutdown = shutdownState{active: 1}
+	hidden.runtime.shutdown = shutdownState{active: 1}
 	hidden.overlays.Push(OverlayShutdown, OverlayCaller{MainView: MainViewAgents})
 	before := hidden.overlays.Len()
 	if view := ansi.Strip(hidden.View()); !strings.Contains(view, "RESIZE TERMINAL") || strings.Contains(view, "ACTIVE FIX JOBS") {
@@ -281,8 +281,8 @@ func assertHiddenShutdown(t *testing.T, service *fakeFixService) {
 	var command tea.Cmd
 	for _, key := range []tea.KeyMsg{{Type: tea.KeyEnter}, {Type: tea.KeyRunes, Runes: []rune{'q'}}} {
 		_, command = handleKey(&hidden, key)
-		if command != nil || hidden.shutdown.pending || hidden.overlays.Len() != before {
-			t.Fatalf("hidden shutdown consumed %q: pending=%t overlays=%d command=%v", key.String(), hidden.shutdown.pending, hidden.overlays.Len(), command)
+		if command != nil || hidden.runtime.shutdown.pending || hidden.overlays.Len() != before {
+			t.Fatalf("hidden shutdown consumed %q: pending=%t overlays=%d command=%v", key.String(), hidden.runtime.shutdown.pending, hidden.overlays.Len(), command)
 		}
 	}
 }

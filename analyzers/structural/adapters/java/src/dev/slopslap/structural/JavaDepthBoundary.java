@@ -324,29 +324,31 @@ final class JavaDepthBoundary {
         String id = owner.getQualifiedName() + "#field:" + field.getSimpleName();
         boolean visible = owner.getModifiers().contains(Modifier.PUBLIC)
                 ? field.getModifiers().contains(Modifier.PUBLIC) : !field.getModifiers().contains(Modifier.PRIVATE);
-        if (visible) {
-            String concept = JavaDepthTypes.concept(field.asType());
-            concepts.add(concept);
-            List<String> exposed = new ArrayList<>();
-            if (!field.getModifiers().contains(Modifier.FINAL)) {
-                String slot = id + "/value";
-                slots.add(Map.of("id", slot, "concept", concept, "required", false));
-                exposed.add(slot);
-            }
-            Map<String, Object> route = Map.of("id", id, "family", id, "signature", field.asType().toString(),
-                    "target_function_id", id, "boundary", identity, "required_slots", List.of(), "exposed_slots", exposed);
-            routes.add(route);
-            families.add(Map.of("id", id, "routes", List.of(route)));
-            if (!isCompileTimeConstant(tree)) {
-                behaviorGap("field_access_effects_unknown", id,
-                        "Exposed field is inventoried; mutation and alias effects are not precisely modeled.");
-            }
-        }
+        if (visible) collectExposedField(tree, field, id);
         if (tree.getInitializer() != null && !isCompileTimeConstant(tree)) {
             behaviorGap("initializer_effects_unknown", id,
                     "Field is inventoried; initializer effects are outside precise flow analysis.");
         }
     }
+    private void collectExposedField(VariableTree tree, VariableElement field, String id) {
+        String concept = JavaDepthTypes.concept(field.asType());
+        concepts.add(concept);
+        List<String> exposed = new ArrayList<>();
+        if (!field.getModifiers().contains(Modifier.FINAL)) {
+            String slot = id + "/value";
+            slots.add(Map.of("id", slot, "concept", concept, "required", false));
+            exposed.add(slot);
+        }
+        Map<String, Object> route = Map.of("id", id, "family", id, "signature", field.asType().toString(),
+                "target_function_id", id, "boundary", identity, "required_slots", List.of(), "exposed_slots", exposed);
+        routes.add(route);
+        families.add(Map.of("id", id, "routes", List.of(route)));
+        if (!isCompileTimeConstant(tree)) {
+            behaviorGap("field_access_effects_unknown", id,
+                    "Exposed field is inventoried; mutation and alias effects are not precisely modeled.");
+        }
+    }
+
     private void collectRoute(String id, ExecutableElement method) {
         if (method.isVarArgs() || !method.getTypeParameters().isEmpty()) gap("unsupported_signature_shape");
         if (!method.getThrownTypes().isEmpty()) gap("unsupported_declared_failure_contract");
@@ -394,18 +396,24 @@ final class JavaDepthBoundary {
         result.put("files", List.of(file));
         result.put("source_locations", List.of(sourceLocation((Tree) path.getLeaf())));
         if (supportingContract != null) result.put("supporting_contract", supportingContract);
-        if (!creationRoutes.isEmpty()) result.put("creation", creationFact());
-        List<Map<String, Object>> evidence = new ArrayList<>();
-        if (validatedCreation) evidence.add(validatedCarrierEvidence());
-        if (passiveResultEvidence != null) evidence.add(passiveResultEvidence);
-        if (passiveValueObjectEvidence != null) evidence.add(passiveValueObjectEvidence);
-        if (passiveEnumEvidence != null) evidence.add(passiveEnumEvidence);
+        if (!creationRoutes.isEmpty()) result.put("creation", JavaDepthCreation.fact(owner, creationRoutes,
+                passiveAccessors, validatedCreation, creationIncomplete));
+        List<Map<String, Object>> evidence = supportingEvidence();
         if (!evidence.isEmpty()) result.put("evidence", evidence);
         if (!gaps.containsKey("incomplete_source_inventory")) {
             Map<String, Object> minimum = JavaDepthMinimum.assess(trees, path, owner, result, identity, file);
             if (minimum != null) result.put("bounded_assessment", minimum);
         }
         return result;
+    }
+
+    private List<Map<String, Object>> supportingEvidence() {
+        List<Map<String, Object>> evidence = new ArrayList<>();
+        if (validatedCreation) evidence.add(validatedCarrierEvidence());
+        if (passiveResultEvidence != null) evidence.add(passiveResultEvidence);
+        if (passiveValueObjectEvidence != null) evidence.add(passiveValueObjectEvidence);
+        if (passiveEnumEvidence != null) evidence.add(passiveEnumEvidence);
+        return evidence;
     }
 
     private Map<String, Object> validatedCarrierEvidence() {
@@ -417,43 +425,11 @@ final class JavaDepthBoundary {
                         "rule_id", rule, "fact_ids", passiveAccessors)));
     }
 
-    private Map<String, Object> creationFact() {
-        List<Object> bindings = new ArrayList<>();
-        List<Object> initialFields = new ArrayList<>();
-        for (Map<String, Object> route : creationRoutes) {
-            bindings.addAll((List<?>) route.get("input_bindings"));
-            initialFields.addAll((List<?>) route.get("initial_fields"));
-        }
-        return Map.ofEntries(Map.entry("id", "create:" + owner.getQualifiedName()),
-                Map.entry("canonical_type", owner.getQualifiedName().toString()),
-                Map.entry("family", "create:" + owner.getQualifiedName()),
-                Map.entry("route", "create:" + owner.getQualifiedName()), Map.entry("input_bindings", bindings),
-                Map.entry("routes", creationRoutes), Map.entry("initial_fields", initialFields),
-                Map.entry("passive_accessors", passiveAccessors),
-                Map.entry("possible_failures", validatedCreation ? List.of("source_rejection") : List.of()),
-                Map.entry("behavior", validatedCreation ? List.of("normal", "rejection") : List.of("normal")),
-                Map.entry("data_only", !validatedCreation && !creationIncomplete), Map.entry("accessible", true),
-                Map.entry("knowledge", creationIncomplete ? "partial" : "measured"));
-    }
     Map<String, Object> flow() {
         return Map.of("artifact", identity.get("artifact"), "language", "java", "functions", functions, "public_routes", routes);
     }
 
     private Map<String, Object> sourceLocation(Tree tree) {
-        long start = positions.getStartPosition(unit, tree);
-        long end = positions.getEndPosition(unit, tree);
-        if (start < 0) start = 0;
-        if (end < start) end = start;
-        int line = line(start), column = column(start);
-        int endLine = line(end), endColumn = column(end);
-        return Map.of("path", file, "line", line, "column", column, "end_line", endLine, "end_column", endColumn);
-    }
-
-    private int line(long position) {
-        return unit.getLineMap() == null ? 1 : (int) unit.getLineMap().getLineNumber(position);
-    }
-
-    private int column(long position) {
-        return unit.getLineMap() == null ? 1 : (int) unit.getLineMap().getColumnNumber(position);
+        return JavaDepthLocations.sourceLocation(unit, positions, file, tree);
     }
 }

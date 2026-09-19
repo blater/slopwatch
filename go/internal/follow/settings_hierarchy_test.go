@@ -62,7 +62,7 @@ func TestConcurrencySavePreservesAgentDraftAndRevision(t *testing.T) {
 	model.configSettings.returnToFix = true
 	model.configSettings.cursor = len(agentProviderChoices)
 	model.openSelectedAgentProvider()
-	if model.configSettings.kind != configConcurrency || model.configParent == nil {
+	if model.configSettings.kind != configConcurrency || model.runtime.configParent == nil {
 		t.Fatal("concurrency missing")
 	}
 	model.configSettings.working.Concurrency.MaxAgents++
@@ -72,7 +72,7 @@ func TestConcurrencySavePreservesAgentDraftAndRevision(t *testing.T) {
 		t.Fatal("no concurrency save")
 	}
 	model.handleConfigSaved(save().(configSavedMsg))
-	if model.configParent != nil || !model.configSettings.returnToFix || !model.configSettings.dirty || model.configSettings.working.Profiles[0].ID != "draft" {
+	if model.runtime.configParent != nil || !model.configSettings.returnToFix || !model.configSettings.dirty || model.configSettings.working.Profiles[0].ID != "draft" {
 		t.Fatal("parent edits or caller lost")
 	}
 	request, ok := model.configSettings.prepareSave(nil, store, model.configWorkspace, nil)
@@ -102,7 +102,7 @@ func TestToggleDropsSupersededAnalysisAndWatcher(t *testing.T) {
 	old := model.watcher
 	model.analyzing = true
 	command := model.toggleGitignore()
-	if len(model.files.Document.Files) != 1 || !model.discardAnalysis || !model.pendingFullAnalysis {
+	if len(model.files.Document.Files) != 1 || !model.runtime.discardAnalysis || !model.runtime.pendingFullAnalysis {
 		t.Fatal("policy change did not remove ignored rows or supersede old result")
 	}
 	message := command().(watcherReconfigured)
@@ -154,7 +154,7 @@ func executeReplacementAnalysis(t *testing.T, model *Model, command tea.Cmd) {
 		t.Fatal("missing real analysis result")
 	}
 	handleAnalysisResult(model, result)
-	if model.analyzing || model.pendingFullAnalysis || model.discardAnalysis {
+	if model.analyzing || model.runtime.pendingFullAnalysis || model.runtime.discardAnalysis {
 		t.Fatal("replacement failed to settle")
 	}
 }
@@ -166,7 +166,7 @@ func TestToggleBeforeInitialWatcherReadyStartsFreshAnalysis(t *testing.T) {
 	command := model.toggleGitignore()
 	message := command().(watcherReconfigured)
 	next := model.handleWatcherReconfigured(message)
-	if model.startupWatcherPending || model.discardAnalysis {
+	if model.runtime.startupWatcherPending || model.runtime.discardAnalysis {
 		t.Fatal("unstarted initial analysis treated as running job")
 	}
 	if _, cmd := handleWatcherReady(model, watcherReady{watcher: old}); cmd != nil {
@@ -178,9 +178,9 @@ func TestToggleBeforeInitialWatcherReadyStartsFreshAnalysis(t *testing.T) {
 func TestToggleDuringRetryDoesNotDiscardFreshRetryResult(t *testing.T) {
 	model := settingsRefreshFixture(t)
 	model.analyzing = true
-	model.analysisRetryPending = true
+	model.runtime.analysisRetryPending = true
 	command := model.toggleGitignore()
-	if model.discardAnalysis || model.analysisRetryPending {
+	if model.runtime.discardAnalysis || model.runtime.analysisRetryPending {
 		t.Fatal("retry delay treated as in-flight work")
 	}
 	next := model.handleWatcherReconfigured(command().(watcherReconfigured))
@@ -197,10 +197,10 @@ func TestWatcherReplacementFailureResumesOnlyConsumedWaitAndRetries(t *testing.T
 	for _, consumed := range []bool{false, true} {
 		t.Run(fmt.Sprint(consumed), func(t *testing.T) {
 			model := settingsRefreshFixture(t)
-			model.watchGeneration = 1
-			model.watchReconfigurePending = true
-			model.watchNeedsWait = consumed
-			model.pendingFullAnalysis = true
+			model.runtime.watchGeneration = 1
+			model.runtime.watchReconfigurePending = true
+			model.runtime.watchNeedsWait = consumed
+			model.runtime.pendingFullAnalysis = true
 			model.analyzing = true
 			command := model.handleWatcherReconfigured(watcherReconfigured{generation: 1, err: errors.New("injected registration failure")})
 			if command == nil {
@@ -216,7 +216,7 @@ func TestWatcherReplacementFailureResumesOnlyConsumedWaitAndRetries(t *testing.T
 					t.Fatal("toggle failure scheduled duplicate watcher wait")
 				}
 			}
-			if model.watchNeedsWait || model.watchRetryCount != 1 {
+			if model.runtime.watchNeedsWait || model.runtime.watchRetryCount != 1 {
 				t.Fatal("retry state not bounded")
 			}
 			retry := model.refreshIgnorePolicy()
@@ -228,7 +228,7 @@ func TestWatcherReplacementFailureResumesOnlyConsumedWaitAndRetries(t *testing.T
 			if model.runtimeError != "" {
 				t.Fatal("transient replacement failure opened ERROR popup")
 			}
-			if model.watchReconfigurePending || model.watchRetryCount != 0 {
+			if model.runtime.watchReconfigurePending || model.runtime.watchRetryCount != 0 {
 				t.Fatal("replacement did not recover")
 			}
 		})

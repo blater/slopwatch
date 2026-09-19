@@ -98,7 +98,7 @@ func modalView(model Model, base string) string {
 		return model.overlay(base, configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	}
 	if model.settings {
-		if model.filesSettings {
+		if model.runtime.filesSettings {
 			return model.overlay(base, filesSettingsView(model))
 		}
 		return model.overlay(base, settingsView(model))

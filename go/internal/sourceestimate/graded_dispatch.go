@@ -76,23 +76,11 @@ func gradedCapabilityDispatch(op *operation, body []token) (string, bool) {
 			continue
 		}
 		capabilities = append(capabilities, joinTokens(arm.typ))
-		if len(statements) == 1 {
-			s := statements[0]
-			if len(s) > 1 && s[0].text == "return" && gradedDispatchCall(s[1:], alias, op.paramNames) {
-				forwarded = true
-				continue
-			}
-			// A loop-carried receiver may unwrap one implementation layer. This
-			// is local capability discovery, not a converted result.
-			if len(s) > 2 && s[0].text == selector && s[1].text == "=" && gradedDispatchCall(s[2:], alias, nil) {
-				continue
-			}
+		supported, returns := gradedDispatchArmBehavior(statements, alias, selector, op.paramNames)
+		if !supported {
+			return "", false
 		}
-		if len(statements) == 2 && gradedDispatchCall(statements[0], alias, op.paramNames) && joinTokens(statements[1]) == "returnnil" {
-			forwarded = true
-			continue
-		}
-		return "", false
+		forwarded = forwarded || returns
 	}
 	if !forwarded {
 		return "", false
@@ -108,102 +96,20 @@ func gradedCapabilityDispatch(op *operation, body []token) (string, bool) {
 	return itoa(op.file) + ":" + op.owner + ":" + path + ":" + strings.Join(capabilities, "|"), true
 }
 
-type gradedDispatchArm struct {
-	kind      string
-	typ, body []token
-}
-
-func gradedDispatchArms(body []token) ([]gradedDispatchArm, bool) {
-	arms := []gradedDispatchArm{}
-	for start := 0; start < len(body); {
-		if body[start].text == ";" {
-			start++
-			continue
+func gradedDispatchArmBehavior(statements [][]token, alias, selector string, params []string) (supported, forwarded bool) {
+	if len(statements) == 1 {
+		s := statements[0]
+		if len(s) > 1 && s[0].text == "return" && gradedDispatchCall(s[1:], alias, params) {
+			return true, true
 		}
-		kind := body[start].text
-		if kind != "case" && kind != "default" {
-			return nil, false
-		}
-		colon, depth := start+1, 0
-		for ; colon < len(body); colon++ {
-			t := body[colon].text
-			if t == ":" && depth == 0 {
-				break
-			}
-			if t == "(" || t == "{" || t == "[" {
-				depth++
-			}
-			if t == ")" || t == "}" || t == "]" {
-				depth--
-			}
-		}
-		if colon == len(body) {
-			return nil, false
-		}
-		end := colon + 1
-		for ; end < len(body); end++ {
-			t := body[end].text
-			if depth == 0 && (t == "case" || t == "default") {
-				break
-			}
-			if t == "(" || t == "{" || t == "[" {
-				depth++
-			}
-			if t == ")" || t == "}" || t == "]" {
-				depth--
-			}
-		}
-		arms = append(arms, gradedDispatchArm{kind, body[start+1 : colon], trimSemicolonTokens(body[colon+1 : end])})
-		start = end
-	}
-	return arms, len(arms) > 0
-}
-
-func gradedDispatchPath(body []token) bool {
-	if len(body) == 0 || len(body)%2 == 0 {
-		return false
-	}
-	for i, tok := range body {
-		if i%2 == 0 && !isIdentifier(tok.text) || i%2 == 1 && tok.text != "." {
-			return false
+		// A loop-carried receiver may unwrap one implementation layer. This
+		// is local capability discovery, not a converted result.
+		if len(s) > 2 && s[0].text == selector && s[1].text == "=" && gradedDispatchCall(s[2:], alias, nil) {
+			return true, false
 		}
 	}
-	return true
-}
-
-func gradedDispatchCall(body []token, receiver string, params []string) bool {
-	if len(body) < 5 || body[0].text != receiver || body[1].text != "." || !isIdentifier(body[2].text) || body[3].text != "(" || matching(body, 3, "(", ")") != len(body)-1 {
-		return false
+	if len(statements) == 2 && gradedDispatchCall(statements[0], alias, params) && joinTokens(statements[1]) == "returnnil" {
+		return true, true
 	}
-	for _, arg := range splitArguments(body[4 : len(body)-1]) {
-		if len(arg) == 0 {
-			continue
-		}
-		if len(arg) != 1 {
-			return false
-		}
-		found := false
-		for _, param := range params {
-			found = found || param == arg[0].text
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
-}
-
-func gradedDispatchFailure(body []token) bool {
-	// A default may report unavailable capability, including tuple nils. No
-	// argument-dependent computation or receiver calls are accepted here.
-	for _, part := range splitArguments(body) {
-		if len(part) == 1 && (part[0].text == "nil" || isIdentifier(part[0].text)) {
-			continue
-		}
-		if len(part) == 3 && isIdentifier(part[0].text) && part[1].text == "(" && part[2].text == ")" {
-			continue
-		}
-		return false
-	}
-	return len(body) > 0
+	return false, false
 }

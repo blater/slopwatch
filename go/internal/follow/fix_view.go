@@ -15,36 +15,7 @@ import (
 )
 
 func (model Model) featureOverlayView(base string, frame OverlayFrame) string {
-	switch frame.Kind {
-	case OverlayFixForm:
-		return model.overlay(base, fixDialogPopup(model.fixDialog, model.profileCatalog, model.width, model.height))
-	case OverlayTargetScoreEditor:
-		return fixTargetScoreEditorView(base, model.fixDialog, model.profileCatalog, model.width, model.height)
-	case OverlayConfigSettings:
-		if fullScreenSurface(model.width, model.height) {
-			return configSettingsFullScreen(model.configSettings, model.profileCatalog, model.width, model.height)
-		}
-		return model.overlay(base, configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
-	case OverlayPromptEditor:
-		return masterPromptEditorView(model.configSettings, model.width, model.height)
-	case OverlayJobMonitor:
-		return jobMonitorView(base, model.jobMonitor, model.width, model.height, model.agentMetricPolicy())
-	case OverlayConfirmation:
-		if fullScreenSurface(model.width, model.height) {
-			return confirmationFullScreen(model.jobActions.confirmation, model.width, model.height)
-		}
-		return model.overlay(base, confirmationPopup(model.jobActions.confirmation, model.width))
-	case OverlayJobLog, OverlayJobDiff, OverlayCandidateSource:
-		return jobReaderView(base, model.jobReader, model.width, model.height)
-	case OverlaySettingsDirty:
-		return dirtyChoiceView(base, "UNSAVED SETTINGS", model.configSettings.dirtyCursor, model.width, model.height)
-	case OverlayShutdown:
-		return shutdownView(base, model.shutdown, model.width, model.height)
-	case OverlayRuntimeError:
-		return model.overlay(base, runtimeErrorPopup(model))
-	default:
-		return base
-	}
+	return (overlayRenderer{model: model}).render(base, frame)
 }
 
 func jobMonitorView(base string, state jobMonitorState, screenWidth, screenHeight int, policy agentMetricPolicy) string {

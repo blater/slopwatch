@@ -9,6 +9,27 @@ import java.util.*;
 final class JavaDepthCreation {
     private JavaDepthCreation() {}
 
+    static Map<String, Object> fact(TypeElement owner, List<Map<String, Object>> creationRoutes,
+                                    List<String> passiveAccessors, boolean validatedCreation,
+                                    boolean creationIncomplete) {
+        List<Object> bindings = new ArrayList<>();
+        List<Object> initialFields = new ArrayList<>();
+        for (Map<String, Object> route : creationRoutes) {
+            bindings.addAll((List<?>) route.get("input_bindings"));
+            initialFields.addAll((List<?>) route.get("initial_fields"));
+        }
+        return Map.ofEntries(Map.entry("id", "create:" + owner.getQualifiedName()),
+                Map.entry("canonical_type", owner.getQualifiedName().toString()),
+                Map.entry("family", "create:" + owner.getQualifiedName()),
+                Map.entry("route", "create:" + owner.getQualifiedName()), Map.entry("input_bindings", bindings),
+                Map.entry("routes", creationRoutes), Map.entry("initial_fields", initialFields),
+                Map.entry("passive_accessors", passiveAccessors),
+                Map.entry("possible_failures", validatedCreation ? List.of("source_rejection") : List.of()),
+                Map.entry("behavior", validatedCreation ? List.of("normal", "rejection") : List.of("normal")),
+                Map.entry("data_only", !validatedCreation && !creationIncomplete), Map.entry("accessible", true),
+                Map.entry("knowledge", creationIncomplete ? "partial" : "measured"));
+    }
+
     static boolean trivialConstructor(Trees trees, TreePath ownerPath, MethodTree tree, ExecutableElement method) {
         if (method.getModifiers().contains(Modifier.PRIVATE)) return true;
         BlockTree body = tree.getBody();

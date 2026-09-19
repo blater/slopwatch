@@ -194,7 +194,7 @@ func (model *Model) openFixForSelected() tea.Cmd {
 		showRuntimeError(model, errors.New(reason))
 		return nil
 	}
-	model.fixGeneration++
+	model.runtime.fixGeneration++
 	branch := textinput.New()
 	branch.Prompt = ""
 	style.ApplyTextInputStyle(&branch, false)
@@ -202,12 +202,12 @@ func (model *Model) openFixForSelected() tea.Cmd {
 	score.Prompt = ""
 	style.ApplyTextInputStyle(&score, false)
 	model.fixDialog = fixDialogState{
-		generation: model.fixGeneration, target: path, targets: append([]fix.RepoPath(nil), targets...), loading: true, focus: map[fix.MetricID]bool{}, score: score, branch: branch,
+		generation: model.runtime.fixGeneration, target: path, targets: append([]fix.RepoPath(nil), targets...), loading: true, focus: map[fix.MetricID]bool{}, score: score, branch: branch,
 		statusText: "Preparing analysis of " + markedFilesLabel(len(targets)) + "…",
 	}
 	model.overlays.Push(OverlayFixForm, OverlayCaller{MainView: MainViewFiles, Selected: model.files.Selected})
 	workspace := fixLoadWorkspace(model.fixWorkspace, model.options.Workspace)
-	return loadFixCommand(model.fixService, workspace, targets, nil, nil, model.fixGeneration)
+	return loadFixCommand(model.fixService, workspace, targets, nil, nil, model.runtime.fixGeneration)
 }
 
 func fixLoadWorkspace(workspace fix.WorkspaceIdentity, fallback string) fix.WorkspaceIdentity {
@@ -250,7 +250,7 @@ func (model *Model) handleFixTargetScoreKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 		return model, command
 	}
 	model.overlays.Pop()
-	if save := model.targetScorePreference.request(result.value, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace); save != nil {
+	if save := model.runtime.targetScorePreference.request(result.value, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace); save != nil {
 		return model, save
 	}
 	return model, command
@@ -264,7 +264,7 @@ type fixDialogChoice struct {
 }
 
 func (model *Model) handleFixTargetPreferenceSaved(message fixTargetPreferenceSavedMsg) tea.Cmd {
-	outcome := model.targetScorePreference.complete(message, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace)
+	outcome := model.runtime.targetScorePreference.complete(message, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace)
 	if message.err != nil {
 		showRuntimeError(model, fmt.Errorf("Target score preference was not saved: %w", message.err))
 	} else {
@@ -342,7 +342,7 @@ func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 		return model.fixUpdateError(message.err)
 	}
 	model.fixNotice = model.fixUpdates.clearError(model.fixNotice)
-	model.fixErrorSummary = ""
+	model.runtime.fixErrorSummary = ""
 	showJobErrors(model, message.jobs)
 	previousMonitorUpdate, previousLogUpdate := model.openFixSurfaceUpdates()
 	model.agents.setPresentations(message.jobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
@@ -353,8 +353,8 @@ func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 func (model *Model) fixUpdateError(err error) tea.Cmd {
 	var retry tea.Cmd
 	_, retry = model.fixUpdates.markUnavailable(err)
-	if model.fixErrorSummary != err.Error() {
-		model.fixErrorSummary = err.Error()
+	if model.runtime.fixErrorSummary != err.Error() {
+		model.runtime.fixErrorSummary = err.Error()
 		showRuntimeError(model, fmt.Errorf("Fix updates unavailable: %w", err))
 	}
 	return retry
@@ -365,7 +365,7 @@ func (model *Model) requestQuit() (tea.Model, tea.Cmd) {
 	if len(active) == 0 || model.fixService == nil {
 		return model, tea.Quit
 	}
-	model.shutdown = shutdownState{active: len(active)}
+	model.runtime.shutdown = shutdownState{active: len(active)}
 	model.overlays.Push(OverlayShutdown, OverlayCaller{MainView: model.mainView, Selected: model.mainSelection()})
 	return model, nil
 }
@@ -384,7 +384,7 @@ func activeFixJobs(jobs []fix.JobPresentation) []fix.JobPresentation {
 }
 
 func (model *Model) handleShutdownKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	outcome := model.shutdown.handleKey(key, model.fixService)
+	outcome := model.runtime.shutdown.handleKey(key, model.fixService)
 	if outcome.close {
 		model.overlays.Pop()
 		// Errors received while shutdown confirmation was on top are retained
@@ -421,7 +421,7 @@ func (model *Model) activateJobAction(jobID fix.JobID, choices ...fix.JobAction)
 		return model, nil
 	}
 	if jobActionRequiresConfirmation(action) {
-		model.jobActions.beginConfirmation(job.ID, action)
+		model.runtime.jobActions.beginConfirmation(job.ID, action)
 		model.overlays.Push(OverlayConfirmation, OverlayCaller{MainView: MainViewAgents, Selected: AgentRowID{JobID: job.ID}.String()})
 		return model, nil
 	}
@@ -451,14 +451,14 @@ func containsFixAction(actions []fix.JobAction, wanted fix.JobAction) bool {
 }
 
 func (model *Model) handleCancelConfirmationKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if (key.String() == "esc" || key.String() == "q") && !model.jobActions.confirmation.pending {
+	if (key.String() == "esc" || key.String() == "q") && !model.runtime.jobActions.confirmation.pending {
 		model.overlays.Pop()
 		return model, nil
 	}
-	if key.String() != "enter" || model.jobActions.confirmation.pending || !model.jobActions.confirmation.allowed {
+	if key.String() != "enter" || model.runtime.jobActions.confirmation.pending || !model.runtime.jobActions.confirmation.allowed {
 		return model, nil
 	}
-	return model.executeSelectedJobAction(model.jobActions.confirmation.jobID, model.jobActions.confirmation.action, true)
+	return model.executeSelectedJobAction(model.runtime.jobActions.confirmation.jobID, model.runtime.jobActions.confirmation.action, true)
 }
 
 func jobActionPastTense(action fix.JobAction) string {

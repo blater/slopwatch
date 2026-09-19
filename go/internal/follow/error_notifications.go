@@ -20,8 +20,8 @@ func suspendErrorOverlay(model *Model, message tea.Msg) {
 
 func (model Model) surfaceErrors() []string {
 	return []string{model.fixDialog.errorText, model.fixDialog.scoreError,
-		model.jobMonitor.errorText, model.jobReader.errorText,
-		model.jobActions.confirmation.errorText, model.shutdown.errorText,
+		model.jobMonitor.errorText, model.runtime.jobReader.errorText,
+		model.runtime.jobActions.confirmation.errorText, model.runtime.shutdown.errorText,
 		model.configSettings.connectionError, configErrorStatus(model.configSettings.status)}
 }
 

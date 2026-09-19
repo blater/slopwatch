@@ -9,7 +9,7 @@ import (
 
 func TestRejectedDirectActionWithEmptyMessageClearsOldNotice(t *testing.T) {
 	model := Model{fixNotice: "previous action failed"}
-	model.jobActions.command = jobCommandState{jobID: "job-1", action: fix.ActionCancel, pending: true}
+	model.runtime.jobActions.command = jobCommandState{jobID: "job-1", action: fix.ActionCancel, pending: true}
 	model.handleFixCommand(fixCommandMsg{
 		jobID: "job-1", action: fix.ActionCancel,
 		receipt: fixapp.CommandReceipt{Accepted: false},

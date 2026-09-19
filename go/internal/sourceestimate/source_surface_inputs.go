@@ -43,26 +43,7 @@ func annotateSourceSurfaceInputs(units []unit, byKey map[string][]*operation) {
 			if caller == nil || surfaceDynamicArgumentAccess(caller.body) {
 				continue
 			}
-			calls := callsIn(caller.body)
-			if len(calls) > maxCallsPerRoot {
-				calls = calls[:maxCallsPerRoot]
-			}
-			for _, c := range calls {
-				if unreachableCall(caller.body, c) {
-					continue
-				}
-				candidate := surfaceCallTarget(caller, c, units, byKey)
-				if candidate == nil || candidate.language != lang || candidate == caller {
-					continue
-				}
-				if len(c.actuals) != len(candidate.paramNames) {
-					continue
-				}
-				if !surfaceArgumentEvidence(caller, c.actuals) {
-					continue
-				}
-				callers[candidate] = append(callers[candidate], surfaceCaller{file: u.file.Path, caller: caller, call: c})
-			}
+			observeSurfaceCalls(caller, lang, u.file.Path, units, byKey, callers)
 		}
 	}
 
@@ -75,61 +56,7 @@ func annotateSourceSurfaceInputs(units []unit, byKey map[string][]*operation) {
 			continue
 		}
 		for _, op := range u.ops {
-			if op == nil || !surfaceRootEligible(op, callers[op]) || contracts[op] || surfaceConstructor(op) {
-				continue
-			}
-			if surfaceDynamicArgumentAccess(op.body) || surfaceStub(op.body) {
-				continue
-			}
-			if len(op.requiredParamNames) == 0 {
-				continue
-			}
-			used := make(map[string]bool, len(op.requiredParamNames))
-			for _, name := range op.requiredParamNames {
-				used[name] = surfaceBodyReads(op.body, name)
-			}
-			usedCount := 0
-			for _, value := range used {
-				if value {
-					usedCount++
-				}
-			}
-			// A one-input identity/predicate is not a redundant surface. For a
-			// finding there must be another required input which the body reads.
-			if usedCount == 0 {
-				continue
-			}
-			for _, unusedName := range op.requiredParamNames {
-				if used[unusedName] {
-					continue
-				}
-				index := surfaceParameterIndex(op, unusedName)
-				if index < 0 {
-					continue
-				}
-				files := make([]string, 0, len(callers[op]))
-				seenFiles := map[string]bool{}
-				for _, witness := range callers[op] {
-					if index >= len(witness.call.actuals) || !surfaceArgumentUsesCallerInput(witness.caller, witness.call.actuals[index]) {
-						continue
-					}
-					if !seenFiles[witness.file] {
-						seenFiles[witness.file] = true
-						files = append(files, witness.file)
-					}
-				}
-				if len(files) == 0 && !op.exposed {
-					continue
-				}
-				sort.Strings(files)
-				op.findings = append(op.findings, Finding{
-					Kind:              "unused-input",
-					Operation:         op.id,
-					Parameter:         unusedName,
-					CallerFiles:       files,
-					UnnecessaryBurden: 0.25,
-				})
-			}
+			annotateSurfaceOperation(op, callers, contracts)
 		}
 	}
 }
@@ -138,43 +65,6 @@ type surfaceCaller struct {
 	file   string
 	caller *operation
 	call   call
-}
-
-func requiredParameterNames(parameters []token, language string) []string {
-	if len(parameters) == 0 {
-		return nil
-	}
-	result := make([]string, 0, parameterCount(parameters))
-	for _, part := range splitParameterDeclarations(parameters) {
-		if len(part) == 0 || surfaceOptionalParameter(part, language) {
-			continue
-		}
-		names := parameterNames(part, language)
-		if len(names) == 0 {
-			continue
-		}
-		result = append(result, names[0])
-	}
-	return result
-}
-
-func surfaceOptionalParameter(part []token, language string) bool {
-	for _, item := range part {
-		switch item.text {
-		case "...", "?", "=", "..":
-			return true
-		}
-	}
-	// TypeScript parameter properties and destructured/default bindings are
-	// intentionally outside the bounded name model.
-	if language == "typescript" {
-		for _, item := range part {
-			if item.text == "{" || item.text == "[" {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func sourceSurfaceExcluded(source []byte) bool {
@@ -292,149 +182,83 @@ func surfaceCallTarget(caller *operation, c call, units []unit, byKey map[string
 	return nil
 }
 
-func surfaceContractOperations(u unit) map[*operation]bool {
-	result := make(map[*operation]bool)
-	lang := normalizeLanguage(u.file.Language, u.file.Path)
-	if lang == "rust" {
-		functions := rustFunctions(u.tokens)
-		for index, candidate := range u.ops {
-			if index >= len(functions) {
-				continue
-			}
-			result[candidate] = functions[index].impl != nil && functions[index].impl.trait != ""
-		}
-		escapes := surfaceFunctionEscapes(u)
-		for _, candidate := range u.ops {
-			result[candidate] = result[candidate] || escapes[candidate.name]
-		}
-		return result
+func annotateSurfaceOperation(op *operation, callers map[*operation][]surfaceCaller, contracts map[*operation]bool) {
+	if op == nil || !surfaceRootEligible(op, callers[op]) || contracts[op] || surfaceConstructor(op) {
+		return
 	}
-	contractOwners := map[string]bool{}
-	for i := 0; i+1 < len(u.tokens); i++ {
-		if u.tokens[i].text != "class" && u.tokens[i].text != "interface" {
+	if surfaceDynamicArgumentAccess(op.body) || surfaceStub(op.body) {
+		return
+	}
+	if len(op.requiredParamNames) == 0 {
+		return
+	}
+	used := make(map[string]bool, len(op.requiredParamNames))
+	for _, name := range op.requiredParamNames {
+		used[name] = surfaceBodyReads(op.body, name)
+	}
+	usedCount := 0
+	for _, value := range used {
+		if value {
+			usedCount++
+		}
+	}
+	// A one-input identity/predicate is not a redundant surface. For a
+	// finding there must be another required input which the body reads.
+	if usedCount == 0 {
+		return
+	}
+	for _, unusedName := range op.requiredParamNames {
+		if used[unusedName] {
 			continue
 		}
-		if !isIdentifier(u.tokens[i+1].text) {
+		index := surfaceParameterIndex(op, unusedName)
+		if index < 0 {
 			continue
 		}
-		owner := u.tokens[i+1].text
-		open := i + 2
-		for open < len(u.tokens) && u.tokens[open].text != "{" {
-			open++
+		files := make([]string, 0, len(callers[op]))
+		seenFiles := map[string]bool{}
+		for _, witness := range callers[op] {
+			if index >= len(witness.call.actuals) || !surfaceArgumentUsesCallerInput(witness.caller, witness.call.actuals[index]) {
+				continue
+			}
+			if !seenFiles[witness.file] {
+				seenFiles[witness.file] = true
+				files = append(files, witness.file)
+			}
 		}
-		if open >= len(u.tokens) {
+		if len(files) == 0 && !op.exposed {
 			continue
 		}
-		contract := u.tokens[i].text == "interface"
-		for _, item := range u.tokens[i+2 : open] {
-			contract = contract || item.text == "extends" || item.text == "implements"
-		}
-		contractOwners[owner] = contract
+		sort.Strings(files)
+		op.findings = append(op.findings, Finding{
+			Kind:              "unused-input",
+			Operation:         op.id,
+			Parameter:         unusedName,
+			CallerFiles:       files,
+			UnnecessaryBurden: 0.25,
+		})
 	}
-	overrideNames := map[string]bool{}
-	for i := 0; i < len(u.tokens); i++ {
-		if u.tokens[i].text != "Override" && u.tokens[i].text != "override" {
-			continue
-		}
-		for j := i + 1; j < len(u.tokens) && j-i <= 16; j++ {
-			if u.tokens[j].text == "{" || u.tokens[j].text == ";" {
-				break
-			}
-			if isIdentifier(u.tokens[j].text) && j+1 < len(u.tokens) && u.tokens[j+1].text == "(" {
-				overrideNames[u.tokens[j].text] = true
-				break
-			}
-		}
-	}
-	callbackNames := map[string]bool{}
-	callbackEscapes := map[string]bool{}
-	if lang == "typescript" {
-		for i := 0; i+2 < len(u.tokens); i++ {
-			if u.tokens[i].text != "const" || !isIdentifier(u.tokens[i+1].text) {
-				continue
-			}
-			for j := i + 2; j < len(u.tokens) && j-i <= 10; j++ {
-				if u.tokens[j].text == ":" {
-					callbackNames[u.tokens[i+1].text] = true
-				}
-				if u.tokens[j].text == "=" || u.tokens[j].text == ";" {
-					break
-				}
-			}
-		}
-		declared := map[string]bool{}
-		for _, op := range u.ops {
-			declared[op.name] = true
-		}
-		for i, item := range u.tokens {
-			if !declared[item.text] || i+1 >= len(u.tokens) {
-				continue
-			}
-			if u.tokens[i+1].text == "(" || u.tokens[i+1].text == "=" || (i > 0 && u.tokens[i-1].text == "const") {
-				continue
-			}
-			callbackEscapes[item.text] = true
-		}
-	}
-	for _, op := range u.ops {
-		result[op] = contractOwners[op.owner] || overrideNames[op.name] || callbackNames[op.name] || callbackEscapes[op.name]
-	}
-	return result
 }
 
-func surfaceFunctionEscapes(u unit) map[string]bool {
-	declared, escaped := map[string]bool{}, map[string]bool{}
-	for _, op := range u.ops {
-		declared[op.name] = true
+func observeSurfaceCalls(caller *operation, lang, path string, units []unit, byKey map[string][]*operation, callers map[*operation][]surfaceCaller) {
+	calls := callsIn(caller.body)
+	if len(calls) > maxCallsPerRoot {
+		calls = calls[:maxCallsPerRoot]
 	}
-	for i, item := range u.tokens {
-		if !declared[item.text] {
+	for _, c := range calls {
+		if unreachableCall(caller.body, c) {
 			continue
 		}
-		if i > 0 && (u.tokens[i-1].text == "fn" || u.tokens[i-1].text == "function") {
+		candidate := surfaceCallTarget(caller, c, units, byKey)
+		if candidate == nil || candidate.language != lang || candidate == caller {
 			continue
 		}
-		if i+1 < len(u.tokens) && u.tokens[i+1].text == "(" {
+		if len(c.actuals) != len(candidate.paramNames) {
 			continue
 		}
-		escaped[item.text] = true
-	}
-	return escaped
-}
-
-// Signature commas inside generic type arguments do not separate parameters.
-func splitParameterDeclarations(tokens []token) [][]token {
-	result := [][]token{}
-	start, nested, generic := 0, 0, 0
-	for i, item := range tokens {
-		switch item.text {
-		case "(", "[", "{":
-			nested++
-		case ")", "]", "}":
-			if nested > 0 {
-				nested--
-			}
-		case "<":
-			generic++
-		case ">":
-			if generic > 0 {
-				generic--
-			}
-		case ">>":
-			if generic >= 2 {
-				generic -= 2
-			} else {
-				generic = 0
-			}
-		case ",":
-			if nested == 0 && generic == 0 {
-				result = append(result, tokens[start:i])
-				start = i + 1
-			}
+		if !surfaceArgumentEvidence(caller, c.actuals) {
+			continue
 		}
+		callers[candidate] = append(callers[candidate], surfaceCaller{file: path, caller: caller, call: c})
 	}
-	if start < len(tokens) {
-		result = append(result, tokens[start:])
-	}
-	return result
 }

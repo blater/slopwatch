@@ -18,18 +18,18 @@ func showRuntimeError(model *Model, err error) {
 		return
 	}
 	message := err.Error()
-	for _, previous := range model.runtimeErrorMessages {
+	for _, previous := range model.runtime.runtimeErrorMessages {
 		if previous == message {
 			showStoredRuntimeError(model)
 			return
 		}
 	}
 	if model.runtimeError == "" {
-		model.runtimeErrorMessages = nil
-		model.runtimeErrorOffset = 0
+		model.runtime.runtimeErrorMessages = nil
+		model.runtime.runtimeErrorOffset = 0
 	}
-	model.runtimeErrorMessages = append(model.runtimeErrorMessages, message)
-	model.runtimeError = strings.Join(model.runtimeErrorMessages, "\n\n")
+	model.runtime.runtimeErrorMessages = append(model.runtime.runtimeErrorMessages, message)
+	model.runtimeError = strings.Join(model.runtime.runtimeErrorMessages, "\n\n")
 	showStoredRuntimeError(model)
 }
 
@@ -55,8 +55,8 @@ func dismissRuntimeError(model *Model) {
 		model.status = ""
 	}
 	model.runtimeError = ""
-	model.runtimeErrorMessages = nil
-	model.runtimeErrorOffset = 0
+	model.runtime.runtimeErrorMessages = nil
+	model.runtime.runtimeErrorOffset = 0
 	if overlay, ok := model.overlays.Top(); ok && overlay.Kind == OverlayRuntimeError {
 		model.overlays.Pop()
 	}
@@ -68,24 +68,24 @@ func handleRuntimeErrorKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	}
 	page := runtimeErrorBodyHeight(model.height)
 	limit := max(0, len(runtimeErrorLines(model.runtimeError, runtimeErrorWidth(model.width)-4))-page)
-	model.runtimeErrorOffset = min(limit, max(0, model.runtimeErrorOffset))
+	model.runtime.runtimeErrorOffset = min(limit, max(0, model.runtime.runtimeErrorOffset))
 	switch name {
 	case "esc", "enter":
 		dismissRuntimeError(model)
 	case "up", "k":
-		model.runtimeErrorOffset--
+		model.runtime.runtimeErrorOffset--
 	case "down", "j":
-		model.runtimeErrorOffset++
+		model.runtime.runtimeErrorOffset++
 	case "pgup", "ctrl+u":
-		model.runtimeErrorOffset -= page
+		model.runtime.runtimeErrorOffset -= page
 	case "pgdown", "ctrl+d", " ":
-		model.runtimeErrorOffset += page
+		model.runtime.runtimeErrorOffset += page
 	case "home":
-		model.runtimeErrorOffset = 0
+		model.runtime.runtimeErrorOffset = 0
 	case "end":
-		model.runtimeErrorOffset = limit
+		model.runtime.runtimeErrorOffset = limit
 	}
-	model.runtimeErrorOffset = min(limit, max(0, model.runtimeErrorOffset))
+	model.runtime.runtimeErrorOffset = min(limit, max(0, model.runtime.runtimeErrorOffset))
 	return model, nil
 }
 
@@ -97,7 +97,7 @@ func runtimeErrorPopup(model Model) string {
 	bodyWidth := max(1, popupWidth-2)
 	lines := runtimeErrorLines(model.runtimeError, bodyWidth)
 	bodyHeight := min(runtimeErrorBodyHeight(model.height), max(1, len(lines)))
-	start := min(max(0, model.runtimeErrorOffset), max(0, len(lines)-bodyHeight))
+	start := min(max(0, model.runtime.runtimeErrorOffset), max(0, len(lines)-bodyHeight))
 	end := min(len(lines), start+bodyHeight)
 	visible := lines[start:end]
 	for len(visible) < bodyHeight {

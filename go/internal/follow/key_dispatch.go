@@ -51,7 +51,7 @@ func dispatchGlobalKey(model *Model, name string) (bool, tea.Cmd) {
 	case "s":
 		model.settings, model.settingsCursor = true, 0
 		model.settingsGroup = ""
-		model.filesSettings = false
+		model.runtime.filesSettings = false
 	case "h":
 		model.help, model.helpCursor, model.helpTopic = true, 0, ""
 	default:

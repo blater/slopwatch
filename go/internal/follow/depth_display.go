@@ -123,22 +123,7 @@ func depthEstimateLines(raw map[string]any) []string {
 	if ratio, ok := depthNumber(estimate["descriptive_ratio"]); ok {
 		lines = append(lines, fmt.Sprintf("Descriptive burden/depth ratio: %.0f (not defect severity).", ratio))
 	}
-	for _, value := range anySlice(estimate["findings"]) {
-		if finding, ok := value.(map[string]any); ok {
-			support := "support not recorded"
-			switch stringAttribute(finding, "support") {
-			case "observed-callers":
-				support = "observed caller burden"
-			case "source-inferred":
-				support = "inferred from source"
-			}
-			text := fmt.Sprintf("Finding %s (%s): input %s in %s is unused.", stringAttribute(finding, "kind"), support, stringAttribute(finding, "parameter"), stringAttribute(finding, "operation"))
-			if callers := depthStrings(finding["caller_files"]); len(callers) > 0 {
-				text += " Callers: " + strings.Join(callers, ", ") + "."
-			}
-			lines = append(lines, text)
-		}
-	}
+	lines = append(lines, depthFindingLines(anySlice(estimate["findings"]))...)
 
 	for _, role := range depthStrings(estimate["roles"]) {
 		switch role {
@@ -150,26 +135,8 @@ func depthEstimateLines(raw map[string]any) []string {
 			lines = append(lines, "Declaration-only trait contract excluded from behavioral burden.")
 		}
 	}
-	for index, value := range anySlice(estimate["abstractions"]) {
-		if index >= 12 {
-			lines = append(lines, "Additional abstraction details omitted")
-			break
-		}
-		item, ok := value.(map[string]any)
-		if !ok {
-			continue
-		}
-		burden, bok := depthNumber(item["burden"])
-		hidden, hok := depthNumber(item["hidden"])
-		if bok && hok && burden+2*hidden > 0 {
-			text := fmt.Sprintf("Abstraction %s (%s audience): B=%g H=%g", stringAttribute(item, "name"), stringAttribute(item, "audience"), burden, hidden)
-			if published, ok := depthNumber(item["published_penalty"]); ok {
-				text += fmt.Sprintf("; SHALLOW %.0f", published)
-			}
-			lines = append(lines, text)
-			lines = append(lines, depthMaterialLimitations(stringAttribute(item, "name"), depthStrings(item["limitations"]))...)
-		}
-	}
+	lines = append(lines, depthAbstractionLines(anySlice(estimate["abstractions"]))...)
+
 	if model, _ := estimate["model"].(string); model != "" {
 		lines = append(lines, "estimate model: "+model)
 	}
@@ -182,25 +149,8 @@ func depthEstimateLines(raw map[string]any) []string {
 	if known, ok := depthNumber(estimate["known_hidden"]); ok && known > 0 {
 		lines = append(lines, fmt.Sprintf("recognized responsibility lower bound: %g", known))
 	}
-	if categories := depthCategories(estimate["categories"]); len(categories) > 0 {
-		keys := make([]string, 0, len(categories))
-		for key := range categories {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		parts := make([]string, 0, len(keys))
-		for _, key := range keys {
-			if key == "unknown_call" || key == "unknown_outcome" {
-				continue
-			}
-			if value, ok := depthNumber(categories[key]); ok {
-				parts = append(parts, fmt.Sprintf("%s=%.0f", key, value))
-			}
-		}
-		if len(parts) > 0 {
-			lines = append(lines, "recognized categories: "+strings.Join(parts, ", "))
-		}
-	}
+	lines = append(lines, depthCategoryLines(depthCategories(estimate["categories"]))...)
+
 	// Raw semantic-completeness reasons remain in the exported diagnostics.
 	// Only specific gaps in the assessed behavior belong in ordinary details.
 	if len(anySlice(estimate["abstractions"])) == 0 {
@@ -385,6 +335,77 @@ func depthGradedLines(raw map[string]any) []string {
 		lines = append(lines, "Zero: supported assessment in the lowest SHALLOW range.")
 	case "conservative_uncertainty":
 		lines = append(lines, "Zero: conservative estimate under material uncertainty; not complete semantic coverage.")
+	}
+	return lines
+}
+
+func depthFindingLines(findings []any) []string {
+	lines := []string{}
+	for _, value := range findings {
+		if finding, ok := value.(map[string]any); ok {
+			support := "support not recorded"
+			switch stringAttribute(finding, "support") {
+			case "observed-callers":
+				support = "observed caller burden"
+			case "source-inferred":
+				support = "inferred from source"
+			}
+			text := fmt.Sprintf("Finding %s (%s): input %s in %s is unused.", stringAttribute(finding, "kind"), support, stringAttribute(finding, "parameter"), stringAttribute(finding, "operation"))
+			if callers := depthStrings(finding["caller_files"]); len(callers) > 0 {
+				text += " Callers: " + strings.Join(callers, ", ") + "."
+			}
+			lines = append(lines, text)
+		}
+	}
+
+	return lines
+}
+
+func depthAbstractionLines(abstractions []any) []string {
+	lines := []string{}
+	for index, value := range abstractions {
+		if index >= 12 {
+			lines = append(lines, "Additional abstraction details omitted")
+			break
+		}
+		item, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		burden, bok := depthNumber(item["burden"])
+		hidden, hok := depthNumber(item["hidden"])
+		if bok && hok && burden+2*hidden > 0 {
+			text := fmt.Sprintf("Abstraction %s (%s audience): B=%g H=%g", stringAttribute(item, "name"), stringAttribute(item, "audience"), burden, hidden)
+			if published, ok := depthNumber(item["published_penalty"]); ok {
+				text += fmt.Sprintf("; SHALLOW %.0f", published)
+			}
+			lines = append(lines, text)
+			lines = append(lines, depthMaterialLimitations(stringAttribute(item, "name"), depthStrings(item["limitations"]))...)
+		}
+	}
+	return lines
+}
+
+func depthCategoryLines(categories map[string]any) []string {
+	lines := []string{}
+	if len(categories) > 0 {
+		keys := make([]string, 0, len(categories))
+		for key := range categories {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, key := range keys {
+			if key == "unknown_call" || key == "unknown_outcome" {
+				continue
+			}
+			if value, ok := depthNumber(categories[key]); ok {
+				parts = append(parts, fmt.Sprintf("%s=%.0f", key, value))
+			}
+		}
+		if len(parts) > 0 {
+			lines = append(lines, "recognized categories: "+strings.Join(parts, ", "))
+		}
 	}
 	return lines
 }

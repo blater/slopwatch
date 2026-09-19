@@ -149,7 +149,7 @@ func TestRealRuleEventReplacesModelWatcherAndAdmitsDirectoryEdits(t *testing.T) 
 		t.Fatal("real event lost ignore classification")
 	}
 	_, replacement := handleSourceChange(model, change)
-	if replacement == nil || !model.watchNeedsWait {
+	if replacement == nil || !model.runtime.watchNeedsWait {
 		t.Fatal("real event did not consume wait and request replacement")
 	}
 	executeReplacementAnalysis(t, model, model.handleWatcherReconfigured(replacement().(watcherReconfigured)))

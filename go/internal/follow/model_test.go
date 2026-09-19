@@ -977,7 +977,7 @@ func TestWeightsResetCurrentAndAll(t *testing.T) {
 	model.weights["cognitive_complexity"] = 2
 	model.weights["god_class"] = 19
 	handleWeightsKey(&model, "c")
-	if !model.weightsResetConfirm {
+	if !model.runtime.weightsResetConfirm {
 		t.Fatal("reset all did not ask for confirmation")
 	}
 	handleWeightsKey(&model, "n")
@@ -1275,15 +1275,15 @@ func TestTypeSafetyRefreshQueuesBehindAnAnalysisAndDisablingNeedsNoRefresh(t *te
 
 func assertQueuedTypeSafetyEnable(t *testing.T, model *Model, analyzer *settingsAnalyzer, command tea.Cmd) {
 	t.Helper()
-	if command != nil || !model.pendingFullAnalysis || !analyzer.typeScriptTypes {
-		t.Fatalf("enable during analysis = command %v, pending %t, enabled %t", command, model.pendingFullAnalysis, analyzer.typeScriptTypes)
+	if command != nil || !model.runtime.pendingFullAnalysis || !analyzer.typeScriptTypes {
+		t.Fatalf("enable during analysis = command %v, pending %t, enabled %t", command, model.runtime.pendingFullAnalysis, analyzer.typeScriptTypes)
 	}
 }
 
 func assertQueuedTypeSafetyRefresh(t *testing.T, model *Model, command tea.Cmd) {
 	t.Helper()
-	if command == nil || model.pendingFullAnalysis || !model.analyzing {
-		t.Fatalf("queued refresh = command %v, pending %t, analyzing %t", command, model.pendingFullAnalysis, model.analyzing)
+	if command == nil || model.runtime.pendingFullAnalysis || !model.analyzing {
+		t.Fatalf("queued refresh = command %v, pending %t, analyzing %t", command, model.runtime.pendingFullAnalysis, model.analyzing)
 	}
 }
 
@@ -1516,7 +1516,7 @@ func TestSettingsContainsColumnsAndReturnsAfterEditing(t *testing.T) {
 	result.settingsCursor = 1
 	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
-	if !result.columns || !result.columnsFromSettings || result.settings {
+	if !result.columns || !result.runtime.columnsFromSettings || result.settings {
 		t.Fatal("settings did not open Columns")
 	}
 	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEsc})
