@@ -532,17 +532,47 @@ func sampleUnit(key Key) UnitArtifact {
 
 func TestProjectionArtifactRoundTrip(t *testing.T) {
 	t.Parallel()
-	store := newTestStore(t)
-	workspace := keyFor([]byte("workspace"))
-	projection := ProjectionFromReport(workspace, sampleUnit(keyFor([]byte("unit"))).Report, FreshnessCurrent)
-	projection.GeneratedAt = time.Unix(123, 0).UTC()
-	ref, err := store.PutProjection(workspace, projection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, ok := store.LoadProjection(ref, workspace)
-	if !ok || !reflect.DeepEqual(got, projection) {
-		t.Fatalf("LoadProjection() mismatch:\n got %#v\nwant %#v", got, projection)
+	shallow, zero := 42.5, 0.0
+	for _, tc := range []struct {
+		name  string
+		depth map[string]report.DepthBoundary
+	}{
+		{name: "absent"},
+		{name: "empty", depth: map[string]report.DepthBoundary{}},
+		{name: "populated", depth: map[string]report.DepthBoundary{
+			"service": {ID: "service", State: "partial", Estimated: true, Shallow: &shallow},
+			"zero":    {ID: "zero", State: "measured", Shallow: &zero},
+			"unknown": {ID: "unknown", State: "unknown"},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newTestStore(t)
+			workspace := keyFor([]byte("workspace"))
+			projection := ProjectionFromReport(workspace, sampleUnit(keyFor([]byte("unit"))).Report, FreshnessCurrent)
+			projection.GeneratedAt = time.Unix(123, 0).UTC()
+			projection.Depth = tc.depth
+			ref, err := store.PutProjection(workspace, projection)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok := store.LoadProjection(ref, workspace)
+			if !ok {
+				t.Fatal("LoadProjection() missed stored projection")
+			}
+			// Compare the persisted contract: omitempty collections may return
+			// as nil without losing data. Keep every serialized field checked.
+			wantJSON, err := json.Marshal(projection)
+			if err != nil {
+				t.Fatal(err)
+			}
+			gotJSON, err := json.Marshal(got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(gotJSON, wantJSON) {
+				t.Fatalf("LoadProjection() mismatch:\n got %s\nwant %s", gotJSON, wantJSON)
+			}
+		})
 	}
 }
 
