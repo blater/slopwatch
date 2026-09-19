@@ -182,10 +182,11 @@ func persistUserPreferences(model *Model) {
 	// Columns, or Weights cannot overwrite newer agent/fix properties.
 	latest, _, err := loadUserPreferences(model.preferencesPath)
 	if err != nil {
-		model.status = err.Error()
+		showRuntimeError(model, err)
 		return
 	}
 	value = latest
+	value.Files.HonorGitignore = !model.options.DisableGitignore
 	value.Appearance.Theme = string(model.theme)
 	value.Table.VisibleColumns = visibleColumnKeys(model.files.Visible)
 	value.Table.SortBy = model.files.SortKey
@@ -199,7 +200,7 @@ func persistUserPreferences(model *Model) {
 	}
 	model.preferences = value
 	if err := userprefs.Save(model.preferencesPath, value); err != nil {
-		model.status = err.Error()
+		showRuntimeError(model, err)
 	} else if strings.HasPrefix(model.status, "write preferences ") {
 		model.status = ""
 	}

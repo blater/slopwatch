@@ -156,13 +156,20 @@ func scoreInputsReport(catalog catalogDocument, selected []string, inputs scoreI
 		if !selectedSet[language] {
 			continue
 		}
-		file, err := scoreFile(path, language, catalog.Components, observations, coverage, passScore)
+		file, err := scoreFile(path, language, catalog.Components, observations, coverage, inputs.depth, inputs.depthByPath, inputs.depthStates, passScore)
 		if err != nil {
 			return report.Document{}, err
 		}
 		files = append(files, file)
 	}
-	document := report.Document{Calibrated: true, Configuration: nil, Diagnostics: diagnostics, ExecutionPlans: plans, Files: files, ProfileSetHash: "native-balanced-v1", SchemaVersion: 3, Summary: map[string]any{}}
+	schemaVersion, profileHash, scoreProfile, policyRevision, err := reportIdentity(catalog)
+	if err != nil {
+		return report.Document{}, err
+	}
+	document := report.Document{Calibrated: true, Configuration: nil, Diagnostics: diagnostics, ExecutionPlans: plans, Files: files, ProfileSetHash: profileHash, ScoreProfile: scoreProfile, PolicyRevision: policyRevision, SchemaVersion: schemaVersion, Summary: map[string]any{}}
+	if len(inputs.depth) > 0 {
+		document.Depth = inputs.depth
+	}
 	document.SortAndRank()
 	complete := 0
 	passed := true

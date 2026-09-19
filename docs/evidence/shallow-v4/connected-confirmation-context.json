@@ -1,0 +1,19 @@
+{
+  "repositories": {
+    "go": "/opt/homebrew/Cellar/go/1.27.1/libexec/src",
+    "rust": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library",
+    "warren": "/Users/blater/src/ap/warren",
+    "career-ops": "/Users/blater/src/career-ops"
+  },
+  "case_repositories": {
+    "go-condition-variable": "go",
+    "go-once-initializer": "go",
+    "rust-maybe-uninit": "rust",
+    "rust-once-lock": "rust",
+    "typescript-finalize-coordinator": "warren",
+    "typescript-recent-log-buffer": "career-ops"
+  },
+  "limitations": [
+    "Frozen caller-witness context; installed standard-library source roots are not treated as full Git workspaces."
+  ]
+}

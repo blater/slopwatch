@@ -24,6 +24,7 @@ STRUCTURAL_GO_SOURCES := $(wildcard $(STRUCTURAL_DIR)/cmd/slopslap-structural/*.
   $(wildcard $(STRUCTURAL_DIR)/internal/*/*.go)
 STRUCTURAL_JAVA_SOURCES := $(wildcard $(STRUCTURAL_DIR)/adapters/java/src/dev/slopslap/structural/*.java)
 STRUCTURAL_RUST_SOURCES := $(wildcard $(STRUCTURAL_DIR)/adapters/rust/src/*.rs)
+GO_CALIBRATION := $(ROOT)/go/internal/sourceestimate/calibration_default.json
 GO_SOURCES := $(shell find $(ROOT)/go/cmd/slopslap-go $(ROOT)/go/internal -type f -name '*.go')
 WATCH_SOURCES := $(shell find $(ROOT)/go/cmd/slopwatch -type f -name '*.go')
 TS_SOURCES := $(wildcard $(TYPESCRIPT_DIR)/src/*.ts) $(wildcard $(TYPESCRIPT_DIR)/test/*.ts)
@@ -34,6 +35,20 @@ TS_SOURCES := $(wildcard $(TYPESCRIPT_DIR)/src/*.ts) $(wildcard $(TYPESCRIPT_DIR
 all: build
 
 build: build-structural build-rust build-java build-go build-typescript
+
+# Normative source conformance, including currently unsupported capabilities.
+# This deliberately fails when any expected result is not delivered.
+.PHONY: test-shallow-adapters
+test-shallow-adapters: build
+	@python3 tools/shallow_adapter_acceptance.py
+
+.PHONY: test-shallow-carriers
+test-shallow-carriers: build
+	@python3 tools/shallow_carrier_acceptance.py
+
+.PHONY: test-shallow-values
+test-shallow-values: build
+	@python3 tools/shallow_value_acceptance.py
 
 dev-build: build-structural build-typescript build-go
 
@@ -46,7 +61,8 @@ build-structural: $(STRUCTURAL_BIN)
 $(RUST_BIN): $(STRUCTURAL_RUST_SOURCES) $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml $(STRUCTURAL_DIR)/adapters/rust/Cargo.lock
 	@mkdir -p $(BUILD_DIR)/cargo-target
 	@CARGO_TARGET_DIR=$(BUILD_DIR)/cargo-target cargo build --locked --release --manifest-path $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml
-	@cp $(BUILD_DIR)/cargo-target/release/slopslap-structural-rust $@
+	@cp $(BUILD_DIR)/cargo-target/release/slopslap-structural-rust $@.tmp
+	@mv -f $@.tmp $@
 
 build-rust: $(RUST_BIN)
 
@@ -62,11 +78,11 @@ $(JAVA_RUNTIME_BIN): $(JAVA_JAR)
 
 build-java: $(JAVA_JAR) $(JAVA_RUNTIME_BIN)
 
-$(GO_BIN): $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
+$(GO_BIN): $(GO_SOURCES) $(GO_CALIBRATION) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopslap-go
 
-$(WATCH_BIN): $(WATCH_SOURCES) $(GO_SOURCES) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
+$(WATCH_BIN): $(WATCH_SOURCES) $(GO_SOURCES) $(GO_CALIBRATION) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopwatch
 
@@ -96,8 +112,8 @@ test-structural: build-structural build-rust build-java
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(STRUCTURAL_DIR) $(GO_TEST_FLAGS) ./...
 	@cargo test --locked --manifest-path $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml
 
-test-typescript: build-typescript
-	@npm --prefix $(TYPESCRIPT_WORK_DIR) test
+test-typescript: build-typescript build-structural
+	@SLOPSLAP_DEPTH_EVALUATOR=$(STRUCTURAL_BIN) npm --prefix $(TYPESCRIPT_WORK_DIR) test
 
 test-go: build
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./...
@@ -111,3 +127,36 @@ clean:
 	@rm -rf $(BUILD_DIR) \
 	  $(STRUCTURAL_BIN) $(RUST_BIN) $(JAVA_JAR) $(STRUCTURAL_DIR)/java-runtime \
 	  $(STRUCTURAL_DIR)/adapters/rust/target
+
+.PHONY: test-shallow-sensitivity test-shallow-holdout test-shallow-calibration test-shallow-safeguards test-shallow-regressions test-shallow-context test-shallow-fresh test-shallow-high test-shallow-confirmation
+
+test-shallow-sensitivity:
+	@mkdir -p $(BUILD_DIR)/go-cache
+	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache SHALLOW_SENSITIVITY_OUTPUT=$(BUILD_DIR)/shallow-sensitivity.json go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./internal/sourceestimate -run TestCalibration -count=1 -v
+
+test-shallow-regressions:
+	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./internal/sourceestimate ./internal/native ./internal/report ./internal/scoring ./internal/follow ./internal/fixanalysis/nativeadapter
+
+test-shallow-high: build
+	@status=0; python3 $(ROOT)/tools/shallow_holdout_acceptance.py --manifest $(ROOT)/docs/evidence/shallow-v4/connected-high-holdout/manifest.json --require-high-language go --require-high-language typescript --require-high-language rust --output $(BUILD_DIR)/shallow-high-holdout.json || status=1; python3 $(ROOT)/tools/shallow_holdout_context.py --manifest $(ROOT)/docs/evidence/shallow-v4/connected-high-holdout/manifest.json --context $(ROOT)/docs/evidence/shallow-v4/connected-high-context.json --frozen-only --output $(BUILD_DIR)/shallow-high-context.json || status=1; exit $$status
+
+test-shallow-confirmation: build
+	@status=0; python3 $(ROOT)/tools/shallow_holdout_acceptance.py --manifest $(ROOT)/docs/evidence/shallow-v4/connected-confirmation-holdout/manifest.json --require-high-language go --require-high-language rust --output $(BUILD_DIR)/shallow-confirmation-holdout.json || status=1; python3 $(ROOT)/tools/shallow_holdout_context.py --manifest $(ROOT)/docs/evidence/shallow-v4/connected-confirmation-holdout/manifest.json --context $(ROOT)/docs/evidence/shallow-v4/connected-confirmation-context.json --frozen-only --output $(BUILD_DIR)/shallow-confirmation-context.json || status=1; exit $$status
+
+test-shallow-fresh: build
+	@python3 $(ROOT)/tools/shallow_holdout_acceptance.py --manifest $(ROOT)/docs/evidence/shallow-v4/structural-fresh-holdout/manifest.json --allow-no-high-cases --output $(BUILD_DIR)/shallow-fresh-holdout.json
+
+test-shallow-context: build
+	@python3 $(ROOT)/tools/shallow_holdout_context.py --frozen-only --output $(BUILD_DIR)/shallow-holdout-context.json
+
+test-shallow-holdout: build
+	@python3 $(ROOT)/tools/shallow_holdout_acceptance.py
+
+test-shallow-safeguards:
+	@python3 -m unittest discover -s $(ROOT)/tools -p 'test_shallow*.py'
+	@python3 $(ROOT)/tools/shallow_calibration_change.py
+	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./internal/native -run TestCalibration -count=1
+
+# Keep producing both evaluation artifacts when either independent check fails.
+test-shallow-calibration:
+	@status=0; $(MAKE) test-shallow-sensitivity || status=1; $(MAKE) test-shallow-holdout || status=1; $(MAKE) test-shallow-context || status=1; $(MAKE) test-shallow-fresh || status=1; $(MAKE) test-shallow-high || status=1; $(MAKE) test-shallow-confirmation || status=1; $(MAKE) test-shallow-safeguards || status=1; $(MAKE) test-shallow-regressions || status=1; exit $$status

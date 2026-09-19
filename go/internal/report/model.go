@@ -10,16 +10,19 @@ import (
 )
 
 type Document struct {
-	Calibrated     bool             `json:"calibrated"`
-	Configuration  any              `json:"configuration"`
-	Diagnostics    []map[string]any `json:"diagnostics"`
-	ExecutionPlans []map[string]any `json:"execution_plans"`
-	Files          []File           `json:"files"`
-	ProfileSetHash string           `json:"profile_set_hash"`
-	ReturnedFiles  int              `json:"returned_files"`
-	SchemaVersion  int              `json:"schema_version"`
-	Summary        map[string]any   `json:"summary"`
-	Truncated      bool             `json:"truncated"`
+	Calibrated     bool                     `json:"calibrated"`
+	Configuration  any                      `json:"configuration"`
+	Diagnostics    []map[string]any         `json:"diagnostics"`
+	Depth          map[string]DepthBoundary `json:"depth,omitempty"`
+	ExecutionPlans []map[string]any         `json:"execution_plans"`
+	Files          []File                   `json:"files"`
+	ProfileSetHash string                   `json:"profile_set_hash"`
+	ScoreProfile   string                   `json:"score_profile,omitempty"`
+	PolicyRevision string                   `json:"policy_revision,omitempty"`
+	ReturnedFiles  int                      `json:"returned_files"`
+	SchemaVersion  int                      `json:"schema_version"`
+	Summary        map[string]any           `json:"summary"`
+	Truncated      bool                     `json:"truncated"`
 }
 
 type File struct {
@@ -60,6 +63,13 @@ type Component struct {
 	ObservedContribution     float64               `json:"observed_contribution"`
 	Subjects                 []SubjectContribution `json:"subjects"`
 	Waivers                  []map[string]any      `json:"waivers"`
+	DepthScope               string                `json:"depth_scope,omitempty"`
+	DepthRole                string                `json:"depth_role,omitempty"`
+	DepthState               string                `json:"depth_state,omitempty"`
+	DepthEstimated           bool                  `json:"depth_estimated,omitempty"`
+	DepthVersion             string                `json:"depth_version,omitempty"`
+	DepthBoundaryIDs         []string              `json:"depth_boundary_ids,omitempty"`
+	RawMaximum               *float64              `json:"raw_max,omitempty"`
 }
 
 type SourcePosition struct {

@@ -10,8 +10,9 @@ func validate(input request) error {
 		return fmt.Errorf("request requires units and components")
 	}
 	seen := make(map[string]struct{})
+	definitions := requestStrategies(input).Definitions()
 	for _, item := range input.Components {
-		expected, ok := componentVersions[item.ID]
+		expected, ok := definitions[item.ID]
 		if !ok || item.Version != expected {
 			return fmt.Errorf("unsupported component %s@%s", item.ID, item.Version)
 		}

@@ -48,7 +48,7 @@ func (state *configSettingsState) handleAgentKey(key tea.KeyMsg, catalog agent.P
 	case "up", "k":
 		state.cursor = max(0, state.cursor-1)
 	case "down", "j":
-		state.cursor = min(len(agentProviderChoices)-1, state.cursor+1)
+		state.cursor = min(len(agentProviderChoices), state.cursor+1)
 	case "enter":
 		return configKeyAction{kind: configKeyOpenProvider}
 	}

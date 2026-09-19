@@ -2,6 +2,7 @@ package follow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,11 +14,12 @@ import (
 )
 
 type refreshAnalyzer struct {
-	document   report.Document
-	targets    [][]string
-	languages  [][]string
-	changed    [][]string
-	changesErr error
+	document    report.Document
+	targets     [][]string
+	languages   [][]string
+	changed     [][]string
+	changesErr  error
+	changesErrs []error
 }
 
 func (analyzer *refreshAnalyzer) Analyze(_ context.Context, targets, languages []string) (report.Document, error) {
@@ -28,6 +30,13 @@ func (analyzer *refreshAnalyzer) Analyze(_ context.Context, targets, languages [
 
 func (analyzer *refreshAnalyzer) AnalyzeChanges(_ context.Context, paths []string) (report.Document, []string, error) {
 	analyzer.changed = append(analyzer.changed, append([]string(nil), paths...))
+	if len(analyzer.changesErrs) > 0 {
+		err := analyzer.changesErrs[0]
+		analyzer.changesErrs = analyzer.changesErrs[1:]
+		if err != nil {
+			return report.Document{}, nil, err
+		}
+	}
 	if analyzer.changesErr != nil {
 		return report.Document{}, nil, analyzer.changesErr
 	}
@@ -89,6 +98,160 @@ func TestIncrementalSourceRefreshFallsBackToFullWhenPlanIsUnavailable(t *testing
 	}
 	if len(message.document.Files) != 1 || message.document.Files[0].Path != "owner.go" {
 		t.Fatalf("full fallback document = %#v", message.document.Files)
+	}
+}
+
+func TestWorkspaceChurnRetriesOriginalIncrementalRequestWithoutError(t *testing.T) {
+	analyzer := &refreshAnalyzer{
+		document:    report.Document{Files: []report.File{testFile("owner.go", 3)}},
+		changesErrs: []error{native.ErrWorkspaceChanged, native.ErrWorkspaceChanged},
+	}
+	model := refreshModel(t.TempDir(), report.Document{Files: []report.File{testFile("owner.go", 2)}}, analyzer)
+	model.analyzing = true
+
+	first, ok := analyzeExisting(model, []string{"methods.go"})().(analysisResult)
+	if !ok || !errors.Is(first.err, native.ErrWorkspaceChanged) {
+		t.Fatalf("initial churn result = %#v", first)
+	}
+	_, retry := model.Update(first)
+	assertChurnWaiting(t, model, retry)
+
+	_, command := model.Update(analysisRetry{})
+	assertRetryStarted(t, model, command)
+	_, stale := model.Update(analysisRetry{})
+	if stale != nil || !model.analyzing {
+		t.Fatalf("stale retry altered active analysis: command=%v analyzing=%t", stale, model.analyzing)
+	}
+	second, ok := command().(analysisResult)
+	if !ok {
+		t.Fatalf("retry command returned %T", second)
+	}
+	assertChurnResult(t, second, analyzer)
+	_, retry = model.Update(second)
+	assertChurnWaiting(t, model, retry)
+	_, command = model.Update(analysisRetry{})
+	assertRetryStarted(t, model, command)
+	third, ok := command().(analysisResult)
+	if !ok {
+		t.Fatalf("successful retry result type = %T", third)
+	}
+	if third.err != nil {
+		t.Fatalf("successful retry result = %#v", third)
+	}
+	_, command = model.Update(third)
+	assertRecoveredAnalysis(t, model, command)
+}
+
+func assertChurnWaiting(t *testing.T, model Model, retry tea.Cmd) {
+	t.Helper()
+	if retry == nil {
+		t.Fatal("workspace churn did not schedule a bounded retry")
+	}
+	if !model.analyzing {
+		t.Fatal("workspace churn cleared analyzing while waiting for retry")
+	}
+	if model.runtimeError != "" {
+		t.Fatalf("workspace churn surfaced runtime error: %q", model.runtimeError)
+	}
+	if len(model.files.Document.Files) != 1 {
+		t.Fatalf("workspace churn replaced previous rows: %#v", model.files.Document.Files)
+	}
+	if model.files.Document.Files[0].Score != 2 {
+		t.Fatalf("workspace churn changed previous score: %#v", model.files.Document.Files)
+	}
+}
+
+func assertRetryStarted(t *testing.T, model Model, command tea.Cmd) {
+	t.Helper()
+	if command == nil {
+		t.Fatal("retry timer did not continue queued analysis")
+	}
+	if !model.analyzing {
+		t.Fatal("retry timer cleared analyzing before queued analysis started")
+	}
+}
+
+func assertChurnResult(t *testing.T, result analysisResult, analyzer *refreshAnalyzer) {
+	t.Helper()
+	if !errors.Is(result.err, native.ErrWorkspaceChanged) {
+		t.Fatalf("retry error = %v", result.err)
+	}
+	if len(analyzer.changed) != 2 {
+		t.Fatalf("retry analyzer calls = %d, want 2", len(analyzer.changed))
+	}
+	for index, paths := range analyzer.changed {
+		if len(paths) != 1 || paths[0] != "methods.go" {
+			t.Fatalf("retry %d paths = %v", index, paths)
+		}
+	}
+}
+
+func assertRecoveredAnalysis(t *testing.T, model Model, command tea.Cmd) {
+	t.Helper()
+	if command != nil {
+		t.Fatal("successful retry scheduled unexpected follow-up")
+	}
+	if model.analyzing {
+		t.Fatal("successful retry left analyzing set")
+	}
+	if model.runtimeError != "" {
+		t.Fatalf("successful retry retained runtime error: %q", model.runtimeError)
+	}
+	if len(model.files.Document.Files) != 1 || model.files.Document.Files[0].Score != 3 {
+		t.Fatalf("successful retry rows = %#v", model.files.Document.Files)
+	}
+}
+
+func TestWorkspaceChurnFullRetryCoalescesEditsDuringDelay(t *testing.T) {
+	analyzer := &refreshAnalyzer{document: report.Document{Files: []report.File{testFile("owner.go", 3)}}}
+	model := refreshModel(t.TempDir(), report.Document{Files: []report.File{testFile("owner.go", 2)}}, analyzer)
+	model.analyzing = true
+	model.initialAnalysis = true
+	_, retry := model.Update(analysisResult{full: true, err: native.ErrWorkspaceChanged})
+	assertFullChurnWaiting(t, model, retry)
+	_, command := handleSourceChange(&model, sourceChange{Paths: []string{"later.go"}})
+	assertQueuedEdit(t, model, command)
+	_, command = model.Update(analysisRetry{})
+	assertFullRetryStarted(t, model, command)
+	result, ok := command().(analysisResult)
+	if !ok {
+		t.Fatalf("coalesced retry result type = %T", result)
+	}
+	if !result.full {
+		t.Fatalf("coalesced retry was partial: %#v", result)
+	}
+}
+
+func assertFullChurnWaiting(t *testing.T, model Model, retry tea.Cmd) {
+	t.Helper()
+	if retry == nil {
+		t.Fatal("full workspace churn did not schedule a retry")
+	}
+	if !model.analyzing || !model.pendingFullAnalysis || !model.initialAnalysis {
+		t.Fatalf("full workspace churn state = analyzing:%t pending:%t initial:%t", model.analyzing, model.pendingFullAnalysis, model.initialAnalysis)
+	}
+}
+
+func assertQueuedEdit(t *testing.T, model Model, command tea.Cmd) {
+	t.Helper()
+	if command == nil {
+		t.Fatal("edit during retry did not keep watcher active")
+	}
+	if !model.analyzing {
+		t.Fatal("edit during retry cleared analyzing")
+	}
+	if len(model.queued) != 1 || !model.queued["later.go"] {
+		t.Fatalf("edit during retry queue = %v", model.queued)
+	}
+}
+
+func assertFullRetryStarted(t *testing.T, model Model, command tea.Cmd) {
+	t.Helper()
+	if command == nil {
+		t.Fatal("full retry was not dispatched")
+	}
+	if !model.analyzing || model.pendingFullAnalysis {
+		t.Fatalf("full retry state = analyzing:%t pending:%t", model.analyzing, model.pendingFullAnalysis)
 	}
 }
 

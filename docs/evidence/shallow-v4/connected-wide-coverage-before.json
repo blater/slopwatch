@@ -1,0 +1,4767 @@
+{
+  "binary_sha256": "30aeb01132be3efab9ca4e8ebd58883b61107e7fb3d9a25e2a58d86d7a2a3a88",
+  "workspaces": {
+    "/Users/blater/src/cargo-coupling": {
+      "language": "rust",
+      "report_sha256": "b90e072d7b85af0717fa0cd1377b370fcb424beac23216c1714d6807b69e551f",
+      "coverage": {
+        "analyzed": 40,
+        "numeric": 40,
+        "estimated": 40,
+        "not_applicable": 0
+      },
+      "ratings": [
+        {
+          "path": "src/report.rs",
+          "value": 43,
+          "state": "partial"
+        },
+        {
+          "path": "src/analyzer.rs",
+          "value": 75,
+          "state": "partial"
+        },
+        {
+          "path": "src/main.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/metrics/project.rs",
+          "value": 74,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli_output.rs",
+          "value": 43,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace.rs",
+          "value": 73,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/issue_type.rs",
+          "value": 75,
+          "state": "partial"
+        },
+        {
+          "path": "src/volatility.rs",
+          "value": 50,
+          "state": "partial"
+        },
+        {
+          "path": "src/web/graph.rs",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/grade.rs",
+          "value": 80,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/patterns.rs",
+          "value": 5,
+          "state": "partial"
+        },
+        {
+          "path": "src/metrics/module.rs",
+          "value": 98,
+          "state": "partial"
+        },
+        {
+          "path": "src/config.rs",
+          "value": 95,
+          "state": "partial"
+        },
+        {
+          "path": "src/metrics/coupling.rs",
+          "value": 86,
+          "state": "partial"
+        },
+        {
+          "path": "src/manifest.rs",
+          "value": 80,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/score.rs",
+          "value": 71,
+          "state": "partial"
+        },
+        {
+          "path": "src/metrics/dimensions.rs",
+          "value": 69,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/issue.rs",
+          "value": 64,
+          "state": "partial"
+        },
+        {
+          "path": "src/classification.rs",
+          "value": 29,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/rationale.rs",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/diff.rs",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/coupling.rs",
+          "value": 5,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/signals.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/history.rs",
+          "value": 15,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/action.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/external_crates.rs",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/project.rs",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/subdomain.rs",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/external.rs",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/web/routes.rs",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "benches/analysis_benchmark.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/issues.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/labels.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/mod.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/balance/severity.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/discovery.rs",
+          "value": 17,
+          "state": "partial"
+        },
+        {
+          "path": "src/lib.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/metrics/mod.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/web/mod.rs",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/web/server.rs",
+          "value": 9,
+          "state": "partial"
+        }
+      ],
+      "analyzed_source_hashes": [
+        {
+          "path": "src/report.rs",
+          "sha256": "ac7469acadd1351cc0439cb00d388bf0a5abd967588569fe9c06cebe73eff627"
+        },
+        {
+          "path": "src/analyzer.rs",
+          "sha256": "4703c86ff958c64b36754e5ce586c5934b7081b8f64a113f0225e570061ed1ff"
+        },
+        {
+          "path": "src/main.rs",
+          "sha256": "83523fc05e054c25bec60da1036198a1c6525096a4ce0d07ad10644c16f95d2d"
+        },
+        {
+          "path": "src/metrics/project.rs",
+          "sha256": "65e71657f8ce67981ebca40ca180cd96ef964e3c84b2c438bfeed7421156c35a"
+        },
+        {
+          "path": "src/cli_output.rs",
+          "sha256": "964cec54ac4f060921a7bef2f9f873029d6429969503e30b9aa134fdc8d2fd45"
+        },
+        {
+          "path": "src/workspace.rs",
+          "sha256": "2d80bedd481061bbf03452531a882d8d48ddc56166eb098d03e042c3fd244579"
+        },
+        {
+          "path": "src/balance/issue_type.rs",
+          "sha256": "861e9ad215541c2f336d84ede4d0f3a67140ee41027f6a69d0436dd62694b8d0"
+        },
+        {
+          "path": "src/volatility.rs",
+          "sha256": "90c7bd6c309c48f567fe166ac9183c927319cf573b84348f8f3ca70ba326f8cb"
+        },
+        {
+          "path": "src/web/graph.rs",
+          "sha256": "8cf90fd12210f9f02a664522e9b8d6255669a381620eff8a2f5e0058ebdcd085"
+        },
+        {
+          "path": "src/balance/grade.rs",
+          "sha256": "0c74ca6fba2641792bff4e76630f96c242a04533b90d3c6eed8d4d68f0e83310"
+        },
+        {
+          "path": "src/balance/patterns.rs",
+          "sha256": "7063b60c992234421a3a9ddf262570a5cfca562b3f342afb7b99047b502d3a1e"
+        },
+        {
+          "path": "src/metrics/module.rs",
+          "sha256": "97aa26e78ac87acfb308c6fba331a5d1d38ee2726e2ae68f9add384d2378d1a2"
+        },
+        {
+          "path": "src/config.rs",
+          "sha256": "86bf9d29580fa518586c8af00409924dfcde17486484b3711cee6740c89cc18e"
+        },
+        {
+          "path": "src/metrics/coupling.rs",
+          "sha256": "81f3786c65b534292e1a3d59f0a32cc8ceb7da297a30b34ce30ef081c91af72e"
+        },
+        {
+          "path": "src/manifest.rs",
+          "sha256": "1d257abb7c220f584587c0768dba462a17dd8ca320e5df949ee582f82f41539e"
+        },
+        {
+          "path": "src/balance/score.rs",
+          "sha256": "4bf39614c73effe5130aeaf24033effa83963b2064e4ac7bdb35e31d974f1787"
+        },
+        {
+          "path": "src/metrics/dimensions.rs",
+          "sha256": "89cece31b26bb8da5deeeb318ece638d9ffd91f7567bd46b976088031e72ded2"
+        },
+        {
+          "path": "src/balance/issue.rs",
+          "sha256": "c28af6ffd113a7874dda07a04cf624da2e476f755b3d062b93952d2a1fe5fc60"
+        },
+        {
+          "path": "src/classification.rs",
+          "sha256": "e2df476a8feb20e47252416ae5f211061e2feab51c0635b0eda0d11f54847850"
+        },
+        {
+          "path": "src/balance/rationale.rs",
+          "sha256": "3c0e36251e6352470a80afcb3f102397fb732419cb5f397ae14194dfef63e709"
+        },
+        {
+          "path": "src/diff.rs",
+          "sha256": "0e6a921faf0cfca8ffa7154e4672183a6f1e0ac7fc6d025636123223ae817984"
+        },
+        {
+          "path": "src/balance/coupling.rs",
+          "sha256": "5224a5a3151c133cf097ecd160fda1403c5644d4c0760b2eb92b1194f5cdbda1"
+        },
+        {
+          "path": "src/balance/signals.rs",
+          "sha256": "0090690f401f660a69312bd09c9df48edaf24bcb8083d74b08c50c627c4ed492"
+        },
+        {
+          "path": "src/history.rs",
+          "sha256": "0ebc44205f6ca228983b4c40344d6e89051c726d45ffdda1058bb385af155b87"
+        },
+        {
+          "path": "src/balance/action.rs",
+          "sha256": "d33bebb7d91d1f14ebe4cd7a1f7fa657604fb617a3ebfd92ebba16bc3791f4dd"
+        },
+        {
+          "path": "src/balance/external_crates.rs",
+          "sha256": "6a473a2d57499dc8ab55646664a20ac2eded90f2c3d3fb214927181011771450"
+        },
+        {
+          "path": "src/balance/project.rs",
+          "sha256": "006dc696b734ce76c7241fc84ad896626ed57fce18e2f5c375e2fd5427204ce9"
+        },
+        {
+          "path": "src/balance/subdomain.rs",
+          "sha256": "f0e29fb7062fab62626f2abb9941ddb84351c91a068d043cec52dc9dd4935af7"
+        },
+        {
+          "path": "src/external.rs",
+          "sha256": "cf9644862cfab2db0adca40f22fa23dd63511e476151863493b07744ccd989b3"
+        },
+        {
+          "path": "src/web/routes.rs",
+          "sha256": "0f5d54773eb9b42de315350f1625adc3f1f8094a2fc7380784c5cf63b2e8eaf0"
+        },
+        {
+          "path": "benches/analysis_benchmark.rs",
+          "sha256": "838bf5e4a12ed88151beaa1054d8d83ead46f1de89b7ecee9a497d47c3ca5f54"
+        },
+        {
+          "path": "src/balance/issues.rs",
+          "sha256": "fb4f15cc318cf2d33c24f6616d963b163e1ee5425bfd205e4dafc79549ffd0ef"
+        },
+        {
+          "path": "src/balance/labels.rs",
+          "sha256": "1f3408929e1660498a962fbf045bdd90d847309f8cd11f0b6276591a5bee41eb"
+        },
+        {
+          "path": "src/balance/mod.rs",
+          "sha256": "831ddf6618c00a4df726b4480cb972cf052f2b6d8e1fd2002e452dfa13b87162"
+        },
+        {
+          "path": "src/balance/severity.rs",
+          "sha256": "9b33a62ccf2718ca43ac0d94eae111bf4c08c407dadfa549a94b2b73bb1a9512"
+        },
+        {
+          "path": "src/discovery.rs",
+          "sha256": "9d5e5aa5136819246cecf32857b28d8a599a6e4052a52cb7ad9b1f9f737bdb44"
+        },
+        {
+          "path": "src/lib.rs",
+          "sha256": "c5dae2903101c13d966d4a7bcd7dd72e4ed363275320677eff3bc96d3009e4a1"
+        },
+        {
+          "path": "src/metrics/mod.rs",
+          "sha256": "5e654ad57849074f3526e80c850e23c7d261c19b8096dce39e657981b3c82afb"
+        },
+        {
+          "path": "src/web/mod.rs",
+          "sha256": "8ea2e03f6968d6ca17baf24c87ef45117b810d169df454868d33f3869351462d"
+        },
+        {
+          "path": "src/web/server.rs",
+          "sha256": "b41e530446575918b293961aa5ea440e78695ddfd16fc3528656208b59d660a3"
+        }
+      ]
+    },
+    "/Users/blater/src/ap/warren": {
+      "language": "typescript",
+      "report_sha256": "93cfd2675f1c082637ce8b12466d3540ae0acb9ed9f236d8f85574cdf19c771d",
+      "coverage": {
+        "analyzed": 486,
+        "numeric": 486,
+        "estimated": 486,
+        "not_applicable": 0
+      },
+      "ratings": [
+        {
+          "path": "src/client/client.ts",
+          "value": 82,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/RunDetail.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/bridge.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/NewRun.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/NewPlanRun.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/run.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/proxy/rewrite.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/hooks/useEventStream.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/plan-runs.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/seeds.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/pod-watcher.ts",
+          "value": 16,
+          "state": "partial"
+        },
+        {
+          "path": "src/burrow-client/client.ts",
+          "value": 40,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/pr.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/api/client.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/mulch.ts",
+          "value": 43,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/seed.ts",
+          "value": 56,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/proxy/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/bridge-reconnect.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/validate-agents-md.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/usage-aggregate.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/dispatch-plan-dialog.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/bridges.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/lib/http.ts",
+          "value": 49,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/coordinator.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/Runs.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/server.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/analytics/run-metrics.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-debt-markers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/log-follow.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-file-sizes.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/cookie.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/main.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/run.ts",
+          "value": 5,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/cancel.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/dispatch.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/lib/assert.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/burrow-config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-prose.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/cost-analytics.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/26-plan-run-roundtrip.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/scheduler.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/PlanRuns.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/launch/orchestrate.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/Projects.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/agent-entrypoint.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/10-reap-seeds-roundtrip.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/lifecycle.ts",
+          "value": 56,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/agent-cache.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/projects.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/finalize.ts",
+          "value": 64,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/run.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/PlanRunDetail.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/TokenConsumptionChart.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/test-pg.ts",
+          "value": 7,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/report-quality-metrics.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/public-allowlist.ts",
+          "value": 43,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/pr-open.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/clone.ts",
+          "value": 56,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/plan-run-detail/child-table.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/deps.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/analytics/run-metrics-token-series.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/provider.ts",
+          "value": 17,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/schema/sqlite.ts",
+          "value": 96,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/schema/postgres.ts",
+          "value": 94,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/index.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/lib/burrow-with-stub.ts",
+          "value": 10,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/launch/setup.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/ProjectDetail.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/table.tsx",
+          "value": 89,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/card.tsx",
+          "value": 88,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-all.ts",
+          "value": 43,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/bridge-reconnect-config.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/finalize-entrypoint.ts",
+          "value": 78,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/lifecycle-bus.ts",
+          "value": 76,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ErrorBoundary.tsx",
+          "value": 76,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/drizzle-adapter.ts",
+          "value": 73,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/launch/types.ts",
+          "value": 73,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/events.ts",
+          "value": 36,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/checkbox.tsx",
+          "value": 71,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/pr-template.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/filter-pill.tsx",
+          "value": 67,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/config-migrate.ts",
+          "value": 7,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/spinner.tsx",
+          "value": 60,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/log-parse.ts",
+          "value": 59,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/finalize-seed-reset.ts",
+          "value": 29,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/project-heal.ts",
+          "value": 58,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/ops-stats.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/RunAnalytics.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/pipeline.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/state.ts",
+          "value": 56,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/stats.ts",
+          "value": 56,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/App.tsx",
+          "value": 56,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/field.tsx",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/textarea.tsx",
+          "value": 56,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/runs.ts",
+          "value": 54,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/util.ts",
+          "value": 53,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/errors.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/eviction/worker.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/gc.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/seeds-cli/show.ts",
+          "value": 9,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/projects.ts",
+          "value": 51,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/init.ts",
+          "value": 5,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/proxy/forward.ts",
+          "value": 50,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/finalize-coordinator.ts",
+          "value": 50,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/input.tsx",
+          "value": 50,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/plan-runs.ts",
+          "value": 49,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/39-public-exposure.helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/run-inbox.ts",
+          "value": 48,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/triggers.ts",
+          "value": 46,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/report-test-timing.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ci-fixer/check-runs.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/auto-plan-run.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/CostAnalytics.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/Login.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/lib/event-helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-coverage.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/register-projects.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/agents.ts",
+          "value": 44,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/analytics/command-mining.ts",
+          "value": 13,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/pr-annotate.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/finalize-collect.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/rollback.ts",
+          "value": 43,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/watchdog-reconcile.ts",
+          "value": 43,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs.preview-test-helpers.ts",
+          "value": 43,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/20-preview-path.helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/tick.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/pr-checks.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/watchdog.ts",
+          "value": 7,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/events.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/tick.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/events.ts",
+          "value": 39,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/provider.ts",
+          "value": 39,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/cron-retry.ts",
+          "value": 36,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/serve.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/eviction/tick.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/launch/helpers.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/launch/probe.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/launch/url.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/proxy/responses.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/clone-apply.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/agent-io.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/pod-env.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/response.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/feature-loop-config.ts",
+          "value": 33,
+          "state": "partial"
+        },
+        {
+          "path": "src/observability/log-sink.ts",
+          "value": 29,
+          "state": "partial"
+        },
+        {
+          "path": "src/burrow-client/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/KpiCards.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/steer.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/supervisor/budget.ts",
+          "value": 26,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/op.ts",
+          "value": 12,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/launch/test-helpers.ts",
+          "value": 25,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/test-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/log-stream.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/preview-wiring.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/11-doctor-exit-codes.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/db.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/plan-run.ts",
+          "value": 9,
+          "state": "partial"
+        },
+        {
+          "path": "src/client/ndjson.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/url.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/merge-gate.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/analytics/insights.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/preview.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/provider-error.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/finalize-wire.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server-config/load.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/supervisor/tokens.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/dispatch.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/20-preview.helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/26-plan-run-roundtrip.helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/lib/poll-helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-bundle-size.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-ci-parity.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-dups-scoped.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/output.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/client/test-helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/core/ids.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/runs-ci-fixer.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/proxy/route-match.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/refresh.test-helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/pr.test-helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/test-helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/test-helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/admission.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/finalize.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/pod-resources.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/status-map.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/teardown.ts",
+          "value": 9,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/workspace-init.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/stream.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/teardown.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/workspace-info.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/seeds-cli/extensions.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/seeds-cli/schema.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/plan-runs.test-helpers.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/event-projection.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/runtime-wiring.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/request-id.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/supervisor/git-credentials.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/supervisor/git-identity.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/chart.tsx",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/empty-state.tsx",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/label.tsx",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/page-header.tsx",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/select.tsx",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/skeleton.tsx",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/sortable-table-head.tsx",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/hooks/useTheme.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/TokenStats.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/git/identity.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/git/worktree.ts",
+          "value": 20,
+          "state": "partial"
+        },
+        {
+          "path": "drizzle.config.postgres.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "drizzle.config.sqlite.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/lib/compose.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/lib/fixtures.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/lib/inproc.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/lib/k8s-target.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/01-boot-healthz-readyz.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/03-projects-management.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/04-run-spawn.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/05-events-stream.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/06-restart-recovery.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/07-steer.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/08-cancel.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/09-reap-mulch-roundtrip.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/12-supervisor-restart-budget.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/13-container-smoke.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/14-warren-config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/15-triggers-roundtrip.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/16-pi-parity-smoke.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/17-init-scaffold.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/19-warren-on-postgres.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/20-preview-path.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/20-preview.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/21-claude-code-cost-smoke.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/22-seeds-extensions-roundtrip.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/24-preview-node-runtime.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/30-pi-multi-provider-env.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/35-ci-fixer-roundtrip.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/36-ready-to-dispatch-plans.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/37-k8s-oom-fast-fail.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/38-k8s-steer-delivery.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/39-public-exposure.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/lib/git-helpers.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/lib/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-layers.ts",
+          "value": 4,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-version-sync.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/check-wire-types.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/generate-docs.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/generate-openapi.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/prose-rules.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "scripts/version-bump.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/bot-identity.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/burrow-client/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/burrow-client/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/burrow-client/local.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ci-fixer/dispatch.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ci-fixer/poller.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/add-project.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/doctor.ts",
+          "value": 2,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/commands/plan-status.ts",
+          "value": 9,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/context.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/cli/plan-run-renderer.ts",
+          "value": 5,
+          "state": "partial"
+        },
+        {
+          "path": "src/client/client-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/client/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/client/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/client/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/client/types.plan-runs.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/client/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/core/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/core/wire.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/client.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/runs-queries.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/repos/runs-stats.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/schema.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/schema/columns.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/db/testing.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/diagnostics/checks-config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/diagnostics/checks-preview.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/diagnostics/checks-sandbox.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/diagnostics/checks.test-helpers.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/diagnostics/checks.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/diagnostics/redact.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/diagnostics/stale-workspaces.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/healer/alert.ts",
+          "value": 5,
+          "state": "partial"
+        },
+        {
+          "path": "src/healer/dispatch.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/healer/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/healer/lifecycle.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/healer/resolve.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/observability/error-tracking.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/observability/log-redact.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/observability/metrics-registry.ts",
+          "value": 17,
+          "state": "partial"
+        },
+        {
+          "path": "src/observability/prometheus.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/close-child-seed.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/coordinator.test-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/dispatch.ts",
+          "value": 4,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/in-flight.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/pr-merge.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/plan-runs/ready-plans.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/duration.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/eviction/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/eviction/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/eviction/repo.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/eviction/test-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/eviction/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/launch/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/port-allocator.ts",
+          "value": 18,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/proxy/test-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/proxy/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/preview/teardown.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/git-hooks.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/manage.test-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/manage.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/refresh.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/resolve-target.ts",
+          "value": 2,
+          "state": "partial"
+        },
+        {
+          "path": "src/projects/url.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/bugwatch.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/claude-code.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/healer.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/model-tiers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/nightwatch.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/pi.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/planner.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/pr-fixer.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/builtins/sapling.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/registry/schema.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/branch.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/cost-cap.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/dispatch-prompt.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/inbox-message.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/inbox.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/destroy.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/seed-close-lifecycle.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/seed-reset.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/reap/stage.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/callback-env.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/seed-extensions.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/spawn/util.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/budget.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/logger.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/provider-source.ts",
+          "value": 5,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/recover.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/run-state-poller.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/terminal-detect.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/stream/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/usage-hydrate.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/watchdog.test-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runs/worker-identity.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/contract.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/finalize-deltas.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/admit.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/agent-stdin-hold.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/api-error.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/pod-gc.ts",
+          "value": 15,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/pod-metrics.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/pod-spec.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/seed-configmap.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/send-message.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/k8s/workspace-info.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/boot-backend.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/cancel.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/diagnostics/burrow.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/error-map.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/preview/sidecars.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/send-message.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/status.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/local/workspace-gc.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/runtime/registry.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/seeds-cli/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/seeds-cli/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/seeds-cli/list.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/seeds-cli/util.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/seeds-cli/warren-extensions.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server-config/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server-config/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server-config/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server-config/schema.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/auth.ts",
+          "value": 5,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/bridge-reconnect-teardown.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/bridges.test-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/db-seams.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/agents.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/alerts.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/diagnostics.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/dispatch-refresh.ts",
+          "value": 14,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/index.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/meta.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/metrics.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/projects.test-helpers.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs.test-helpers.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/analytics.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/dispatch.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/finalize.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/pause-resume.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/handlers/runs/preview.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/idempotency.ts",
+          "value": 7,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/detector-wiring.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/lifecycle-bus-wiring.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/logging.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/observability-wiring.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/plan-run-wiring.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/main/utils.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/projection.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/router.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/stream-limits.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/server/ui.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/supervisor/main.ts",
+          "value": 3,
+          "state": "partial"
+        },
+        {
+          "path": "src/supervisor/socket.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/ci-fixer-pass.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/cron.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/repo.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/scheduled-pass.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/triggers/summary.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/api/types.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/AuthGate.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/Layout.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/OperatorOnly.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/PlanRunStateBadge.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/RefreshProjectsCTA.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/StateBadge.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/StatusIndicator.tsx",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ThemeToggle.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/WarrenLogo.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/dispatch-plan-dialog.helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/alert.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/badge.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/button.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/dialog.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/motion.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/responsive.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/sortable-table-head.helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/components/ui/toast.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/hooks/use-capabilities.helpers.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/hooks/use-capabilities.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/hooks/use-client-sort.helpers.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/hooks/use-client-sort.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/lib/format-error.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/lib/utils.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/main.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/Agents.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/ready-plans.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/Charts.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/CommandMining.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/Insights.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/Tables.tsx",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/format.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/ui/vite.config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/cache.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/index.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/load.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/resources-config.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/schema.test-helpers.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/warren-config/schema.ts",
+          "value": 8,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/env.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/errors.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/git/clone-url.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/git/credential-env.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/git/exec.ts",
+          "value": 0,
+          "state": "partial"
+        },
+        {
+          "path": "src/workspace/materialize.ts",
+          "value": 0,
+          "state": "partial"
+        }
+      ],
+      "analyzed_source_hashes": [
+        {
+          "path": "src/client/client.ts",
+          "sha256": "560511b3c09107bf73bf913d27ec68c717144b680e128a96dd4d6c1117a6ece4"
+        },
+        {
+          "path": "src/ui/src/pages/RunDetail.tsx",
+          "sha256": "fcc5e036ff3fbef09b5667f6213b0eb2c1ad38b48c0503276dcdbe7995600b9e"
+        },
+        {
+          "path": "src/runs/stream/bridge.ts",
+          "sha256": "9c596377a1c7bce0d54299a9dbf0500fd574c5c53f5bd7e271ccae5bf328b1ca"
+        },
+        {
+          "path": "src/ui/src/pages/NewRun.tsx",
+          "sha256": "f0af0e50d1d28fc7845e9bd119093272cff21d94540c49de06530699996cbbb4"
+        },
+        {
+          "path": "src/ui/src/pages/NewPlanRun.tsx",
+          "sha256": "21b33894d8e1f7eff391d573759de9ca7e9235c1720ab92d5840297688d67a6d"
+        },
+        {
+          "path": "src/server/main/index.ts",
+          "sha256": "4bf75e01593fb07510d6cccff4405fbe7a76d76a9f828bc490f31e64b5c3940b"
+        },
+        {
+          "path": "src/runs/reap/run.ts",
+          "sha256": "ce44ddacbf5f5767d3d1cb1a629d02a18ba227c5b58172a6a81d079891d57e1b"
+        },
+        {
+          "path": "src/preview/proxy/rewrite.ts",
+          "sha256": "cb78236cec87d07fa4e25f09e5921563b2846087c7f64d506159e8aee8691c4a"
+        },
+        {
+          "path": "src/ui/src/hooks/useEventStream.ts",
+          "sha256": "4d397a08eab1bfd8ecbeffb99625f751feb0796094378719afd914aa4bfce507"
+        },
+        {
+          "path": "src/server/handlers/plan-runs.ts",
+          "sha256": "724e4d3e1bd227b8432a80c76095c2e46d4b3ad9b6fb1e786d5554c6b7a15ab1"
+        },
+        {
+          "path": "src/runs/reap/seeds.ts",
+          "sha256": "eb7c79f7c8376a5193f17beb013d0af7a5c361af2be5bf8e31912709ddf426a9"
+        },
+        {
+          "path": "src/runtime/k8s/pod-watcher.ts",
+          "sha256": "813b11d66b5d4515c00caddfc30649d7a2552c77f3cf463ae272647e1e73938f"
+        },
+        {
+          "path": "src/burrow-client/client.ts",
+          "sha256": "11e31eb73955b460548dd14653e964bc7e737f3c203602f610eef21defadb859"
+        },
+        {
+          "path": "src/runs/pr.ts",
+          "sha256": "2b551a5e45dc72ab8de39225f3aedd6f8a5df961f29cc6a099ecb6189f1ffa32"
+        },
+        {
+          "path": "src/ui/src/api/client.ts",
+          "sha256": "209edbdc6d552f873d8168034ab12dc2a2e69b5e72d731a49bdfc3c1e69e0735"
+        },
+        {
+          "path": "src/runs/reap/mulch.ts",
+          "sha256": "3f2d7aa1cc136457b12832b3a5d2bb9b8e4ddd5271299825889cb6b49f3aaf93"
+        },
+        {
+          "path": "src/runs/seed.ts",
+          "sha256": "41969c36e6ce3ed08a8ee6aa46da71c5df69da8abb87865a4760528b14f2a4e5"
+        },
+        {
+          "path": "src/preview/proxy/index.ts",
+          "sha256": "717a64b8a2316b65d4c822a9b9aa0d420ec7f9cfbfe4b1848b21ee21ec8b4640"
+        },
+        {
+          "path": "src/server/bridge-reconnect.ts",
+          "sha256": "bb3a7b78732b6cead1ccd48355f243cd9d85d661249db076c5cf0564f970865c"
+        },
+        {
+          "path": "scripts/validate-agents-md.ts",
+          "sha256": "7cb19e44c43ef621133315a7f368bd547c42684f7bb57cb871a1b63e86de6699"
+        },
+        {
+          "path": "src/runs/usage-aggregate.ts",
+          "sha256": "7b2f511127cf5809a06122fb06dc39cef7d5c3eef214c56e61050ed06c827c66"
+        },
+        {
+          "path": "src/ui/src/components/dispatch-plan-dialog.tsx",
+          "sha256": "eac4eb093c51fda080113fa95a195b3268d2c9c495c73227873060b1881e4559"
+        },
+        {
+          "path": "src/server/bridges.ts",
+          "sha256": "7f5274db40141dca90059ee3c371ece1482c655ef4308c0db0dae6f713512e6e"
+        },
+        {
+          "path": "scripts/acceptance/lib/http.ts",
+          "sha256": "3faf994d3e6440bbf56fd9b1f2fe22362106fbf7fa7e5f3d7c78b0799ca546e8"
+        },
+        {
+          "path": "src/plan-runs/coordinator.ts",
+          "sha256": "0f7ee56d0e96ab5f1838bb55ca86bafd07a1a6e7230f05b8f80c9484ca299d7d"
+        },
+        {
+          "path": "src/ui/src/pages/Runs.tsx",
+          "sha256": "0c136fd8a7d001d2b5c626d305aa4955a040b55a9c72f1eaa75e5caa1b6a896b"
+        },
+        {
+          "path": "src/server/server.ts",
+          "sha256": "ef2b92a77f0feccc784c64b97e2168ed65c8b9c5d64687c473c2cdc2983dacb4"
+        },
+        {
+          "path": "src/runs/analytics/run-metrics.ts",
+          "sha256": "aaadcb8eac97ec7eca80b37ea0584cf9e8022de231ae08fcebcc62043e8eb8a4"
+        },
+        {
+          "path": "scripts/check-debt-markers.ts",
+          "sha256": "f5cb05ee76915d873c7e3312af239ccd08faad90edf950634c8b2ccaa46c818f"
+        },
+        {
+          "path": "src/runtime/k8s/log-follow.ts",
+          "sha256": "51fde564383f3b3d4b6f348d25d5ccf5f70a11ec336cb9deec2dfe96c68c1fef"
+        },
+        {
+          "path": "scripts/check-file-sizes.ts",
+          "sha256": "702c6bbb866162dbf912eb8ed557dccab7d2e775f53cc6d0a4600a429f64e83a"
+        },
+        {
+          "path": "src/preview/cookie.ts",
+          "sha256": "c8f55ae6a837dff9147cd3e22f01c27ffde00caf7b4b28ea81a1b365eec4a6ff"
+        },
+        {
+          "path": "src/cli/main.ts",
+          "sha256": "e764f8c3843c56042ebea751d791c6dfd3edb46a8f4e80e17fb5763a5db39fb4"
+        },
+        {
+          "path": "scripts/acceptance/run.ts",
+          "sha256": "d8b20b6979521c971da83a8d4b125266d2b87310e780dafcde14a8e0fea8b068"
+        },
+        {
+          "path": "src/runs/cancel.ts",
+          "sha256": "292b130333e94d5faf69d10535e73013797aca9563e751d8c46bd50d40a2e76d"
+        },
+        {
+          "path": "src/runs/spawn/dispatch.ts",
+          "sha256": "4f50d7cc3e5f7ae9f54d417af34de7be42b786239385a07983e7328238ce84e5"
+        },
+        {
+          "path": "scripts/acceptance/lib/assert.ts",
+          "sha256": "c1713a9043958940fe5ae429091d7cf9b95712f173b67536310388a6f03430cb"
+        },
+        {
+          "path": "src/runs/burrow-config.ts",
+          "sha256": "42ef2f312a1694e61728af831e4554e760659ab671d86f054958ffa69945ff2e"
+        },
+        {
+          "path": "scripts/check-prose.ts",
+          "sha256": "4fd0bd36a4a6c1a826f1429d08313f0ff1bbc0bd270068d2243c9b27dc6a587f"
+        },
+        {
+          "path": "src/runs/cost-analytics.ts",
+          "sha256": "c332b2aa3f2550298cd535dfa5718ae3b91aba50472d8190e1924bf21e1baa15"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/26-plan-run-roundtrip.ts",
+          "sha256": "b457ad33cb41cf00cef5085169ad58c876c21538d0cd4bd096fad88f3f9400eb"
+        },
+        {
+          "path": "src/server/scheduler.ts",
+          "sha256": "a55c68b2da715c5866026fd00a104be4ce97e06f3aa193242d6c2b672bc15cd9"
+        },
+        {
+          "path": "src/ui/src/pages/PlanRuns.tsx",
+          "sha256": "c0b855b6b2f88ba8629ae53dc37b0516e4c9835c2d22ee0112a8f81fd21ed76d"
+        },
+        {
+          "path": "src/preview/launch/orchestrate.ts",
+          "sha256": "e092145f55a1628700b26ff6bd4fd00c0886b86ae4911601c27b6441a521cf44"
+        },
+        {
+          "path": "src/ui/src/pages/Projects.tsx",
+          "sha256": "533414bd622c276efa5afcea425d005c7d14ba71e109d15e0cdff7c16879a215"
+        },
+        {
+          "path": "src/runtime/k8s/agent-entrypoint.ts",
+          "sha256": "57de1fa3d8458f725ff481a5bf4bde45d71a062652a2f58eec233606ccc3081a"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/10-reap-seeds-roundtrip.ts",
+          "sha256": "6510e622bac2170930f14edd36fc8795e594d2982bfdee28d02b35035f0f2966"
+        },
+        {
+          "path": "src/server/handlers/runs/lifecycle.ts",
+          "sha256": "a3359236e1e1236a3dbcedccbae364408abcb26c3ef110ce8d6fe8de805108d1"
+        },
+        {
+          "path": "src/runs/spawn/agent-cache.ts",
+          "sha256": "a74801e89f7317c64853a1696f8cfa717cce8964ea2dedb813fd52b26cb55b78"
+        },
+        {
+          "path": "src/server/handlers/projects.ts",
+          "sha256": "44413f072dee841f855367745360f8d21dc07352daf83ad2d02c6f5ca928a9c4"
+        },
+        {
+          "path": "src/runtime/local/finalize.ts",
+          "sha256": "4c8feb3416aa5c4a89bf4a3c77bcf75fbf4c5b4c94bc416c77457eaf0961e9da"
+        },
+        {
+          "path": "src/cli/commands/run.ts",
+          "sha256": "e5574271b3a34ec6674f1eb36acd145985c13a8e7a243da0331eaa1c5176f963"
+        },
+        {
+          "path": "src/ui/src/pages/PlanRunDetail.tsx",
+          "sha256": "3b0894e1fa65a6a4ac3ab90a84a217af1011a5a8b705d94d655f763d6343a0e1"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/TokenConsumptionChart.tsx",
+          "sha256": "05287e0843f18b4d421f9c433c8d61fd992b24e8e43482be89964beaef21adaf"
+        },
+        {
+          "path": "scripts/test-pg.ts",
+          "sha256": "9dd44dd137131d2c20b62ed5675e6d4fe33e787a9e760e0716eddfc3940685ee"
+        },
+        {
+          "path": "scripts/report-quality-metrics.ts",
+          "sha256": "76aa398ac39c4581a6243384ac3f8942fb305386f7c9a38d48b0ea479bb73121"
+        },
+        {
+          "path": "src/server/public-allowlist.ts",
+          "sha256": "8653ff1b5355c1fb42e7292d451d96128dad20cefe55f82f8a14ba7fb9164c40"
+        },
+        {
+          "path": "src/runs/reap/pr-open.ts",
+          "sha256": "b197888f932aaf88a7d1ca0c893d2d7dfb18d686bc58d4045693d6e3bcea7f4e"
+        },
+        {
+          "path": "src/projects/clone.ts",
+          "sha256": "de11ac51a297d0222c47c326515eb9667231854e453fb85f0e531912c19e11b1"
+        },
+        {
+          "path": "src/ui/src/pages/plan-run-detail/child-table.tsx",
+          "sha256": "0d42f7d0cde1e13bfe0a427819b47edcd758091b602142a0748c0456936a12eb"
+        },
+        {
+          "path": "src/server/main/deps.ts",
+          "sha256": "3a2fb5091a1c3a41c444341d96aaceced450ca9b861101c2796e87e81ea0b77d"
+        },
+        {
+          "path": "src/runs/analytics/run-metrics-token-series.ts",
+          "sha256": "a1845fbe362eae0e2b9ff640dc5fc815c868bc882f96b174f30fc06f4f7cd1b0"
+        },
+        {
+          "path": "src/runtime/k8s/provider.ts",
+          "sha256": "5dd5b528f9998802ba97ad1417018696de5f4eb2c650f49b83f710b59171013b"
+        },
+        {
+          "path": "src/db/schema/sqlite.ts",
+          "sha256": "3e0552bdd017f27944bec129e0c257ba2bd36aa8f73f8196f64e7262f964d44c"
+        },
+        {
+          "path": "src/db/schema/postgres.ts",
+          "sha256": "6f07f833a059c960e4636d911d4d7c0e2c6dcf2bce11f4e2b30be13e8bb768d0"
+        },
+        {
+          "path": "src/registry/builtins/index.ts",
+          "sha256": "061959d189a562b0c2091aa0bbf666e6314deae52593581f9717dfa5e04fed66"
+        },
+        {
+          "path": "scripts/acceptance/lib/burrow-with-stub.ts",
+          "sha256": "236967debb204ca6f8171f7355bf8b17ab2ada7d0d840d084214d4044886e07b"
+        },
+        {
+          "path": "src/preview/launch/setup.ts",
+          "sha256": "1ca64a2bd28be96d8b3c45c03b54e4e13ed64d0bf9378764bca883ec322ae26d"
+        },
+        {
+          "path": "src/ui/src/pages/ProjectDetail.tsx",
+          "sha256": "7cf31032361e20d587de3c33a14de58e6f4b6a59734f39ef213fbf50ef223423"
+        },
+        {
+          "path": "src/ui/src/components/ui/table.tsx",
+          "sha256": "89942b1d557bec2280b1701f16ef422a26e34ee427b4a79cbc1c900f0af82723"
+        },
+        {
+          "path": "src/ui/src/components/ui/card.tsx",
+          "sha256": "32c8d835376d9e4054bc8b17475405d6ac666b3aa84d5a5e6ebd58452346d968"
+        },
+        {
+          "path": "scripts/check-all.ts",
+          "sha256": "681de5ccacc736aafa5de02a16ada1aff9da7a137393c26c5a21fdcec076fe21"
+        },
+        {
+          "path": "src/server/bridge-reconnect-config.ts",
+          "sha256": "53c4a6ee90a06492170cef37c440f081b53a61bf768eb3a4ed31352f1812ba78"
+        },
+        {
+          "path": "src/runtime/k8s/finalize-entrypoint.ts",
+          "sha256": "cdbae0455a099d6d550d4ffd1cb2b900d2d873b1827b2e2c535327f5df6e502a"
+        },
+        {
+          "path": "src/runs/lifecycle-bus.ts",
+          "sha256": "979e401e8858708a70e1d6dd6f1d94aedf1bea7297b019fe1bdacbac3ac0ab0c"
+        },
+        {
+          "path": "src/ui/src/components/ErrorBoundary.tsx",
+          "sha256": "2796e3b8c2356274c705cf2a86d341b7d5e60eed222447798336f5e876f25bba"
+        },
+        {
+          "path": "src/db/repos/drizzle-adapter.ts",
+          "sha256": "98c3b3e8c88f94f04c904c48b6ad3587eb246730d4e4fc9f307ced17139bc15c"
+        },
+        {
+          "path": "src/preview/launch/types.ts",
+          "sha256": "6f3aeac20735440f9dc945df16124abe574f58c25f6b618e11fd3b9160e45374"
+        },
+        {
+          "path": "src/runs/events.ts",
+          "sha256": "250fe8d803a5d8b026d9da33530af131ab640d8df27bab1b24c54894fe7e6561"
+        },
+        {
+          "path": "src/ui/src/components/ui/checkbox.tsx",
+          "sha256": "1118ffa70a67f30f63e19959dfbcc6473069894f65de3079ec6b9cae0223ddcb"
+        },
+        {
+          "path": "src/runs/pr-template.ts",
+          "sha256": "1a5b21b4a0e2a92ac1292ec1a62db5d2068318a2d561f135a4f6fb7fdb27ffcb"
+        },
+        {
+          "path": "src/ui/src/components/ui/filter-pill.tsx",
+          "sha256": "6cb1871b5d29ebb6ded2ec69b526f23fe7564f162e7d145289de00560ee8303e"
+        },
+        {
+          "path": "src/cli/commands/config-migrate.ts",
+          "sha256": "991c3dde407c0de9fc8051e59e0d657f51cfb1b2a03b2016ac91571b956abf73"
+        },
+        {
+          "path": "src/ui/src/components/ui/spinner.tsx",
+          "sha256": "044569b4d5cc9138c8ef12493678bf1ed7fd8663eb46a267c4d15ca41d2a1fc5"
+        },
+        {
+          "path": "src/runtime/k8s/log-parse.ts",
+          "sha256": "37652031694136e02991197ec9d449dc28a0be3eb2a345e533ddc8121bc5f0b2"
+        },
+        {
+          "path": "src/runtime/local/finalize-seed-reset.ts",
+          "sha256": "4b6d136491e659c8e76ab54835ea3349f6bba9657e544212801fb5e2599c702f"
+        },
+        {
+          "path": "src/triggers/project-heal.ts",
+          "sha256": "daa7bbab01b9e7f11c34a80fd4b362587dcded60245d57b5dafce0c6aab05e84"
+        },
+        {
+          "path": "src/runs/ops-stats.ts",
+          "sha256": "0dbbc64df6eaf02e87c087cefbc7bbbff357d6b3e8e52e99bfa7f6b1ce32276f"
+        },
+        {
+          "path": "src/ui/src/pages/RunAnalytics.tsx",
+          "sha256": "7c3fd95ce4a197cd62b7e9f32f6baa15be25124d3d9ce5fd792579755d109c85"
+        },
+        {
+          "path": "src/runs/reap/pipeline.ts",
+          "sha256": "2f1199ef043e0aba91f4d241adffd038119d70ace80a75e84bc5820f83cc86e6"
+        },
+        {
+          "path": "src/runs/reap/state.ts",
+          "sha256": "f700835b6f71e9eb4c0a654fb266ed2454461fbc386b3149ec9c8a0347ec3473"
+        },
+        {
+          "path": "src/runs/stream/stats.ts",
+          "sha256": "8ba6f358cb0a8f43648f42b091ffc3916485833ece99cbac090de32afec8755d"
+        },
+        {
+          "path": "src/ui/src/App.tsx",
+          "sha256": "d4fc171800be33b009ac66dc7045157fe1cf7ebb2a13ca5f089d17a2e6d5f41f"
+        },
+        {
+          "path": "src/ui/src/components/ui/field.tsx",
+          "sha256": "afe9557fcc54168db12e959e101d774a896156fa5f372165029ab0004ad2207c"
+        },
+        {
+          "path": "src/ui/src/components/ui/textarea.tsx",
+          "sha256": "1cdd3da9d594b3de0a4226d0a7990c3985a3613d5fd83a6ca772d380165bf9ee"
+        },
+        {
+          "path": "src/db/repos/runs.ts",
+          "sha256": "f27aedbbcbcee71a62893380cd68cc7ce96704184050a1abd354d1e83fa54eb4"
+        },
+        {
+          "path": "src/runs/reap/util.ts",
+          "sha256": "85a771850e33c74c8223a64b4c6c1ce215e0d4e7cf71b2a5b960c6a4e0c1ec5b"
+        },
+        {
+          "path": "src/runs/reap/types.ts",
+          "sha256": "67e6ee5ac8cd12513a1d4d43418fe2b96e73fe5d9549b64c084c1023cdd970f3"
+        },
+        {
+          "path": "src/server/errors.ts",
+          "sha256": "0cb06e68bf4f76ea68bcd7436cf999645456f13d781ffd9ffe55b0606276d1ad"
+        },
+        {
+          "path": "src/preview/eviction/worker.ts",
+          "sha256": "b4da075114fee4835eee22ace4bfe32642d938a8c6673ce882eab4f8a893377f"
+        },
+        {
+          "path": "src/runs/reap/gc.ts",
+          "sha256": "cbbacf2432c21964c935e9bbe65499d564bb452540030ff6cf876e5440ac6af3"
+        },
+        {
+          "path": "src/seeds-cli/show.ts",
+          "sha256": "867e6491b390b9d98fa995710283a927a1e2ed667b04ea77a74e140db5931ba6"
+        },
+        {
+          "path": "src/db/repos/projects.ts",
+          "sha256": "152262af12b2a785a050beb707abdac68de624e8990fb2ce4e796f10b0a475f3"
+        },
+        {
+          "path": "src/cli/commands/init.ts",
+          "sha256": "377b735a312a7ded9579f3892657723d8e8d2d2bfff14a642b2a25c666853dcc"
+        },
+        {
+          "path": "src/preview/proxy/forward.ts",
+          "sha256": "e489fca1641dda2c9b98f6ff3c0401ea8ab2a8d2809ecbe531a2c529494ed84c"
+        },
+        {
+          "path": "src/runtime/k8s/finalize-coordinator.ts",
+          "sha256": "c1d2fe9bf85bac8762f9b106d37bc53ab2a2d064bf44d1163dfa30d8fd789c91"
+        },
+        {
+          "path": "src/ui/src/components/ui/input.tsx",
+          "sha256": "6226e6ed5b025c2aebaddfd8fab947e8d991dae893d17e5064757b4bc684d781"
+        },
+        {
+          "path": "src/db/repos/plan-runs.ts",
+          "sha256": "13ac1a88ce9cf80991e7d991ec24ebd1cd2d908617deab9d1259f440e3efac8f"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/39-public-exposure.helpers.ts",
+          "sha256": "3b0011ea13fe390ab3e8bd0dff693bed78da8f7543db4157125dc1a95989a6f2"
+        },
+        {
+          "path": "src/db/repos/run-inbox.ts",
+          "sha256": "cbb3ff65c19b94c5229bf3ff8a9847bbeebf160ea98d6f8929dbb5d2fd2554a3"
+        },
+        {
+          "path": "src/db/repos/triggers.ts",
+          "sha256": "00fbf5a75e1eb1c6e4d4c49b37e97808284e7415d53f820e2a607a7fc1272d83"
+        },
+        {
+          "path": "scripts/report-test-timing.ts",
+          "sha256": "1f75c18e7321fee484df8cf656866036cb3c20824024a50e5ad5346b4d99bad2"
+        },
+        {
+          "path": "src/ci-fixer/check-runs.ts",
+          "sha256": "b771d626051931455aa8f8256368a1c7dfbf93b3acff0f111bbd1b350a1055cb"
+        },
+        {
+          "path": "src/runs/reap/auto-plan-run.ts",
+          "sha256": "2a83b44da8f9301c247b5c2604492594a8746bb70a661c098337e7e994e20526"
+        },
+        {
+          "path": "src/ui/src/pages/CostAnalytics.tsx",
+          "sha256": "7734da07009b6e711ace72a41c8324774f152bc4008776b19d1b5f618e01720e"
+        },
+        {
+          "path": "src/ui/src/pages/Login.tsx",
+          "sha256": "05da98547ef8af7b7d3cdf460a64f41f7f6ff0dca05a67cb9881087e39ded471"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/lib/event-helpers.ts",
+          "sha256": "a8bc6a36543708aa09a388dcbdcf7a5d13a9d742bae886c410276aeff75d28eb"
+        },
+        {
+          "path": "scripts/check-coverage.ts",
+          "sha256": "2cea68de6964d36f1a4893eefd7434866a33719ef728ee894b45fd241a656c00"
+        },
+        {
+          "path": "scripts/register-projects.ts",
+          "sha256": "c391c01a84cacfe62b82d5ece1fd4ee12ccb1bd576f65b559f9b929700182e88"
+        },
+        {
+          "path": "src/db/repos/agents.ts",
+          "sha256": "b9c414a742b14ee661e3e2fedfd6058575a9dadcbec03e650af6bfae337bfc75"
+        },
+        {
+          "path": "src/runs/analytics/command-mining.ts",
+          "sha256": "edf206063131c0942b6d58077df127bf192272cf4c637202384bd5806569b31f"
+        },
+        {
+          "path": "src/runs/pr-annotate.ts",
+          "sha256": "9e0391b0c690b7ec0fa2b8e171973506bfe3d8d4eb866927d8db9532df08e893"
+        },
+        {
+          "path": "src/runtime/k8s/finalize-collect.ts",
+          "sha256": "7979b624cc9ccea18297e3f2de6e50fdc1dc3135465fb4c0f5372221f95ef7d2"
+        },
+        {
+          "path": "src/runs/spawn/rollback.ts",
+          "sha256": "bd429f1aa82440caec5c043a1de92c301d01ab69ba6bc2dd130a8b5a26ca66cf"
+        },
+        {
+          "path": "src/runs/watchdog-reconcile.ts",
+          "sha256": "c205d03a98fd8d1ebc3e4418b1bf8e3120503245893a3966eb36827ab2c8ac30"
+        },
+        {
+          "path": "src/server/handlers/runs.preview-test-helpers.ts",
+          "sha256": "73b96a83ee5fb787a58dd063975099b913bf440e5ca62ffe8ecfa91ada491798"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/20-preview-path.helpers.ts",
+          "sha256": "a22beac63b145e4c406c6573b03e939aa6292be78813e5c9f3a21ca31562e673"
+        },
+        {
+          "path": "src/plan-runs/tick.ts",
+          "sha256": "6f6f799ee167591d8aa446e9612222b90ac7d59da6b473b5fccb4f6f59ad8ef7"
+        },
+        {
+          "path": "src/runs/pr-checks.ts",
+          "sha256": "2331a31230118793a1d92651e8d8b550d1864f881c9f3ac3ecbd40089235e624"
+        },
+        {
+          "path": "src/runs/watchdog.ts",
+          "sha256": "8a554e15b10ca359c74a8fcf5504e28897306eafe606096cfd6e03d3af329e70"
+        },
+        {
+          "path": "src/server/handlers/runs/events.ts",
+          "sha256": "a388bf6e9f8495b995de21e29bc62a903e59c7e55e93627095a884bf1f3b1de9"
+        },
+        {
+          "path": "src/triggers/tick.ts",
+          "sha256": "2a9f2b3b747ddc00124473cf490c7df32b02c4ad2f22a096949a8f1b4e9d8213"
+        },
+        {
+          "path": "src/db/repos/events.ts",
+          "sha256": "24ea980f1e94c973dded2d90fd2b1f2590707fb8056fde71c452fa4edad4509a"
+        },
+        {
+          "path": "src/runtime/local/provider.ts",
+          "sha256": "57949f4985f809a520e823f714e97a3d3556efbcd7a75848b28b6e7eb4b55c8e"
+        },
+        {
+          "path": "src/triggers/cron-retry.ts",
+          "sha256": "22327eb371367ecb067e9aa9e29fe13a3ef51753244f35da0c66e9a528efa460"
+        },
+        {
+          "path": "src/cli/commands/serve.ts",
+          "sha256": "18bc89c3be1841e0928505d7f30bf868824c1d0643b8d8ab68ea63658a8c6e03"
+        },
+        {
+          "path": "src/preview/eviction/tick.ts",
+          "sha256": "28400cdf23d94315979ba0721a2c469e2cfe3b9774b70fe1805ac199153c79bc"
+        },
+        {
+          "path": "src/preview/launch/helpers.ts",
+          "sha256": "4659d9b34f84dbf92dada04085b3998117463b37224ca42811ca9e807faf915d"
+        },
+        {
+          "path": "src/preview/launch/probe.ts",
+          "sha256": "743911b5848e839c8d67e2d8c311f4783813a421076e170e84da65d6e0d1e307"
+        },
+        {
+          "path": "src/preview/launch/url.ts",
+          "sha256": "f0f6571eb542d7a74ad08abc0688efccad911f75c0d779e43fc9f6a651cc7f25"
+        },
+        {
+          "path": "src/preview/proxy/responses.ts",
+          "sha256": "8436414f348e9e689f946235d7228954b494a1762a1b679193217c16cdef72bc"
+        },
+        {
+          "path": "src/runs/reap/clone-apply.ts",
+          "sha256": "ed131adecaa799bc7386b1957b35d6385091bae68a3e2594a87d9a06ddca2fbe"
+        },
+        {
+          "path": "src/runtime/k8s/agent-io.ts",
+          "sha256": "571011bb2502438c98e7ee7f490df5b7529450ca419ef2b7678746601a0e4b24"
+        },
+        {
+          "path": "src/runtime/k8s/pod-env.ts",
+          "sha256": "8028e5155fbed1e52f959e58d92582477741c4e3925fb204bc5a632e7dd4d9ee"
+        },
+        {
+          "path": "src/server/response.ts",
+          "sha256": "da1a53ae72637ad55cda6cde6e1a72f67b967c08830d7690665acf89783e2ecd"
+        },
+        {
+          "path": "src/warren-config/feature-loop-config.ts",
+          "sha256": "4691a9393130dc6dbca04c8ddeb479e2f054dd5298a077d5c3c137e6a07b6227"
+        },
+        {
+          "path": "src/observability/log-sink.ts",
+          "sha256": "1a11bdd1e95534331faf9acb491a8249394ea623ea815cb083568fdf92c71202"
+        },
+        {
+          "path": "src/burrow-client/config.ts",
+          "sha256": "a1ad46dcb348e98228ff532e6257cb55c440f89f510891e36bb9b759f1f681ac"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/KpiCards.tsx",
+          "sha256": "72f8ef275ee5c9bc04689234e06158b4a6f983fe234127a59bbbdcf7aa0a8a1c"
+        },
+        {
+          "path": "src/runs/steer.ts",
+          "sha256": "71d9bb5b5e310bf723ccf4d4a78d4cb603fe1e414b6126f0852a448bef2389db"
+        },
+        {
+          "path": "src/supervisor/budget.ts",
+          "sha256": "dc00123693cdff625e1f5cdbe042694e853b3bc529f25c07dcfba0899e957a15"
+        },
+        {
+          "path": "src/workspace/op.ts",
+          "sha256": "def9b1c86a25f75cc9df8263254e4cfa7e48b7a522dbccd0f30e702dc88b3eaf"
+        },
+        {
+          "path": "src/preview/launch/test-helpers.ts",
+          "sha256": "c23c73b294b0f6eebb0004d8ba966cca9f060cc380847f570d85dd958f1d385a"
+        },
+        {
+          "path": "src/runs/reap/test-helpers.ts",
+          "sha256": "b2644c085a03a3d52c22aeb4cb575565ac10f17ab6ce8faf1f75cd6118d22979"
+        },
+        {
+          "path": "src/runtime/k8s/log-stream.ts",
+          "sha256": "f427764998d176878f799b11b1a2d918a188cebaf94ad65caa5c6c9cda58ae4d"
+        },
+        {
+          "path": "src/server/main/preview-wiring.ts",
+          "sha256": "ed0578b3278bcab03db3628b63147ddd51dbf8b12a13b78c301b509f9e9d35d9"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/11-doctor-exit-codes.ts",
+          "sha256": "bb575022373f69bc52f7270854f8181ca8bc9dc0db3ca38697b628b90cfa8f19"
+        },
+        {
+          "path": "src/cli/commands/db.ts",
+          "sha256": "2288e3dbef68e1be4152d4c65d4338ed80d70fc938e964fd91cf57e838a4fdeb"
+        },
+        {
+          "path": "src/cli/commands/plan-run.ts",
+          "sha256": "88788215df925780ea59fd5e3d9d9f0a42cc892516bac183e5ee8ea592f0d63b"
+        },
+        {
+          "path": "src/client/ndjson.ts",
+          "sha256": "af8c9eff734df1fdd63c5f3f27e2264f78aaa364f0af58861a9a0b75a16fb5e5"
+        },
+        {
+          "path": "src/db/url.ts",
+          "sha256": "a050b6141547caa90c76e0b36608e176e301a7107de9a362162fc6f6133743e3"
+        },
+        {
+          "path": "src/plan-runs/merge-gate.ts",
+          "sha256": "813a67a4983cb8db827b4351c823b818aee073a55a74472e0c7fb9acbe05da7a"
+        },
+        {
+          "path": "src/runs/analytics/insights.ts",
+          "sha256": "f8e9372a332086f38af9c65985613fd2860c63ca7c03ecf82c1133c0b29b2c2b"
+        },
+        {
+          "path": "src/runs/reap/preview.ts",
+          "sha256": "80fb592a6a3204fe61e78d15fac0c7107739b1306ab8febce13f3c9d3561229c"
+        },
+        {
+          "path": "src/runs/reap/provider-error.ts",
+          "sha256": "54035d8e5dcf42d9f694adc9664a1cce2a555e6b5a82fc2fbdc592d1ecf8cd2c"
+        },
+        {
+          "path": "src/runtime/k8s/finalize-wire.ts",
+          "sha256": "bbfc6c270e9618a5bff4f1735eca9a01ddb001fdad34f3267ef8d66a13dcd99f"
+        },
+        {
+          "path": "src/server-config/load.ts",
+          "sha256": "6429093a8e64722d5a9be81419a76d6b208129d4ad939220f5f07a9c8f5aa45b"
+        },
+        {
+          "path": "src/supervisor/tokens.ts",
+          "sha256": "ee84494f65b3656dbf3224b17551af79b0c615796cf8005eaab494f090a29476"
+        },
+        {
+          "path": "src/triggers/dispatch.ts",
+          "sha256": "ef45d76facffc4c152e8dd9459ce140b69d6cd26fa5a03607f3e84b9ee7dda11"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/20-preview.helpers.ts",
+          "sha256": "7df21ca8b592a32a5029adfd812c6858cfac42651064e985aeb648efd1f582a4"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/26-plan-run-roundtrip.helpers.ts",
+          "sha256": "bc971abf3ef2d229ce068b712d20b32899b54f3a9920797f9fc9687f31891c17"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/lib/poll-helpers.ts",
+          "sha256": "6589cbcde51d945f4efe6891dfba2ca60898735b95d178347c082ae5fbaac1a1"
+        },
+        {
+          "path": "scripts/check-bundle-size.ts",
+          "sha256": "da274b6919d2deebdc2055d2096b244d804f58e2d5cef730c5d24b29846bcf32"
+        },
+        {
+          "path": "scripts/check-ci-parity.ts",
+          "sha256": "d944048e6fce320c08f6a26ac7f125e7637a00f8294c0ee5a2adcc210dacf472"
+        },
+        {
+          "path": "scripts/check-dups-scoped.ts",
+          "sha256": "87c218716d79a05bf9dcf07a8981c80ad8b980a97a583f635fc345e576120027"
+        },
+        {
+          "path": "src/cli/output.ts",
+          "sha256": "388d3c760b55b74ec23e5d24541453749ede6b19813e32b216c2b9fe369ee269"
+        },
+        {
+          "path": "src/client/test-helpers.ts",
+          "sha256": "827181295da1149b282f757e731e28117bb35b91cf266ebb26a08a713be63c8c"
+        },
+        {
+          "path": "src/core/ids.ts",
+          "sha256": "72ee85e5fae159516a039810efeb772f25724f256eed62399cee7816d419f936"
+        },
+        {
+          "path": "src/db/repos/runs-ci-fixer.ts",
+          "sha256": "82e3a7e2ee6aaa5f24d2f4e42b0502e2320328c194dc5e42d216ea720b47fa90"
+        },
+        {
+          "path": "src/preview/proxy/route-match.ts",
+          "sha256": "5a1bd830e3dbd80ea01c641012006787a4d2fa058983cc04bb06e211cf6b7948"
+        },
+        {
+          "path": "src/projects/refresh.test-helpers.ts",
+          "sha256": "472d4ccacb4371d01d149cb80a5a52295ab1bc84ac9f4ff5fad6ba67f8bee2fe"
+        },
+        {
+          "path": "src/runs/pr.test-helpers.ts",
+          "sha256": "8a62fb615132e265189953f65370790a22b08271bf68ca7c81c80b33790fc21b"
+        },
+        {
+          "path": "src/runs/spawn/test-helpers.ts",
+          "sha256": "e267bf8f5fce4c29505e6486217b3800f5d5e2a26682af7621f5e65fbc0611bd"
+        },
+        {
+          "path": "src/runs/stream/test-helpers.ts",
+          "sha256": "6d4c06b9e6e88090b32dfe4b43de60d836f632d13c75187bebf2b91c87145815"
+        },
+        {
+          "path": "src/runtime/k8s/admission.ts",
+          "sha256": "856ea067e3a836d0ba562cc17c81270545e50dd39b245120c4430306cd3a8d0a"
+        },
+        {
+          "path": "src/runtime/k8s/finalize.ts",
+          "sha256": "0563d3f54baf8ea32ba11bb7e69c0a6778771b317cec9516293270da9a19657f"
+        },
+        {
+          "path": "src/runtime/k8s/pod-resources.ts",
+          "sha256": "42d0b3512739a151fb4575b4487c69330897674a9fde432575b6c7519ed630d5"
+        },
+        {
+          "path": "src/runtime/k8s/status-map.ts",
+          "sha256": "71d1bd47425247b74bdaf78b4dd08047d2a248dac7a517cc589de49c4dca2797"
+        },
+        {
+          "path": "src/runtime/k8s/teardown.ts",
+          "sha256": "9a014eda77036f2593a9231cd6745bdf11983401251a9f9efb391057092a8f6f"
+        },
+        {
+          "path": "src/runtime/k8s/workspace-init.ts",
+          "sha256": "4c8cc9be9d6a6b60d6e7753b5f217ec0dc5ca9ed86b40bb3aaf683c153ebac72"
+        },
+        {
+          "path": "src/runtime/local/stream.ts",
+          "sha256": "d78ea8f7518d40df6dc1857b1c137e88748a241a36990097098b32c708149ba2"
+        },
+        {
+          "path": "src/runtime/local/teardown.ts",
+          "sha256": "d560c5c47f1b29727d0aa9a5753b6d834bd14404866af8fef54ad93e10a068a2"
+        },
+        {
+          "path": "src/runtime/local/workspace-info.ts",
+          "sha256": "8a5a1e7e62540e2257d1536910d10ad418a7b019678d0e01be3f35ca55a960a2"
+        },
+        {
+          "path": "src/seeds-cli/extensions.ts",
+          "sha256": "3fdd2b36374fffb35173f0f28e24916de5e4a0c9528ae8007cd11288ae25eb87"
+        },
+        {
+          "path": "src/seeds-cli/schema.ts",
+          "sha256": "d3084da2381ecadfc59fb722f0d3341410532dff3ada3ba1f8fc0fe898f599ac"
+        },
+        {
+          "path": "src/server/handlers/plan-runs.test-helpers.ts",
+          "sha256": "5d6009fbe7aae53a624423f1451d13e17951d9c9640e0dd39031c9d1d1a8c5f1"
+        },
+        {
+          "path": "src/server/handlers/runs/event-projection.ts",
+          "sha256": "0674b2c9e04578ef70a44b0a7e762cb4f635f971e728cc91e22344c59654e587"
+        },
+        {
+          "path": "src/server/main/runtime-wiring.ts",
+          "sha256": "28da5184952064640975216d3b8263402d54e6881559342504c0230a28502724"
+        },
+        {
+          "path": "src/server/request-id.ts",
+          "sha256": "3fb35ddb132d89d5da86d0d73d7fb872f2e0814e390df868b1bced8fbd8de3c5"
+        },
+        {
+          "path": "src/supervisor/git-credentials.ts",
+          "sha256": "cef95801463c1d9c5764d521fe3e944b094adcf778b620ac758e28db02e462f4"
+        },
+        {
+          "path": "src/supervisor/git-identity.ts",
+          "sha256": "e8ff3c419e16ec4ead96a955edbbfed77f4138f7e85b124971af62289f5ab986"
+        },
+        {
+          "path": "src/ui/src/components/ui/chart.tsx",
+          "sha256": "7e4560b6026124b7bf800f52d7b172cb9bd23111c1daf765828bebda3941cc54"
+        },
+        {
+          "path": "src/ui/src/components/ui/empty-state.tsx",
+          "sha256": "f667fe31d5d8b5be9fdf53fc2e36a0002892fce59b973870eb91f94b52286647"
+        },
+        {
+          "path": "src/ui/src/components/ui/label.tsx",
+          "sha256": "f7826d20a5567560a294fc996b1aef832811b5961009c4251d78c6ff98a8814f"
+        },
+        {
+          "path": "src/ui/src/components/ui/page-header.tsx",
+          "sha256": "59c57ff39c006cef87ca7071d256142af3c6f47d241781f44ffa14d6624b5172"
+        },
+        {
+          "path": "src/ui/src/components/ui/select.tsx",
+          "sha256": "773b37b0c70a5eee1fd07360b5d9900684cca2fb1600a0a7068650babe7b5ed0"
+        },
+        {
+          "path": "src/ui/src/components/ui/skeleton.tsx",
+          "sha256": "9d571eb1d9c541d43c80fad1c7a3a3d91e54b949bfdc617f697c5e9724a2a2dc"
+        },
+        {
+          "path": "src/ui/src/components/ui/sortable-table-head.tsx",
+          "sha256": "9e87e3116872ee461fc01ce62bc87b277f22a6da52b8824fe9bb42702f652b53"
+        },
+        {
+          "path": "src/ui/src/hooks/useTheme.ts",
+          "sha256": "e563aa6a9a61e5e7f4e4fe342e5011c3d95c3a8613037858b1e25cff56aae64a"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/TokenStats.tsx",
+          "sha256": "609f42b9b43218784f5b083399b2bb96cfd212951e18c7cd49c25e5a8715a62a"
+        },
+        {
+          "path": "src/workspace/git/identity.ts",
+          "sha256": "de4a48313d0d3938f83cb05d965463b7941f036e370664691c615c506edd150c"
+        },
+        {
+          "path": "src/workspace/git/worktree.ts",
+          "sha256": "041daa7246a53c9fdd8ed7aff948d1d076657e935cda117025643291618047a0"
+        },
+        {
+          "path": "drizzle.config.postgres.ts",
+          "sha256": "6e1b039a249d99546750e33a89706ab6efe8819eb4496b95edd02824d6371c8f"
+        },
+        {
+          "path": "drizzle.config.sqlite.ts",
+          "sha256": "8e2d5e29cc1230f55c0938799123a04195277a9029bbd7156fe051d3d6b58a6a"
+        },
+        {
+          "path": "scripts/acceptance/lib/compose.ts",
+          "sha256": "74d0b95c87965bd07aa799679323b237cd31aab9064657e7996bd7274610b708"
+        },
+        {
+          "path": "scripts/acceptance/lib/fixtures.ts",
+          "sha256": "17984aa5b1a207200a23519a4ef7d0fc3aadd99f81952367577c3c23a01bfe98"
+        },
+        {
+          "path": "scripts/acceptance/lib/inproc.ts",
+          "sha256": "a39a709969f2c0ff3388e2ab94841abe2674c8b8481eae4de072156fcbf6b0fe"
+        },
+        {
+          "path": "scripts/acceptance/lib/k8s-target.ts",
+          "sha256": "1e47c8aacc2316b2be194080bfcf0f38cd054d1987ddcd2fd4bf3a3dc72ae6e4"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/01-boot-healthz-readyz.ts",
+          "sha256": "14b69cc143af0f26d3829f11be0d9c48a87cddf9e791226774f62c4268586a34"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/03-projects-management.ts",
+          "sha256": "6f2194ff63ba955bb919daef1f0874011d4bd2b2627d997722d5698c4339e6c2"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/04-run-spawn.ts",
+          "sha256": "e08607e05e5603cfa95179a723386c54032b475d9d167c2ed13bb2fda2bd4985"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/05-events-stream.ts",
+          "sha256": "b7b75bcb84ae3b308c936f4ea9c3084f88caff7b3d4515a13f8d94c6e108195b"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/06-restart-recovery.ts",
+          "sha256": "754766d08132cfa70ab27daae0e2d0cee9157e11c8d3b5cd19ee26a4be18bd32"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/07-steer.ts",
+          "sha256": "643d5e0b05e9b3e39e9f75e9586e5a17a725b419584f44062f7b5164b0091522"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/08-cancel.ts",
+          "sha256": "038941b3e77d20be20946cf33b1e2e32e1945d354f46556f054819e4380d66d6"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/09-reap-mulch-roundtrip.ts",
+          "sha256": "adc852d1b05ec679b60d4a6f05f73d76b7903d121fb5e8e69b37ca3edbebe35b"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/12-supervisor-restart-budget.ts",
+          "sha256": "8198c12457b434747adad33b65d45df2a62f4945bb743328648d5460dec40d58"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/13-container-smoke.ts",
+          "sha256": "5f297c63f836a8475ece0e903aada9be66cc481bb6ca263ae1cc38b4f6b72155"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/14-warren-config.ts",
+          "sha256": "177a02efa8fd9639cba94806829c28ce861e1c9f7743f2aa0b6cb143ed68c6d6"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/15-triggers-roundtrip.ts",
+          "sha256": "fb9416f4ad17dcd7df20c5e04fd31ff98a6970c220e915dfc1c0c7a9b379ec0c"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/16-pi-parity-smoke.ts",
+          "sha256": "c2af2c8bb208750aae48221beb8e06e9c6b9cf0edc45acc1eea0c29432e5e37d"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/17-init-scaffold.ts",
+          "sha256": "cabc5af5f755e9df75d63c8c835f94576dc26007cafd1a53d1077446d79233fa"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/19-warren-on-postgres.ts",
+          "sha256": "bdfe499c7f5bd0e79b70937544358713c4dfcb27e933def65e8c0ff66206a238"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/20-preview-path.ts",
+          "sha256": "8affb60838b70c8a124533f274e845c4185ef60ffc22fc04748e4931bb884fb6"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/20-preview.ts",
+          "sha256": "209ca25b23688986e7fb8c9e0889bd3aaf94dddb3f5601ec578930e518964d26"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/21-claude-code-cost-smoke.ts",
+          "sha256": "60852b5ce15b0b4132dc906b5ac8ee2cfe7a26997de78a9ed7a4bfeea1930632"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/22-seeds-extensions-roundtrip.ts",
+          "sha256": "34da3b23615a2fb48b8cb30e8442d19c9912ca4eaed27874348531329f2bdd73"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/24-preview-node-runtime.ts",
+          "sha256": "57e8a04c105217273ef63f5b784e35c10ad9be969fbd164388ac75335f41c12a"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/30-pi-multi-provider-env.ts",
+          "sha256": "1ea52d6e284afe50e5a657077a96566cc83c17c8e47cbba0d25b6f657606ee60"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/35-ci-fixer-roundtrip.ts",
+          "sha256": "fdbeee38fd7e4e918429a0f9fafea8f15ab62c342d4fd47a435e0b4e3ff85a66"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/36-ready-to-dispatch-plans.ts",
+          "sha256": "c2f323a7498afb1fa74b59ae4ca242d3eb75ad255774453677cd48979e78205f"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/37-k8s-oom-fast-fail.ts",
+          "sha256": "6bc91da6253f29a7cd749dfa59586d7417b47c385417d0c6b86231a2122e6df5"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/38-k8s-steer-delivery.ts",
+          "sha256": "47d34ef5fe675d3598d9ccd61198f72ecec143347b7659fe5c496f8c0323a4a5"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/39-public-exposure.ts",
+          "sha256": "f60bb7d498b82d2fdcbd3df18fc2cca3d0f0580d3ab7cc3a1f6d961b4ca4ef8f"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/lib/git-helpers.ts",
+          "sha256": "57826d95747fab5985bed9862755bccd6245ea46d0250b4917cb67986e6b8a3a"
+        },
+        {
+          "path": "scripts/acceptance/scenarios/lib/types.ts",
+          "sha256": "286280582ef27cb3d61ee90301705a0674a3820147333c2e52caa1f2c7c81584"
+        },
+        {
+          "path": "scripts/check-layers.ts",
+          "sha256": "758cc8e69280a20a0807a2a022191e3a33edd42d7ecc70feaf79f3a0538e024b"
+        },
+        {
+          "path": "scripts/check-version-sync.ts",
+          "sha256": "bd0981474fc94fad90d8d06484c76b0e201636acf9094fd4315e418d766aee61"
+        },
+        {
+          "path": "scripts/check-wire-types.ts",
+          "sha256": "a558866f6a7bcfad577ca689a18badb11cbe350c51b7f0670408f72a38718bfe"
+        },
+        {
+          "path": "scripts/generate-docs.ts",
+          "sha256": "afde890b04cb852ac8f403e0063e03dec80ff15bba4b95e03a9d1ef378152ee6"
+        },
+        {
+          "path": "scripts/generate-openapi.ts",
+          "sha256": "8e24912493e88742435365812f4893629668a0d9c1918e8511c0ee7672aa4191"
+        },
+        {
+          "path": "scripts/prose-rules.ts",
+          "sha256": "37ea7d47fe277d8da313ab85ed73050a60e4454293fcd9d7699c7589a9e5d0b4"
+        },
+        {
+          "path": "scripts/version-bump.ts",
+          "sha256": "29a88d9f20636960180b57ab7f878fddf0ad719f8176f5be1e63b90830e34c88"
+        },
+        {
+          "path": "src/bot-identity.ts",
+          "sha256": "8456dc115e9dfc319d5e0120e3f18e989de8f074a5948eee170d0d30fb057393"
+        },
+        {
+          "path": "src/burrow-client/errors.ts",
+          "sha256": "b82e760d695b80654162832f96600194ec4fbac725572033f726a5efd25479f2"
+        },
+        {
+          "path": "src/burrow-client/index.ts",
+          "sha256": "4aba62828fbd24c74b9f343b4e82aa7e8af3c0ca2682a945c29c049daf69ce2f"
+        },
+        {
+          "path": "src/burrow-client/local.ts",
+          "sha256": "959e8fd3d65f56478e8b2decdbed370418839284a352c31cb65d38514c3ca356"
+        },
+        {
+          "path": "src/ci-fixer/dispatch.ts",
+          "sha256": "76fb34ec9e9f0ab96b10d7f2fd89b52ee56dd4f66dd6dbc609c4956d2da25c7a"
+        },
+        {
+          "path": "src/ci-fixer/poller.ts",
+          "sha256": "791b37cf105986e1cf8492d2a3d1ae29c04db5dd393066fd90685416ca5ec793"
+        },
+        {
+          "path": "src/cli/commands/add-project.ts",
+          "sha256": "ceeeae0d03005e0767679a6454b67508b581b34ec28835fbcc067bba7597237c"
+        },
+        {
+          "path": "src/cli/commands/doctor.ts",
+          "sha256": "6e01f117deecd55b636576674787edc0738f1d91a61b7271f712988d938398ec"
+        },
+        {
+          "path": "src/cli/commands/plan-status.ts",
+          "sha256": "be5f7a5364e857d7dd710dd7cb3a3d4088e1eb5fd4ae123663aba58264d84fc6"
+        },
+        {
+          "path": "src/cli/context.ts",
+          "sha256": "4ae90eb92e56cc5da8417f6ffb46ffef2141364de8fc757848b00cd0126cead6"
+        },
+        {
+          "path": "src/cli/plan-run-renderer.ts",
+          "sha256": "bb197ad23c576d73e23b2f8b6ad8c137f96146b2d04aafa5c1c37e81e8fdca45"
+        },
+        {
+          "path": "src/client/client-helpers.ts",
+          "sha256": "1ab4709a3b80279f0db5efdf38696961d4e77aa1187be97c2863573c8892d987"
+        },
+        {
+          "path": "src/client/config.ts",
+          "sha256": "dd4ff5695513674827a4840d936a46739ab524f09b521d7a5aebcc113c6dab1e"
+        },
+        {
+          "path": "src/client/errors.ts",
+          "sha256": "cb279e5b346f329dc7d96c545cbbaff7314f692200c3c96cc7547869553c7791"
+        },
+        {
+          "path": "src/client/index.ts",
+          "sha256": "840baa420c8f5a9500b2d2931b30262486e5979b40fcde982a59a904693748d4"
+        },
+        {
+          "path": "src/client/types.plan-runs.ts",
+          "sha256": "ecd76b9e1c914b9bc050002b7d1be61b542678d68b3aa863e52af14b034cdfe6"
+        },
+        {
+          "path": "src/client/types.ts",
+          "sha256": "d8d9402bfeaf92561b43e70dbaa397d55c3c976229694084677b154811f716f0"
+        },
+        {
+          "path": "src/core/errors.ts",
+          "sha256": "93e38fcca95e48c94c4376d302971243a60cadedbd0a9ebaa0b6a6fdf96ac72a"
+        },
+        {
+          "path": "src/core/wire.ts",
+          "sha256": "9409c47abb1b7fd4b47695c7759b71ea51e39a1668b31089d827d72a5ca2c111"
+        },
+        {
+          "path": "src/db/client.ts",
+          "sha256": "0b77bcb86731849a5718ad867430f5958899a1a380edf9727e19b14bac7e327e"
+        },
+        {
+          "path": "src/db/repos/index.ts",
+          "sha256": "e46c324a5db91619aa5a777f25f867c666ed0556bd7cadbc4278b9787c9e200d"
+        },
+        {
+          "path": "src/db/repos/runs-queries.ts",
+          "sha256": "ef394060129e85793786e20b0e5d160df35543b303165fc1bd55b54ed05ec56b"
+        },
+        {
+          "path": "src/db/repos/runs-stats.ts",
+          "sha256": "e8f369164c04e92705d5da2b2ea2b37d9a2b7b45c73bbdcb3274282c164982f8"
+        },
+        {
+          "path": "src/db/schema.ts",
+          "sha256": "9bbe9a12434d673c156b6e0784036131adf5352e7e3f57e4c352e8ab5a87c1cd"
+        },
+        {
+          "path": "src/db/schema/columns.ts",
+          "sha256": "f38c96859f5b64776627e822fa003d43e5b9ff2f7e6ddb5efacaed16c098ba2c"
+        },
+        {
+          "path": "src/db/testing.ts",
+          "sha256": "5dbca541c8a0df7f9874cd8238533a065a8b2ee56f982ea892b3d956a82aac07"
+        },
+        {
+          "path": "src/diagnostics/checks-config.ts",
+          "sha256": "9cec4b6840ccf0f32fc68e7be2be1ca4ab8ec930ac83c8c80b90d692defc26da"
+        },
+        {
+          "path": "src/diagnostics/checks-preview.ts",
+          "sha256": "c54eb11c8fe63de21cce0c56223793c698b6ed3dab30c375ce94fafb812d4e13"
+        },
+        {
+          "path": "src/diagnostics/checks-sandbox.ts",
+          "sha256": "4a14937dfbbd0321e00c4a9fc3781f4b3802f045ce6c4abdc57f9e41f46f2acd"
+        },
+        {
+          "path": "src/diagnostics/checks.test-helpers.ts",
+          "sha256": "19f0874ce1cc8d602b8a1a68a1cf97d83c07c40f8033f75af45048d07caa2b92"
+        },
+        {
+          "path": "src/diagnostics/checks.ts",
+          "sha256": "5bb1c36ae43cc960e52c3784806b5096efc8db8ddcc6d7fd00781f6f929346f6"
+        },
+        {
+          "path": "src/diagnostics/redact.ts",
+          "sha256": "f26217e772d8483b9bfc4b64e757204f2ae92ce04bd7d36d8374026e719b65a6"
+        },
+        {
+          "path": "src/diagnostics/stale-workspaces.ts",
+          "sha256": "0b88d7360c67050263693bb9808a7d5ca9c501981f9fa7685dc41880148b8cc1"
+        },
+        {
+          "path": "src/healer/alert.ts",
+          "sha256": "f04cd0cab8a32c70f46be9d13fe7f177550ea453dc637493db90615dfc525b75"
+        },
+        {
+          "path": "src/healer/dispatch.ts",
+          "sha256": "6dafac3f65e81bbfd6d3c3c84c212b05e0da153e3d79d218aa0c80f7a73ff038"
+        },
+        {
+          "path": "src/healer/index.ts",
+          "sha256": "7db7cddf5ed12e562cb2d708e4ee64fc827d7c74eab2cc717cebb5e9db81ba65"
+        },
+        {
+          "path": "src/healer/lifecycle.ts",
+          "sha256": "95e211e050e71af9df9a51a97b2eb91172286cc94839fad01e2e6e624745f6c3"
+        },
+        {
+          "path": "src/healer/resolve.ts",
+          "sha256": "4f5129df47c8e9dd43c376d2a348f2003383532082b82e8f4066c7da0840d493"
+        },
+        {
+          "path": "src/index.ts",
+          "sha256": "beca69be860c801a25260c07a668974b082b994bd3b0fe7c047113c72f635ca3"
+        },
+        {
+          "path": "src/observability/error-tracking.ts",
+          "sha256": "67fbe474d0bf3a5e9ec3ff72b7ac4b6a8b6b543f8b6c2faac1ff942c0d11ffcb"
+        },
+        {
+          "path": "src/observability/log-redact.ts",
+          "sha256": "4b25d5870f362c83bf3a9e4183fb091a87e7cc0f80fb55a14756f37afcc5b8f6"
+        },
+        {
+          "path": "src/observability/metrics-registry.ts",
+          "sha256": "56599b5d1a33af64fdae94f203858959ea711c5578d65647e82601a8a360154b"
+        },
+        {
+          "path": "src/observability/prometheus.ts",
+          "sha256": "6fa974773c469b737f6f0ce3483c16d897ba9437e8140e47b9881cb16b381b83"
+        },
+        {
+          "path": "src/plan-runs/close-child-seed.ts",
+          "sha256": "1a50b9132bf3f89d142c575972950a5e2737e7a65625b99103840ed992faedce"
+        },
+        {
+          "path": "src/plan-runs/config.ts",
+          "sha256": "3349258ed8d648f13f8b733a224f702268dda7e691135c99e5bd904b92a9e10a"
+        },
+        {
+          "path": "src/plan-runs/coordinator.test-helpers.ts",
+          "sha256": "03d48dfe081fc66a3aa5bfde0a628381d517a54b481c3a7f26d0a5a679e0abd6"
+        },
+        {
+          "path": "src/plan-runs/dispatch.ts",
+          "sha256": "bda472991fd953a48f3e0bbbc4e96f07ec0d4987c897e49f59c91c517f2f1c76"
+        },
+        {
+          "path": "src/plan-runs/errors.ts",
+          "sha256": "59f2c960b5a492f87c3e55e3280f1196465577cedae038186c9005241fc23c77"
+        },
+        {
+          "path": "src/plan-runs/in-flight.ts",
+          "sha256": "ea745a48c75d82cfbcd97e997994356d0357b16eed0bec3b675fda3bb62e43fe"
+        },
+        {
+          "path": "src/plan-runs/index.ts",
+          "sha256": "56eb3b87e162e58749a4da861360671b001620d67319a1770762e19fd5330c44"
+        },
+        {
+          "path": "src/plan-runs/pr-merge.ts",
+          "sha256": "0da247b3de419aeb7b2ca3a535dd4b62ebf7133d1ba743794ad3696724719729"
+        },
+        {
+          "path": "src/plan-runs/ready-plans.ts",
+          "sha256": "2256459ba394d0ae2b99942579c189e36666787dd7e9ce8cb93f97540b505a5e"
+        },
+        {
+          "path": "src/preview/duration.ts",
+          "sha256": "d94417bfc0c3fc737c8956e0afa4269a9adaf2b306fa1df6138cf217c254ac5b"
+        },
+        {
+          "path": "src/preview/eviction/config.ts",
+          "sha256": "9ab59f3308e7e6227cc2436cc90fa5e004644c5e8a7adbebaf9f4570da0fe083"
+        },
+        {
+          "path": "src/preview/eviction/index.ts",
+          "sha256": "ae232b35074291b0fd5ae7407abd519308f0c86a109cacabe845995bcbe5068a"
+        },
+        {
+          "path": "src/preview/eviction/repo.ts",
+          "sha256": "81ccc0c1ffa04e440f22c6aa24d978db1778e836db7a02f93275cdd6a883bfac"
+        },
+        {
+          "path": "src/preview/eviction/test-helpers.ts",
+          "sha256": "f40a433360adc540848ab5efc8199cb29fb587d2280b8c58086175ace28cc8bc"
+        },
+        {
+          "path": "src/preview/eviction/types.ts",
+          "sha256": "7b5647146e7e1225a380ed5108e437337defa13943e047391c5385818819f4c6"
+        },
+        {
+          "path": "src/preview/launch/index.ts",
+          "sha256": "8fee29f6a1549b41b9c1ef66a64ee87e039aa4c4971ef695e5ccde0b4d4a550c"
+        },
+        {
+          "path": "src/preview/port-allocator.ts",
+          "sha256": "04455928f8d19f3b81d097bca747f3be8cf44ceb57ad40406e9bb586c718f787"
+        },
+        {
+          "path": "src/preview/proxy/test-helpers.ts",
+          "sha256": "d9a70f7428db19797c85437f0eeec451f21aed353f6fdff8d3da4b14a27bb188"
+        },
+        {
+          "path": "src/preview/proxy/types.ts",
+          "sha256": "1f4a4b5d81d149036fa10957d2dbe1b67c5d92843c4b291064a13169f017214d"
+        },
+        {
+          "path": "src/preview/teardown.ts",
+          "sha256": "57c5d308ba003d4453b73f354b85352051c27cdcc8547791b6fabf717ff0ee58"
+        },
+        {
+          "path": "src/projects/config.ts",
+          "sha256": "a179ee87c162675315bf13df2457f6e22263aed0989ec2c1f18ff496a6c90aff"
+        },
+        {
+          "path": "src/projects/errors.ts",
+          "sha256": "854cf3de6a4bb82b310dbc660fd9157fd753a3c3e7d2dcbeaaa97e9d72684050"
+        },
+        {
+          "path": "src/projects/git-hooks.ts",
+          "sha256": "7a9292b421ab1696cf77cd5a6cdac149105d2af24a2cc1446c647ccda847a0b7"
+        },
+        {
+          "path": "src/projects/index.ts",
+          "sha256": "f0202fe78d7bcfabc672b984e2250cb80bdeab56dd8f71948c87258875924ad7"
+        },
+        {
+          "path": "src/projects/manage.test-helpers.ts",
+          "sha256": "61cc1aab1c345665107a6877de7a46ec129a1268285c51dd534d1cfdf7e983de"
+        },
+        {
+          "path": "src/projects/manage.ts",
+          "sha256": "8cb47d4f2d3649a3a7b223e0339923961d4eb16b9b0d5529f924c9da79617e0b"
+        },
+        {
+          "path": "src/projects/refresh.ts",
+          "sha256": "f34ca01503c978834bbe5cbf0ea73b00b4cf7f4d6f8c2660c7e1a00c9d68f197"
+        },
+        {
+          "path": "src/projects/resolve-target.ts",
+          "sha256": "3e7c23f937e22968bc967905a2b3d61569f803bd8a76107b4214379e43fdf922"
+        },
+        {
+          "path": "src/projects/url.ts",
+          "sha256": "fcc64917ff0a1a0a7421d90bea33acaa452b79f4ae5ee34081e8433e0a941d9f"
+        },
+        {
+          "path": "src/registry/builtins/bugwatch.ts",
+          "sha256": "ac9fbaf8acf91d601c88fe65ee000edd250a6fc9d055ae635f5ba5cebc9933db"
+        },
+        {
+          "path": "src/registry/builtins/claude-code.ts",
+          "sha256": "aee9a4c5499e314c062933328ccce54764176ec292cf90e932804f59951952f0"
+        },
+        {
+          "path": "src/registry/builtins/healer.ts",
+          "sha256": "5a231632b8eb711e36bbbcea8827b264bb30f79b9f2e88633a40afd0b51f4b32"
+        },
+        {
+          "path": "src/registry/builtins/model-tiers.ts",
+          "sha256": "562ea1d9bd42c7259559c5d43a417e25ba003900d03891336fd2e1cedbcfe13b"
+        },
+        {
+          "path": "src/registry/builtins/nightwatch.ts",
+          "sha256": "115c2457d714a15f0fcc89a986771ec0a891179d434bf82ee63b2d63b869f8e5"
+        },
+        {
+          "path": "src/registry/builtins/pi.ts",
+          "sha256": "314cb16eac02edc38170291fa73cd2c7f52168b5196ff276bbc6ec1c120238fd"
+        },
+        {
+          "path": "src/registry/builtins/planner.ts",
+          "sha256": "7d0075e15ab4d82880ab83f4cf96d67fe68980c200f0014b41108bb88b3e6486"
+        },
+        {
+          "path": "src/registry/builtins/pr-fixer.ts",
+          "sha256": "b61b4ef9bdb5b46bacb67bf406338568b2d7578f3ef7222c085542821ed1a82b"
+        },
+        {
+          "path": "src/registry/builtins/sapling.ts",
+          "sha256": "68c8b0ee2757821d173d476598d2a345a1a48ce8ffc05ea1a8c5ff0ac0bcf894"
+        },
+        {
+          "path": "src/registry/errors.ts",
+          "sha256": "6600c254c80e82c746c57db83d7c0b99b14548283f8b105206b0a0e7ed7b0862"
+        },
+        {
+          "path": "src/registry/index.ts",
+          "sha256": "8e8a79de05b96a32cf0294f6368303f2f59ac72e8556b389c914cdd47f6f88e8"
+        },
+        {
+          "path": "src/registry/schema.ts",
+          "sha256": "bbc56802e6c9fc98c05acb0c57411fe0248693adb3c6a33ba78f3b766988f799"
+        },
+        {
+          "path": "src/runs/branch.ts",
+          "sha256": "425bee28f1f2c96c32c2da47157395436d09e3634cc4aee44d352fa91cdcfbf0"
+        },
+        {
+          "path": "src/runs/cost-cap.ts",
+          "sha256": "de2b2256ce410b9df7c32eb6817e84586e9a71d0011c7cbc4fbaa0e7e1d408fd"
+        },
+        {
+          "path": "src/runs/dispatch-prompt.ts",
+          "sha256": "01fd7289c936456db54bc8b460c67d7ab2d311729d22586d5b13b4d7aef38a0d"
+        },
+        {
+          "path": "src/runs/errors.ts",
+          "sha256": "eb20629ce66eecf898ad68e8e609d7975bb29e12a8d133b0617a342f1ea45dae"
+        },
+        {
+          "path": "src/runs/inbox-message.ts",
+          "sha256": "e581b47075bc528116fbf51f189ad4f4fb3e47d5a369ed7d9298448cdc0286db"
+        },
+        {
+          "path": "src/runs/inbox.ts",
+          "sha256": "08f284a5109f31f2beeca94bc503a5177c0f5f475584d4825cff865e8d7d75df"
+        },
+        {
+          "path": "src/runs/index.ts",
+          "sha256": "bbb3f8d618a93180a1c8984daff2d029cf13afcc75da96356d1ac2a28dddcd72"
+        },
+        {
+          "path": "src/runs/reap/destroy.ts",
+          "sha256": "069eedcd7b908bec567ef443f90fdc484f1a68d8cc40b3f01d961fcb95830faf"
+        },
+        {
+          "path": "src/runs/reap/index.ts",
+          "sha256": "0553ea5fe0ca5886e1f26ffd41c78c8428b966f6c430682749869ff19db0e3fb"
+        },
+        {
+          "path": "src/runs/reap/seed-close-lifecycle.ts",
+          "sha256": "592b9a6e3f16f530b9775a87efc527233ae34d9a21fbd5bbee24c045ab0683a1"
+        },
+        {
+          "path": "src/runs/reap/seed-reset.ts",
+          "sha256": "d9222df37c1a525a5689e600de65986ad9bd6243fcd52fbec163de218d397562"
+        },
+        {
+          "path": "src/runs/reap/stage.ts",
+          "sha256": "0a2c82977427e38030dfca0b370ab6096d445db046b0fb0db17ec65726e3bec8"
+        },
+        {
+          "path": "src/runs/spawn/callback-env.ts",
+          "sha256": "8e6d84c0416506293d06cf4bd5e02754e4bbf92bc8ce12e18573b28dec13a6a5"
+        },
+        {
+          "path": "src/runs/spawn/index.ts",
+          "sha256": "ff226c9cabb57d1c64d209f19a819240f276fd539c4e5f39415a99f3cef1f206"
+        },
+        {
+          "path": "src/runs/spawn/seed-extensions.ts",
+          "sha256": "96b62239dc2cbff8c4fe58466a70eff703da68a18b176216afa554d059ca9ac2"
+        },
+        {
+          "path": "src/runs/spawn/types.ts",
+          "sha256": "844c715ad1ae17ce27e59c13b6ebe4fee07be1a268b780d7e1b824341e61f376"
+        },
+        {
+          "path": "src/runs/spawn/util.ts",
+          "sha256": "c7e77e61977d1a3c6c121e9f70b01682eb999a8b4bb23836c6a15e1533db7a88"
+        },
+        {
+          "path": "src/runs/stream/budget.ts",
+          "sha256": "0d85c456283ae81db3b970400f6a0d3ec88c12960115d25ab9d8036b171b2a2a"
+        },
+        {
+          "path": "src/runs/stream/index.ts",
+          "sha256": "4528482a7402ee38cc2dd26e22afa16bdd8f1646c33e6c08b6df558f504c4241"
+        },
+        {
+          "path": "src/runs/stream/logger.ts",
+          "sha256": "7a551c5a09bc4d8dd555c0df5efbb1ff76014dd644bbdac012a4b446ff7afe81"
+        },
+        {
+          "path": "src/runs/stream/provider-source.ts",
+          "sha256": "501d29d1dfcf98ef8ac33fef575f149d81cb856b61ee82be47adf987c9ab64a3"
+        },
+        {
+          "path": "src/runs/stream/recover.ts",
+          "sha256": "dc5160acb10d3c9cc0501abcb986a81770a3a6d45a6c0edac57d290d8c58ef38"
+        },
+        {
+          "path": "src/runs/stream/run-state-poller.ts",
+          "sha256": "c464e819a72410cbc664f3fa263c6dafcbb5e0a834a7ec368b2605559095e905"
+        },
+        {
+          "path": "src/runs/stream/terminal-detect.ts",
+          "sha256": "c63b5eefac05b1dd5494b6553d65a85c142ddfa7b712066b8d00f219efe02f82"
+        },
+        {
+          "path": "src/runs/stream/types.ts",
+          "sha256": "a9f5d3fbab4a857226c07c8b5e12719b2b6ac91e62f4d8c1fcfaec18269779db"
+        },
+        {
+          "path": "src/runs/usage-hydrate.ts",
+          "sha256": "5ca5f82d33ebccbe88d2682459db8546beaf08b84ceccd5ca98f78b858967cb2"
+        },
+        {
+          "path": "src/runs/watchdog.test-helpers.ts",
+          "sha256": "9482ca448279d9d32de15be9059e9e1976f3a776d6add58724c29f46e7fee742"
+        },
+        {
+          "path": "src/runs/worker-identity.ts",
+          "sha256": "e38474dd6cd4979f939cb0d663b34872be7d2412d8bb847ab7891692a0bbbb75"
+        },
+        {
+          "path": "src/runtime/contract.ts",
+          "sha256": "9be2437eefff4915f564cfa2b2d5461fdf5159186d079af25c4048766cbe572c"
+        },
+        {
+          "path": "src/runtime/errors.ts",
+          "sha256": "442dd06e3d4c95be40dec0c6ec08c1ff473eabfaf2680b52cf5be52ce2525f59"
+        },
+        {
+          "path": "src/runtime/finalize-deltas.ts",
+          "sha256": "afa74eb40d0e868fa78b4bdad03c330d2704c4600a2391e2881069135ba44092"
+        },
+        {
+          "path": "src/runtime/k8s/admit.ts",
+          "sha256": "eaa49c9269e5601cd358cdb01d396991466d16466e5ed9421376b1490f6b6fc1"
+        },
+        {
+          "path": "src/runtime/k8s/agent-stdin-hold.ts",
+          "sha256": "58ae0076ffb4c448f5b98c08265bba955f200983bffa5ddc73eb8abec3e00e6d"
+        },
+        {
+          "path": "src/runtime/k8s/api-error.ts",
+          "sha256": "576c00633ec58e90d221ac3ed0c2f997fe555c47f1a6959631c74dbd5066a5c9"
+        },
+        {
+          "path": "src/runtime/k8s/pod-gc.ts",
+          "sha256": "25195b29c740f98277471309b0555df2decab8f63d54fbfe55180385036bf7bf"
+        },
+        {
+          "path": "src/runtime/k8s/pod-metrics.ts",
+          "sha256": "282eff2840e1dc82cd10e3164747f75f7fface76db7f677ac108b85c56ffe741"
+        },
+        {
+          "path": "src/runtime/k8s/pod-spec.ts",
+          "sha256": "ac167729f46655a6d0e3a405f711087e7f2555cf6f3bed8cb8e8c18c3aded7cb"
+        },
+        {
+          "path": "src/runtime/k8s/seed-configmap.ts",
+          "sha256": "04666279c99a6a7d66b441b5c7b3a2851b12ab34672b671115aaa35efb87f3fe"
+        },
+        {
+          "path": "src/runtime/k8s/send-message.ts",
+          "sha256": "b9cbd8019971a4d71a6b9d32988c54eb7c8cbcdebaba968bf3100fdf4f181c97"
+        },
+        {
+          "path": "src/runtime/k8s/workspace-info.ts",
+          "sha256": "d8e5b22e040e719e59c57adfedd6ad4afa3220d640b6cbbff68deb472c1f15b8"
+        },
+        {
+          "path": "src/runtime/local/boot-backend.ts",
+          "sha256": "cc7e32eaecf990b501c4b06739ae0079dfa1b7c5c997da8862d0c25657d81e60"
+        },
+        {
+          "path": "src/runtime/local/cancel.ts",
+          "sha256": "d335dc89983035de960dd37544e50f2d8ea86aadbaf0ef60c9d3665ab222f8e8"
+        },
+        {
+          "path": "src/runtime/local/diagnostics/burrow.ts",
+          "sha256": "abb983c6c17cfdd0b8a2d2e4337fc305168474fe3e9457f7e442383305389f12"
+        },
+        {
+          "path": "src/runtime/local/error-map.ts",
+          "sha256": "491ddd71fd59a8f3477e8df63672ceaa467ab416a7187ef30a81f16cb90d859b"
+        },
+        {
+          "path": "src/runtime/local/preview/sidecars.ts",
+          "sha256": "2db805de03500a11b2d00a9487b83f1f5541f8bf495abcbb5744067f34468110"
+        },
+        {
+          "path": "src/runtime/local/send-message.ts",
+          "sha256": "fa88b51668001da1d087503bd9512ffa760bffa6eaecb505ba09537a3d898f84"
+        },
+        {
+          "path": "src/runtime/local/status.ts",
+          "sha256": "77dc9808492b92488aad1f7cd764272229a3e47f42f43a1d995e90930abef44f"
+        },
+        {
+          "path": "src/runtime/local/workspace-gc.ts",
+          "sha256": "62c35e0d2d63d05f6164a67631e43b3b24130c638f761767e39b181f9efb1eed"
+        },
+        {
+          "path": "src/runtime/registry.ts",
+          "sha256": "ff023dace9c5693a35e617dafa33f10c510a66a182611a383febd48567cf197b"
+        },
+        {
+          "path": "src/seeds-cli/errors.ts",
+          "sha256": "166c5bbe0f62f0fb202d07142f376bac6c08f02c9d809a644582e9a55ef28279"
+        },
+        {
+          "path": "src/seeds-cli/index.ts",
+          "sha256": "1e32b2431a97202857197d00f9bfa2e4ca3c496465fc8ff923dacc6214f7883c"
+        },
+        {
+          "path": "src/seeds-cli/list.ts",
+          "sha256": "448a76054133050b1a6d433ab62ab8f24f46ac0a14e128d28c147e53f78180bc"
+        },
+        {
+          "path": "src/seeds-cli/util.ts",
+          "sha256": "f11a4af969ba4b975ac9259c52142c0edbb9f633a994b043b8f150bdc8a33991"
+        },
+        {
+          "path": "src/seeds-cli/warren-extensions.ts",
+          "sha256": "bfc8f51208ecead06dda004954d34f9e621e18923082b26f04192dd6dd479c1e"
+        },
+        {
+          "path": "src/server-config/config.ts",
+          "sha256": "9e33e2e105ac75c4054db40c68c4d3ec07007b6c7dc1037051fc38c25ad501f0"
+        },
+        {
+          "path": "src/server-config/errors.ts",
+          "sha256": "d0d38557351b18a0d20ac18ac32285d175534f4de1fe6dfc6b5716c8d4124b04"
+        },
+        {
+          "path": "src/server-config/index.ts",
+          "sha256": "d2ac8fbc35a1ece577003b200901cfa79203bc2329d50b079a9d047cd1eacb0f"
+        },
+        {
+          "path": "src/server-config/schema.ts",
+          "sha256": "41ac20715ef29252415a71c0082c7f82ecc1db93d7623e6fb69d8943c4fa9825"
+        },
+        {
+          "path": "src/server/auth.ts",
+          "sha256": "b464b01ca91a191bfb100eeeb9dbc2cc47b0e2e11826b053816632ef373554c8"
+        },
+        {
+          "path": "src/server/bridge-reconnect-teardown.ts",
+          "sha256": "07d74353f8f8b250a2b4fdf7837891479bd32ee2e6143fcded8594018d65ad46"
+        },
+        {
+          "path": "src/server/bridges.test-helpers.ts",
+          "sha256": "6504b65bfd677741f12e582aded105ecb7e69ea4cc59370e231dd42e4ed7e2c5"
+        },
+        {
+          "path": "src/server/config.ts",
+          "sha256": "30a696a48aa5f000e3adb5587cfdeb95b6b3ddc4a280f3fc1057a5f3a99742a9"
+        },
+        {
+          "path": "src/server/db-seams.ts",
+          "sha256": "174d0140f499478dba6a0ecbefb04cb65bcc4ac37e485ffb81ce57f4cdeeb026"
+        },
+        {
+          "path": "src/server/handlers/agents.ts",
+          "sha256": "105624d9e439f0bbcba6803aa13a8e48655a9ba7613d8939efaa25bc997a68d3"
+        },
+        {
+          "path": "src/server/handlers/alerts.ts",
+          "sha256": "5011a0274cdf338308b5e2f71ea1452994f5c1c52021a7b9dacccc1b5fb2a294"
+        },
+        {
+          "path": "src/server/handlers/diagnostics.ts",
+          "sha256": "7daccd54218f5d788ddddebeda9f1a34bb47c0088029c68bf1a37a101f73ee03"
+        },
+        {
+          "path": "src/server/handlers/dispatch-refresh.ts",
+          "sha256": "c57361629339891745e8180422d493f68180bf30da0b9dd6b8f43c26ff8b08a8"
+        },
+        {
+          "path": "src/server/handlers/index.ts",
+          "sha256": "b88590bbc655b44db218ac48e92fcc0ccefa291cd15c8e4958d8ed535828bb74"
+        },
+        {
+          "path": "src/server/handlers/meta.ts",
+          "sha256": "6d312b7268e9f8e379cb9eb494e1176a9930c68fc066b876b94785ca8aaeecc5"
+        },
+        {
+          "path": "src/server/handlers/metrics.ts",
+          "sha256": "481c19fc0e9616be1bfaf85e29e7e560796d08b7be9a5b758d3515a4f3dc8b90"
+        },
+        {
+          "path": "src/server/handlers/projects.test-helpers.ts",
+          "sha256": "6cff2a09353682bc90a9c592971cd63bbd157095a7c653d982974934be50d0d1"
+        },
+        {
+          "path": "src/server/handlers/runs.test-helpers.ts",
+          "sha256": "d4d63bcab7757536b0238931f690273d8f20b60c315b2c8e56a55b33dcb962c5"
+        },
+        {
+          "path": "src/server/handlers/runs/analytics.ts",
+          "sha256": "c12f7cd816843c70009cfe78a24d43373b0f105518515a8ca03f611e9897ffbb"
+        },
+        {
+          "path": "src/server/handlers/runs/dispatch.ts",
+          "sha256": "3922ac538a748898fc13a2d70cbe7bd4ccb7af3e3f432d417df09b94a3d563b8"
+        },
+        {
+          "path": "src/server/handlers/runs/finalize.ts",
+          "sha256": "6851bfb6dc3a33a5fb8795d20d762f429f93d46b8331c4b854a80a7bb56ad744"
+        },
+        {
+          "path": "src/server/handlers/runs/index.ts",
+          "sha256": "3ba50d897b280faaa8e6dbdcb24e635f5aeae0d2bac9e6ad1616f99531f9e106"
+        },
+        {
+          "path": "src/server/handlers/runs/pause-resume.ts",
+          "sha256": "61185463f54246eecf720e828687a4316e9e66a88d4634f3bf00d2ef1eb49a0a"
+        },
+        {
+          "path": "src/server/handlers/runs/preview.ts",
+          "sha256": "8cba00f297101d2eb1e0c3761c99e040155a330be003cdd6dbaa9b31b1878137"
+        },
+        {
+          "path": "src/server/idempotency.ts",
+          "sha256": "50edde39b51b826f6e13f913a7ed8343b19a87c62caf2eb222ef002958806b63"
+        },
+        {
+          "path": "src/server/index.ts",
+          "sha256": "bcce57ca169581e53c26e80a1f703b362554eb3a2b7ef83c17d2acadc8c81c2b"
+        },
+        {
+          "path": "src/server/main/detector-wiring.ts",
+          "sha256": "364dbaf69124868273417d002fcc26a7f9f31413696c50fbe8105d873f563d60"
+        },
+        {
+          "path": "src/server/main/lifecycle-bus-wiring.ts",
+          "sha256": "960bc149b111ce0aa1af259c9686d02a363927bc78592fd4727aefce21ec0dab"
+        },
+        {
+          "path": "src/server/main/logging.ts",
+          "sha256": "68a93cc264801910a383bbc1f86833a8ebc5809cca13a0e205c6fc9b73846749"
+        },
+        {
+          "path": "src/server/main/observability-wiring.ts",
+          "sha256": "65a08fb43bdf55a008242ecdecd20f0ea4386c0b4117893b12f351aebc21e3bf"
+        },
+        {
+          "path": "src/server/main/plan-run-wiring.ts",
+          "sha256": "a28343a14590c0aa093ae64de7868d8737c0b2f3e7f320c94a25e81528b7f9a0"
+        },
+        {
+          "path": "src/server/main/utils.ts",
+          "sha256": "d0ff571649a99cb8d8b37fed14370cd0860425deb938a07fedc36fe8f215d711"
+        },
+        {
+          "path": "src/server/projection.ts",
+          "sha256": "3e90c1693e1453beabd1e286c3e8e59145edb902a7bcb455bb3dcf1013a2e239"
+        },
+        {
+          "path": "src/server/router.ts",
+          "sha256": "ae83dd2efae7189cf49f2432c6ef6189dfd8358a5508070cb6d70389ef90dae6"
+        },
+        {
+          "path": "src/server/stream-limits.ts",
+          "sha256": "e8b3476a08dbd110d8a24a400daf370621fce11739dbe610f9c21f2a08033697"
+        },
+        {
+          "path": "src/server/types.ts",
+          "sha256": "383282e094f9bc96ce737d7388fd66ab9f695fc605b9ca6e72c0d59195fc9f8a"
+        },
+        {
+          "path": "src/server/ui.ts",
+          "sha256": "540e93b54b6bfe1f8c252d36273919799aafb2f93cc384529ac8edc77de99f77"
+        },
+        {
+          "path": "src/supervisor/main.ts",
+          "sha256": "41fad5171d645cdcaaf312d795eb9d72c2eb536d5384d1e8abe6b29a9fa10868"
+        },
+        {
+          "path": "src/supervisor/socket.ts",
+          "sha256": "6d15270960733fdcd378fd7701f8cd362cbbcfd92c4d44d06e85c3eb88e5acb8"
+        },
+        {
+          "path": "src/triggers/ci-fixer-pass.ts",
+          "sha256": "8485d50ba28320a61e75ec4f171e39cb0ee71f5a89a0c409ffca292a47bdb450"
+        },
+        {
+          "path": "src/triggers/config.ts",
+          "sha256": "0e41139b831a562d0b900bb6f0bc37c2a48cdb78c062f015e96b1ae337424c41"
+        },
+        {
+          "path": "src/triggers/cron.ts",
+          "sha256": "0bc49cd21e6dde3a469bd196dbba01000cb525e8f97cf96ce127d3b42030918f"
+        },
+        {
+          "path": "src/triggers/errors.ts",
+          "sha256": "67fb8f496e021354994759343bd1032f599c7dfbbb3e8ea27ac4c63f7ea08c11"
+        },
+        {
+          "path": "src/triggers/index.ts",
+          "sha256": "979ef4238b3ec26d4e466dbb2c6744f5320aacfbfc696517d6123c28e148e997"
+        },
+        {
+          "path": "src/triggers/repo.ts",
+          "sha256": "024552ae778a54235e6b60b5d3ad0247f94e6eeacab93db237913464f071e46a"
+        },
+        {
+          "path": "src/triggers/scheduled-pass.ts",
+          "sha256": "8900edc5abff2e4483b1e64ada00d455da8c21259ef72238e8e9400b069cd854"
+        },
+        {
+          "path": "src/triggers/summary.ts",
+          "sha256": "afa6a49ba9ee5149983d0065764179dbb60e80a1676cc2a8c981d275dc0b0718"
+        },
+        {
+          "path": "src/ui/src/api/types.ts",
+          "sha256": "ffdca8b754654e8eb0d5e81ef829da77ed13bb315fd37a5603c5df9d9664cc22"
+        },
+        {
+          "path": "src/ui/src/components/AuthGate.tsx",
+          "sha256": "4cca1834422b29c0122d804415b5edde13253c3475facb55857e3725848f62c3"
+        },
+        {
+          "path": "src/ui/src/components/Layout.tsx",
+          "sha256": "07fdec98be86a3c1aefbe60f1ef6658cb2224989fa1637a94b37cba6fe6076e7"
+        },
+        {
+          "path": "src/ui/src/components/OperatorOnly.tsx",
+          "sha256": "2fb900880440a294e2da14b61ef5dfd5c8be1655a1aafb2890ca2dcf787eae28"
+        },
+        {
+          "path": "src/ui/src/components/PlanRunStateBadge.tsx",
+          "sha256": "eb1c18994157420ea62f1b45413fd3cb9ee3368bc468e5153d019e87d9af24d9"
+        },
+        {
+          "path": "src/ui/src/components/RefreshProjectsCTA.tsx",
+          "sha256": "0a1dce82ff72c21d211de500d25503d86f3893c6f6e7b2b4df7b7cd1936e569d"
+        },
+        {
+          "path": "src/ui/src/components/StateBadge.tsx",
+          "sha256": "c8fa42eeaf0944db3af2c5b052846d47e12422bbaa29cdbc1de19d7f76e16ea9"
+        },
+        {
+          "path": "src/ui/src/components/StatusIndicator.tsx",
+          "sha256": "886391af7149699045591f4ff06d01a8f9d263ef7f2921e0b7bcc82ae0b6010e"
+        },
+        {
+          "path": "src/ui/src/components/ThemeToggle.tsx",
+          "sha256": "7ec884872529ecf7059ddd712db36bb22d992a0a6a875d6d97ff2b8c57a25aa9"
+        },
+        {
+          "path": "src/ui/src/components/WarrenLogo.tsx",
+          "sha256": "1f8a3bb56f86e231baac9a0632c7684533ddb35fb359c2ce4adcd228e6bedd43"
+        },
+        {
+          "path": "src/ui/src/components/dispatch-plan-dialog.helpers.ts",
+          "sha256": "05558f37fd2a593956b175102dc89dd9dbd74651faa3afe8968603e97dd80355"
+        },
+        {
+          "path": "src/ui/src/components/ui/alert.tsx",
+          "sha256": "9cc1286a137a9ff0b028a2ae09f3daa59b112b74136c84edb7a47d4a2112b0e8"
+        },
+        {
+          "path": "src/ui/src/components/ui/badge.tsx",
+          "sha256": "4911c89ca758bcc80e0b73566e6e16c660f08273c2ff2875752ad7701eb1e9c7"
+        },
+        {
+          "path": "src/ui/src/components/ui/button.tsx",
+          "sha256": "70d8f00e7f5369a66ccc77c116dd0e0ba18304658ad90e6eb9a189847bf3a194"
+        },
+        {
+          "path": "src/ui/src/components/ui/dialog.tsx",
+          "sha256": "a5af1044e8a10a8bf374796c055d3f888835a9ed8551a7bd428c5dac87876fa1"
+        },
+        {
+          "path": "src/ui/src/components/ui/motion.tsx",
+          "sha256": "3abf90d3dbfc8d835352a6cd5424320194a271c76fdbdca5c4bdbed1599ab913"
+        },
+        {
+          "path": "src/ui/src/components/ui/responsive.ts",
+          "sha256": "39fa2272a725caa655cf203acf2dd424ac6acf180bcc8dbec942fd0e043c6f14"
+        },
+        {
+          "path": "src/ui/src/components/ui/sortable-table-head.helpers.ts",
+          "sha256": "fe921b8a84262eb477f94fc25b0621e95a8674a6348ea0b4a1ad6c445ea266e2"
+        },
+        {
+          "path": "src/ui/src/components/ui/toast.tsx",
+          "sha256": "a4c59aa71d78be4e326269bc4138e82bbf1e3d88071037445c643816d57c0a77"
+        },
+        {
+          "path": "src/ui/src/hooks/use-capabilities.helpers.ts",
+          "sha256": "5c0a7fc4673388162b16157c3c6db2406aed4fb5e76c24cc8859348c25408d25"
+        },
+        {
+          "path": "src/ui/src/hooks/use-capabilities.ts",
+          "sha256": "03b082f17ebc7fb879c473eb7d320a9351f7b70e97dd033782a750ee5a714a5c"
+        },
+        {
+          "path": "src/ui/src/hooks/use-client-sort.helpers.ts",
+          "sha256": "e79fe28e0b00028dcf71983c7a27659b1296fcbaddfdd9b9c2778519eac1e381"
+        },
+        {
+          "path": "src/ui/src/hooks/use-client-sort.ts",
+          "sha256": "901b44f40dba25cd976f6e9ee0e62d74acbb1a403fa11d3854ea2325dbdde4fc"
+        },
+        {
+          "path": "src/ui/src/lib/format-error.ts",
+          "sha256": "6e095fc7dfafe3bfdb6d205136c5fb906489bd39a4b4d9af69573ca546a65acd"
+        },
+        {
+          "path": "src/ui/src/lib/utils.ts",
+          "sha256": "c1a800cf73c2afa111e2425224aedaef6bb902ab2178782d51aea4e34f2a27fe"
+        },
+        {
+          "path": "src/ui/src/main.tsx",
+          "sha256": "c1d9c19a326f4b8970d0cfd8268e498cc528c32a995c144b9384d8c620ca74a7"
+        },
+        {
+          "path": "src/ui/src/pages/Agents.tsx",
+          "sha256": "68a43e498e21cec592a2d8e0ca74db51981845f241d5c8273fccc77d6db331e4"
+        },
+        {
+          "path": "src/ui/src/pages/ready-plans.tsx",
+          "sha256": "966b55324fa6405fc92f6c95d8c8e2dd8ed9cf90abf46a153c6d76d2de426c64"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/Charts.tsx",
+          "sha256": "cca763bcca8caf055b7b2cd46d185edb73c5edb308bd029fa2215857abd2df8b"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/CommandMining.tsx",
+          "sha256": "4a9f66dc8f0a67703c4ff83dda4b07e5b3d520776e2f498c13bd7291e7d5c088"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/Insights.tsx",
+          "sha256": "54517a3617b30600a17ba6ec4cab87352cb7a9263b6c6c0d29c251dafd8fe158"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/Tables.tsx",
+          "sha256": "d05f54aea3f0a336d09ecaa6950f2f4cafe7a99a0ebff1cc5b1cc02b66828995"
+        },
+        {
+          "path": "src/ui/src/pages/run-analytics/format.ts",
+          "sha256": "0e9ab9e68eb3147bd0795c24017123454d93a61c8a3286ea0faefbde125c92ce"
+        },
+        {
+          "path": "src/ui/vite.config.ts",
+          "sha256": "fa31f50c450acb0af382bc7fc4b5020f926cca67a436107a7df0a3fe386cf4eb"
+        },
+        {
+          "path": "src/warren-config/cache.ts",
+          "sha256": "a56aceaee266baf4fabd45da84e07c9357b66fab8d66799a03a0059ebcf6d2a1"
+        },
+        {
+          "path": "src/warren-config/config.ts",
+          "sha256": "c467cd699560a0b767549699ce256a834e724561b9ea1659c27f544b485ce165"
+        },
+        {
+          "path": "src/warren-config/errors.ts",
+          "sha256": "fd0c8a0b65e9573263a365803c7bf66a9f4518367f3378085877794bfc0d9fbb"
+        },
+        {
+          "path": "src/warren-config/index.ts",
+          "sha256": "b2acdf72fd7bfc4adfd264b0941d842a1ce5a05dbcf9e3abe1d0b052358bf90f"
+        },
+        {
+          "path": "src/warren-config/load.ts",
+          "sha256": "737ae538fa2cdff2f1e3e6c3e6bd29b5f4c14bd480db2bbe92901007e004329c"
+        },
+        {
+          "path": "src/warren-config/resources-config.ts",
+          "sha256": "c9a54882562538dbe9dcb66cc97bffe4fbab32b4b46733ae59a1ec99a6b093d1"
+        },
+        {
+          "path": "src/warren-config/schema.test-helpers.ts",
+          "sha256": "d448d2f1b6d487db2bd9d29e88e5c82541f3e02d7a7078acc35b4a8cc8386398"
+        },
+        {
+          "path": "src/warren-config/schema.ts",
+          "sha256": "c72eac7017989250e916edfeef0341f17718b7c4a365bc307792a2890dc3b4bf"
+        },
+        {
+          "path": "src/workspace/env.ts",
+          "sha256": "d44f5daf2bf306391d13f6eeba10708fa48a24f788a96172ed6d4d394a329c48"
+        },
+        {
+          "path": "src/workspace/errors.ts",
+          "sha256": "81c313621b4bb876b2661024c6aa7d843621234389332c07902763c0a936b205"
+        },
+        {
+          "path": "src/workspace/git/clone-url.ts",
+          "sha256": "ac981e114fd72e148c76274ecd4be6486cc0024ae37784f1256b7af7e782ae31"
+        },
+        {
+          "path": "src/workspace/git/credential-env.ts",
+          "sha256": "1a3714e589cd2e4ac077f7e7eeeea90886cf70e0d7bee11d7a11aabf58eee626"
+        },
+        {
+          "path": "src/workspace/git/exec.ts",
+          "sha256": "46f8d0b361b0ed2ad938f9df83dda7682ac8a04a889f21ef62370ee62ba3f746"
+        },
+        {
+          "path": "src/workspace/materialize.ts",
+          "sha256": "19106c532a93b5b2d880e3870929a9326cb48a878745f81f72dd4425e7d14946"
+        }
+      ]
+    }
+  }
+}

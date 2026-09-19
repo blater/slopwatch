@@ -123,6 +123,7 @@ func openSettingsOverlay(t *testing.T, model *Model) *Model {
 func enterAppearanceOverlay(t *testing.T, result *Model) *Model {
 	t.Helper()
 	result.settingsCursor = settingsIndex("appearance")
+	handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	updated, _ := handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	top, ok := result.overlays.Top()

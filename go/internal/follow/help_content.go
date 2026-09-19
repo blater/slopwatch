@@ -54,7 +54,7 @@ var mainScreenHelp = []helpEntry{
 	{label: "Agents", description: "Tab switches Files/Agents; A jumps directly to Agents. a toggles Active/All, f finds jobs, and o cycles job sorting."},
 	{label: "Cancel", description: "C cancels the selected running fix job."},
 	{label: "Clear marked", description: "M clears all marked files."},
-	{label: "Columns", description: "c opens Settings with Columns selected; Enter chooses which metric columns are visible."},
+	{label: "Columns", description: "c opens Settings → Appearance with Columns selected; Enter chooses which metric columns are visible."},
 	{label: "Find", description: "f or / searches file paths. Enter accepts the query and Esc cancels it."},
 	{label: "Fix", description: "x opens Fix for all marked files, or for the current file when none are marked."},
 	{label: "Help", description: "h opens this help system."},
@@ -72,7 +72,7 @@ var mainScreenHelp = []helpEntry{
 	{label: "Path scroll", description: "Left and Right reveal horizontally clipped file paths."},
 	{label: "Previous match", description: "N selects the previous result for the current search."},
 	{label: "Quit", description: "q or Ctrl-C exits when idle. With active fixes, Slopwatch confirms cancel-all and visibly joins them before exit."},
-	{label: "Settings", description: "s opens alphabetically ordered settings. Agents shows provider availability, highlights the active provider, and automatically checks connections in provider-specific dialogs."},
+	{label: "Settings", description: "s opens Agents, Appearance, and Static Analysis settings. Agent Setup shows provider availability, highlights the active provider, and automatically checks connections in provider-specific dialogs."},
 	{label: "Sort", description: "o chooses the sort field and direction."},
 	{label: "View source", description: "v opens the selected file with syntax highlighting."},
 }

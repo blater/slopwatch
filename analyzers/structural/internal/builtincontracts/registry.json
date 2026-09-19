@@ -1,0 +1,1309 @@
+{
+  "version": "shallow-builtins-v1-r6",
+  "indexing": "exact resolved symbol and signature; guards are mandatory",
+  "index_origin": "parameter names in each entry; receiver is separate",
+  "assumptions": [
+    "Standard library contracts are unmodified; known shadowing, overrides or monkey patches invalidate matches.",
+    "Ordinary source failures are modeled; OOM, process termination and external kill are analysis/runtime failures.",
+    "Cleanup is an attempt; matching failures remain explicit.",
+    "Effects and relevance do not directly grant hidden credit.",
+    "Unlisted overloads, argument coercions and callbacks are unknown unless source-resolved."
+  ],
+  "entries": [
+    {
+      "id": "java.file.new",
+      "language": "java",
+      "match": {
+        "symbol": "java.io.FileInputStream.<init>",
+        "signature": "(java.lang.String)",
+        "parameters": [
+          "path"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "exact_constructed_class"
+        ]
+      },
+      "normal": {
+        "result": "fresh_resource:file_input",
+        "alias": "fresh_owned_resource",
+        "effects": [
+          "acquire(result)"
+        ]
+      },
+      "ordinary_failures": [
+        "FileNotFoundException:no_resource",
+        "SecurityException:no_resource"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe {  void run() throws Exception { FileInputStream f = new FileInputStream(\"x\"); f.close(); } }",
+        "expected_match": "java.file.new",
+        "negative_source": "class Probe { static class Fake { int run() { return 1; } } int probe() { return new Fake().run(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.file.read",
+      "language": "java",
+      "match": {
+        "symbol": "java.io.FileInputStream.read",
+        "signature": "(byte[]):int",
+        "parameters": [
+          "buffer"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_token_from:java.file.new"
+        ]
+      },
+      "normal": {
+        "result": "bytes_read_count",
+        "alias": "none",
+        "effects": [
+          "read(receiver)",
+          "write_borrowed_buffer(buffer)"
+        ]
+      },
+      "ordinary_failures": [
+        "IOException",
+        "NullPointerException"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe {  void run() throws Exception { try (FileInputStream f = new FileInputStream(\"x\")) { f.read(new byte[8]); } } }",
+        "expected_match": "java.file.read",
+        "negative_source": "class Probe { static class Fake { int read() { return 1; } } int probe() { return new Fake().read(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.file.close",
+      "language": "java",
+      "match": {
+        "symbol": "java.io.FileInputStream.close",
+        "signature": "():void",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_token_from:java.file.new"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "none",
+        "effects": [
+          "cleanup_attempt(receiver)"
+        ]
+      },
+      "ordinary_failures": [
+        "IOException"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe {  void run() throws Exception { FileInputStream f = new FileInputStream(\"x\"); f.close(); } }",
+        "expected_match": "java.file.close",
+        "negative_source": "class Probe { static class Fake { int close() { return 1; } } int probe() { return new Fake().close(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.require_nonnull",
+      "language": "java",
+      "match": {
+        "symbol": "java.util.Objects.requireNonNull",
+        "signature": "<T>(T):T",
+        "parameters": [
+          "value"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "one_argument_overload"
+        ]
+      },
+      "normal": {
+        "result": "input(value)",
+        "alias": "same_as:value",
+        "effects": []
+      },
+      "ordinary_failures": [
+        "NullPointerException:iff_value_null"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe {  void run() throws Exception { Objects.requireNonNull(\"x\"); } }",
+        "expected_match": "java.require_nonnull",
+        "negative_source": "class Probe { static class Fake { int requireNonNull() { return 1; } } int probe() { return new Fake().requireNonNull(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.println",
+      "language": "java",
+      "match": {
+        "symbol": "java.io.PrintStream.println",
+        "signature": "(java.lang.String):void",
+        "parameters": [
+          "text"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_is:System.out_or_System.err"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "none",
+        "effects": [
+          "output(receiver,text)"
+        ]
+      },
+      "ordinary_failures": [
+        "ordinary_runtime_failure"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe {  void run() throws Exception { System.out.println(\"x\"); } }",
+        "expected_match": "java.println",
+        "negative_source": "class Probe { static class PrintStream { void println(String s) {} } void run() { new PrintStream().println(\"x\"); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.concat",
+      "language": "java",
+      "match": {
+        "symbol": "java.lang.String.concat",
+        "signature": "(java.lang.String):java.lang.String",
+        "parameters": [
+          "suffix"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_exact_string"
+        ]
+      },
+      "normal": {
+        "result": "recipe:text_concat(receiver,suffix)",
+        "alias": "none",
+        "effects": []
+      },
+      "ordinary_failures": [
+        "NullPointerException"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe {  void run() throws Exception { String s = \"a\".concat(\"b\"); } }",
+        "expected_match": "java.concat",
+        "negative_source": "class Probe { static class Fake { int concat() { return 1; } } int probe() { return new Fake().concat(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.substring",
+      "language": "java",
+      "match": {
+        "symbol": "java.lang.String.substring",
+        "signature": "(int,int):java.lang.String",
+        "parameters": [
+          "begin",
+          "end"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_exact_string"
+        ]
+      },
+      "normal": {
+        "result": "recipe:text_slice(receiver,begin,end)",
+        "alias": "none",
+        "effects": []
+      },
+      "ordinary_failures": [
+        "IndexOutOfBoundsException"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe {  void run() throws Exception { String s = \"abc\".substring(0,2); } }",
+        "expected_match": "java.substring",
+        "negative_source": "class Probe { static class Fake { int substring() { return 1; } } int probe() { return new Fake().substring(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.atomic.increment",
+      "language": "java",
+      "match": {
+        "symbol": "java.util.concurrent.atomic.AtomicLong.getAndIncrement",
+        "signature": "():long",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "exact_atomiclong_receiver"
+        ]
+      },
+      "normal": {
+        "result": "prior(receiver.value)",
+        "alias": "none",
+        "effects": [
+          "atomic_rmw(receiver.value,+1)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe { private final AtomicLong a = new AtomicLong(); void run() throws Exception { a.getAndIncrement(); } }",
+        "expected_match": "java.atomic.increment",
+        "negative_source": "class Probe { static class Fake { int getAndIncrement() { return 1; } } int probe() { return new Fake().getAndIncrement(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.lock",
+      "language": "java",
+      "match": {
+        "symbol": "java.util.concurrent.locks.ReentrantLock.lock",
+        "signature": "():void",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "exact_reentrantlock_receiver"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "none",
+        "effects": [
+          "lock(receiver)"
+        ]
+      },
+      "ordinary_failures": [
+        "ordinary_runtime_failure:before_guard_owned"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe { private final ReentrantLock lock = new ReentrantLock(); private int value; void run() throws Exception { lock.lock(); try { value++; } finally { lock.unlock(); } } }",
+        "expected_match": "java.lock",
+        "negative_source": "class Probe { static class Fake { int lock() { return 1; } } int probe() { return new Fake().lock(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.unlock",
+      "language": "java",
+      "match": {
+        "symbol": "java.util.concurrent.locks.ReentrantLock.unlock",
+        "signature": "():void",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "exact_reentrantlock_receiver",
+          "matching_owned_guard"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "none",
+        "effects": [
+          "unlock_attempt(receiver)"
+        ]
+      },
+      "ordinary_failures": [
+        "IllegalMonitorStateException"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import java.io.*; import java.util.*; import java.util.concurrent.atomic.*; import java.util.concurrent.locks.*; class Probe { private final ReentrantLock lock = new ReentrantLock(); private int value; void run() throws Exception { lock.lock(); try { value++; } finally { lock.unlock(); } } }",
+        "expected_match": "java.unlock",
+        "negative_source": "class Probe { static class Fake { int unlock() { return 1; } } int probe() { return new Fake().unlock(); } }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.open",
+      "language": "go",
+      "match": {
+        "symbol": "os.Open",
+        "signature": "(string)(*os.File,error)",
+        "parameters": [
+          "path"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": []
+      },
+      "normal": {
+        "result": "success:fresh_resource:file; failure:nil,error",
+        "alias": "fresh_owned_resource_on_success",
+        "effects": [
+          "acquire(result.file)_on_success"
+        ]
+      },
+      "ordinary_failures": [
+        "error_result:no_resource"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"os\")\nfunc Probe() { f,e := os.Open(\"x\"); if e != nil { return }; defer f.Close() }",
+        "expected_match": "go.open",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) Open() int { return 1 }; func Probe() int { return fake{}.Open() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.create",
+      "language": "go",
+      "match": {
+        "symbol": "os.Create",
+        "signature": "(string)(*os.File,error)",
+        "parameters": [
+          "path"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": []
+      },
+      "normal": {
+        "result": "success:fresh_resource:file; failure:nil,error",
+        "alias": "fresh_owned_resource_on_success",
+        "effects": [
+          "acquire(result.file)_on_success"
+        ]
+      },
+      "ordinary_failures": [
+        "error_result:no_resource"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"os\")\nfunc Probe() { f,e := os.Create(\"x\"); if e != nil { return }; defer f.Close() }",
+        "expected_match": "go.create",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) Create() int { return 1 }; func Probe() int { return fake{}.Create() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.openfile",
+      "language": "go",
+      "match": {
+        "symbol": "os.OpenFile",
+        "signature": "(string,int,fs.FileMode)(*os.File,error)",
+        "parameters": [
+          "path",
+          "flags",
+          "permissions"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": []
+      },
+      "normal": {
+        "result": "success:fresh_resource:file; failure:nil,error",
+        "alias": "fresh_owned_resource_on_success",
+        "effects": [
+          "acquire(result.file)_on_success"
+        ]
+      },
+      "ordinary_failures": [
+        "error_result:no_resource"
+      ],
+      "policy_positions": [
+        "flags",
+        "permissions"
+      ],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"os\")\nfunc Probe() { f,e := os.OpenFile(\"x\",os.O_RDONLY,0); if e != nil { return }; defer f.Close() }",
+        "expected_match": "go.openfile",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) OpenFile() int { return 1 }; func Probe() int { return fake{}.OpenFile() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.read",
+      "language": "go",
+      "match": {
+        "symbol": "(*os.File).Read",
+        "signature": "([]byte)(int,error)",
+        "parameters": [
+          "buffer"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_token_from:go.open|go.create|go.openfile"
+        ]
+      },
+      "normal": {
+        "result": "count,error",
+        "alias": "none",
+        "effects": [
+          "read(receiver)",
+          "write_borrowed_buffer(buffer)"
+        ]
+      },
+      "ordinary_failures": [
+        "error_result:partial_read_possible"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"os\")\nfunc Probe() { f,e:=os.Open(\"x\"); if e!=nil{return}; defer f.Close(); _,_=f.Read(make([]byte,8)) }",
+        "expected_match": "go.read",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) Read() int { return 1 }; func Probe() int { return fake{}.Read() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.write",
+      "language": "go",
+      "match": {
+        "symbol": "(*os.File).Write",
+        "signature": "([]byte)(int,error)",
+        "parameters": [
+          "buffer"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_token_from:go.open|go.create|go.openfile"
+        ]
+      },
+      "normal": {
+        "result": "count,error",
+        "alias": "none",
+        "effects": [
+          "write(receiver,buffer)"
+        ]
+      },
+      "ordinary_failures": [
+        "error_result:partial_write_possible"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"os\")\nfunc Probe() { f,e:=os.Create(\"x\"); if e!=nil{return}; defer f.Close(); _,_=f.Write([]byte(\"x\")) }",
+        "expected_match": "go.write",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) Write() int { return 1 }; func Probe() int { return fake{}.Write() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.close",
+      "language": "go",
+      "match": {
+        "symbol": "(*os.File).Close",
+        "signature": "()(error)",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_token_from:go.open|go.create|go.openfile"
+        ]
+      },
+      "normal": {
+        "result": "error_or_nil",
+        "alias": "none",
+        "effects": [
+          "cleanup_attempt(receiver)"
+        ]
+      },
+      "ordinary_failures": [
+        "error_result"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"os\")\nfunc Probe() { f,e:=os.Open(\"x\"); if e!=nil{return}; _=f.Close() }",
+        "expected_match": "go.close",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) Close() int { return 1 }; func Probe() int { return fake{}.Close() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.lock",
+      "language": "go",
+      "match": {
+        "symbol": "(*sync.Mutex).Lock",
+        "signature": "()()",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "resolved_standard_mutex"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "none",
+        "effects": [
+          "lock(receiver)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"sync\")\nfunc Probe() { var m sync.Mutex; m.Lock(); defer m.Unlock() }",
+        "expected_match": "go.lock",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) Lock() int { return 1 }; func Probe() int { return fake{}.Lock() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.unlock",
+      "language": "go",
+      "match": {
+        "symbol": "(*sync.Mutex).Unlock",
+        "signature": "()()",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "resolved_standard_mutex",
+          "matching_owned_guard"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "none",
+        "effects": [
+          "unlock_attempt(receiver)"
+        ]
+      },
+      "ordinary_failures": [
+        "panic:if_not_owned"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"sync\")\nfunc Probe() { var m sync.Mutex; m.Lock(); defer m.Unlock() }",
+        "expected_match": "go.unlock",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) Unlock() int { return 1 }; func Probe() int { return fake{}.Unlock() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.atomic.add",
+      "language": "go",
+      "match": {
+        "symbol": "sync/atomic.AddInt64",
+        "signature": "(*int64,int64)int64",
+        "parameters": [
+          "address",
+          "delta"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "singleton_resolved_address"
+        ]
+      },
+      "normal": {
+        "result": "updated(address)",
+        "alias": "none",
+        "effects": [
+          "atomic_rmw(address,+delta)"
+        ]
+      },
+      "ordinary_failures": [
+        "panic:invalid_address"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"sync/atomic\")\nfunc Probe() { var n int64; atomic.AddInt64(&n,1) }",
+        "expected_match": "go.atomic.add",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) AddInt64() int { return 1 }; func Probe() int { return fake{}.AddInt64() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.println",
+      "language": "go",
+      "match": {
+        "symbol": "fmt.Println",
+        "signature": "(...any)(int,error)",
+        "parameters": [
+          "values..."
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "arguments_are_primitive_scalars_no_Stringer_or_error_callbacks"
+        ]
+      },
+      "normal": {
+        "result": "count,error",
+        "alias": "none",
+        "effects": [
+          "output(stdout,values)"
+        ]
+      },
+      "ordinary_failures": [
+        "error_result"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"fmt\")\nfunc Probe() { _,_=fmt.Println(\"x\",1) }",
+        "expected_match": "go.println",
+        "negative_source": "package probe\nimport \"fmt\"\ntype custom struct{}; func (custom) String() string { panic(\"callback\") }; func Probe(){ fmt.Println(custom{}) }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "go.error",
+      "language": "go",
+      "match": {
+        "symbol": "errors.New",
+        "signature": "(string)error",
+        "parameters": [
+          "text"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": []
+      },
+      "normal": {
+        "result": "fresh_error:message(text)",
+        "alias": "fresh_error_object",
+        "effects": []
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "package probe\nimport (\"errors\")\nfunc Probe() { _=errors.New(\"bad\") }",
+        "expected_match": "go.error",
+        "negative_source": "package probe\ntype fake struct{}; func(fake) New() int { return 1 }; func Probe() int { return fake{}.New() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "rust.file.open",
+      "language": "rust",
+      "match": {
+        "symbol": "std::fs::File::open",
+        "signature": "<P:AsRef<Path>>(P)->io::Result<File>",
+        "parameters": [
+          "path"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "path_is_str_or_standard_Path_no_user_AsRef"
+        ]
+      },
+      "normal": {
+        "result": "success:fresh_resource:file; failure:error",
+        "alias": "fresh_owned_resource_on_success",
+        "effects": [
+          "acquire(result.file)_on_success"
+        ]
+      },
+      "ordinary_failures": [
+        "Err:no_resource"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "pub fn probe() -> std::io::Result<()> { let _f = std::fs::File::open(\"x\")?; Ok(()) }",
+        "expected_match": "rust.file.open",
+        "negative_source": "struct Fake; impl Fake { fn open(&self) -> i32 { 1 } } pub fn probe() -> i32 { Fake.open() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "rust.file.read",
+      "language": "rust",
+      "match": {
+        "symbol": "std::io::Read::read_to_end",
+        "signature": "(&mut std::fs::File,&mut Vec<u8>)->io::Result<usize>",
+        "parameters": [
+          "buffer"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_token_from:rust.file.open",
+          "selected_impl_for_std_File"
+        ]
+      },
+      "normal": {
+        "result": "count_or_error",
+        "alias": "none",
+        "effects": [
+          "read(receiver)",
+          "write_borrowed_buffer(buffer)"
+        ]
+      },
+      "ordinary_failures": [
+        "Err:partial_read_possible"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "use std::io::Read; pub fn probe() -> std::io::Result<()> { let mut f=std::fs::File::open(\"x\")?; let mut b=Vec::new(); f.read_to_end(&mut b)?; Ok(()) }",
+        "expected_match": "rust.file.read",
+        "negative_source": "struct Fake; impl Fake { fn read_to_end(&self) -> i32 { 1 } } pub fn probe() -> i32 { Fake.read_to_end() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "rust.file.drop",
+      "language": "rust",
+      "match": {
+        "symbol": "std::fs::File::drop",
+        "signature": "implicit_drop(File)->()",
+        "parameters": [
+          "resource"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "resource_token_from:rust.file.open",
+          "standard_File_Drop",
+          "normal_or_unwind_exit"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "consume:resource",
+        "effects": [
+          "cleanup_attempt(resource)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "pub fn probe() -> std::io::Result<()> { let f=std::fs::File::open(\"x\")?; drop(f); Ok(()) }",
+        "expected_match": "rust.file.drop",
+        "negative_source": "mod fake { pub fn drop() {} } fn main() { fake::drop(); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "rust.lock",
+      "language": "rust",
+      "match": {
+        "symbol": "std::sync::Mutex::lock",
+        "signature": "(&Mutex<T>)->LockResult<MutexGuard<T>>",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "standard_mutex_impl"
+        ]
+      },
+      "normal": {
+        "result": "owned_guard_or_poison_error",
+        "alias": "none",
+        "effects": [
+          "lock(receiver)",
+          "guard_owns(receiver)_including_poison_payload"
+        ]
+      },
+      "ordinary_failures": [
+        "PoisonError:guard_payload_owned"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "pub fn probe(m: &std::sync::Mutex<i32>) { if let Ok(mut g)=m.lock() { *g+=1; } }",
+        "expected_match": "rust.lock",
+        "negative_source": "struct Fake; impl Fake { fn lock(&self) -> i32 { 1 } } pub fn probe() -> i32 { Fake.lock() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "rust.guard.drop",
+      "language": "rust",
+      "match": {
+        "symbol": "std::sync::MutexGuard::drop",
+        "signature": "implicit_drop(MutexGuard<T>)->()",
+        "parameters": [
+          "guard"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "guard_token_from:rust.lock"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "consume:guard",
+        "effects": [
+          "unlock_attempt(guard.lock)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "pub fn probe(m: &std::sync::Mutex<i32>) { if let Ok(mut g)=m.lock() { *g+=1; } }",
+        "expected_match": "rust.guard.drop",
+        "negative_source": "mod fake { pub fn drop() {} } fn main() { fake::drop(); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "rust.atomic.add",
+      "language": "rust",
+      "match": {
+        "symbol": "std::sync::atomic::AtomicI64::fetch_add",
+        "signature": "(&AtomicI64,i64,Ordering)->i64",
+        "parameters": [
+          "delta",
+          "ordering"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "standard_atomic_i64"
+        ]
+      },
+      "normal": {
+        "result": "prior(receiver.value)",
+        "alias": "none",
+        "effects": [
+          "atomic_rmw(receiver.value,+delta)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [
+        "ordering"
+      ],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "pub fn probe(n: &std::sync::atomic::AtomicI64) { n.fetch_add(1,std::sync::atomic::Ordering::SeqCst); }",
+        "expected_match": "rust.atomic.add",
+        "negative_source": "struct Fake; impl Fake { fn fetch_add(&self) -> i32 { 1 } } pub fn probe() -> i32 { Fake.fetch_add() }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "rust.println",
+      "language": "rust",
+      "match": {
+        "symbol": "std::println!",
+        "signature": "(literal_format,primitive_arguments...)",
+        "parameters": [
+          "format",
+          "values..."
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "standard_macro_identity",
+          "literal_format",
+          "only_standard_primitive_Display"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "none",
+        "effects": [
+          "output(stdout,values)"
+        ]
+      },
+      "ordinary_failures": [
+        "panic:output_failure"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "pub fn probe(){ std::println!(\"{}\", 1i32); }",
+        "expected_match": "rust.println",
+        "negative_source": "macro_rules! println { ($x:expr) => {{ let _ = $x; }}; } pub fn probe(){ println!(1); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.open",
+      "language": "typescript",
+      "match": {
+        "symbol": "node:fs/promises.open",
+        "signature": "(PathLike,string|number,Mode?)->Promise<FileHandle>",
+        "parameters": [
+          "path",
+          "flags",
+          "mode?"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "path_is_string_or_standard_URL_or_Buffer"
+        ]
+      },
+      "normal": {
+        "result": "resolved:fresh_resource:file; rejected:error",
+        "alias": "fresh_owned_resource_on_fulfillment",
+        "effects": [
+          "acquire(result.file)_on_fulfillment"
+        ]
+      },
+      "ordinary_failures": [
+        "promise_rejection:no_resource"
+      ],
+      "policy_positions": [
+        "flags",
+        "mode?"
+      ],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import {open} from \"node:fs/promises\"; export async function probe(){ const f=await open(\"x\",\"r\"); await f.close(); }",
+        "expected_match": "ts.open",
+        "negative_source": "async function open(path:string, flags:string){ return {close:async()=>{}}; } export async function probe(){ const f=await open(\"x\",\"r\"); await f.close(); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.read",
+      "language": "typescript",
+      "match": {
+        "symbol": "node:fs/promises.FileHandle.read",
+        "signature": "(Uint8Array,number,number,number|null)->Promise<ReadResult>",
+        "parameters": [
+          "buffer",
+          "offset",
+          "length",
+          "position"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_token_from:ts.open"
+        ]
+      },
+      "normal": {
+        "result": "read_count_and_same_buffer",
+        "alias": "result.buffer=same_as:buffer",
+        "effects": [
+          "read(receiver)",
+          "write_borrowed_buffer(buffer)"
+        ]
+      },
+      "ordinary_failures": [
+        "promise_rejection:partial_read_possible"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import {open} from \"node:fs/promises\"; export async function probe(){ const f=await open(\"x\",\"r\"); try { const b=new Uint8Array(8); await f.read(b,0,8,0); } finally { await f.close(); } }",
+        "expected_match": "ts.read",
+        "negative_source": "const fake={ read:()=>1 }; export function probe(){ return fake.read(); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.close",
+      "language": "typescript",
+      "match": {
+        "symbol": "node:fs/promises.FileHandle.close",
+        "signature": "()->Promise<void>",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "receiver_token_from:ts.open"
+        ]
+      },
+      "normal": {
+        "result": "fulfilled:unit",
+        "alias": "none",
+        "effects": [
+          "cleanup_attempt(receiver)_when_awaited"
+        ]
+      },
+      "ordinary_failures": [
+        "promise_rejection"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "import {open} from \"node:fs/promises\"; export async function probe(){ const f=await open(\"x\",\"r\"); await f.close(); }",
+        "expected_match": "ts.close",
+        "negative_source": "const fake={ close:()=>1 }; export function probe(){ return fake.close(); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.log",
+      "language": "typescript",
+      "match": {
+        "symbol": "globalThis.console.log",
+        "signature": "(...primitive[]) -> void",
+        "parameters": [
+          "values..."
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "unshadowed_standard_global",
+          "primitive_args_no_user_inspection_hooks"
+        ]
+      },
+      "normal": {
+        "result": "unit",
+        "alias": "none",
+        "effects": [
+          "output(stdout,values)"
+        ]
+      },
+      "ordinary_failures": [
+        "ordinary_runtime_failure"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "export function probe(){ console.log(\"x\",1); }",
+        "expected_match": "ts.log",
+        "negative_source": "const console={log:(x:string)=>x}; export function probe(){ console.log(\"x\"); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.concat",
+      "language": "typescript",
+      "match": {
+        "symbol": "String.prototype.concat",
+        "signature": "(...string[])->string",
+        "parameters": [
+          "suffixes..."
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "primitive_string_receiver_and_args",
+          "standard_unmodified_intrinsic"
+        ]
+      },
+      "normal": {
+        "result": "recipe:text_concat(receiver,suffixes)",
+        "alias": "none",
+        "effects": []
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "export function probe(s:string){ return s.concat(\"x\"); }",
+        "expected_match": "ts.concat",
+        "negative_source": "const fake={ concat:()=>1 }; export function probe(){ return fake.concat(); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.substring",
+      "language": "typescript",
+      "match": {
+        "symbol": "String.prototype.substring",
+        "signature": "(number,number?)->string",
+        "parameters": [
+          "start",
+          "end?"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "primitive_string_receiver",
+          "primitive_number_args",
+          "standard_unmodified_intrinsic"
+        ]
+      },
+      "normal": {
+        "result": "recipe:js_substring(receiver,start,end)",
+        "alias": "none",
+        "effects": []
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "export function probe(s:string){ return s.substring(0,2); }",
+        "expected_match": "ts.substring",
+        "negative_source": "const fake={ substring:()=>1 }; export function probe(){ return fake.substring(); }",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.argument_error.empty",
+      "language": "java",
+      "match": {
+        "symbol": "java.lang.IllegalArgumentException.<init>",
+        "signature": "()",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "exact_constructed_class"
+        ]
+      },
+      "normal": {
+        "result": "fresh_error:IllegalArgumentException",
+        "alias": "fresh_owned_value",
+        "effects": [
+          "error_payload(empty)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "class Probe { void run(){throw new IllegalArgumentException();} }",
+        "expected_match": "java.argument_error.empty",
+        "negative_source": "class Probe {static class IllegalArgumentException extends RuntimeException {} void run(){throw new IllegalArgumentException();}}",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.error.empty",
+      "language": "typescript",
+      "match": {
+        "symbol": "global.Error",
+        "signature": "new()",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "standard_global_not_shadowed",
+          "no_custom_constructor",
+          "no_arguments"
+        ]
+      },
+      "normal": {
+        "result": "fresh_error:Error",
+        "alias": "fresh_owned_value",
+        "effects": [
+          "error_payload(empty)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "export function run(){throw new Error();}",
+        "expected_match": "ts.error.empty",
+        "negative_source": "class Error {} export function run(){return new Error();}",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "java.argument_error.message",
+      "language": "java",
+      "match": {
+        "symbol": "java.lang.IllegalArgumentException.<init>",
+        "signature": "(java.lang.String)",
+        "parameters": [
+          "message"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "exact_constructed_class"
+        ]
+      },
+      "normal": {
+        "result": "fresh_error:IllegalArgumentException",
+        "alias": "fresh_owned_value",
+        "effects": [
+          "error_payload(message)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "class Probe { void run(){throw new IllegalArgumentException(\"negative\");} }",
+        "expected_match": "java.argument_error.message",
+        "negative_source": "class Probe {static class IllegalArgumentException extends RuntimeException {} void run(){throw new IllegalArgumentException();}}",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.error.message",
+      "language": "typescript",
+      "match": {
+        "symbol": "global.Error",
+        "signature": "new(message:string)",
+        "parameters": [
+          "message"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "standard_global_not_shadowed",
+          "no_custom_constructor",
+          "primitive_message"
+        ]
+      },
+      "normal": {
+        "result": "fresh_error:Error",
+        "alias": "fresh_owned_value",
+        "effects": [
+          "error_payload(message)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "export function run(){throw new Error(\"negative\");}",
+        "expected_match": "ts.error.message",
+        "negative_source": "class Error {} export function run(){return new Error();}",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "rust.vec.new",
+      "language": "rust",
+      "match": {
+        "symbol": "alloc::vec::Vec::<u8>::new",
+        "signature": "()->Vec<u8>",
+        "parameters": [],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "exact_standard_Vec_u8"
+        ]
+      },
+      "normal": {
+        "result": "empty_byte_vector",
+        "alias": "fresh_owned_storage",
+        "effects": [
+          "allocate(result)",
+          "length(result,0)"
+        ]
+      },
+      "ordinary_failures": [],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "fn probe(){let _b=Vec::<u8>::new();}",
+        "expected_match": "rust.vec.new",
+        "negative_source": "struct Vec;impl Vec{fn new()->Self{Self}} fn probe(){let _b=Vec::new();}",
+        "negative_expected_matches": []
+      }
+    },
+    {
+      "id": "ts.uint8array.length",
+      "language": "typescript",
+      "match": {
+        "symbol": "global.Uint8Array",
+        "signature": "new(length:number)",
+        "parameters": [
+          "length"
+        ],
+        "provenance": "resolved_standard_library",
+        "guards": [
+          "standard_global_not_shadowed",
+          "finite_nonnegative_integer_length"
+        ]
+      },
+      "normal": {
+        "result": "zeroed_byte_array",
+        "alias": "fresh_owned_storage",
+        "effects": [
+          "allocate(result)",
+          "length(result,length)"
+        ]
+      },
+      "ordinary_failures": [
+        "RangeError:unsupported_length"
+      ],
+      "policy_positions": [],
+      "hidden_credit": "derive_from_flow_only",
+      "fixture": {
+        "positive_source": "export function run(){return new Uint8Array(8);}",
+        "expected_match": "ts.uint8array.length",
+        "negative_source": "class Uint8Array{constructor(n:number){}} export function run(){return new Uint8Array(8);}",
+        "negative_expected_matches": []
+      }
+    }
+  ]
+}

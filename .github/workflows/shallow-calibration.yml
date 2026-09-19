@@ -1,0 +1,86 @@
+name: SHALLOW calibration safeguards
+
+on:
+  pull_request:
+    paths:
+      - "go/internal/sourceestimate/**"
+      - "go/internal/native/**"
+      - "go/internal/scoring/**"
+      - "go/internal/report/**"
+      - "go/internal/follow/**"
+      - "go/internal/analysiscache/**"
+      - "go/cmd/**"
+      - "analyzers/**"
+      - "docs/evidence/shallow-v4/**"
+      - "tools/shallow*"
+      - "tools/test_shallow*"
+      - "Makefile"
+      - ".github/workflows/shallow-calibration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calibration:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: analyzers/typescript/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Build complete analysis distribution
+        run: |
+          go -C go mod download
+          make build
+      - name: Parameter sensitivity and default calibration
+        run: make test-shallow-sensitivity
+      - name: Source and publication regressions
+        if: always()
+        run: make test-shallow-regressions
+      - name: TypeScript diagnostic and analyzer regressions
+        if: always()
+        run: make test-typescript
+      - name: Independent real-source holdout
+        if: always()
+        run: make test-shallow-holdout
+      - name: Fresh cross-language low and mixed holdout
+        if: always()
+        run: make test-shallow-fresh
+      - name: Real high-band detection in Go, TypeScript and Rust
+        if: always()
+        run: make test-shallow-high
+      - name: Independent confirmation with retained coverage gaps
+        if: always()
+        run: make test-shallow-confirmation
+      - name: Frozen caller-context evaluation
+        if: always()
+        run: make test-shallow-context
+      - name: Freeze and cache-identity safeguards
+        if: always()
+        run: make test-shallow-safeguards
+      - name: Retain evaluation evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shallow-calibration-evidence
+          path: |
+            build/shallow-sensitivity.json
+            build/shallow-holdout.json
+            build/shallow-holdout-context.json
+            build/shallow-fresh-holdout.json
+            build/shallow-high-holdout.json
+            build/shallow-high-context.json
+            build/shallow-confirmation-holdout.json
+            build/shallow-confirmation-context.json
+          if-no-files-found: warn

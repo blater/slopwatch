@@ -41,6 +41,63 @@ func TestTextRenderingMarksFailedCoverageAndPrintsDiagnostics(t *testing.T) {
 	}
 }
 
+func TestTextRenderingShowsNullableV4ShallowStates(t *testing.T) {
+	measured := 30.0
+	for _, test := range []struct {
+		name, state, want string
+		maximum           *float64
+	}{
+		{name: "measured", state: "measured", want: "30", maximum: &measured},
+		{name: "not applicable", state: "not_applicable", want: "N/A"},
+		{name: "partial", state: "partial", want: "X"},
+		{name: "unavailable", state: "unavailable", want: "X"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			file := report.File{Components: map[string]report.Component{
+				"module_shallowness": {
+					DepthVersion: "responsibility-burden-v4", DepthState: test.state,
+					RawMaximum: test.maximum,
+				},
+			}, Coverage: map[string]string{"module_shallowness": "complete"}}
+			if got := depth(file); got != test.want {
+				t.Fatalf("depth(%s) = %q, want %q", test.state, got, test.want)
+			}
+		})
+	}
+	legacy := report.File{Components: map[string]report.Component{
+		"module_shallowness": {Subjects: []report.SubjectContribution{{Value: 12}}},
+	}}
+	if got := depth(legacy); got != "12" {
+		t.Fatalf("legacy depth = %q, want 12", got)
+	}
+}
+
+func TestScoreDisplayKeepsPartialAggregateNumeric(t *testing.T) {
+	file := report.File{
+		Score:    10,
+		Complete: false,
+		Components: map[string]report.Component{
+			"cognitive_complexity": {Contribution: 10},
+			"module_shallowness":   {DepthVersion: "responsibility-burden-v4", DepthState: "partial"},
+		},
+		Coverage: map[string]string{"cognitive_complexity": "complete", "module_shallowness": "partial"},
+	}
+	if got := scoreDisplay(file); got != "10" {
+		t.Fatalf("partial aggregate display = %q, want 10", got)
+	}
+	failed := report.File{
+		Score: 10, Complete: false,
+		Components: map[string]report.Component{
+			"cognitive_complexity": {},
+			"module_shallowness":   {DepthVersion: "responsibility-burden-v4", DepthState: "partial"},
+		},
+		Coverage: map[string]string{"cognitive_complexity": "failed", "module_shallowness": "partial"},
+	}
+	if got := scoreDisplay(failed); got != "X" {
+		t.Fatalf("failed aggregate display = %q, want X", got)
+	}
+}
+
 func TestUseCacheIsExplicitOptIn(t *testing.T) {
 	flags, defaults := parser()
 	if err := flags.Parse(nil); err != nil {
@@ -81,8 +138,8 @@ func TestPreviouslyIgnoredOptionsAreExplicit(t *testing.T) {
 	if err := validateOptions(&options{format: "text", backends: stringList{"go=legacy"}}); err == nil {
 		t.Fatal("--backend was silently accepted")
 	}
-	if err := validateOptions(&options{format: "text", config: "preferences.toml"}); err == nil {
-		t.Fatal("--config was silently accepted outside follow mode")
+	if err := validateOptions(&options{format: "text", config: "preferences.toml"}); err != nil {
+		t.Fatalf("report preferences path was rejected: %v", err)
 	}
 	if err := validateOptions(&options{format: "text", follow: true, config: "preferences.toml"}); err != nil {
 		t.Fatalf("follow preferences path was rejected: %v", err)

@@ -30,10 +30,13 @@ func tableView(model Model) string {
 }
 
 func freshnessStatus(model Model) string {
-	if model.files.FreshnessStatusReady {
-		return model.files.FreshnessStatusText
+	// Rendering must stay a projection of cached state. The status cache is
+	// refreshed alongside the document projection during analysis/freshness
+	// updates, so a large repository never causes a per-frame file scan.
+	if !model.files.FreshnessStatusReady {
+		return ""
 	}
-	return freshnessStatusForFiles(model.files.Document.Files)
+	return model.files.FreshnessStatusText
 }
 
 func freshnessStatusForFiles(files []report.File) string {
@@ -61,15 +64,6 @@ func freshnessStatusForFiles(files []report.File) string {
 		return ""
 	}
 	return "CACHE " + strings.Join(parts, " · ")
-}
-
-func scanningIndicator(animationFrame int, message string) string {
-	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	frame := frames[animationFrame%len(frames)]
-	if message == "" {
-		message = "SCANNING"
-	}
-	return lipgloss.NewStyle().Foreground(style.AccentPositive).Background(style.SurfaceTop).Render(frame + message + frame)
 }
 
 func footer(model Model) string {

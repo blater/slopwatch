@@ -5,6 +5,7 @@ import (
 
 	"github.com/blater/slopwatch/internal/analysiscache"
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/sourceestimate"
 )
 
 type analyzerCache struct {
@@ -63,11 +64,24 @@ func (analyzer *Analyzer) viewKey(options Options) (analysiscache.ViewKey, error
 }
 
 func viewKey(analyzer *analysisEngine, options Options) (analysiscache.ViewKey, error) {
+	policy := "gitignore-on-v2"
+	if options.DisableGitignore {
+		policy = "gitignore-off-v2"
+	}
 	return analysiscache.WorkspaceViewKey(analyzer.workspace, analysiscache.ViewOptions{
-		Targets: options.Targets, Languages: options.Languages,
+		GitignorePolicy: policy,
+		Targets:         cacheViewTargets(options), Languages: options.Languages,
 		IncludeTests: options.IncludeTests, TypeScriptTypes: options.TypeScriptTypes,
 		FollowSymlinks: options.FollowSymlinks,
 	})
+}
+
+func cacheViewTargets(options Options) []string {
+	targets := append([]string(nil), options.Targets...)
+	if shallowProfile(options) == ShallowProfileResponsibilityV4 {
+		targets = append(targets, "\x00shallow-profile="+ShallowProfileResponsibilityV4+"\x00policy="+ShallowPolicyRevisionV4+"\x00calibration="+sourceestimate.DefaultCalibrationIdentity())
+	}
+	return targets
 }
 
 // CachedProjection returns the last complete view immediately. Its rows are
@@ -99,7 +113,13 @@ func cachedProjection(analyzer *analysisEngine) (report.Document, bool) {
 	if !ok {
 		return report.Document{}, false
 	}
-	discovered, err := discover(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks)
+	if shallowProfile(options) == ShallowProfileResponsibilityV4 {
+		schemaVersion, profileHash, scoreProfile, policyRevision, identityErr := reportIdentity(activeCatalog(analyzer.catalog, options))
+		if identityErr != nil || projection.SchemaVersion != schemaVersion || projection.ProfileSetHash != profileHash || projection.ScoreProfile != scoreProfile || projection.PolicyRevision != policyRevision {
+			return report.Document{}, false
+		}
+	}
+	discovered, err := discoverPolicy(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore)
 	if err != nil {
 		return report.Document{}, false
 	}
@@ -108,9 +128,20 @@ func cachedProjection(analyzer *analysisEngine) (report.Document, bool) {
 		return report.Document{}, false
 	}
 	files := reconcileProjectionInventory(projection.ReportFiles(), discovered, selected)
+	schemaVersion, profileHash := projection.SchemaVersion, projection.ProfileSetHash
+	if schemaVersion == 0 {
+		schemaVersion = 3
+	}
+	if profileHash == "" {
+		profileHash = "native-balanced-v1"
+	}
+	for id, boundary := range projection.Depth {
+		projection.Depth[id] = report.CompactDepthBoundary(boundary)
+	}
 	document := report.Document{
-		Calibrated: true, Files: files, ProfileSetHash: "native-balanced-v1",
-		SchemaVersion: 3, Summary: map[string]any{
+		Calibrated: true, Files: files, ProfileSetHash: profileHash,
+		ScoreProfile: projection.ScoreProfile, PolicyRevision: projection.PolicyRevision,
+		SchemaVersion: schemaVersion, Depth: projection.Depth, Summary: map[string]any{
 			"cache_state": "provisional", "discovered_source_count": len(files),
 		},
 	}

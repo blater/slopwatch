@@ -25,6 +25,7 @@ const (
 	OverlayConfirmation
 	OverlaySettingsDirty
 	OverlayShutdown
+	OverlayRuntimeError
 )
 
 type OverlayCaller struct {

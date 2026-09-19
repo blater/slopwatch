@@ -1,0 +1,22 @@
+{
+  "go/behavior/service.go": "package example\nfunc Calculate(value int) int { if value < 0 { panic(\"negative\") }; total:=0; for n:=1;n<=value;n++ { total+=n }; return total }\n",
+  "go/boolean/service.go": "package example\nfunc Check(value int) bool { return value>0 }\n",
+  "go/hidden/service.go": "package example\ntype hidden struct {}\nfunc (h hidden) Run(value int) int { return value }\n",
+  "go/simple/service.go": "package example\nfunc Calculate(value int) int { return value }\n",
+  "go/void/service.go": "package example\nimport \"fmt\"\nfunc Emit(value int) { fmt.Println(value) }\n",
+  "java/behavior/Service.java": "public class Service { public int calculate(int value) { if(value < 0) throw new IllegalArgumentException(); int total=0; for(int n=1;n<=value;n++) total+=n; return total; } }\n",
+  "java/boolean/Service.java": "public class Service { public boolean check(int value) { return value>0; } }\n",
+  "java/simple/Service.java": "public class Service { public int calculate(int value) { return value; } }\n",
+  "java/void/Output.java": "public class Output { public void emit(int value) { System.out.println(value); } }\n",
+  "rust/behavior/service.rs": "pub fn calculate(value: i32) -> i32 { assert!(value>=0); let mut total=0; for n in 1..=value { total+=n; } total }\n",
+  "rust/boolean/service.rs": "pub fn check(value: i32) -> bool { value>0 }\n",
+  "rust/hidden/service.rs": "mod hidden { pub fn run(value:i32)->i32 { value } }\n",
+  "rust/simple/service.rs": "pub fn calculate(value: i32) -> i32 { value }\n",
+  "rust/void/service.rs": "pub fn emit(value: i32) { println!(\"{}\", value); }\n",
+  "typescript/behavior/service.ts": "export function calculate(value: number): number { if(value<0) throw new Error(); let total=0; for(let n=1;n<=value;n++) total+=n; return total; }\n",
+  "typescript/boolean/service.ts": "export function check(value: number): boolean { return value>0; }\n",
+  "typescript/class/service.ts": "export class Service { calculate(value: number): number { return value; } }\n",
+  "typescript/reexport/service.ts": "function run(value: number): number { return value; }\nexport { run };\n",
+  "typescript/simple/service.ts": "export function calculate(value: number): number { return value; }\n",
+  "typescript/void/service.ts": "export function emit(value: number): void { console.log(value); }\n"
+}

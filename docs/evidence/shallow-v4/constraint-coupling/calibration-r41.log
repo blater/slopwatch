@@ -1,0 +1,3 @@
+isolated [('river-bound-access', 0), ('river-descriptor-scan-context', 22), ('nql-hierarchy-row-context', 16), ('xmltoaster-sql-row-cursor', 53)] {'expected_high': 2, 'detected_high': 0, 'by_language': {'java': {'expected_high': 2, 'detected_high': 0}}}
+witness_context [('river-bound-access', 0), ('river-descriptor-scan-context', 67), ('nql-hierarchy-row-context', 16), ('xmltoaster-sql-row-cursor', 53)] {'expected_high': 2, 'detected_high': 1, 'by_language': {'java': {'expected_high': 2, 'detected_high': 1}}}
+workspace [('river-bound-access', 86), ('river-descriptor-scan-context', 67), ('nql-hierarchy-row-context', 16), ('xmltoaster-sql-row-cursor', 53)] {'expected_high': 2, 'detected_high': 2, 'by_language': {'java': {'expected_high': 2, 'detected_high': 2}}}

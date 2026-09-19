@@ -21,6 +21,7 @@ type factRequest struct {
 	Workspace     string   `json:"workspace"`
 	SourcePaths   []string `json:"source_paths"`
 	IncludeTests  bool     `json:"include_tests"`
+	Depth         bool     `json:"depth"`
 }
 
 type factResponse struct {
@@ -69,11 +70,13 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 		executable = defaultExecutable()
 	}
 	includeTests, _ := options["include_tests"].(bool)
+	depth := options["depth_profile"] == "responsibility-v4"
 	command, stderr, stdout, err := startFactCommand(executable, factRequest{
 		facts.SchemaVersion,
 		workspace,
 		paths,
 		includeTests,
+		depth,
 	})
 	if err != nil {
 		return nil, err

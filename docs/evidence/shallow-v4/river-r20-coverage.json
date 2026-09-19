@@ -1,0 +1,33 @@
+{
+  "policy_revision": "r20",
+  "scope": "One uncached packaged CLI run; no sustained idle or large-repository capacity claim.",
+  "repository": "~/src/river",
+  "files": 2207,
+  "boundaries": 2204,
+  "definitive_numeric": 3,
+  "estimated_numeric": 2122,
+  "not_applicable": 66,
+  "elapsed_seconds": 11.84,
+  "reason_occurrences": {
+    "bounded_source_limit": 52410,
+    "attribution_failed": 11,
+    "incomplete_flow_evaluation": 13,
+    "incomplete_source_inventory": 11,
+    "incomplete_validation_flow": 13,
+    "missing_normal_behavior": 13,
+    "missing_route_flow": 13,
+    "unsupported_surface_type": 15,
+    "unsupported_declared_failure_contract": 2,
+    "constructor_effects_unknown": 3,
+    "field_access_effects_unknown": 2,
+    "initializer_effects_unknown": 3,
+    "instance_effects_unknown": 6
+  },
+  "codec": {
+    "file": "river-engine/src/main/java/io/riverdb/engine/row/StoredTableRowCodec.java",
+    "main_shallow": "X",
+    "shallow_contribution": 0,
+    "recognition_only_estimate": 100,
+    "explanation": "Cross-class encode/decode behavior is not resolved; no definitive responsibility or shallowness conclusion."
+  }
+}

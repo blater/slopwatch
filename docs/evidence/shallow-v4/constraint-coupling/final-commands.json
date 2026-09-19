@@ -1,0 +1,67 @@
+[
+  {
+    "name": "calibration",
+    "exit": 1,
+    "command": [
+      "python3",
+      "tools/shallow_holdout_context.py",
+      "--binary",
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--manifest",
+      "docs/evidence/shallow-v4/calibration-holdout/manifest.json",
+      "--context",
+      "docs/evidence/shallow-v4/calibration-context.json",
+      "--output",
+      "/Users/blater/src/slopwatch/docs/evidence/shallow-v4/constraint-coupling/calibration-r42.json"
+    ]
+  },
+  {
+    "name": "connected-high",
+    "exit": 1,
+    "command": [
+      "python3",
+      "tools/shallow_holdout_context.py",
+      "--binary",
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--manifest",
+      "docs/evidence/shallow-v4/connected-high-holdout/manifest.json",
+      "--context",
+      "docs/evidence/shallow-v4/connected-high-context.json",
+      "--output",
+      "/Users/blater/src/slopwatch/docs/evidence/shallow-v4/constraint-coupling/connected-high-r42.json",
+      "--frozen-only"
+    ]
+  },
+  {
+    "name": "connected-confirmation",
+    "exit": 1,
+    "command": [
+      "python3",
+      "tools/shallow_holdout_context.py",
+      "--binary",
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--manifest",
+      "docs/evidence/shallow-v4/connected-confirmation-holdout/manifest.json",
+      "--context",
+      "docs/evidence/shallow-v4/connected-confirmation-context.json",
+      "--output",
+      "/Users/blater/src/slopwatch/docs/evidence/shallow-v4/constraint-coupling/connected-confirmation-r42.json",
+      "--frozen-only"
+    ]
+  },
+  {
+    "name": "structural-fresh",
+    "exit": 0,
+    "command": [
+      "python3",
+      "tools/shallow_holdout_acceptance.py",
+      "--binary",
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--manifest",
+      "docs/evidence/shallow-v4/structural-fresh-holdout/manifest.json",
+      "--allow-no-high-cases",
+      "--output",
+      "/Users/blater/src/slopwatch/docs/evidence/shallow-v4/constraint-coupling/structural-fresh-r42.json"
+    ]
+  }
+]

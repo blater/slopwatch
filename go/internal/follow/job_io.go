@@ -124,7 +124,7 @@ func (model *Model) handleJobMonitorKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (model *Model) openJobReader(kind OverlayKind, jobID fix.JobID, path fix.RepoPath) tea.Cmd {
 	if jobID == "" || model.fixService == nil {
-		model.fixNotice = "Job details are unavailable"
+		showRuntimeError(model, errors.New("Job details are unavailable"))
 		return nil
 	}
 	model.fixGeneration++

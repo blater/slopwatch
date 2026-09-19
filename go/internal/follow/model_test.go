@@ -130,11 +130,12 @@ func TestStartupScanningIndicatorUsesFreshnessStatus(t *testing.T) {
 		},
 		width: 100, height: 20, analyzing: true, initialAnalysis: true, animationFrame: 1,
 	}
+	model.files.refreshFreshnessStatus()
 	firstLine := strings.Split(ansi.Strip(tableView(model)), "\n")[0]
-	if !strings.Contains(firstLine, "⠙CACHE VERIFYING 1⠙") {
+	if !strings.Contains(firstLine, "⠙ VERIFY 1") {
 		t.Fatalf("freshness was not displayed as the animated scanning indicator: %q", firstLine)
 	}
-	if strings.Contains(firstLine, "SCANNING") || strings.Count(firstLine, "CACHE VERIFYING 1") != 1 {
+	if strings.Contains(firstLine, "SCANNING") || strings.Count(firstLine, "VERIFY 1") != 1 {
 		t.Fatalf("startup rendered a separate or duplicate status: %q", firstLine)
 	}
 }
@@ -198,7 +199,7 @@ func TestFailedInitialScanDoesNotEnableCacheReads(t *testing.T) {
 	if analyzer.cacheReads {
 		t.Fatal("failed initial scan enabled cache reads")
 	}
-	if got := updated.(*Model).status; got != "scan failed" {
+	if got := updated.(*Model).runtimeError; got != "scan failed" {
 		t.Fatalf("status = %q, want scan failure", got)
 	}
 }
@@ -219,16 +220,16 @@ func TestTableTopBarSplitsBrandBranchAndWorkspaceAcrossTwoLines(t *testing.T) {
 		repositoryIdentity: "river:feature/display",
 	}
 	lines := strings.Split(ansi.Strip(tableView(model)), "\n")
-	if !strings.HasPrefix(lines[0], "૮(˶ᵔ ᵕ ᵔ˶)ა") || !strings.HasSuffix(lines[0], "river:feature/display ") {
+	if !strings.HasPrefix(lines[0], tableLogo) || !strings.HasSuffix(lines[0], "river:feature/display ") {
 		t.Fatalf("first title line does not show logo and branch: %q", lines[0])
 	}
 	if !strings.HasSuffix(lines[1], "/workspace ") {
 		t.Fatalf("second title line does not show the workspace: %q", lines[1])
 	}
-	brandStart := strings.Index(lines[1], "slopWatch")
-	wantStart := (lipgloss.Width("૮(˶ᵔ ᵕ ᵔ˶)ა") - lipgloss.Width("slopWatch")) / 2
+	brandStart := strings.Index(lines[1], tableWordmark)
+	wantStart := (lipgloss.Width(tableLogo) - lipgloss.Width(tableWordmark)) / 2
 	if brandStart < 0 || lipgloss.Width(lines[1][:brandStart]) != wantStart {
-		t.Fatalf("slopWatch is not centered below the logo: %q", lines[1])
+		t.Fatalf("%s is not centered below the logo: %q", tableWordmark, lines[1])
 	}
 }
 
@@ -236,7 +237,7 @@ func TestTableTopBarPaintsPaddingInsteadOfUsingTerminalBackground(t *testing.T) 
 	ConfigureTerminalColours()
 	left := lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render("LEFT")
 	line := renderTableTitleLine(left, "RIGHT", 20)
-	paintedGap := lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceTop).Render(strings.Repeat(" ", 10))
+	paintedGap := lipgloss.NewStyle().Foreground(style.TextMuted).Background(style.SurfaceTop).Render(strings.Repeat(" ", 10))
 	if !strings.Contains(line, paintedGap) {
 		t.Fatalf("title gap does not carry the themed background: %q", line)
 	}
@@ -761,8 +762,9 @@ func TestMainScreenSummarizesCachedFreshness(t *testing.T) {
 		height:  10,
 		options: Options{Workspace: "/workspace", TrendWindow: time.Minute},
 	}
+	model.files.refreshFreshnessStatus()
 	firstLine := strings.Split(ansi.Strip(tableView(model)), "\n")[0]
-	for _, want := range []string{"CACHE", "PROVISIONAL 1", "STALE 1"} {
+	for _, want := range []string{"STALE 1"} {
 		if !strings.Contains(firstLine, want) {
 			t.Fatalf("top status missing %q: %q", want, firstLine)
 		}
@@ -939,7 +941,8 @@ func TestSettingsOpensWeightsAndAdjustsScore(t *testing.T) {
 	if !result.settings || result.weightsOpen {
 		t.Fatal("s did not open settings")
 	}
-	result.settingsCursor = settingsIndex("weights")
+	openSetting(result, "analysis")
+	result.settingsCursor = 1
 	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.weightsOpen || result.settings {
@@ -1506,10 +1509,11 @@ func TestSettingsContainsColumnsAndReturnsAfterEditing(t *testing.T) {
 	model := Model{}
 	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	result := updated.(*Model)
+	openSetting(result, "appearance")
 	if !strings.Contains(ansi.Strip(settingsView(*result)), "Columns") {
 		t.Fatal("settings does not contain Columns")
 	}
-	result.settingsCursor = settingsIndex("columns")
+	result.settingsCursor = 1
 	updated, _ = handleKey(result, tea.KeyMsg{Type: tea.KeyEnter})
 	result = updated.(*Model)
 	if !result.columns || !result.columnsFromSettings || result.settings {
@@ -1523,7 +1527,7 @@ func TestSettingsContainsColumnsAndReturnsAfterEditing(t *testing.T) {
 }
 
 func TestSettingsOptionsAreAlphabetical(t *testing.T) {
-	want := []string{"Agents", "Appearance", "Columns", "Concurrency", "Fix defaults", "Git & pull requests", "Weights"}
+	want := []string{"Agents", "Appearance", "Static Analysis"}
 	if len(settingsItems) != len(want) {
 		t.Fatalf("settings count = %d, want %d", len(settingsItems), len(want))
 	}

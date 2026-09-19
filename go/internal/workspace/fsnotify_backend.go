@@ -1,10 +1,29 @@
 package workspace
 
-import "github.com/fsnotify/fsnotify"
+import (
+	"errors"
+	"github.com/fsnotify/fsnotify"
+	"os"
+)
 
-func (b *fsnotifyBackend) Add(path string) error { return b.watcher.Add(path) }
-func (b *fsnotifyBackend) Events() <-chan Event  { return b.events }
-func (b *fsnotifyBackend) Errors() <-chan error  { return b.errors }
+func (b *fsnotifyBackend) Add(path string) error {
+	var err error
+	for attempt := 0; attempt < 4; attempt++ {
+		err = b.watcher.Add(path)
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		// kqueue enumerates immediate entries while registering a directory. A
+		// concurrently removed child must not permanently disable ancestor watches.
+		if info, statErr := os.Stat(path); statErr != nil || !info.IsDir() {
+			return err
+		}
+		_ = b.watcher.Remove(path)
+	}
+	return err
+}
+func (b *fsnotifyBackend) Events() <-chan Event { return b.events }
+func (b *fsnotifyBackend) Errors() <-chan error { return b.errors }
 
 func (b *fsnotifyBackend) forward() {
 	defer close(b.events)

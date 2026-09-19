@@ -179,10 +179,27 @@ func TestAdapterAllowsAllSyntaxFailuresWithoutDiscardingDiagnostics(t *testing.T
 	}
 }
 
-func TestAdapterPreservesHardSourceErrors(t *testing.T) {
+func TestAdapterRecoversFromRejectedSources(t *testing.T) {
 	root := t.TempDir()
-	if _, err := Analyze(root, []string{"missing.go"}); err == nil {
-		t.Fatal("missing source was reported as a syntax failure")
+	if err := os.WriteFile(filepath.Join(root, "valid.go"), []byte("package sample\nfunc Valid() {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	program, err := Analyze(root, []string{"missing.go", "valid.go", "notes.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(program.Files) != 1 || program.Files[0] != "valid.go" || len(program.Functions) != 1 {
+		t.Fatalf("source rejection discarded valid facts: files=%q functions=%d", program.Files, len(program.Functions))
+	}
+	got := map[string]string{}
+	for _, failure := range program.Failures {
+		got[failure.Path] = failure.Code
+		if !strings.HasPrefix(failure.Diagnostic, failure.Path+":") {
+			t.Fatalf("source failure is not located: %#v", failure)
+		}
+	}
+	if got["missing.go"] != "SOURCE_READ_ERROR" || got["notes.txt"] != "UNSUPPORTED_SOURCE" {
+		t.Fatalf("source failures = %#v", got)
 	}
 }
 
@@ -360,8 +377,9 @@ func TestAdapterAcceptsDiscoveredSymlinkedSource(t *testing.T) {
 	root := t.TempDir()
 	assertSymlinkedFileAccepted(t, root)
 	assertSymlinkedDirectoryAccepted(t, root)
-	if _, err := Analyze(root, []string{"real/../real/nested.go"}); err == nil {
-		t.Fatal("expected non-canonical path rejection")
+	program, err := Analyze(root, []string{"real/../real/nested.go"})
+	if err != nil || len(program.Failures) != 1 || program.Failures[0].Code != "SOURCE_PATH_ERROR" {
+		t.Fatalf("expected non-canonical path failure, program=%#v error=%v", program, err)
 	}
 }
 

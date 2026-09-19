@@ -19,7 +19,12 @@ import (
 
 const CurrentVersion = 1
 
+type Files struct {
+	HonorGitignore bool `toml:"honor_gitignore"`
+}
+
 type Document struct {
+	Files       Files       `toml:"files"`
 	Version     int         `toml:"version"`
 	Appearance  Appearance  `toml:"appearance"`
 	Table       Table       `toml:"table"`
@@ -108,6 +113,7 @@ type Delivery struct {
 // present. It is used for repository-scoped overrides and origin metadata;
 // ordinary consumers continue using Document.
 type PartialDocument struct {
+	Files       *Files       `toml:"files,omitempty"`
 	Version     *int         `toml:"version,omitempty"`
 	Appearance  *Appearance  `toml:"appearance,omitempty"`
 	Table       *Table       `toml:"table,omitempty"`
@@ -127,6 +133,7 @@ func DefaultDocument() Document {
 	}
 	return Document{
 		Version:    CurrentVersion,
+		Files:      Files{HonorGitignore: true},
 		Appearance: Appearance{Theme: "dark"},
 		Table: Table{
 			VisibleColumns: []string{"cog", "npath", "cyclo", "deep", "god", "coupling"},
@@ -163,6 +170,26 @@ func DefaultPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(root, "preferences.toml"), nil
+}
+
+// LoadExisting reads preferences without creating, quarantining, or rewriting
+// user files. Missing preferences use in-memory defaults for ordinary reports.
+func LoadExisting(path string, defaults Document) (Document, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return Clone(defaults), nil
+	}
+	if err != nil {
+		return Document{}, fmt.Errorf("read preferences %s: %w", path, err)
+	}
+	value := Clone(defaults)
+	if err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&value); err != nil {
+		return Document{}, fmt.Errorf("decode preferences %s: %w", path, err)
+	}
+	if value.Version != CurrentVersion {
+		return Document{}, fmt.Errorf("preferences schema version %d is not supported", value.Version)
+	}
+	return value, nil
 }
 
 func LoadOrCreate(path string, defaults Document) (Document, error) {
@@ -294,6 +321,10 @@ func ClonePartial(value PartialDocument) PartialDocument {
 }
 
 func clonePartialScalarSections(result *PartialDocument, value PartialDocument) {
+	if value.Files != nil {
+		item := *value.Files
+		result.Files = &item
+	}
 	if value.Version != nil {
 		version := *value.Version
 		result.Version = &version

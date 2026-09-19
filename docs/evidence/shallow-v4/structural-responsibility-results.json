@@ -1,0 +1,3322 @@
+{
+  "policy_revision": "r39",
+  "binary_sha256": "30aeb01132be3efab9ca4e8ebd58883b61107e7fb3d9a25e2a58d86d7a2a3a88",
+  "production_weights_unchanged": true,
+  "reproductions": {
+    "before": [
+      {
+        "id": "resource-names",
+        "language": "java",
+        "target": "Example.java",
+        "group": null,
+        "kind": null,
+        "expected_range": [
+          0,
+          100
+        ],
+        "allow_not_applicable": false,
+        "exclude_from_semantic_numeric_coverage": false,
+        "failures": [],
+        "numeric": true,
+        "not_applicable": false,
+        "report_schema_version": 4,
+        "raw_max": 13,
+        "contribution": 0,
+        "score": 0,
+        "observed_score": 0,
+        "rank": 1,
+        "depth_state": "partial",
+        "estimated": true,
+        "semantic_coverage": "complete",
+        "boundaries": [
+          {
+            "scope": "file",
+            "id": "source:java:Example.java",
+            "state": "partial",
+            "policy_revision": "r38",
+            "estimated": true,
+            "files": [
+              "Example.java"
+            ],
+            "raw": {
+              "B8": 16,
+              "H": 2,
+              "estimate": {
+                "abstractions": [
+                  {
+                    "audience": "external",
+                    "burden": 2,
+                    "findings": [],
+                    "graded": {
+                      "estimated_hidden_responsibility": 0,
+                      "hidden_responsibility": 2,
+                      "material_limitations": null,
+                      "residual_burden": 0.75,
+                      "responsibilities": {
+                        "resource": 2
+                      },
+                      "supported_burden": 0.75,
+                      "surface": {
+                        "evidence": [
+                          "operation:Example.java#run/0:1"
+                        ],
+                        "input_units": 1,
+                        "operation_units": 1,
+                        "representation_units": 0
+                      },
+                      "zero_reason": ""
+                    },
+                    "hidden": 2,
+                    "limitations": [
+                      "unsupported_execution_alternatives:finally",
+                      "unsupported_execution_alternatives:try"
+                    ],
+                    "name": "Example",
+                    "published_penalty": 13,
+                    "recognized_hidden": 2,
+                    "uncertain_burden": 2
+                  }
+                ],
+                "burden": 2,
+                "categories": {
+                  "resource": 2
+                },
+                "descriptive_ratio": 33,
+                "findings": [],
+                "hidden": 2,
+                "known_hidden": 0,
+                "limitations": [
+                  "unsupported_execution_alternatives:finally",
+                  "unsupported_execution_alternatives:try"
+                ],
+                "model": "graded-caller-responsibility-v1",
+                "penalty_support": "graded-caller-responsibility",
+                "published_penalty": 13,
+                "recognized_hidden": 2,
+                "roles": null,
+                "source_hidden": 2,
+                "uncertain_burden": 2,
+                "uncertainty_policy": "graded-caller-responsibility-v1"
+              },
+              "graded": {
+                "estimated_hidden_responsibility": 0,
+                "hidden_responsibility": 2,
+                "material_limitations": null,
+                "residual_burden": 0.75,
+                "responsibilities": {
+                  "resource": 2
+                },
+                "supported_burden": 0.75,
+                "surface": {
+                  "evidence": [
+                    "operation:Example.java#run/0:1"
+                  ],
+                  "input_units": 1,
+                  "operation_units": 1,
+                  "representation_units": 0
+                },
+                "zero_reason": ""
+              },
+              "responsibility_ratio": 33,
+              "zero_reason": ""
+            }
+          }
+        ],
+        "limitations": [
+          [
+            "unsupported_execution_alternatives:finally",
+            "unsupported_execution_alternatives:try"
+          ],
+          [
+            "unsupported_execution_alternatives:finally",
+            "unsupported_execution_alternatives:try"
+          ]
+        ],
+        "zero_reason": null,
+        "zero_basis": null,
+        "support": [
+          {
+            "name": "source:java:Example.java",
+            "symbol": "source:java:Example.java",
+            "scope": "file",
+            "value": 13,
+            "location": {
+              "path": "Example.java",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:java:Example.java"
+            }
+          }
+        ],
+        "material_uncertainty": true,
+        "score_sort_ok": true,
+        "report_diagnostics": [],
+        "analysis_mode": "estimated",
+        "zero_category": null,
+        "precise_complete": false,
+        "semantic_applicable": true,
+        "semantic_numeric": true,
+        "semantic_complete": false,
+        "passed": true,
+        "behavioral_conformance": true,
+        "semantic_conformance": true
+      },
+      {
+        "id": "neutral-names",
+        "language": "java",
+        "target": "Example.java",
+        "group": null,
+        "kind": null,
+        "expected_range": [
+          0,
+          100
+        ],
+        "allow_not_applicable": false,
+        "exclude_from_semantic_numeric_coverage": false,
+        "failures": [],
+        "numeric": true,
+        "not_applicable": false,
+        "report_schema_version": 4,
+        "raw_max": 43,
+        "contribution": 10.521683299074,
+        "score": 10.521683299074,
+        "observed_score": 10.521683299074,
+        "rank": 1,
+        "depth_state": "partial",
+        "estimated": true,
+        "semantic_coverage": "complete",
+        "boundaries": [
+          {
+            "scope": "file",
+            "id": "source:java:Example.java",
+            "state": "partial",
+            "policy_revision": "r38",
+            "estimated": true,
+            "files": [
+              "Example.java"
+            ],
+            "raw": {
+              "B8": 16,
+              "H": 0,
+              "estimate": {
+                "abstractions": [
+                  {
+                    "audience": "external",
+                    "burden": 2,
+                    "findings": [],
+                    "graded": {
+                      "estimated_hidden_responsibility": 0,
+                      "hidden_responsibility": 0,
+                      "material_limitations": [
+                        "unsupported_outcome_range_0_2"
+                      ],
+                      "residual_burden": 0.75,
+                      "responsibilities": {},
+                      "supported_burden": 0.75,
+                      "surface": {
+                        "evidence": [
+                          "operation:Example.java#run/0:1"
+                        ],
+                        "input_units": 1,
+                        "operation_units": 1,
+                        "representation_units": 0
+                      },
+                      "zero_reason": ""
+                    },
+                    "hidden": 0,
+                    "limitations": [
+                      "unsupported_execution_alternatives:finally",
+                      "unsupported_execution_alternatives:try",
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "name": "Example",
+                    "published_penalty": 43,
+                    "recognized_hidden": 0,
+                    "uncertain_burden": 2
+                  }
+                ],
+                "burden": 2,
+                "categories": {
+                  "unknown_outcome": 1
+                },
+                "descriptive_ratio": 100,
+                "findings": [],
+                "hidden": 0,
+                "known_hidden": 0,
+                "limitations": [
+                  "unsupported_execution_alternatives:finally",
+                  "unsupported_execution_alternatives:try",
+                  "unsupported_outcome_range_0_2"
+                ],
+                "model": "graded-caller-responsibility-v1",
+                "penalty_support": "graded-caller-responsibility",
+                "published_penalty": 43,
+                "recognized_hidden": 0,
+                "roles": null,
+                "source_hidden": 0,
+                "uncertain_burden": 2,
+                "uncertainty_policy": "graded-caller-responsibility-v1"
+              },
+              "graded": {
+                "estimated_hidden_responsibility": 0,
+                "hidden_responsibility": 0,
+                "material_limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "residual_burden": 0.75,
+                "responsibilities": {},
+                "supported_burden": 0.75,
+                "surface": {
+                  "evidence": [
+                    "operation:Example.java#run/0:1"
+                  ],
+                  "input_units": 1,
+                  "operation_units": 1,
+                  "representation_units": 0
+                },
+                "zero_reason": ""
+              },
+              "responsibility_ratio": 100,
+              "zero_reason": ""
+            }
+          }
+        ],
+        "limitations": [
+          [
+            "unsupported_execution_alternatives:finally",
+            "unsupported_execution_alternatives:try",
+            "unsupported_outcome_range_0_2"
+          ],
+          [
+            "unsupported_execution_alternatives:finally",
+            "unsupported_execution_alternatives:try",
+            "unsupported_outcome_range_0_2"
+          ]
+        ],
+        "zero_reason": null,
+        "zero_basis": null,
+        "support": [
+          {
+            "name": "source:java:Example.java",
+            "symbol": "source:java:Example.java",
+            "scope": "file",
+            "value": 43,
+            "location": {
+              "path": "Example.java",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:java:Example.java"
+            }
+          }
+        ],
+        "material_uncertainty": true,
+        "score_sort_ok": true,
+        "report_diagnostics": [],
+        "analysis_mode": "estimated",
+        "zero_category": null,
+        "precise_complete": false,
+        "semantic_applicable": true,
+        "semantic_numeric": true,
+        "semantic_complete": false,
+        "passed": true,
+        "behavioral_conformance": true,
+        "semantic_conformance": true
+      },
+      {
+        "id": "implicit-field",
+        "language": "java",
+        "target": "Example.java",
+        "group": null,
+        "kind": null,
+        "expected_range": [
+          0,
+          100
+        ],
+        "allow_not_applicable": false,
+        "exclude_from_semantic_numeric_coverage": false,
+        "failures": [],
+        "numeric": true,
+        "not_applicable": false,
+        "report_schema_version": 4,
+        "raw_max": 13,
+        "contribution": 0,
+        "score": 0,
+        "observed_score": 0,
+        "rank": 1,
+        "depth_state": "partial",
+        "estimated": true,
+        "semantic_coverage": "complete",
+        "boundaries": [
+          {
+            "scope": "file",
+            "id": "source:java:Example.java",
+            "state": "partial",
+            "policy_revision": "r38",
+            "estimated": true,
+            "files": [
+              "Example.java"
+            ],
+            "raw": {
+              "B8": 16,
+              "H": 0,
+              "estimate": {
+                "abstractions": [
+                  {
+                    "audience": "external",
+                    "burden": 2,
+                    "findings": [
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "a",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      },
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "b",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      },
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "c",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      }
+                    ],
+                    "graded": {
+                      "estimated_hidden_responsibility": 0,
+                      "hidden_responsibility": 2,
+                      "material_limitations": [
+                        "unsupported_outcome_range_0_2"
+                      ],
+                      "residual_burden": 0.75,
+                      "responsibilities": {
+                        "invariant-transformation": 2
+                      },
+                      "supported_burden": 0.75,
+                      "surface": {
+                        "evidence": [
+                          "operation:Example.java#run/0:1"
+                        ],
+                        "input_units": 1,
+                        "operation_units": 1,
+                        "representation_units": 0
+                      },
+                      "zero_reason": ""
+                    },
+                    "hidden": 0,
+                    "limitations": [
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "name": "Example",
+                    "published_penalty": 13,
+                    "recognized_hidden": 0,
+                    "uncertain_burden": 2
+                  }
+                ],
+                "burden": 2,
+                "categories": {
+                  "unknown_outcome": 1
+                },
+                "descriptive_ratio": 100,
+                "findings": [
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "a",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  },
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "b",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  },
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "c",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  }
+                ],
+                "hidden": 0,
+                "known_hidden": 0,
+                "limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "model": "graded-caller-responsibility-v1",
+                "penalty_support": "graded-caller-responsibility",
+                "published_penalty": 13,
+                "recognized_hidden": 0,
+                "roles": null,
+                "source_hidden": 0,
+                "uncertain_burden": 2,
+                "uncertainty_policy": "graded-caller-responsibility-v1"
+              },
+              "graded": {
+                "estimated_hidden_responsibility": 0,
+                "hidden_responsibility": 2,
+                "material_limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "residual_burden": 0.75,
+                "responsibilities": {
+                  "invariant-transformation": 2
+                },
+                "supported_burden": 0.75,
+                "surface": {
+                  "evidence": [
+                    "operation:Example.java#run/0:1"
+                  ],
+                  "input_units": 1,
+                  "operation_units": 1,
+                  "representation_units": 0
+                },
+                "zero_reason": ""
+              },
+              "responsibility_ratio": 100,
+              "zero_reason": ""
+            }
+          }
+        ],
+        "limitations": [
+          [
+            "unsupported_outcome_range_0_2"
+          ],
+          [
+            "unsupported_outcome_range_0_2"
+          ]
+        ],
+        "zero_reason": null,
+        "zero_basis": null,
+        "support": [
+          {
+            "name": "source:java:Example.java",
+            "symbol": "source:java:Example.java",
+            "scope": "file",
+            "value": 13,
+            "location": {
+              "path": "Example.java",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:java:Example.java"
+            }
+          }
+        ],
+        "material_uncertainty": true,
+        "score_sort_ok": true,
+        "report_diagnostics": [],
+        "analysis_mode": "estimated",
+        "zero_category": null,
+        "precise_complete": false,
+        "semantic_applicable": true,
+        "semantic_numeric": true,
+        "semantic_complete": false,
+        "passed": true,
+        "behavioral_conformance": true,
+        "semantic_conformance": true
+      },
+      {
+        "id": "explicit-field",
+        "language": "java",
+        "target": "Example.java",
+        "group": null,
+        "kind": null,
+        "expected_range": [
+          0,
+          100
+        ],
+        "allow_not_applicable": false,
+        "exclude_from_semantic_numeric_coverage": false,
+        "failures": [],
+        "numeric": true,
+        "not_applicable": false,
+        "report_schema_version": 4,
+        "raw_max": 8,
+        "contribution": 0,
+        "score": 0,
+        "observed_score": 0,
+        "rank": 1,
+        "depth_state": "partial",
+        "estimated": true,
+        "semantic_coverage": "complete",
+        "boundaries": [
+          {
+            "scope": "file",
+            "id": "source:java:Example.java",
+            "state": "partial",
+            "policy_revision": "r38",
+            "estimated": true,
+            "files": [
+              "Example.java"
+            ],
+            "raw": {
+              "B8": 16,
+              "H": 2,
+              "estimate": {
+                "abstractions": [
+                  {
+                    "audience": "external",
+                    "burden": 2,
+                    "findings": [
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "a",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      },
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "b",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      },
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "c",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      }
+                    ],
+                    "graded": {
+                      "estimated_hidden_responsibility": 0,
+                      "hidden_responsibility": 4,
+                      "material_limitations": null,
+                      "residual_burden": 0.75,
+                      "responsibilities": {
+                        "invariant-transformation": 2,
+                        "state": 2
+                      },
+                      "supported_burden": 0.75,
+                      "surface": {
+                        "evidence": [
+                          "operation:Example.java#run/0:1"
+                        ],
+                        "input_units": 1,
+                        "operation_units": 1,
+                        "representation_units": 0
+                      },
+                      "zero_reason": ""
+                    },
+                    "hidden": 2,
+                    "limitations": null,
+                    "name": "Example",
+                    "published_penalty": 8,
+                    "recognized_hidden": 2,
+                    "uncertain_burden": 0
+                  }
+                ],
+                "burden": 2,
+                "categories": {
+                  "state": 2
+                },
+                "descriptive_ratio": 33,
+                "findings": [
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "a",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  },
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "b",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  },
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "c",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  }
+                ],
+                "hidden": 2,
+                "known_hidden": 0,
+                "limitations": null,
+                "model": "graded-caller-responsibility-v1",
+                "penalty_support": "graded-caller-responsibility",
+                "published_penalty": 8,
+                "recognized_hidden": 2,
+                "roles": null,
+                "source_hidden": 2,
+                "uncertain_burden": 0,
+                "uncertainty_policy": "graded-caller-responsibility-v1"
+              },
+              "graded": {
+                "estimated_hidden_responsibility": 0,
+                "hidden_responsibility": 4,
+                "material_limitations": null,
+                "residual_burden": 0.75,
+                "responsibilities": {
+                  "invariant-transformation": 2,
+                  "state": 2
+                },
+                "supported_burden": 0.75,
+                "surface": {
+                  "evidence": [
+                    "operation:Example.java#run/0:1"
+                  ],
+                  "input_units": 1,
+                  "operation_units": 1,
+                  "representation_units": 0
+                },
+                "zero_reason": ""
+              },
+              "responsibility_ratio": 33,
+              "zero_reason": ""
+            }
+          }
+        ],
+        "limitations": [],
+        "zero_reason": null,
+        "zero_basis": null,
+        "support": [
+          {
+            "name": "source:java:Example.java",
+            "symbol": "source:java:Example.java",
+            "scope": "file",
+            "value": 8,
+            "location": {
+              "path": "Example.java",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:java:Example.java"
+            }
+          }
+        ],
+        "material_uncertainty": false,
+        "score_sort_ok": true,
+        "report_diagnostics": [],
+        "analysis_mode": "estimated",
+        "zero_category": null,
+        "precise_complete": false,
+        "semantic_applicable": true,
+        "semantic_numeric": true,
+        "semantic_complete": false,
+        "passed": true,
+        "behavioral_conformance": true,
+        "semantic_conformance": true
+      }
+    ],
+    "after": [
+      {
+        "id": "resource-names",
+        "language": "java",
+        "target": "Example.java",
+        "group": null,
+        "kind": null,
+        "expected_range": [
+          0,
+          100
+        ],
+        "allow_not_applicable": false,
+        "exclude_from_semantic_numeric_coverage": false,
+        "failures": [],
+        "numeric": true,
+        "not_applicable": false,
+        "report_schema_version": 4,
+        "raw_max": 43,
+        "contribution": 10.521683299074,
+        "score": 10.521683299074,
+        "observed_score": 10.521683299074,
+        "rank": 1,
+        "depth_state": "partial",
+        "estimated": true,
+        "semantic_coverage": "complete",
+        "boundaries": [
+          {
+            "scope": "file",
+            "id": "source:java:Example.java",
+            "state": "partial",
+            "policy_revision": "r39",
+            "estimated": true,
+            "files": [
+              "Example.java"
+            ],
+            "raw": {
+              "B8": 16,
+              "H": 0,
+              "estimate": {
+                "abstractions": [
+                  {
+                    "audience": "external",
+                    "burden": 2,
+                    "findings": [],
+                    "graded": {
+                      "estimated_hidden_responsibility": 0,
+                      "hidden_responsibility": 0,
+                      "material_limitations": [
+                        "unsupported_outcome_range_0_2"
+                      ],
+                      "residual_burden": 0.75,
+                      "responsibilities": {},
+                      "supported_burden": 0.75,
+                      "surface": {
+                        "evidence": [
+                          "operation:Example.java#run/0:1"
+                        ],
+                        "input_units": 1,
+                        "operation_units": 1,
+                        "representation_units": 0
+                      },
+                      "zero_reason": ""
+                    },
+                    "hidden": 0,
+                    "limitations": [
+                      "unsupported_execution_alternatives:finally",
+                      "unsupported_execution_alternatives:try",
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "name": "Example",
+                    "published_penalty": 43,
+                    "recognized_hidden": 0,
+                    "uncertain_burden": 2
+                  }
+                ],
+                "burden": 2,
+                "categories": {
+                  "unknown_outcome": 1
+                },
+                "descriptive_ratio": 100,
+                "findings": [],
+                "hidden": 0,
+                "known_hidden": 0,
+                "limitations": [
+                  "unsupported_execution_alternatives:finally",
+                  "unsupported_execution_alternatives:try",
+                  "unsupported_outcome_range_0_2"
+                ],
+                "model": "graded-caller-responsibility-v1",
+                "penalty_support": "graded-caller-responsibility",
+                "published_penalty": 43,
+                "recognized_hidden": 0,
+                "roles": null,
+                "source_hidden": 0,
+                "uncertain_burden": 2,
+                "uncertainty_policy": "graded-caller-responsibility-v1"
+              },
+              "graded": {
+                "estimated_hidden_responsibility": 0,
+                "hidden_responsibility": 0,
+                "material_limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "residual_burden": 0.75,
+                "responsibilities": {},
+                "supported_burden": 0.75,
+                "surface": {
+                  "evidence": [
+                    "operation:Example.java#run/0:1"
+                  ],
+                  "input_units": 1,
+                  "operation_units": 1,
+                  "representation_units": 0
+                },
+                "zero_reason": ""
+              },
+              "responsibility_ratio": 100,
+              "zero_reason": ""
+            }
+          }
+        ],
+        "limitations": [
+          [
+            "unsupported_execution_alternatives:finally",
+            "unsupported_execution_alternatives:try",
+            "unsupported_outcome_range_0_2"
+          ],
+          [
+            "unsupported_execution_alternatives:finally",
+            "unsupported_execution_alternatives:try",
+            "unsupported_outcome_range_0_2"
+          ]
+        ],
+        "zero_reason": null,
+        "zero_basis": null,
+        "support": [
+          {
+            "name": "source:java:Example.java",
+            "symbol": "source:java:Example.java",
+            "scope": "file",
+            "value": 43,
+            "location": {
+              "path": "Example.java",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:java:Example.java"
+            }
+          }
+        ],
+        "material_uncertainty": true,
+        "score_sort_ok": true,
+        "report_diagnostics": [],
+        "analysis_mode": "estimated",
+        "zero_category": null,
+        "precise_complete": false,
+        "semantic_applicable": true,
+        "semantic_numeric": true,
+        "semantic_complete": false,
+        "passed": true,
+        "behavioral_conformance": true,
+        "semantic_conformance": true,
+        "source": "public class Example { public static int run(int x,int a,int b,int c) { int open=x; try { return x+a+b+c; } finally { int close=0; } } }"
+      },
+      {
+        "id": "neutral-names",
+        "language": "java",
+        "target": "Example.java",
+        "group": null,
+        "kind": null,
+        "expected_range": [
+          0,
+          100
+        ],
+        "allow_not_applicable": false,
+        "exclude_from_semantic_numeric_coverage": false,
+        "failures": [],
+        "numeric": true,
+        "not_applicable": false,
+        "report_schema_version": 4,
+        "raw_max": 43,
+        "contribution": 10.521683299074,
+        "score": 10.521683299074,
+        "observed_score": 10.521683299074,
+        "rank": 1,
+        "depth_state": "partial",
+        "estimated": true,
+        "semantic_coverage": "complete",
+        "boundaries": [
+          {
+            "scope": "file",
+            "id": "source:java:Example.java",
+            "state": "partial",
+            "policy_revision": "r39",
+            "estimated": true,
+            "files": [
+              "Example.java"
+            ],
+            "raw": {
+              "B8": 16,
+              "H": 0,
+              "estimate": {
+                "abstractions": [
+                  {
+                    "audience": "external",
+                    "burden": 2,
+                    "findings": [],
+                    "graded": {
+                      "estimated_hidden_responsibility": 0,
+                      "hidden_responsibility": 0,
+                      "material_limitations": [
+                        "unsupported_outcome_range_0_2"
+                      ],
+                      "residual_burden": 0.75,
+                      "responsibilities": {},
+                      "supported_burden": 0.75,
+                      "surface": {
+                        "evidence": [
+                          "operation:Example.java#run/0:1"
+                        ],
+                        "input_units": 1,
+                        "operation_units": 1,
+                        "representation_units": 0
+                      },
+                      "zero_reason": ""
+                    },
+                    "hidden": 0,
+                    "limitations": [
+                      "unsupported_execution_alternatives:finally",
+                      "unsupported_execution_alternatives:try",
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "name": "Example",
+                    "published_penalty": 43,
+                    "recognized_hidden": 0,
+                    "uncertain_burden": 2
+                  }
+                ],
+                "burden": 2,
+                "categories": {
+                  "unknown_outcome": 1
+                },
+                "descriptive_ratio": 100,
+                "findings": [],
+                "hidden": 0,
+                "known_hidden": 0,
+                "limitations": [
+                  "unsupported_execution_alternatives:finally",
+                  "unsupported_execution_alternatives:try",
+                  "unsupported_outcome_range_0_2"
+                ],
+                "model": "graded-caller-responsibility-v1",
+                "penalty_support": "graded-caller-responsibility",
+                "published_penalty": 43,
+                "recognized_hidden": 0,
+                "roles": null,
+                "source_hidden": 0,
+                "uncertain_burden": 2,
+                "uncertainty_policy": "graded-caller-responsibility-v1"
+              },
+              "graded": {
+                "estimated_hidden_responsibility": 0,
+                "hidden_responsibility": 0,
+                "material_limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "residual_burden": 0.75,
+                "responsibilities": {},
+                "supported_burden": 0.75,
+                "surface": {
+                  "evidence": [
+                    "operation:Example.java#run/0:1"
+                  ],
+                  "input_units": 1,
+                  "operation_units": 1,
+                  "representation_units": 0
+                },
+                "zero_reason": ""
+              },
+              "responsibility_ratio": 100,
+              "zero_reason": ""
+            }
+          }
+        ],
+        "limitations": [
+          [
+            "unsupported_execution_alternatives:finally",
+            "unsupported_execution_alternatives:try",
+            "unsupported_outcome_range_0_2"
+          ],
+          [
+            "unsupported_execution_alternatives:finally",
+            "unsupported_execution_alternatives:try",
+            "unsupported_outcome_range_0_2"
+          ]
+        ],
+        "zero_reason": null,
+        "zero_basis": null,
+        "support": [
+          {
+            "name": "source:java:Example.java",
+            "symbol": "source:java:Example.java",
+            "scope": "file",
+            "value": 43,
+            "location": {
+              "path": "Example.java",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:java:Example.java"
+            }
+          }
+        ],
+        "material_uncertainty": true,
+        "score_sort_ok": true,
+        "report_diagnostics": [],
+        "analysis_mode": "estimated",
+        "zero_category": null,
+        "precise_complete": false,
+        "semantic_applicable": true,
+        "semantic_numeric": true,
+        "semantic_complete": false,
+        "passed": true,
+        "behavioral_conformance": true,
+        "semantic_conformance": true,
+        "source": "public class Example { public static int run(int x,int a,int b,int c) { int first=x; try { return x+a+b+c; } finally { int last=0; } } }"
+      },
+      {
+        "id": "implicit-field",
+        "language": "java",
+        "target": "Example.java",
+        "group": null,
+        "kind": null,
+        "expected_range": [
+          0,
+          100
+        ],
+        "allow_not_applicable": false,
+        "exclude_from_semantic_numeric_coverage": false,
+        "failures": [],
+        "numeric": true,
+        "not_applicable": false,
+        "report_schema_version": 4,
+        "raw_max": 13,
+        "contribution": 0,
+        "score": 0,
+        "observed_score": 0,
+        "rank": 1,
+        "depth_state": "partial",
+        "estimated": true,
+        "semantic_coverage": "complete",
+        "boundaries": [
+          {
+            "scope": "file",
+            "id": "source:java:Example.java",
+            "state": "partial",
+            "policy_revision": "r39",
+            "estimated": true,
+            "files": [
+              "Example.java"
+            ],
+            "raw": {
+              "B8": 16,
+              "H": 0,
+              "estimate": {
+                "abstractions": [
+                  {
+                    "audience": "external",
+                    "burden": 2,
+                    "findings": [
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "a",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      },
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "b",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      },
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "c",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      }
+                    ],
+                    "graded": {
+                      "estimated_hidden_responsibility": 0,
+                      "hidden_responsibility": 2,
+                      "material_limitations": [
+                        "unsupported_outcome_range_0_2"
+                      ],
+                      "residual_burden": 0.75,
+                      "responsibilities": {
+                        "invariant-transformation": 2
+                      },
+                      "supported_burden": 0.75,
+                      "surface": {
+                        "evidence": [
+                          "operation:Example.java#run/0:1"
+                        ],
+                        "input_units": 1,
+                        "operation_units": 1,
+                        "representation_units": 0
+                      },
+                      "zero_reason": ""
+                    },
+                    "hidden": 0,
+                    "limitations": [
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "name": "Example",
+                    "published_penalty": 13,
+                    "recognized_hidden": 0,
+                    "uncertain_burden": 2
+                  }
+                ],
+                "burden": 2,
+                "categories": {
+                  "unknown_outcome": 1
+                },
+                "descriptive_ratio": 100,
+                "findings": [
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "a",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  },
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "b",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  },
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "c",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  }
+                ],
+                "hidden": 0,
+                "known_hidden": 0,
+                "limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "model": "graded-caller-responsibility-v1",
+                "penalty_support": "graded-caller-responsibility",
+                "published_penalty": 13,
+                "recognized_hidden": 0,
+                "roles": null,
+                "source_hidden": 0,
+                "uncertain_burden": 2,
+                "uncertainty_policy": "graded-caller-responsibility-v1"
+              },
+              "graded": {
+                "estimated_hidden_responsibility": 0,
+                "hidden_responsibility": 2,
+                "material_limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "residual_burden": 0.75,
+                "responsibilities": {
+                  "invariant-transformation": 2
+                },
+                "supported_burden": 0.75,
+                "surface": {
+                  "evidence": [
+                    "operation:Example.java#run/0:1"
+                  ],
+                  "input_units": 1,
+                  "operation_units": 1,
+                  "representation_units": 0
+                },
+                "zero_reason": ""
+              },
+              "responsibility_ratio": 100,
+              "zero_reason": ""
+            }
+          }
+        ],
+        "limitations": [
+          [
+            "unsupported_outcome_range_0_2"
+          ],
+          [
+            "unsupported_outcome_range_0_2"
+          ]
+        ],
+        "zero_reason": null,
+        "zero_basis": null,
+        "support": [
+          {
+            "name": "source:java:Example.java",
+            "symbol": "source:java:Example.java",
+            "scope": "file",
+            "value": 13,
+            "location": {
+              "path": "Example.java",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:java:Example.java"
+            }
+          }
+        ],
+        "material_uncertainty": true,
+        "score_sort_ok": true,
+        "report_diagnostics": [],
+        "analysis_mode": "estimated",
+        "zero_category": null,
+        "precise_complete": false,
+        "semantic_applicable": true,
+        "semantic_numeric": true,
+        "semantic_complete": false,
+        "passed": true,
+        "behavioral_conformance": true,
+        "semantic_conformance": true,
+        "source": "public class Example { private int value; public int run(int x,int a,int b,int c) { value+=x; return value; } }"
+      },
+      {
+        "id": "explicit-field",
+        "language": "java",
+        "target": "Example.java",
+        "group": null,
+        "kind": null,
+        "expected_range": [
+          0,
+          100
+        ],
+        "allow_not_applicable": false,
+        "exclude_from_semantic_numeric_coverage": false,
+        "failures": [],
+        "numeric": true,
+        "not_applicable": false,
+        "report_schema_version": 4,
+        "raw_max": 13,
+        "contribution": 0,
+        "score": 0,
+        "observed_score": 0,
+        "rank": 1,
+        "depth_state": "partial",
+        "estimated": true,
+        "semantic_coverage": "complete",
+        "boundaries": [
+          {
+            "scope": "file",
+            "id": "source:java:Example.java",
+            "state": "partial",
+            "policy_revision": "r39",
+            "estimated": true,
+            "files": [
+              "Example.java"
+            ],
+            "raw": {
+              "B8": 16,
+              "H": 0,
+              "estimate": {
+                "abstractions": [
+                  {
+                    "audience": "external",
+                    "burden": 2,
+                    "findings": [
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "a",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      },
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "b",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      },
+                      {
+                        "caller_files": [],
+                        "kind": "unused-input",
+                        "operation": "Example.java#run/0",
+                        "parameter": "c",
+                        "support": "source-inferred",
+                        "unnecessary_burden": 0.25
+                      }
+                    ],
+                    "graded": {
+                      "estimated_hidden_responsibility": 0,
+                      "hidden_responsibility": 2,
+                      "material_limitations": [
+                        "unsupported_outcome_range_0_2"
+                      ],
+                      "residual_burden": 0.75,
+                      "responsibilities": {
+                        "invariant-transformation": 2
+                      },
+                      "supported_burden": 0.75,
+                      "surface": {
+                        "evidence": [
+                          "operation:Example.java#run/0:1"
+                        ],
+                        "input_units": 1,
+                        "operation_units": 1,
+                        "representation_units": 0
+                      },
+                      "zero_reason": ""
+                    },
+                    "hidden": 0,
+                    "limitations": [
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "name": "Example",
+                    "published_penalty": 13,
+                    "recognized_hidden": 0,
+                    "uncertain_burden": 2
+                  }
+                ],
+                "burden": 2,
+                "categories": {
+                  "unknown_outcome": 1
+                },
+                "descriptive_ratio": 100,
+                "findings": [
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "a",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  },
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "b",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  },
+                  {
+                    "caller_files": [],
+                    "kind": "unused-input",
+                    "operation": "Example.java#run/0",
+                    "parameter": "c",
+                    "support": "source-inferred",
+                    "unnecessary_burden": 0.25
+                  }
+                ],
+                "hidden": 0,
+                "known_hidden": 0,
+                "limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "model": "graded-caller-responsibility-v1",
+                "penalty_support": "graded-caller-responsibility",
+                "published_penalty": 13,
+                "recognized_hidden": 0,
+                "roles": null,
+                "source_hidden": 0,
+                "uncertain_burden": 2,
+                "uncertainty_policy": "graded-caller-responsibility-v1"
+              },
+              "graded": {
+                "estimated_hidden_responsibility": 0,
+                "hidden_responsibility": 2,
+                "material_limitations": [
+                  "unsupported_outcome_range_0_2"
+                ],
+                "residual_burden": 0.75,
+                "responsibilities": {
+                  "invariant-transformation": 2
+                },
+                "supported_burden": 0.75,
+                "surface": {
+                  "evidence": [
+                    "operation:Example.java#run/0:1"
+                  ],
+                  "input_units": 1,
+                  "operation_units": 1,
+                  "representation_units": 0
+                },
+                "zero_reason": ""
+              },
+              "responsibility_ratio": 100,
+              "zero_reason": ""
+            }
+          }
+        ],
+        "limitations": [
+          [
+            "unsupported_outcome_range_0_2"
+          ],
+          [
+            "unsupported_outcome_range_0_2"
+          ]
+        ],
+        "zero_reason": null,
+        "zero_basis": null,
+        "support": [
+          {
+            "name": "source:java:Example.java",
+            "symbol": "source:java:Example.java",
+            "scope": "file",
+            "value": 13,
+            "location": {
+              "path": "Example.java",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:java:Example.java"
+            }
+          }
+        ],
+        "material_uncertainty": true,
+        "score_sort_ok": true,
+        "report_diagnostics": [],
+        "analysis_mode": "estimated",
+        "zero_category": null,
+        "precise_complete": false,
+        "semantic_applicable": true,
+        "semantic_numeric": true,
+        "semantic_complete": false,
+        "passed": true,
+        "behavioral_conformance": true,
+        "semantic_conformance": true,
+        "source": "public class Example { private int value; public int run(int x,int a,int b,int c) { this.value+=x; return this.value; } }"
+      }
+    ]
+  },
+  "synthetic": {
+    "cases": 60,
+    "passed": true,
+    "failures": [],
+    "languages": {
+      "go": {
+        "total": 15,
+        "applicable": 15,
+        "numeric": 15,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 15,
+        "semantic_numeric": 15,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 15,
+        "estimated_rate": 1.0,
+        "uncertain": 14,
+        "uncertainty_rate": 0.9333333333333333,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 15,
+        "behavioral_conformance": 15,
+        "semantic_coverage": {
+          "partial": 15
+        },
+        "all_state_distribution": {
+          "partial": 15
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 6,
+          "26-64": 3,
+          "65-100": 4
+        },
+        "failures": 0
+      },
+      "java": {
+        "total": 15,
+        "applicable": 15,
+        "numeric": 15,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 15,
+        "semantic_numeric": 15,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 14,
+        "estimated_rate": 0.9333333333333333,
+        "uncertain": 14,
+        "uncertainty_rate": 0.9333333333333333,
+        "precise_complete": 1,
+        "semantic_complete_rate": 0.06666666666666667,
+        "semantic_conformance": 15,
+        "behavioral_conformance": 15,
+        "semantic_coverage": {
+          "partial": 14,
+          "measured": 1
+        },
+        "all_state_distribution": {
+          "partial": 14,
+          "measured": 1
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 6,
+          "26-64": 3,
+          "65-100": 4
+        },
+        "failures": 0
+      },
+      "rust": {
+        "total": 15,
+        "applicable": 15,
+        "numeric": 15,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 15,
+        "semantic_numeric": 15,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 14,
+        "estimated_rate": 0.9333333333333333,
+        "uncertain": 14,
+        "uncertainty_rate": 0.9333333333333333,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 15,
+        "behavioral_conformance": 15,
+        "semantic_coverage": {
+          "partial": 14,
+          "measured": 1
+        },
+        "all_state_distribution": {
+          "partial": 14,
+          "measured": 1
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 6,
+          "26-64": 3,
+          "65-100": 4
+        },
+        "failures": 0
+      },
+      "typescript": {
+        "total": 15,
+        "applicable": 15,
+        "numeric": 15,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 15,
+        "semantic_numeric": 15,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 14,
+        "estimated_rate": 0.9333333333333333,
+        "uncertain": 14,
+        "uncertainty_rate": 0.9333333333333333,
+        "precise_complete": 1,
+        "semantic_complete_rate": 0.06666666666666667,
+        "semantic_conformance": 15,
+        "behavioral_conformance": 15,
+        "semantic_coverage": {
+          "partial": 14,
+          "measured": 1
+        },
+        "all_state_distribution": {
+          "partial": 14,
+          "measured": 1
+        },
+        "bands": {
+          "0": 7,
+          "1-25": 1,
+          "26-64": 3,
+          "65-100": 4
+        },
+        "failures": 0
+      }
+    }
+  },
+  "real": {
+    "cases": 12,
+    "passed": true,
+    "failures": [],
+    "ratings": {
+      "java-result-carrier": 0,
+      "java-codec": 17,
+      "java-query-pipeline": 58,
+      "java-keyed-path": 0,
+      "java-query-result-row": 36,
+      "go-workspace": 0,
+      "go-publisher-contract": 0,
+      "typescript-predicates": 0,
+      "typescript-config": 4,
+      "rust-location": 20,
+      "rust-expression": 5,
+      "java-derived-reference-validator": 7
+    },
+    "languages": {
+      "go": {
+        "total": 2,
+        "applicable": 2,
+        "numeric": 2,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 1,
+        "semantic_numeric": 1,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 1,
+        "excluded_numeric": 1,
+        "estimated": 1,
+        "estimated_rate": 1.0,
+        "uncertain": 1,
+        "uncertainty_rate": 1.0,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 1,
+        "behavioral_conformance": 2,
+        "semantic_coverage": {
+          "partial": 1
+        },
+        "all_state_distribution": {
+          "partial": 1,
+          "measured": 1
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 0,
+          "26-64": 0,
+          "65-100": 0
+        },
+        "failures": 0
+      },
+      "java": {
+        "total": 6,
+        "applicable": 6,
+        "numeric": 6,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 6,
+        "semantic_numeric": 6,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 5,
+        "estimated_rate": 0.8333333333333334,
+        "uncertain": 5,
+        "uncertainty_rate": 0.8333333333333334,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 6,
+        "behavioral_conformance": 6,
+        "semantic_coverage": {
+          "measured": 1,
+          "partial": 5
+        },
+        "all_state_distribution": {
+          "measured": 1,
+          "partial": 5
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 2,
+          "26-64": 2,
+          "65-100": 0
+        },
+        "failures": 0
+      },
+      "rust": {
+        "total": 2,
+        "applicable": 2,
+        "numeric": 2,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 2,
+        "semantic_numeric": 2,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 2,
+        "estimated_rate": 1.0,
+        "uncertain": 2,
+        "uncertainty_rate": 1.0,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 2,
+        "behavioral_conformance": 2,
+        "semantic_coverage": {
+          "partial": 2
+        },
+        "all_state_distribution": {
+          "partial": 2
+        },
+        "bands": {
+          "0": 0,
+          "1-25": 2,
+          "26-64": 0,
+          "65-100": 0
+        },
+        "failures": 0
+      },
+      "typescript": {
+        "total": 2,
+        "applicable": 2,
+        "numeric": 2,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 2,
+        "semantic_numeric": 2,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 2,
+        "estimated_rate": 1.0,
+        "uncertain": 2,
+        "uncertainty_rate": 1.0,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 2,
+        "behavioral_conformance": 2,
+        "semantic_coverage": {
+          "partial": 2
+        },
+        "all_state_distribution": {
+          "partial": 2
+        },
+        "bands": {
+          "0": 1,
+          "1-25": 1,
+          "26-64": 0,
+          "65-100": 0
+        },
+        "failures": 0
+      }
+    }
+  },
+  "workspace_comparisons": {
+    "/Users/blater/src/river": {
+      "before_coverage": {
+        "analyzed": 2207,
+        "numeric": 2153,
+        "not_applicable": 54,
+        "estimated": 2104,
+        "missing_applicable": 0
+      },
+      "after_coverage": {
+        "analyzed": 2207,
+        "numeric": 2153,
+        "not_applicable": 54,
+        "estimated": 2104,
+        "missing_applicable": 0
+      },
+      "rating_changes": [
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedPageFrameCache.java",
+          "before": 58,
+          "after": 51
+        },
+        {
+          "path": "river-wal/src/main/java/io/riverdb/wal/local/LocalWal.java",
+          "before": 65,
+          "after": 63
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlRowExpressionEvaluator.java",
+          "before": 56,
+          "after": 49
+        },
+        {
+          "path": "river-engine-api/src/main/java/io/riverdb/engine/api/TransactionValueArena.java",
+          "before": 47,
+          "after": 37
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTableStore.java",
+          "before": 54,
+          "after": 52
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverJdbcConnection.java",
+          "before": 61,
+          "after": 58
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlCommand.java",
+          "before": 71,
+          "after": 67
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlBooleanWhereParser.java",
+          "before": 29,
+          "after": 24
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/TransactionCompletion.java",
+          "before": 66,
+          "after": 51
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlScalarExpressionParser.java",
+          "before": 44,
+          "after": 36
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverColumnsResultSet.java",
+          "before": 51,
+          "after": 46
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverJdbcStatement.java",
+          "before": 60,
+          "after": 56
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverPrimaryKeyResultSet.java",
+          "before": 49,
+          "after": 46
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverJdbcResultSet.java",
+          "before": 50,
+          "after": 48
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlBooleanPredicateProgram.java",
+          "before": 54,
+          "after": 46
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlParser.java",
+          "before": 34,
+          "after": 31
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedHybridWalSizing.java",
+          "before": 12,
+          "after": 8
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBooleanScalarBinder.java",
+          "before": 12,
+          "after": 10
+        },
+        {
+          "path": "river-wal/src/main/java/io/riverdb/wal/local/LocalWalAppendState.java",
+          "before": 73,
+          "after": 68
+        },
+        {
+          "path": "river-platform/src/main/java/io/riverdb/platform/file/nio/NioDurableDirectory.java",
+          "before": 30,
+          "after": 26
+        },
+        {
+          "path": "river-platform/src/main/java/io/riverdb/platform/file/nio/NioDurableFile.java",
+          "before": 19,
+          "after": 22
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockBlockCausality.java",
+          "before": 47,
+          "after": 38
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/page/SinglePageStore.java",
+          "before": 25,
+          "after": 24
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlLiteralReader.java",
+          "before": 39,
+          "after": 36
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlNestedSubquerySource.java",
+          "before": 34,
+          "after": 31
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBinder.java",
+          "before": 17,
+          "after": 16
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlJoinChainPlan.java",
+          "before": 17,
+          "after": 15
+        },
+        {
+          "path": "river-engine-api/src/main/java/io/riverdb/engine/api/ParameterValues.java",
+          "before": 51,
+          "after": 34
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedLogicalRowIdRegistry.java",
+          "before": 43,
+          "after": 40
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlAccessEdgeSelector.java",
+          "before": 26,
+          "after": 35
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlTemporalContext.java",
+          "before": 29,
+          "after": 27
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlSubqueryResultCache.java",
+          "before": 60,
+          "after": 55
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlActiveScanState.java",
+          "before": 54,
+          "after": 44
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlTemporalZonePlan.java",
+          "before": 19,
+          "after": 17
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlMutationExpressionBinder.java",
+          "before": 4,
+          "after": 3
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTupleIndexLifecycleBatch.java",
+          "before": 56,
+          "after": 50
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlQuery.java",
+          "before": 50,
+          "after": 43
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlJoinMergeRightRows.java",
+          "before": 19,
+          "after": 16
+        },
+        {
+          "path": "river-backup/src/main/java/io/riverdb/backup/OfflineBackupCatalog.java",
+          "before": 26,
+          "after": 24
+        },
+        {
+          "path": "river-server/src/main/java/io/riverdb/server/SessionEndpoint.java",
+          "before": 43,
+          "after": 37
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlTemporalRecurringRules.java",
+          "before": 45,
+          "after": 36
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/runtime/DatabaseResourceGovernor.java",
+          "before": 40,
+          "after": 32
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedRelationalMutationBuffer.java",
+          "before": 66,
+          "after": 64
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedPreparedPageBatch.java",
+          "before": 31,
+          "after": 33
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedRowDirectory.java",
+          "before": 54,
+          "after": 48
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedHybridLogicalSizing.java",
+          "before": 43,
+          "after": 28
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/TransactionManager.java",
+          "before": 53,
+          "after": 49
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTuplePageProvider.java",
+          "before": 49,
+          "after": 46
+        },
+        {
+          "path": "river-wal/src/main/java/io/riverdb/wal/local/DurableWalQuorum.java",
+          "before": 47,
+          "after": 42
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVersionDirectory.java",
+          "before": 34,
+          "after": 30
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorSubqueryOutcome.java",
+          "before": 33,
+          "after": 25
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTableKernel.java",
+          "before": 73,
+          "after": 70
+        },
+        {
+          "path": "river-format/src/main/java/io/riverdb/format/btree/TupleInputCursor.java",
+          "before": 28,
+          "after": 19
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/PendingRowArena.java",
+          "before": 69,
+          "after": 47
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/runtime/materialized/SqlMaterializedPagePool.java",
+          "before": 28,
+          "after": 26
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedWalRecovery.java",
+          "before": 18,
+          "after": 19
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlAccessEdgeRange.java",
+          "before": 14,
+          "after": 17
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlJoinChain.java",
+          "before": 64,
+          "after": 56
+        },
+        {
+          "path": "river-format/src/main/java/io/riverdb/format/wal/IndexedPageBatchValidator.java",
+          "before": 39,
+          "after": 29
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverIndexInfoResultSet.java",
+          "before": 50,
+          "after": 44
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalDescriptorScanAccess.java",
+          "before": 20,
+          "after": 17
+        },
+        {
+          "path": "river-client/src/main/java/io/riverdb/client/RiverClientConnector.java",
+          "before": 22,
+          "after": 33
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverCatalogResultSet.java",
+          "before": 49,
+          "after": 44
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVacuumScanner.java",
+          "before": 22,
+          "after": 25
+        },
+        {
+          "path": "river-client/src/main/java/io/riverdb/client/RiverClientQueryMetadata.java",
+          "before": 88,
+          "after": 59
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTreeLookup.java",
+          "before": 14,
+          "after": 10
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/schema/catalog/CatalogKeyAccumulator.java",
+          "before": 34,
+          "after": 28
+        },
+        {
+          "path": "river-protocol/src/main/java/io/riverdb/protocol/ProtocolQueryMetadata.java",
+          "before": 80,
+          "after": 44
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlUniversalJoinSource.java",
+          "before": 44,
+          "after": 31
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlSetExpressionParser.java",
+          "before": 25,
+          "after": 22
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlKeyOrderedLookupRootColumns.java",
+          "before": 44,
+          "after": 31
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/tpcc/TpccTerminalRunner.java",
+          "before": 9,
+          "after": 12
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVacuumRowCursor.java",
+          "before": 18,
+          "after": 15
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/RetainedTransactionProgram.java",
+          "before": 29,
+          "after": 20
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlRetainedLongPages.java",
+          "before": 28,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBlockRowStore.java",
+          "before": 26,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalDescriptorSession.java",
+          "before": 42,
+          "after": 35
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorSetExecution.java",
+          "before": 33,
+          "after": 29
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlSortWorkspace.java",
+          "before": 55,
+          "after": 52
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockExactHoldingLifecycle.java",
+          "before": 22,
+          "after": 24
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorPredicateColumns.java",
+          "before": 20,
+          "after": 15
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBlockStagePlan.java",
+          "before": 27,
+          "after": 24
+        },
+        {
+          "path": "river-format/src/main/java/io/riverdb/format/catalog/CatalogAssemblyState.java",
+          "before": 30,
+          "after": 24
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTableVacuum.java",
+          "before": 40,
+          "after": 38
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedRelationalMutationDescriptors.java",
+          "before": 65,
+          "after": 56
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlSubqueryGraph.java",
+          "before": 84,
+          "after": 69
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedHybridMutationCompiler.java",
+          "before": 15,
+          "after": 11
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVacuumWalRecovery.java",
+          "before": 44,
+          "after": 31
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/RetainedPreparedStatements.java",
+          "before": 26,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/checkpoint/CheckpointVersionGenerationWriter.java",
+          "before": 12,
+          "after": 10
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedPreparedLogicalCommit.java",
+          "before": 43,
+          "after": 33
+        },
+        {
+          "path": "river-cli/src/main/java/io/riverdb/cli/RiverSqlExecution.java",
+          "before": 4,
+          "after": 3
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBlockPipelineExecution.java",
+          "before": 51,
+          "after": 37
+        },
+        {
+          "path": "river-format/src/main/java/io/riverdb/format/btree/TupleComparator.java",
+          "before": 15,
+          "after": 8
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedRelationalWalDecoder.java",
+          "before": 28,
+          "after": 25
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlInsertRows.java",
+          "before": 83,
+          "after": 58
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedDurabilityCohortRing.java",
+          "before": 47,
+          "after": 37
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/PendingMutationBuffer.java",
+          "before": 77,
+          "after": 70
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlJoinChainSource.java",
+          "before": 33,
+          "after": 26
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlProjectionList.java",
+          "before": 43,
+          "after": 34
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockSlotIndex.java",
+          "before": 73,
+          "after": 60
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBlockJoinStage.java",
+          "before": 39,
+          "after": 33
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalPreparedDescriptors.java",
+          "before": 57,
+          "after": 51
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlParameterMarkers.java",
+          "before": 23,
+          "after": 14
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTupleScanMerge.java",
+          "before": 19,
+          "after": 16
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/runtime/DatabaseProviderLease.java",
+          "before": 41,
+          "after": 33
+        },
+        {
+          "path": "river-format/src/main/java/io/riverdb/format/btree/TupleBTreePageValidationProof.java",
+          "before": 40,
+          "after": 35
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/harness/LatencyRecorder.java",
+          "before": 33,
+          "after": 22
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlTableConstraintSet.java",
+          "before": 61,
+          "after": 48
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/checkpoint/CheckpointVersionPageCache.java",
+          "before": 47,
+          "after": 34
+        },
+        {
+          "path": "river-cli/src/main/java/io/riverdb/cli/RiverSqlScriptReader.java",
+          "before": 8,
+          "after": 5
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTransactionResourceAdmission.java",
+          "before": 34,
+          "after": 30
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/RetainedPreparedTemplates.java",
+          "before": 21,
+          "after": 18
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBlockExpressionBinder.java",
+          "before": 13,
+          "after": 11
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedLogicalRowIdFloors.java",
+          "before": 49,
+          "after": 44
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBoundBooleanPredicateProgram.java",
+          "before": 93,
+          "after": 86
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedRelationalMutationEntries.java",
+          "before": 85,
+          "after": 81
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlBooleanChain.java",
+          "before": 53,
+          "after": 35
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlUnionStagePlan.java",
+          "before": 20,
+          "after": 15
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVersionRows.java",
+          "before": 55,
+          "after": 40
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlJoinHashWorkspace.java",
+          "before": 36,
+          "after": 34
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedPreparedCommitCohortDemand.java",
+          "before": 42,
+          "after": 33
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockExactResourceStore.java",
+          "before": 78,
+          "after": 69
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedCommitRequestQueue.java",
+          "before": 48,
+          "after": 34
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVersionOperation.java",
+          "before": 71,
+          "after": 66
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/PendingMutationLatestNodes.java",
+          "before": 71,
+          "after": 63
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlSortSpill.java",
+          "before": 65,
+          "after": 60
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedPageState.java",
+          "before": 69,
+          "after": 60
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTupleGraphReclaimer.java",
+          "before": 35,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/PendingMutationMetadata.java",
+          "before": 68,
+          "after": 59
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/checkpoint/CheckpointLogicalRowIdDirectory.java",
+          "before": 76,
+          "after": 58
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/runtime/SqlDatabaseRuntime.java",
+          "before": 38,
+          "after": 29
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockExactScheduler.java",
+          "before": 69,
+          "after": 58
+        },
+        {
+          "path": "river-client/src/main/java/io/riverdb/client/RiverClientWireExchange.java",
+          "before": 9,
+          "after": 11
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlMutationProgramStorage.java",
+          "before": 65,
+          "after": 57
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockExactRequestStore.java",
+          "before": 66,
+          "after": 56
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorPointInsertExecution.java",
+          "before": 60,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedScanCursor.java",
+          "before": 62,
+          "after": 55
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/schema/cache/SchemaCacheSlots.java",
+          "before": 30,
+          "after": 27
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockExactHoldingStore.java",
+          "before": 64,
+          "after": 53
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockExactTransactionStore.java",
+          "before": 64,
+          "after": 53
+        },
+        {
+          "path": "river-client/src/main/java/io/riverdb/client/RiverClientRemoteQuery.java",
+          "before": 24,
+          "after": 22
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/checkpoint/CheckpointVersionDirectory.java",
+          "before": 30,
+          "after": 22
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlParameterReader.java",
+          "before": 45,
+          "after": 26
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlNestedQueryParser.java",
+          "before": 23,
+          "after": 21
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlScalarExpression.java",
+          "before": 55,
+          "after": 50
+        },
+        {
+          "path": "river-engine-api/src/main/java/io/riverdb/engine/api/TransactionProgramResult.java",
+          "before": 60,
+          "after": 49
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalDescriptorNameSet.java",
+          "before": 69,
+          "after": 49
+        },
+        {
+          "path": "river-engine-api/src/main/java/io/riverdb/engine/api/TransactionProgramBuilder.java",
+          "before": 18,
+          "after": 22
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTupleIntentDescriptors.java",
+          "before": 54,
+          "after": 48
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalDescriptorInsertBatch.java",
+          "before": 61,
+          "after": 46
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlAccessEdgeCollection.java",
+          "before": 14,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedRelationalWalItems.java",
+          "before": 67,
+          "after": 46
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlAnalyzeTableExecution.java",
+          "before": 10,
+          "after": 9
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/prototype/PageProtectionModel.java",
+          "before": 30,
+          "after": 45
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlUniversalJoinMetrics.java",
+          "before": 88,
+          "after": 45
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockExactDeadlockDetector.java",
+          "before": 59,
+          "after": 45
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/schema/cache/SchemaCacheSlotScan.java",
+          "before": 52,
+          "after": 44
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedRelationalWalSizing.java",
+          "before": 24,
+          "after": 20
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlMutationExpressions.java",
+          "before": 55,
+          "after": 44
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlSetExpression.java",
+          "before": 58,
+          "after": 44
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/ViewDefinition.java",
+          "before": 54,
+          "after": 43
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlOrderByList.java",
+          "before": 57,
+          "after": 43
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/schema/catalog/CatalogTablePayloadPlan.java",
+          "before": 51,
+          "after": 42
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorOrderedRows.java",
+          "before": 46,
+          "after": 42
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlGroupingList.java",
+          "before": 51,
+          "after": 42
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlSetLeafTopology.java",
+          "before": 48,
+          "after": 42
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/tpcc/TpccBatch.java",
+          "before": 50,
+          "after": 41
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/PendingMutationLatestIndex.java",
+          "before": 49,
+          "after": 41
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/TransactionSnapshotLifecycle.java",
+          "before": 52,
+          "after": 41
+        },
+        {
+          "path": "river-platform/src/main/java/io/riverdb/platform/file/DirectoryListResult.java",
+          "before": 61,
+          "after": 40
+        },
+        {
+          "path": "river-server-app/src/main/java/io/riverdb/server/app/RiverDaemonStopDirectory.java",
+          "before": 20,
+          "after": 14
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlParserInput.java",
+          "before": 62,
+          "after": 40
+        },
+        {
+          "path": "river-base/src/main/java/io/riverdb/base/error/StatusDetail.java",
+          "before": 44,
+          "after": 39
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVersionState.java",
+          "before": 44,
+          "after": 39
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/checkpoint/CheckpointState.java",
+          "before": 46,
+          "after": 38
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalScanCursor.java",
+          "before": 44,
+          "after": 38
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBoundAggregateSet.java",
+          "before": 45,
+          "after": 38
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedIntChunks.java",
+          "before": 49,
+          "after": 38
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedLongChunks.java",
+          "before": 49,
+          "after": 38
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedPageStateValues.java",
+          "before": 57,
+          "after": 37
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverJdbcBatchState.java",
+          "before": 60,
+          "after": 37
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/prototype/FixedVersionStore.java",
+          "before": 45,
+          "after": 36
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/harness/BoundedTsvOutput.java",
+          "before": 42,
+          "after": 35
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/CatalogIndexCursorSecondaries.java",
+          "before": 49,
+          "after": 35
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/runtime/DatabaseResourceState.java",
+          "before": 52,
+          "after": 34
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlUniversalJoinMergeProbe.java",
+          "before": 39,
+          "after": 33
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedByteChunks.java",
+          "before": 46,
+          "after": 33
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedLongOrdinalIndex.java",
+          "before": 40,
+          "after": 33
+        },
+        {
+          "path": "river-inspect/src/main/java/io/riverdb/inspect/DatabaseInspectionResult.java",
+          "before": 67,
+          "after": 33
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockTypedSlotChunks.java",
+          "before": 46,
+          "after": 33
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorIndexRange.java",
+          "before": 50,
+          "after": 32
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/CatalogIndexCursor.java",
+          "before": 37,
+          "after": 31
+        },
+        {
+          "path": "river-format/src/main/java/io/riverdb/format/btree/TupleKeyBuilder.java",
+          "before": 45,
+          "after": 31
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlAggregateSet.java",
+          "before": 42,
+          "after": 31
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/LockIntervalCursor.java",
+          "before": 42,
+          "after": 31
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/runtime/RuntimeResourceRoot.java",
+          "before": 40,
+          "after": 30
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorScalarAggregate.java",
+          "before": 36,
+          "after": 30
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlKeyOrderedLookupRootShape.java",
+          "before": 39,
+          "after": 30
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTupleScanCursor.java",
+          "before": 36,
+          "after": 30
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVacuum.java",
+          "before": 42,
+          "after": 30
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlIdentifier.java",
+          "before": 52,
+          "after": 30
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/TransactionScalarStack.java",
+          "before": 46,
+          "after": 29
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlScanCursor.java",
+          "before": 34,
+          "after": 29
+        },
+        {
+          "path": "river-tx/src/main/java/io/riverdb/tx/TransactionSnapshotRegistry.java",
+          "before": 51,
+          "after": 29
+        },
+        {
+          "path": "river-base/src/main/java/io/riverdb/base/collection/IntRangeList.java",
+          "before": 35,
+          "after": 28
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/tpcc/TpccAttemptAccounting.java",
+          "before": 33,
+          "after": 28
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorAggregateShape.java",
+          "before": 5,
+          "after": 4
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlTransactionState.java",
+          "before": 36,
+          "after": 28
+        },
+        {
+          "path": "river-protocol/src/main/java/io/riverdb/protocol/ProtocolUtf8Decoder.java",
+          "before": 43,
+          "after": 28
+        },
+        {
+          "path": "river-storage/src/main/java/io/riverdb/storage/btree/TupleBTree.java",
+          "before": 26,
+          "after": 28
+        },
+        {
+          "path": "river-base/src/main/java/io/riverdb/base/type/ExactDecimal128.java",
+          "before": 24,
+          "after": 27
+        },
+        {
+          "path": "river-format/src/main/java/io/riverdb/format/catalog/CatalogAssemblyValidator.java",
+          "before": 39,
+          "after": 27
+        },
+        {
+          "path": "river-engine-api/src/main/java/io/riverdb/engine/api/TransactionProgramResultMetadata.java",
+          "before": 32,
+          "after": 26
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlMutationBinder.java",
+          "before": 7,
+          "after": 6
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedSessionCursors.java",
+          "before": 53,
+          "after": 26
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlApproximateSignificand.java",
+          "before": 10,
+          "after": 8
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlSessionStatementPreparation.java",
+          "before": 31,
+          "after": 25
+        },
+        {
+          "path": "river-jdbc/src/main/java/io/riverdb/jdbc/RiverJdbcSavepoints.java",
+          "before": 46,
+          "after": 25
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/tpcc/TpccRiverProgramResources.java",
+          "before": 35,
+          "after": 24
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalDescriptorDropPublications.java",
+          "before": 80,
+          "after": 24
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorForeignKeyAssembly.java",
+          "before": 40,
+          "after": 24
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlAccessEdgeNumeric.java",
+          "before": 20,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlRowProjectionBinder.java",
+          "before": 25,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTupleRegistryState.java",
+          "before": 29,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedTupleShapeChunks.java",
+          "before": 32,
+          "after": 23
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/RetainedTransactionPrograms.java",
+          "before": 16,
+          "after": 13
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorDeleteScan.java",
+          "before": 12,
+          "after": 9
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedRelationalWalRecovery.java",
+          "before": 22,
+          "after": 19
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/prototype/PrototypeStorageMeasurements.java",
+          "before": 15,
+          "after": 21
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/runtime/ResourceOwnerIndex.java",
+          "before": 31,
+          "after": 21
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/EmbeddedQueryMetadata.java",
+          "before": 25,
+          "after": 13
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlCheckExpressionBinder.java",
+          "before": 3,
+          "after": 2
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorPrimaryPrograms.java",
+          "before": 10,
+          "after": 8
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDistinctValueStore.java",
+          "before": 20,
+          "after": 19
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlPhysicalPlanSteps.java",
+          "before": 28,
+          "after": 20
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/tpcc/TpccJfrProfile.java",
+          "before": 25,
+          "after": 13
+        },
+        {
+          "path": "river-bench/src/main/java/io/riverdb/bench/tpcc/TpccTraceRecording.java",
+          "before": 29,
+          "after": 15
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/SessionHandleDirectory.java",
+          "before": 20,
+          "after": 14
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalDescriptorIndexBackfill.java",
+          "before": 17,
+          "after": 15
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalDescriptorScanRegistry.java",
+          "before": 26,
+          "after": 14
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalSchemaGate.java",
+          "before": 41,
+          "after": 19
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/RelationalSequenceCommands.java",
+          "before": 16,
+          "after": 17
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/relational/TableCheckEvaluator.java",
+          "before": 3,
+          "after": 2
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/runtime/materialized/SqlMaterializedPageClock.java",
+          "before": 20,
+          "after": 15
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlBooleanPredicateBinder.java",
+          "before": 19,
+          "after": 18
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlCatalogScanExecution.java",
+          "before": 23,
+          "after": 19
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorCatalogIndexes.java",
+          "before": 14,
+          "after": 10
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorForeignKeyBuilder.java",
+          "before": 13,
+          "after": 6
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorKeyBuilder.java",
+          "before": 14,
+          "after": 10
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorRunLength.java",
+          "before": 13,
+          "after": 8
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorSetBinding.java",
+          "before": 17,
+          "after": 14
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlDescriptorUpdateScan.java",
+          "before": 15,
+          "after": 12
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlUnionExecution.java",
+          "before": 22,
+          "after": 18
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/sql/SqlUniversalJoinMerge.java",
+          "before": 14,
+          "after": 11
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedSessionRegistry.java",
+          "before": 27,
+          "after": 17
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedSessionSavepoints.java",
+          "before": 27,
+          "after": 19
+        },
+        {
+          "path": "river-engine/src/main/java/io/riverdb/engine/table/IndexedVersionWalApply.java",
+          "before": 29,
+          "after": 19
+        },
+        {
+          "path": "river-server/src/main/java/io/riverdb/server/RemoteSessionAuthorizer.java",
+          "before": 20,
+          "after": 10
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlApproximateLiteralReader.java",
+          "before": 10,
+          "after": 8
+        },
+        {
+          "path": "river-sql/src/main/java/io/riverdb/sql/SqlSetTailParser.java",
+          "before": 5,
+          "after": 3
+        },
+        {
+          "path": "river-storage/src/main/java/io/riverdb/storage/btree/TupleBTreeCursor.java",
+          "before": 17,
+          "after": 16
+        },
+        {
+          "path": "river-storage/src/main/java/io/riverdb/storage/heap/HeapScanCursor.java",
+          "before": 50,
+          "after": 17
+        },
+        {
+          "path": "river-wal/src/main/java/io/riverdb/wal/local/LocalWalForcedCursor.java",
+          "before": 19,
+          "after": 15
+        }
+      ]
+    },
+    "/Users/blater/src/nql": {
+      "before_coverage": {
+        "analyzed": 280,
+        "numeric": 276,
+        "not_applicable": 4,
+        "estimated": 266,
+        "missing_applicable": 0
+      },
+      "after_coverage": {
+        "analyzed": 280,
+        "numeric": 276,
+        "not_applicable": 4,
+        "estimated": 266,
+        "missing_applicable": 0
+      },
+      "rating_changes": [
+        {
+          "path": "src/main/java/blater/nql/runner/sql/cache/CacheHierarchyRowWriter.java",
+          "before": 33,
+          "after": 28
+        },
+        {
+          "path": "src/main/java/blater/nql/runner/sql/cache/CacheTableState.java",
+          "before": 19,
+          "after": 15
+        }
+      ]
+    },
+    "/Users/blater/src/xmltoaster/xmltoaster": {
+      "before_coverage": {
+        "analyzed": 84,
+        "numeric": 84,
+        "not_applicable": 0,
+        "estimated": 73,
+        "missing_applicable": 0
+      },
+      "after_coverage": {
+        "analyzed": 84,
+        "numeric": 84,
+        "not_applicable": 0,
+        "estimated": 73,
+        "missing_applicable": 0
+      },
+      "rating_changes": []
+    }
+  },
+  "internal_source_coverage": {
+    "go": {
+      "analyzed": 361,
+      "numeric": 361,
+      "estimated": 349,
+      "not_applicable": 0,
+      "missing_applicable": 0
+    },
+    "typescript": {
+      "analyzed": 16,
+      "numeric": 16,
+      "estimated": 16,
+      "not_applicable": 0,
+      "missing_applicable": 0
+    },
+    "rust": {
+      "analyzed": 10,
+      "numeric": 10,
+      "estimated": 10,
+      "not_applicable": 0,
+      "missing_applicable": 0
+    },
+    "java": {
+      "analyzed": 4,
+      "numeric": 4,
+      "estimated": 4,
+      "not_applicable": 0,
+      "missing_applicable": 0
+    }
+  },
+  "whole_repository_coverage": {
+    "go": {
+      "analyzed": 519,
+      "numeric": 519,
+      "estimated": 504,
+      "not_applicable": 0,
+      "missing_applicable": 0
+    },
+    "typescript": {
+      "analyzed": 23,
+      "numeric": 23,
+      "estimated": 23,
+      "not_applicable": 0,
+      "missing_applicable": 0
+    },
+    "java": {
+      "analyzed": 91,
+      "numeric": 91,
+      "estimated": 89,
+      "not_applicable": 0,
+      "missing_applicable": 0
+    },
+    "rust": {
+      "analyzed": 16,
+      "numeric": 16,
+      "estimated": 16,
+      "not_applicable": 0,
+      "missing_applicable": 0
+    }
+  },
+  "sensitivity": {
+    "models": 66,
+    "totals": {
+      "RangeEscapes": 49,
+      "DirectionViolations": 0,
+      "InvarianceViolations": 23,
+      "RankReversals": 232,
+      "GuardViolations": 0
+    },
+    "maximum_absolute_delta": 31
+  },
+  "fresh": {
+    "cases": 6,
+    "passing_bands": 5,
+    "positive_detection": {
+      "predeclared_real_high_cases": 0,
+      "high_band_coverage": false,
+      "detected_high": 0,
+      "cases": []
+    },
+    "failures": [
+      {
+        "case": "rust-surface-collector",
+        "failure": "raw_max 0 is outside expected range [26, 64]"
+      },
+      {
+        "kind": "comparison",
+        "lower": "rust-program-parser",
+        "higher": "rust-surface-collector",
+        "min_delta": 5,
+        "delta": -13.0,
+        "passed": false,
+        "failure": "delta -13 is below required 5"
+      }
+    ]
+  },
+  "frozen_manifests": {
+    "graded-benchmark.json": "ac9a39a3e761201e3a9f8d8078b9adf7976c2b905c92e33840a38aa784c330df",
+    "graded-real-benchmark.json": "45f80f6954ae9c08bc094ee82bd59302430c7bb25627f10187ce0601ec926a4d",
+    "calibration-holdout/manifest.json": "e61d96bc580996507748ba614e8aedd78834cf13736a09eeef8094c04c30ff19",
+    "structural-fresh-holdout/manifest.json": "c47b969992acffafe442ced4e949ff08c9fc3bb6e9aae708922564db319206e3"
+  }
+}

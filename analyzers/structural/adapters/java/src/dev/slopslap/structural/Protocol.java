@@ -2,6 +2,7 @@ package dev.slopslap.structural;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -10,11 +11,11 @@ import java.util.List;
 import java.util.Map;
 
 final class Protocol {
-    static final int REQUEST_SCHEMA_VERSION = 2;
-    static final int RESPONSE_SCHEMA_VERSION = 3;
+    static final int REQUEST_SCHEMA_VERSION = 3;
+    static final int RESPONSE_SCHEMA_VERSION = 5;
     private static final int REQUEST_MAGIC = 0x53534a46;
     private static final int RESPONSE_MAGIC = 0x53534a4f;
-    record Request(String workspace, List<String> paths, boolean includeTests) { }
+    record Request(String workspace, List<String> paths, boolean includeTests, boolean depth) { }
 
     static Request readRequest(InputStream input) throws IOException {
         DataInputStream data = new DataInputStream(input);
@@ -22,17 +23,18 @@ final class Protocol {
             throw new IOException("unsupported Java fact request");
         }
         boolean includeTests = data.readBoolean();
+        boolean depth = data.readBoolean();
         String workspace = readString(data);
         int count = count(data);
         java.util.ArrayList<String> paths = new java.util.ArrayList<>(count);
         for (int index = 0; index < count; index++) {
             paths.add(readString(data));
         }
-        return new Request(workspace, List.copyOf(paths), includeTests);
+        return new Request(workspace, List.copyOf(paths), includeTests, depth);
     }
 
     static void writeSuccess(OutputStream output, Facts.Program program) throws IOException {
-        DataOutputStream data = new DataOutputStream(output);
+        DataOutputStream data = new DataOutputStream(new BufferedOutputStream(output, 64 << 10));
         data.writeInt(RESPONSE_MAGIC);
         data.writeInt(RESPONSE_SCHEMA_VERSION);
         data.writeBoolean(true);
@@ -176,6 +178,7 @@ final class Protocol {
             writeString(data, failure.code);
             writeString(data, failure.diagnostic);
         }
+        writeStrings(data, value.depth);
     }
 
     private static void writeStrings(DataOutputStream data, List<String> values) throws IOException {

@@ -1,0 +1,43 @@
+PASS go-userdata-root: 0
+PASS go-fix-subscription: 50
+PASS typescript-source-context: 30
+PASS typescript-public-operations: 0
+PASS rust-program-parser: 20
+FAIL rust-surface-collector: 20
+{
+  "positive_detection": {
+    "predeclared_real_high_cases": 0,
+    "high_band_coverage": false,
+    "detected_high": 0,
+    "cases": [],
+    "by_language": {
+      "go": {
+        "predeclared_real_high_cases": 0,
+        "detected_high": 0
+      },
+      "rust": {
+        "predeclared_real_high_cases": 0,
+        "detected_high": 0
+      },
+      "typescript": {
+        "predeclared_real_high_cases": 0,
+        "detected_high": 0
+      }
+    }
+  },
+  "failures": [
+    {
+      "case": "rust-surface-collector",
+      "failure": "raw_max 20 is outside expected range [26, 64]"
+    },
+    {
+      "kind": "comparison",
+      "lower": "rust-program-parser",
+      "higher": "rust-surface-collector",
+      "min_delta": 5,
+      "delta": 0.0,
+      "passed": false,
+      "failure": "delta 0 is below required 5"
+    }
+  ]
+}

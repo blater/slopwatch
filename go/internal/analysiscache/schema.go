@@ -52,9 +52,14 @@ const (
 // Detailed evidence, waivers, diagnostics, and execution plans remain in the
 // corresponding UnitArtifact values and can be loaded lazily.
 type DisplayProjection struct {
-	ViewKey     ViewKey       `json:"view_key"`
-	GeneratedAt time.Time     `json:"generated_at"`
-	Files       []DisplayFile `json:"files"`
+	ViewKey        ViewKey                         `json:"view_key"`
+	GeneratedAt    time.Time                       `json:"generated_at"`
+	Files          []DisplayFile                   `json:"files"`
+	SchemaVersion  int                             `json:"schema_version,omitempty"`
+	ProfileSetHash string                          `json:"profile_set_hash,omitempty"`
+	ScoreProfile   string                          `json:"score_profile,omitempty"`
+	PolicyRevision string                          `json:"policy_revision,omitempty"`
+	Depth          map[string]report.DepthBoundary `json:"depth,omitempty"`
 }
 
 // DisplayFile contains the fields needed to score, sort, and render a report
@@ -84,6 +89,11 @@ type DisplayComponent struct {
 	Observations             int                          `json:"observations"`
 	ObservedContribution     float64                      `json:"observed_contribution"`
 	Subjects                 []report.SubjectContribution `json:"subjects"`
+	DepthState               string                       `json:"depth_state,omitempty"`
+	DepthEstimated           bool                         `json:"depth_estimated,omitempty"`
+	DepthVersion             string                       `json:"depth_version,omitempty"`
+	DepthBoundaryIDs         []string                     `json:"depth_boundary_ids,omitempty"`
+	RawMaximum               *float64                     `json:"raw_max,omitempty"`
 }
 
 // UnitArtifact is the lossless result for one analyzer-owned unit. Report
@@ -121,6 +131,8 @@ func ProjectionFromReport(viewKey ViewKey, document report.Document, freshness F
 				Observations:             component.Observations,
 				ObservedContribution:     component.ObservedContribution,
 				Subjects:                 append([]report.SubjectContribution(nil), component.Subjects...),
+				DepthState:               component.DepthState, DepthVersion: component.DepthVersion, DepthBoundaryIDs: append([]string(nil), component.DepthBoundaryIDs...), RawMaximum: component.RawMaximum,
+				DepthEstimated: component.DepthEstimated,
 			}
 		}
 		files[index] = DisplayFile{
@@ -132,7 +144,14 @@ func ProjectionFromReport(viewKey ViewKey, document report.Document, freshness F
 			ValidZero: file.ValidZero, Freshness: freshness, FreshnessNote: file.FreshnessNote,
 		}
 	}
-	return DisplayProjection{ViewKey: viewKey, GeneratedAt: time.Now().UTC(), Files: files}
+	depth := make(map[string]report.DepthBoundary, len(document.Depth))
+	for id, boundary := range document.Depth {
+		// Detailed facts live in the unit artifact. Startup needs only the
+		// boundary summary; normal cache validation restores the detail ledger.
+		depth[id] = report.DepthBoundary{ID: boundary.ID, State: boundary.State,
+			Estimated: boundary.Estimated, Shallow: boundary.Shallow}
+	}
+	return DisplayProjection{ViewKey: viewKey, GeneratedAt: time.Now().UTC(), Files: files, SchemaVersion: document.SchemaVersion, ProfileSetHash: document.ProfileSetHash, ScoreProfile: document.ScoreProfile, PolicyRevision: document.PolicyRevision, Depth: depth}
 }
 
 // ReportFiles reconstructs report-compatible files from a projection. Evidence
@@ -150,6 +169,8 @@ func (projection DisplayProjection) ReportFiles() []report.File {
 				Observations:             component.Observations,
 				ObservedContribution:     component.ObservedContribution,
 				Subjects:                 append([]report.SubjectContribution(nil), component.Subjects...),
+				DepthState:               component.DepthState, DepthVersion: component.DepthVersion, DepthBoundaryIDs: append([]string(nil), component.DepthBoundaryIDs...), RawMaximum: component.RawMaximum,
+				DepthEstimated: component.DepthEstimated,
 			}
 		}
 		files[index] = report.File{

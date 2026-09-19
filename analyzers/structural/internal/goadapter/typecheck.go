@@ -157,15 +157,19 @@ func (resolver *moduleResolver) sourceImportPath(item source) string {
 }
 
 func typeCheck(root string, sources []source, fset *token.FileSet) {
+	typeCheckMode(root, sources, fset, false)
+}
+
+func typeCheckMode(root string, sources []source, fset *token.FileSet, depthMode bool) {
 	// A -trimpath distribution deliberately carries no build-machine GOROOT.
 	// importer.ForCompiler cannot resolve even the standard library in that
 	// environment, so walking and partially checking every package only to use
 	// the AST fallback wastes most of startup on large repositories.
 	goRoot := runtime.GOROOT()
-	if goRoot == "" {
+	if goRoot == "" && !depthMode {
 		return
 	}
-	if metadata, err := os.Stat(filepath.Join(goRoot, "src")); err != nil || !metadata.IsDir() {
+	if metadata, err := os.Stat(filepath.Join(goRoot, "src")); !depthMode && (err != nil || !metadata.IsDir()) {
 		return
 	}
 	byKey := make(map[string]*typeGroup)
@@ -192,6 +196,11 @@ func typeCheck(root string, sources []source, fset *token.FileSet) {
 		fset: fset, groups: make(map[string]*typeGroup),
 		fallback: importer.ForCompiler(fset, "source", nil),
 	}
+	var depthImports *depthImporter
+	if depthMode {
+		depthImports = newDepthImporter()
+		loader.fallback = depthImports
+	}
 	groups := make([]*typeGroup, 0, len(byKey))
 	for _, group := range byKey {
 		if existing := loader.groups[group.importPath]; existing != nil {
@@ -207,6 +216,9 @@ func typeCheck(root string, sources []source, fset *token.FileSet) {
 		_, _ = loader.Import(group.importPath)
 		for _, index := range group.indices {
 			sources[index].typeInfo = group.info
+			if depthMode {
+				sources[index].depthImports = depthImports
+			}
 			sources[index].typesAvailable = !group.failed
 			sources[index].typeReason = group.reason
 		}

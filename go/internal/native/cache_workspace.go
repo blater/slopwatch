@@ -73,11 +73,22 @@ func hashWorkspacePaths(analyzer *analysisEngine, ctx context.Context, paths []s
 
 func workspaceDigests(paths []string, results []workspaceHashResult) (map[string]analysiscache.Digest, error) {
 	digests := make(map[string]analysiscache.Digest, len(paths))
+	var missing error
 	for index, item := range results {
 		if item.err != nil {
+			if errors.Is(item.err, os.ErrNotExist) {
+				// A file disappearing while the final verification runs is
+				// ordinary workspace churn. Keep looking so a concurrent
+				// non-churn error is not hidden by map iteration order.
+				missing = item.err
+				continue
+			}
 			return nil, fmt.Errorf("hash workspace input %s: %w", paths[index], item.err)
 		}
 		digests[paths[index]] = item.digest
+	}
+	if missing != nil {
+		return nil, fmt.Errorf("hash workspace input disappeared: %w", missing)
 	}
 	return digests, nil
 }

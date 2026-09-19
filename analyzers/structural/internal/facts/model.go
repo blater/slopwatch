@@ -140,7 +140,7 @@ type Type struct {
 }
 
 // FileFailure records a source-local failure that did not prevent the rest of
-// the requested unit from being analyzed. Hard inventory and transport
+// the requested unit from being analyzed. Duplicate inventory and transport
 // failures continue to be returned as Analyze errors.
 type FileFailure struct {
 	Path       string `json:"path"`
@@ -178,13 +178,17 @@ func (program *Program) LinkTypeMethods() error {
 
 // Program is the complete fact set for one analyzer unit.
 type Program struct {
-	Functions        []*Function                  `json:"functions"`
-	Types            []*Type                      `json:"types"`
-	PublicOperations []*PublicOperation           `json:"public_operations,omitempty"`
-	Representation   []*RepresentationExposure    `json:"representation_exposure,omitempty"`
-	Files            []string                     `json:"files"`
-	Unavailable      map[string]map[string]string `json:"unavailable"`
-	Failures         []FileFailure                `json:"failures,omitempty"`
+	Functions        []*Function               `json:"functions"`
+	Types            []*Type                   `json:"types"`
+	PublicOperations []*PublicOperation        `json:"public_operations,omitempty"`
+	Representation   []*RepresentationExposure `json:"representation_exposure,omitempty"`
+	// Depth contains the optional responsibility-burden v4 facts. Keeping this
+	// transport separate lets legacy adapters and profiles continue to emit the
+	// schema-2 facts while the normalized flow contract rolls out.
+	Depth       *DepthFacts                  `json:"depth,omitempty"`
+	Files       []string                     `json:"files"`
+	Unavailable map[string]map[string]string `json:"unavailable"`
+	Failures    []FileFailure                `json:"failures,omitempty"`
 }
 
 // Availability returns whether a component has complete evidence for a file.

@@ -47,7 +47,7 @@ To navigate and use the dashboard:
 
 ### Settings 
 
-Choose Settings → Appearance to switch between the dark and light themes.
+Choose Settings → Appearance → Theme to switch between the dark and light themes.
 
 Other settings that can be adjusted are: 
 * columns displayed, 
@@ -119,13 +119,13 @@ for the file's language. It does not add the raw values shown in the report.
 
 Type-safety checks are disabled by default because constructing and validating
 a repository-wide TypeScript compiler graph can dominate startup on mature
-projects. They apply only to TypeScript. Enabling `TYPE SAFETY` in Settings →
+projects. They apply only to TypeScript. Enabling `TYPE SAFETY` in Settings → Appearance →
 Columns automatically runs compiler-aware analysis and refreshes the dashboard;
 no restart or extra flag is required. For non-interactive reports, or to preload
 the graph before opening the dashboard, use `--typescript-types`.
 
 Deep-nesting checks are also disabled in the dashboard score by default. To
-include them, enable `NESTING` in Settings → Columns. This keeps the separate
+include them, enable `NESTING` in Settings → Appearance → Columns. This keeps the separate
 nesting penalty from silently adding to the nesting already reflected in COG.
 
 ```text
@@ -200,6 +200,13 @@ The report shows the total across routines and the maximum routine value.
 
 ### SHALLOW — module depth
 
+The default profile is `responsibility-v4`. Use
+`--score-profile=legacy-signature-v3` with either executable to compare against
+the previous measure. V4 is being delivered incrementally: the responsibilities
+described below are the intended model, and some remain unimplemented. See the
+[current capabilities and backlog](docs/shallow-v4-interim-release.md), including
+the substantial Java coverage gaps observed on River.
+
 SHALLOW measures module "depth". This is the John Ousterhout suggestion of how to measure how good an interface/API is. If it abstracts a lot of complexity behind a simple interface it is better (deeper), if the amount of work going on in the backend is low compared to the complexity of the interface it is worse (shallower).
 
 In summary: how much work an interface leaves to its callers compared with how much it handles for them (the caller burden).
@@ -207,12 +214,17 @@ In summary: how much work an interface leaves to its callers compared with how m
 The caller's burden includes the operations and concepts they must understand, inputs and decisions they must supply, and steps they must perform in order.
 Exposing writable internal state adds to that burden. On the other side, the analyzer follows implementation and resolved calls for evidence of work handled inside: validating inputs, translating errors, managing resources and private state, coordinating concurrent access, and transforming data.
 
-The SHALLOW score runs from 0 to 100:
+The descriptive burden/depth ratio is separate from the 0–100 SHALLOW defect penalty:
 ```text
 B = weighted caller burden
 H = weighted hidden responsibility
-SHALLOW = round(100 × B / (B + 2 × H))
+descriptive ratio = round(100 × B / (B + 2 × H))
 ```
+
+A penalty requires specific adverse evidence; neither a high ratio nor missing
+analysis establishes a defect. Current detection covers unnecessary required
+inputs, with observed caller evidence or source-based inference. Zero means no
+finding established, not proven exceptional depth.
 
 For example, an operation that opens a resource, uses it and handles cleanup
 hides more responsibility than an interface that leaves those steps to the caller.
@@ -228,8 +240,10 @@ Recognized type constraints, defensive copies and useful adaptation are also tak
 
 *Caveats (there are many)*
 This is an engineering estimate, not a verdict on design. It measures the kinds of responsibility hidden, not algorithmic sophistication: a small calculation and a substantial computation can receive the same credit. 
-The weights are policy choices, not an empirically calibrated scale. Missing dependencies, generated code or unsupported behavior can leave essential evidence unresolved; that produces `X`, not a guessed score, and prevents a complete pass. `–` means the metric does not apply. 
+The weights are policy choices, not an empirically calibrated scale. Ordinary heuristic results are labelled **Estimated**. Specific material limitations and support for individual findings are shown separately; semantic incompleteness does not replace an applicable numeric rating. `–` means the metric does not apply.
 The **info** view popup gives more details to explain the evidence and any gaps.
+An unavailable SHALLOW measurement does not hide SCORE: the aggregate uses the
+other available components, while SHALLOW retains its `X` indicator.
 
 _This is a score best used as a composite component of the overall score_ - it's not one you should blindly tell an agent to optimize for on its own, as it is a lot more nuanced than say, the GOD metric.
 
@@ -262,7 +276,7 @@ The displayed GOD value is the weighted penalty for the candidate; zero means th
 
 This feature is alpha. You can highlight files in the slopwatch file browser and request an agent to lower its score. This spins off an agent with a prompt to fix the marked files, along with a prompt and some guardrails:
 
-The prompt uses a template which can be changed in Settings → Fix Defaults → Agent prompt.  It uses placeholders such as {targets}, {target_score}, {focus_metrics}, {baseline_scores}, and {target_checklist}.
+The prompt uses a template which can be changed in Settings → Agents → Fix Settings → Agent prompt.  It uses placeholders such as {targets}, {target_score}, {focus_metrics}, {baseline_scores}, and {target_checklist}.
 
 The guardrails prohibit gaming scores by sharding files, relocating complexity, or emptying targets.  These are currently nothing complex - simply added to the prompt, and rely on the agent following instructions. This will get more attention in the future if agent-assisted-fixes turns out to be a useful feature.
 
@@ -293,7 +307,7 @@ I'll write up a proper description, but in the meantime, enjoy Codex's descripti
  job. Agent completion is not treated as success: SlopWatch freshly analyzes
  the candidate and continues automatically until the target is met.
 
- Settings lists its sections alphabetically. Agents presents one row per
+ Settings groups options under Agents, Appearance, and Static Analysis. Agent Setup presents one row per
  provider, marks unavailable integrations and highlights the active one.
  Selecting a provider opens a provider-specific connection dialog and starts
  an automatic readiness check; only a successful connection becomes active.

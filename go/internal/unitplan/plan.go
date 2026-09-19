@@ -4,6 +4,7 @@ package unitplan
 
 import (
 	"fmt"
+	"github.com/blater/slopwatch/internal/sourceignore"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -52,7 +53,9 @@ const (
 
 // Options controls planning choices which affect analyzer correctness.
 type Options struct {
-	TypeScriptMode TypeScriptMode
+	DisableGitignore bool
+	IgnoreMatcher    *sourceignore.Matcher
+	TypeScriptMode   TypeScriptMode
 	// Targets are the user-selected paths relative to root. Explicit symlink
 	// targets are part of the authorized inventory even though ordinary tree
 	// traversal does not follow nested symlinks.
@@ -68,10 +71,10 @@ type Unit struct {
 	Mode         Mode
 	Capabilities []Capability
 	Sources      []string
-	// ContextSources are source files owned by direct dependencies. The cache
-	// coordinator walks DirectDependencies when it needs a complete transitive
-	// analysis snapshot, avoiding a quadratic copy of every dependency closure
-	// into every unit.
+	// ContextSources are source files needed as compiler or parser context but
+	// excluded from this unit's owned scoring rows. The cache coordinator walks
+	// DirectDependencies when it needs a complete transitive snapshot, avoiding
+	// a quadratic copy of every dependency closure into every unit.
 	ContextSources      []string
 	ConfigInputs        []string
 	DirectDependencies  []string
@@ -108,7 +111,7 @@ func PlanWorkspace(root string, options Options) (Plan, error) {
 		return Plan{}, fmt.Errorf("workspace is not a directory: %s", root)
 	}
 
-	files, err := workspaceFiles(absRoot, options.Targets)
+	files, err := workspaceFiles(absRoot, options.Targets, options.DisableGitignore, options.IgnoreMatcher)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -142,7 +145,10 @@ var ignoredDirectories = map[string]bool{
 	"target": true, "vendor": true,
 }
 
-func workspaceFiles(root string, targets []string) ([]string, error) {
+func workspaceFiles(root string, targets []string, disabled bool, matcher *sourceignore.Matcher) ([]string, error) {
+	if matcher == nil {
+		matcher = sourceignore.New(root, disabled)
+	}
 	var files []string
 	err := walkWorkspaceTree(root, func(path string) error {
 		relative, err := filepath.Rel(root, path)
@@ -151,12 +157,12 @@ func workspaceFiles(root string, targets []string) ([]string, error) {
 		}
 		files = append(files, cleanPath(relative))
 		return nil
-	})
+	}, matcher)
 	if err != nil {
 		return nil, fmt.Errorf("scan workspace: %w", err)
 	}
 	for _, target := range targets {
-		targetFiles, err := explicitSymlinkTargetFiles(root, target)
+		targetFiles, err := explicitSymlinkTargetFiles(root, target, matcher)
 		if err != nil {
 			return nil, err
 		}
@@ -165,10 +171,22 @@ func workspaceFiles(root string, targets []string) ([]string, error) {
 	return uniqueStrings(files), nil
 }
 
-func walkWorkspaceTree(start string, addFile func(string) error) error {
+func walkWorkspaceTree(start string, addFile func(string) error, matchers ...*sourceignore.Matcher) error {
+	return walkWorkspaceTreeFiltered(start, addFile, func(path string, directory bool) bool {
+		return len(matchers) > 0 && matchers[0].Ignored(path, directory)
+	})
+}
+
+func walkWorkspaceTreeFiltered(start string, addFile func(string) error, ignored func(string, bool) bool) error {
 	return filepath.WalkDir(start, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if ignored(path, entry.IsDir()) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if entry.IsDir() {
 			if path != start && ignoredDirectories[entry.Name()] {
@@ -180,7 +198,11 @@ func walkWorkspaceTree(start string, addFile func(string) error) error {
 	})
 }
 
-func explicitSymlinkTargetFiles(root, target string) ([]string, error) {
+func explicitSymlinkTargetFiles(root, target string, matchers ...*sourceignore.Matcher) ([]string, error) {
+	matcher := sourceignore.New(root, false)
+	if len(matchers) > 0 {
+		matcher = matchers[0]
+	}
 	logical := target
 	if !filepath.IsAbs(logical) {
 		logical = filepath.Join(root, filepath.FromSlash(target))
@@ -197,6 +219,9 @@ func explicitSymlinkTargetFiles(root, target string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if matcher.Ignored(logical, info.IsDir()) {
+		return nil, nil
+	}
 	if !info.IsDir() {
 		relative, relativeErr := filepath.Rel(root, logical)
 		if relativeErr != nil {
@@ -205,7 +230,7 @@ func explicitSymlinkTargetFiles(root, target string) ([]string, error) {
 		return []string{cleanPath(relative)}, nil
 	}
 	var files []string
-	err = walkWorkspaceTree(resolved, func(path string) error {
+	err = walkWorkspaceTreeFiltered(resolved, func(path string) error {
 		physicalRelative, err := filepath.Rel(resolved, path)
 		if err != nil {
 			return err
@@ -214,8 +239,14 @@ func explicitSymlinkTargetFiles(root, target string) ([]string, error) {
 		if err != nil {
 			return err
 		}
+		if matcher.Ignored(filepath.Join(root, workspaceRelative), false) {
+			return nil
+		}
 		files = append(files, cleanPath(workspaceRelative))
 		return nil
+	}, func(path string, directory bool) bool {
+		relative, err := filepath.Rel(resolved, path)
+		return err != nil || matcher.Ignored(filepath.Join(logical, relative), directory)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("scan explicit target %s: %w", target, err)

@@ -1,0 +1,139 @@
+{
+  "default_profile_identity": "8520be37efdff1342444f70a8b789e537196c35d73134d55d9014dd35b49a2a8",
+  "default_profile": {
+    "name": "graded-r38-v1",
+    "operation": 1,
+    "accessor": 0.25,
+    "input": 0.25,
+    "mutable_alias": 0.5,
+    "coupled_field": 2,
+    "sequencing": 2,
+    "residual_reference": 1.25,
+    "denominator_reference": 1,
+    "responsibility_multiplier": 2,
+    "validation": 1,
+    "transform": 2,
+    "state": 2,
+    "resource": 2,
+    "coordination": 2,
+    "invariant_transformation": 2,
+    "state_consistency": 2,
+    "representation_transformation": 2,
+    "cleanup": 1,
+    "exposed_validation_cap": 1,
+    "validation_envelope": 1,
+    "transformation_envelope": 2
+  },
+  "models": 66,
+  "calibration_cases_per_model": 72,
+  "perturbation": "one-at-a-time 0.8/1.2 plus six declared interacting parameter pairs at all four 0.8/1.2 corners; all other parameters fixed",
+  "totals": {
+    "RangeEscapes": 50,
+    "DirectionViolations": 0,
+    "InvarianceViolations": 1,
+    "RankReversals": 291,
+    "GuardViolations": 0
+  },
+  "maximum_absolute_delta": 31,
+  "relation_violations": [
+    {
+      "parameters": {
+        "operation": 0.8
+      },
+      "violations": [
+        "uncertainty rust_lifecycle_low -> rust_lifecycle_low__dependency_hidden: 1 -> 0; tolerance 10, no_increase=true"
+      ]
+    }
+  ],
+  "holdout": {
+    "positive_detection": {
+      "predeclared_real_high_cases": 2,
+      "detected_high": 0,
+      "cases": [
+        {
+          "id": "river-bound-access",
+          "value": 0,
+          "passed": false
+        },
+        {
+          "id": "river-descriptor-scan-context",
+          "value": 22,
+          "passed": false
+        }
+      ]
+    },
+    "failures": [
+      {
+        "case": "river-bound-access",
+        "failure": "raw_max 0 is outside expected range [65, 100]"
+      },
+      {
+        "case": "river-descriptor-scan-context",
+        "failure": "raw_max 22 is outside expected range [65, 100]"
+      },
+      {
+        "case": "nql-hierarchy-row-context",
+        "failure": "raw_max 64 is outside expected range [0, 25]"
+      },
+      {
+        "case": "xmltoaster-sql-row-cursor",
+        "failure": "raw_max 80 is outside expected range [26, 64]"
+      },
+      {
+        "kind": "comparison",
+        "lower": "nql-hierarchy-row-context",
+        "higher": "river-bound-access",
+        "min_delta": 25,
+        "delta": -64.0,
+        "passed": false,
+        "failure": "delta -64 is below required 25"
+      },
+      {
+        "kind": "comparison",
+        "lower": "nql-hierarchy-row-context",
+        "higher": "river-descriptor-scan-context",
+        "min_delta": 25,
+        "delta": -42.0,
+        "passed": false,
+        "failure": "delta -42 is below required 25"
+      }
+    ],
+    "languages": {
+      "java": {
+        "total": 4,
+        "applicable": 4,
+        "numeric": 4,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 4,
+        "semantic_numeric": 4,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 4,
+        "estimated_rate": 1.0,
+        "uncertain": 4,
+        "uncertainty_rate": 1.0,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 0,
+        "behavioral_conformance": 0,
+        "semantic_coverage": {
+          "partial": 4
+        },
+        "all_state_distribution": {
+          "partial": 4
+        },
+        "bands": {
+          "0": 1,
+          "1-25": 1,
+          "26-64": 1,
+          "65-100": 1
+        },
+        "failures": 4
+      }
+    },
+    "first_evaluation_sha256": "57408de7dd884624471ea27dcbcd482d5206d2d3eddfa7c96248f10843b860c8"
+  },
+  "sensitivity_sha256": "43c1291bf6aff5efc319284ae9cb43520a681b6d040a3c0827df4809e38e1158"
+}

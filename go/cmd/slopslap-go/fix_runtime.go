@@ -113,7 +113,10 @@ func buildFixFeature(ctx context.Context, workspace, installationRoot, preferenc
 		return feature, err
 	}
 	analysis, err := nativeadapter.New(nativeadapter.Config{InstallationRoot: installationRoot, Languages: languages,
-		IncludeTests: parsed.includeTests, TypeScriptTypes: parsed.typescriptTypes, FollowSymlinks: parsed.followSymlinks, BaselineReadCache: true})
+		IncludeTests: parsed.includeTests, TypeScriptTypes: parsed.typescriptTypes, ShallowProfile: parsed.shallowProfile, FollowSymlinks: parsed.followSymlinks, BaselineReadCache: true, GitignoreDisabled: func() (bool, error) {
+			value, err := preferences.LoadOrCreate(preferencesPath, preferences.DefaultDocument())
+			return !value.Files.HonorGitignore, err
+		}})
 	if err != nil {
 		return feature, err
 	}

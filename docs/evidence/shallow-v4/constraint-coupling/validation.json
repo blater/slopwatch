@@ -1,0 +1,45 @@
+[
+  {
+    "name": "focused-regressions-and-safeguards",
+    "command": "make test-shallow-regressions test-shallow-safeguards",
+    "exit": 0,
+    "log": "validation-focused.log"
+  },
+  {
+    "name": "race",
+    "command": "GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off GOCACHE=$PWD/build/go-cache go test -C go -buildvcs=false -race ./internal/sourceestimate ./internal/native ./internal/follow ./internal/fixanalysis/nativeadapter",
+    "exit": 0,
+    "log": "validation-race.log"
+  },
+  {
+    "name": "all-go",
+    "command": "CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off GOCACHE=$PWD/build/go-cache go test -C go -buildvcs=false ./...",
+    "exit": 1,
+    "log": "validation-all-go.log",
+    "failures": [
+      "analysiscache.TestProjectionArtifactRoundTrip: nil versus empty Depth map"
+    ],
+    "preexisting_evidence": "validation-preexisting-all-go.log"
+  },
+  {
+    "name": "graded",
+    "passed": true,
+    "cases": 60,
+    "score_changes": [],
+    "evidence": "graded-r42.json"
+  },
+  {
+    "name": "graded-real",
+    "passed": true,
+    "cases": 12,
+    "score_changes": [
+      {
+        "id": "java-query-pipeline",
+        "before": 58,
+        "after": 60,
+        "delta": 2.0
+      }
+    ],
+    "evidence": "graded-real-r42.json"
+  }
+]

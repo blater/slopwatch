@@ -109,7 +109,9 @@ func dispatchFileKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	case "v":
 		return model, openSourceView(model)
 	case "c":
-		model.settings, model.settingsCursor = true, settingsIndex("columns")
+		model.settings, model.settingsCursor = true, 1
+		model.settingsGroup = "appearance"
+		model.settingsRootCursor = settingsIndex("appearance")
 	case "o":
 		openSortDialog(model)
 	case "f", "/":

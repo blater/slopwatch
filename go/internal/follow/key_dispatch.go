@@ -50,6 +50,8 @@ func dispatchGlobalKey(model *Model, name string) (bool, tea.Cmd) {
 		model.switchMainView(MainViewAgents)
 	case "s":
 		model.settings, model.settingsCursor = true, 0
+		model.settingsGroup = ""
+		model.filesSettings = false
 	case "h":
 		model.help, model.helpCursor, model.helpTopic = true, 0, ""
 	default:
@@ -105,6 +107,8 @@ func dispatchOverlayKey(model *Model, kind OverlayKind, key tea.KeyMsg) (tea.Mod
 		return model.handleSettingsDirtyKey(key)
 	case OverlayShutdown:
 		return model.handleShutdownKey(key)
+	case OverlayRuntimeError:
+		return handleRuntimeErrorKey(model, name)
 	default:
 		return model, nil
 	}

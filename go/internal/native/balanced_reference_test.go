@@ -24,7 +24,7 @@ func assertBalancedReference(t *testing.T, name string) {
 	root := testInstallationRoot(t)
 	requireBalancedAnalyzer(t, root, name)
 	workspace := copyBalancedFixture(t, name)
-	analyzer, err := New(workspace, root, Options{Targets: []string{name}})
+	analyzer, err := New(workspace, root, Options{Targets: []string{name}, ShallowProfile: ShallowProfileLegacy})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -237,9 +237,25 @@ function createTypedProgram(
 function compilerDiagnostics(
   owner: AnalysisContext,
   program: ts.Program,
+  diagnostics: Diagnostic[],
 ): ts.Diagnostic[] {
+  const options = program.getOptionsDiagnostics().filter((item) => {
+    // TS6059 constrains the emit directory layout. Exact-file analysis never
+    // emits output, and snapshots outside rootDir still have valid syntax and
+    // type information. Keep the compiler detail in logs without downgrading
+    // otherwise usable analysis. Other options/config errors remain failures.
+    if (item.code !== 6059 || program.getCompilerOptions().noEmit !== true)
+      return true;
+    diagnostics.push({
+      code: `typescript.compiler.${item.code}`,
+      severity: "info",
+      message: formatTsDiagnostic(item),
+      attributes: { log_only: true, classification: "incidental_emit_layout" },
+    });
+    return false;
+  });
   return [
-    ...program.getOptionsDiagnostics(),
+    ...options,
     ...program.getGlobalDiagnostics(),
     ...owner.sources.flatMap((entry) => {
       const source = program.getSourceFile(entry.absolutePath);
@@ -327,7 +343,7 @@ export function createTypedContext(
     };
   }
 
-  const errors = compilerDiagnostics(owner, program);
+  const errors = compilerDiagnostics(owner, program, diagnostics);
   if (errors.length > 0) return compilerFailure(owner, diagnostics, errors);
 
   const typedSources = new Map<string, ts.SourceFile>();

@@ -21,26 +21,39 @@ const pathScrollStep = 4
 
 func updateModel(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	model.reconcileLegacyOverlayStack()
+	beforeErrors := model.surfaceErrors()
+	suspendErrorOverlay(model, message)
 	updated, command := handleMessage(model, message)
 	if result, ok := updated.(*Model); ok {
 		result.reconcileLegacyOverlayStack()
+		showChangedSurfaceErrors(result, beforeErrors)
+		showStoredRuntimeError(result)
 	}
 	return updated, command
 }
 
 func markFreshness(model *Model, paths []string, freshness report.Freshness, note string) {
 	wanted := pathSet(paths)
+	model.files.ensureScoreDistribution()
+	for index := range model.files.Document.Files {
+		file := model.files.Document.Files[index]
+		if len(wanted) == 0 || wanted[filepath.ToSlash(file.Path)] {
+			updated := file
+			updated.Freshness = freshness
+			updateScoreDistributionFreshness(&model.files.ScoreDistribution, file, updated)
+		}
+	}
 	changed := false
 	for index := range model.files.BaseDocument.Files {
 		file := &model.files.BaseDocument.Files[index]
-		if len(wanted) == 0 || wanted[file.Path] {
+		if len(wanted) == 0 || wanted[filepath.ToSlash(file.Path)] {
 			file.Freshness = freshness
 			file.FreshnessNote = note
 			changed = true
 		}
 	}
 	if changed {
-		rebuildWeightedDocument(model)
+		projectWeightedDocument(model)
 	}
 }
 
@@ -177,15 +190,34 @@ func compareScore(current, previous float64) int {
 func merge(model *Model, result analysisResult) {
 	oldScores := map[string]float64{}
 	oldRanks := map[string]int{}
+	model.files.ensureScoreDistribution()
+	affected := map[string]bool{}
+	if !result.full {
+		for _, path := range result.replace {
+			affected[filepath.ToSlash(path)] = true
+		}
+		for _, file := range result.document.Files {
+			affected[filepath.ToSlash(file.Path)] = true
+		}
+	}
+	oldAffected := map[string]report.File{}
 	for _, file := range model.files.Document.Files {
 		oldScores[file.Path] = file.Score
 		oldRanks[file.Path] = file.Rank
+		if affected[filepath.ToSlash(file.Path)] {
+			oldAffected[filepath.ToSlash(file.Path)] = file
+		}
 	}
 	mergeDocument(model, result)
 	// Keep the projected copy synchronized before rebuilding weights. This is
 	// also required when an incremental result removes its final affected row.
 	model.files.Document = model.files.BaseDocument
-	rebuildWeightedDocument(model)
+	projectWeightedDocument(model)
+	if result.full {
+		model.files.rebuildScoreDistribution()
+	} else {
+		model.files.replaceScoreDistribution(oldAffected, projectWeightedFiles(*model, result.document.Files), affected)
+	}
 	model.files.Document.SortAndRank()
 	model.files.pruneMarks()
 	model.files.HorizontalOffset = min(model.files.HorizontalOffset, maxPathOffset(*model))
@@ -456,6 +488,10 @@ func openSelectedFileInfo(model *Model) {
 }
 
 func handleKey(model *Model, key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Every key is user activity, including keys consumed by an overlay or
+	// ignored by the current view. Reset before dispatch so selection highlight
+	// cannot remain faded after an interaction.
+	model.cursorActivity = time.Now()
 	return dispatchKey(model, key)
 }
 
@@ -488,7 +524,7 @@ func analyzeExisting(model Model, paths []string) tea.Cmd {
 			if errors.Is(err, native.ErrIncrementalPlanUnavailable) {
 				return analysisCommand(model.analyzer, model.options.Targets, nil, true)()
 			}
-			return analysisResult{document: document, replace: affected, err: err}
+			return analysisResult{document: document, replace: affected, paths: append([]string(nil), paths...), err: err}
 		}
 	}
 	existing := make([]string, 0, len(paths))
@@ -505,6 +541,7 @@ func analyzeExisting(model Model, paths []string) tea.Cmd {
 		result := command()
 		analysis := result.(analysisResult)
 		analysis.replace = paths
+		analysis.paths = append([]string(nil), paths...)
 		return analysis
 	}
 }

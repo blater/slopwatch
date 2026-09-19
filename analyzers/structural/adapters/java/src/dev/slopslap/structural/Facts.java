@@ -114,6 +114,7 @@ final class Facts {
     }
 
     static final class Program {
+        final List<String> depth = new ArrayList<>();
         final List<Function> functions = new ArrayList<>();
         final List<TypeFact> types = new ArrayList<>();
         final List<PublicOperation> publicOperations = new ArrayList<>();

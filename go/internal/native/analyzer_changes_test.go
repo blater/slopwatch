@@ -164,7 +164,7 @@ func TestAnalyzeChangesDeletionRetainsReverseDependencyContext(t *testing.T) {
 	assertRequestPaths(t, requests, []string{"app/app.go"}, []string{"lib/lib.go", "unrelated/other.go"})
 }
 
-func TestAnalyzeChangesKeepsPreviousPlanAcrossTransientFailure(t *testing.T) {
+func TestAnalyzeChangesReportsAndRetriesTransientFailure(t *testing.T) {
 	workspace := t.TempDir()
 	writeTestFile(t, workspace, "go.mod", "module example\n")
 	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nvar A = 1\n")
@@ -174,26 +174,26 @@ func TestAnalyzeChangesKeepsPreviousPlanAcrossTransientFailure(t *testing.T) {
 	if _, err := analyzer.Analyze(context.Background(), nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	previousPlan := analyzer.plan
 	failure := errors.New("temporary analyzer failure")
 	analyzer.runUnits = func(context.Context, string, analyzerRequest) (map[string]scoreInputs, error) {
 		return nil, failure
 	}
 	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nvar A = 2\n")
-	if _, _, err := analyzer.AnalyzeChanges(context.Background(), []string{"pkg/a.go"}); !errors.Is(err, failure) {
-		t.Fatalf("transient AnalyzeChanges error = %v", err)
+	document, _, err := analyzer.AnalyzeChanges(context.Background(), []string{"pkg/a.go"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if analyzer.plan != previousPlan {
-		t.Fatal("transient failure replaced the previous analysis plan")
+	if len(document.Files) != 1 || document.Files[0].Complete || document.Files[0].ValidZero {
+		t.Fatalf("transient failure should remain incomplete: %#v", document.Files)
 	}
+	requireRecoveryDiagnostic(t, document.Diagnostics, "native.analyzer_failed")
 	requests = nil
 	analyzer.runUnits = recordChangeRequests(t, &requests)
-	writeTestFile(t, workspace, "pkg/a.go", "package pkg\nvar A = 3\n")
 	if _, _, err := analyzer.AnalyzeChanges(context.Background(), []string{"pkg/a.go"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(requests) != 1 || !requestContainsPath(requests[0], "pkg/a.go") {
-		t.Fatalf("retry did not reuse previous plan: %#v", requests)
+		t.Fatalf("retry did not analyze unchanged failed source: %#v", requests)
 	}
 }
 

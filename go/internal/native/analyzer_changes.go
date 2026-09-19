@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/sourceignore"
 	"github.com/blater/slopwatch/internal/unitplan"
 )
 
@@ -45,7 +46,7 @@ func workspacePlan(analyzer *analysisEngine, options Options) (unitplan.Plan, er
 	if options.TypeScriptTypes {
 		typeScriptMode = unitplan.TypeScriptTyped
 	}
-	return unitplan.PlanWorkspace(analyzer.workspace, unitplan.Options{TypeScriptMode: typeScriptMode, Targets: options.Targets})
+	return unitplan.PlanWorkspace(analyzer.workspace, unitplan.Options{TypeScriptMode: typeScriptMode, Targets: options.Targets, DisableGitignore: options.DisableGitignore, IgnoreMatcher: options.ignoreMatcher})
 }
 
 func cloneDiscovered(discovered map[string][]string) map[string][]string {
@@ -59,12 +60,20 @@ func cloneDiscovered(discovered map[string][]string) map[string][]string {
 func analyzeChanges(analyzer *Analyzer, parent context.Context, changed []string) (report.Document, []string, error) {
 	previous := analyzer.plan
 	options := analysisOptions(analyzer.engine(), nil, nil)
+	options.ignoreMatcher = sourceignore.New(analyzer.workspace, options.DisableGitignore)
 	if !samePlanOptions(previous.options, options) {
 		return report.Document{}, nil, fmt.Errorf("%w: analysis configuration changed; run a full analysis", ErrIncrementalPlanUnavailable)
 	}
 	current, err := currentChangePlan(analyzer, options, previous.selected)
 	if err != nil {
 		return report.Document{}, nil, err
+	}
+	options = current.options
+	if !options.ignoreMatcher.Unchanged() {
+		return report.Document{}, nil, ErrWorkspaceChanged
+	}
+	if previous.options.ignorePolicy != "" && previous.options.ignorePolicy != current.options.ignorePolicy {
+		return report.Document{}, nil, ErrIncrementalPlanUnavailable
 	}
 	paths, err := normalizeChangedPaths(analyzer.workspace, changed)
 	if err != nil {
@@ -89,18 +98,25 @@ func analyzeChanges(analyzer *Analyzer, parent context.Context, changed []string
 	if err != nil {
 		return report.Document{}, nil, err
 	}
+	if !options.ignoreMatcher.Unchanged() {
+		return report.Document{}, nil, ErrWorkspaceChanged
+	}
+	document.Diagnostics = append(document.Diagnostics, options.ignoreMatcher.Diagnostics()...)
 	analyzer.plan = current
 	return document, replacements, nil
 }
 
 func currentChangePlan(analyzer *Analyzer, options Options, selected []string) (*analysisPlanSnapshot, error) {
-	discovered, err := discover(analyzer.engine(), options.Targets, options.IncludeTests, options.FollowSymlinks)
+	discovered, err := discoverPolicy(analyzer.engine(), options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore, options.ignoreMatcher)
 	if err != nil {
 		return nil, err
 	}
 	plan, err := workspacePlan(analyzer.engine(), options)
 	if err != nil {
 		return nil, err
+	}
+	if options.ignoreMatcher != nil {
+		options.ignorePolicy = options.ignoreMatcher.Fingerprint()
 	}
 	return newPlanSnapshot(plan, discovered, changeSelected(options, discovered, selected), options), nil
 }
@@ -124,7 +140,8 @@ func changeSelected(options Options, discovered map[string][]string, previous []
 
 func samePlanOptions(left, right Options) bool {
 	return sameStrings(left.Targets, right.Targets) && sameStrings(left.Languages, right.Languages) &&
-		left.IncludeTests == right.IncludeTests && left.TypeScriptTypes == right.TypeScriptTypes && left.FollowSymlinks == right.FollowSymlinks
+		left.DisableGitignore == right.DisableGitignore && left.IncludeTests == right.IncludeTests && left.TypeScriptTypes == right.TypeScriptTypes &&
+		shallowProfile(left) == shallowProfile(right) && left.FollowSymlinks == right.FollowSymlinks
 }
 
 func sameStrings(left, right []string) bool {

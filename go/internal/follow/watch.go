@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
+	"github.com/blater/slopwatch/internal/sourceignore"
 	"github.com/blater/slopwatch/internal/sourcepath"
 	workspacefs "github.com/blater/slopwatch/internal/workspace"
 )
@@ -19,12 +22,16 @@ var testDirectories = map[string]bool{
 }
 
 type sourceChange struct {
-	Paths []string
-	Full  bool
-	Err   error
+	watcher     *sourceWatcher
+	IgnoreRules bool
+	Paths       []string
+	Full        bool
+	Err         error
 }
 
 type sourceWatcher struct {
+	ancestorRules  map[string]string
+	matcher        *sourceignore.Matcher
 	root           string
 	includeTests   bool
 	followSymlinks bool
@@ -32,6 +39,7 @@ type sourceWatcher struct {
 	scopes         []watchScope
 	monitor        *workspacefs.Monitor
 	startOnce      sync.Once
+	closeOnce      sync.Once
 	startErr       error
 	done           chan struct{}
 }
@@ -41,13 +49,15 @@ type watchScope struct {
 	directory bool
 }
 
-func newSourceWatcher(root string, targets []string, includeTests, followSymlinks bool, languages []string) (*sourceWatcher, error) {
+func newSourceWatcher(root string, targets []string, includeTests, followSymlinks bool, languages []string, disableGitignore ...bool) (*sourceWatcher, error) {
+	disabled := len(disableGitignore) > 0 && disableGitignore[0]
 	selected := make(map[string]bool, len(languages))
 	for _, language := range languages {
 		selected[language] = true
 	}
 	result := &sourceWatcher{
-		root: root, includeTests: includeTests, followSymlinks: followSymlinks,
+		matcher: sourceignore.New(root, disabled),
+		root:    root, includeTests: includeTests, followSymlinks: followSymlinks,
 		languages: selected, done: make(chan struct{}),
 	}
 	if len(targets) == 0 {
@@ -69,8 +79,18 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 			Path: absolute, Recursive: info.IsDir(), Directory: info.IsDir(), Kind: workspacefs.KindSource,
 		})
 	}
+	result.ancestorRules = map[string]string{}
+	var monitorInputs []workspacefs.Input
+	for _, input := range configurationInputs(result) {
+		relative, err := filepath.Rel(root, input.Path)
+		if filepath.Base(input.Path) == ".gitignore" && (err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))) {
+			result.ancestorRules[input.Path] = sourceignore.InputFingerprint(input.Path)
+		} else {
+			monitorInputs = append(monitorInputs, input)
+		}
+	}
 	monitor, err := workspacefs.New(workspacefs.Config{
-		Root: root, Scopes: monitorScopes, Inputs: configurationInputs(result),
+		Root: root, Scopes: monitorScopes, Inputs: monitorInputs,
 		FollowSymlinks: followSymlinks,
 		Classifier: workspacefs.ClassifierFunc(func(relative string, directory bool) (workspacefs.Classification, bool) {
 			if directory {
@@ -90,8 +110,8 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 			}
 			return workspacefs.Classification{Kind: workspacefs.KindSource, Language: language}, true
 		}),
-		IgnoreDirectory: func(_ string, name string) bool {
-			return sourcepath.IsIgnoredDirectory(name)
+		IgnoreDirectory: func(path string, name string) bool {
+			return sourcepath.IsIgnoredDirectory(name) || result.matcher.Ignored(path, true)
 		},
 	})
 	if err != nil {
@@ -102,12 +122,7 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 }
 
 func (watcher *sourceWatcher) close() {
-	select {
-	case <-watcher.done:
-	default:
-		close(watcher.done)
-	}
-	_ = watcher.monitor.Close()
+	watcher.closeOnce.Do(func() { close(watcher.done); _ = watcher.monitor.Close() })
 }
 
 func (watcher *sourceWatcher) start() error {
@@ -120,14 +135,18 @@ func (watcher *sourceWatcher) start() error {
 
 func (watcher *sourceWatcher) wait() sourceChange {
 	if err := watcher.start(); err != nil {
-		return sourceChange{Err: err}
+		return sourceChange{Err: err, watcher: watcher}
 	}
-	batch, err := watcher.monitor.WaitAndDrain(context.Background())
+	batch, err, rulesChanged := watcher.waitBatch()
+	if rulesChanged {
+		return sourceChange{watcher: watcher, Full: true, IgnoreRules: true}
+	}
 	if err != nil {
-		return sourceChange{Err: err}
+		return sourceChange{Err: err, watcher: watcher}
 	}
 	paths := make([]string, 0, len(batch.Entries))
 	full := batch.All
+	ignoreRules := batch.All
 	for _, entry := range batch.Entries {
 		if entry.Kind == workspacefs.KindSource {
 			paths = append(paths, entry.Path)
@@ -135,7 +154,58 @@ func (watcher *sourceWatcher) wait() sourceChange {
 			// Configuration and dependency inputs can alter ownership and type
 			// context for many units. A path-only refresh is not cache-safe.
 			full = true
+			if filepath.Base(entry.Path) == ".gitignore" {
+				ignoreRules = true
+			}
 		}
 	}
-	return sourceChange{Paths: paths, Full: full}
+	return sourceChange{Paths: paths, Full: full, IgnoreRules: ignoreRules, watcher: watcher}
+}
+
+// External ancestor paths are exact configuration inputs, not source scopes.
+// Polling a bounded list avoids kqueue opening arbitrary siblings in /tmp or a
+// home directory merely to detect an ancestor .gitignore creation.
+func (watcher *sourceWatcher) waitBatch() (workspacefs.DirtyBatch, error, bool) {
+	return watcher.waitBatchFrom(watcher.monitor.WaitAndDrain, 250*time.Millisecond)
+}
+
+func (watcher *sourceWatcher) waitBatchFrom(wait func(context.Context) (workspacefs.DirtyBatch, error), interval time.Duration) (workspacefs.DirtyBatch, error, bool) {
+	if len(watcher.ancestorRules) == 0 {
+		batch, err := wait(context.Background())
+		return batch, err, false
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type result struct {
+		batch workspacefs.DirtyBatch
+		err   error
+	}
+	ready := make(chan result, 1)
+	go func() { batch, err := wait(ctx); ready <- result{batch, err} }()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case found := <-ready:
+			// A steady stream of source batches can reset the timer indefinitely.
+			// Recheck before every return; a full refresh also covers the source batch.
+			return found.batch, found.err, watcher.ancestorRulesChanged()
+		case <-ticker.C:
+			if watcher.ancestorRulesChanged() {
+				return workspacefs.DirtyBatch{}, nil, true
+			}
+		}
+	}
+}
+
+func (watcher *sourceWatcher) ancestorRulesChanged() bool {
+	changed := false
+	for path, previous := range watcher.ancestorRules {
+		next := sourceignore.InputFingerprint(path)
+		if next != previous {
+			watcher.ancestorRules[path] = next
+			changed = true
+		}
+	}
+	return changed
 }

@@ -8,12 +8,18 @@ import (
 
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/blater/slopwatch/internal/style"
 )
 
 func renderRow(model Model, file report.File, selected bool) string {
 	state := model.files.Rows[file.Path]
-	background := rowBackground(state, selected, model.files.Marked[file.Path], model.options.TrendWindow)
+	now := time.Now()
+	background := rowBackgroundAt(state, selected, model.files.Marked[file.Path], model.options.TrendWindow, now)
+	if selected {
+		normal := rowBackgroundAt(state, false, model.files.Marked[file.Path], model.options.TrendWindow, now)
+		background = cursorHighlightBackground(model, background, normal, now)
+	}
 	prefix := model.files.fileMarkPrefix(file.Path, background) + renderFixedColumns(model, file, state, background)
 	pathWidth := max(0, model.width-lipgloss.Width(prefix))
 	line := prefix + renderPath(file.Path, pathWidth, model.files.HorizontalOffset, background)
@@ -66,6 +72,9 @@ func rowMarker(model Model, file report.File, state rowState, now time.Time) (st
 	case report.FreshnessStaleError:
 		return "!", style.AccentCritical
 	}
+	if fileAnalysisFailed(file) {
+		return "!", style.AccentCritical
+	}
 	if marker, colour, ok := newFileMarker(file.Rank, len(model.files.Document.Files), state, now); ok {
 		return marker, colour
 	}
@@ -80,6 +89,10 @@ func rowMarker(model Model, file report.File, state rowState, now time.Time) (st
 }
 
 func rowBackground(state rowState, selected, marked bool, window time.Duration) lipgloss.Color {
+	return rowBackgroundAt(state, selected, marked, window, time.Now())
+}
+
+func rowBackgroundAt(state rowState, selected, marked bool, window time.Duration, now time.Time) lipgloss.Color {
 	if selected {
 		return style.SelectionSurface(true)
 	}
@@ -89,7 +102,7 @@ func rowBackground(state rowState, selected, marked bool, window time.Duration) 
 	if state.editedAt.IsZero() {
 		return style.SelectionSurface(false)
 	}
-	if edited := editBackground(state, time.Now(), window); edited != "" {
+	if edited := editBackground(state, now, window); edited != "" {
 		return edited
 	}
 	return style.SelectionSurface(false)
@@ -113,9 +126,12 @@ func movementArrow(delta int) string {
 
 func renderMetricCell(file report.File, column column, background lipgloss.Color) string {
 	value, exists, _ := metric(file, column.key)
+	metricState := scoring.Metric(file, column.key).State
 	text := "-"
 	if metricFailed(file, column.key) {
 		text = "X"
+	} else if metricState == "not_applicable" {
+		text = "N/A"
 	}
 	if exists {
 		text = metricText(column.key, value)

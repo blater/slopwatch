@@ -139,7 +139,7 @@ jobs:
           JSON
           (
             cd "$source"
-            env -u GOROOT "$unpack/build/slopmark" --format json . > "$RUNNER_TEMP/report.json"
+            env -u GOROOT "$unpack/build/slopmark" --format json --score-profile legacy-signature-v3 . > "$RUNNER_TEMP/report.json"
           )
           for language in go java rust typescript; do
             grep -Eq "\"language\"[[:space:]]*:[[:space:]]*\"$language\"" "$RUNNER_TEMP/report.json" || {
@@ -177,7 +177,7 @@ jobs:
           TYPESCRIPT
           (
             cd "$mixed"
-            env -u GOROOT "$unpack/build/slopmark" --format json . > "$RUNNER_TEMP/mixed-report.json"
+            env -u GOROOT "$unpack/build/slopmark" --format json --score-profile legacy-signature-v3 . > "$RUNNER_TEMP/mixed-report.json"
           )
           jq -e '
             . as $report
@@ -225,6 +225,85 @@ jobs:
           }
           "$unpack/build/slopmark" --help >/dev/null
           "$unpack/build/slopwatch" --help >/dev/null
+
+      - name: Smoke-test packaged default v4 profile across every language
+        shell: bash
+        run: |
+          set -euo pipefail
+          unpack="$RUNNER_TEMP/slopwatch-unpack-v4"
+          source="$RUNNER_TEMP/slopwatch-smoke-v4"
+          mkdir -p "$unpack" "$source/rust/src" "$source/typescript"
+          tar -xzf "dist/slopwatch-${VERSION}-darwin-arm64.tar.gz" -C "$unpack"
+          cat > "$source/go.mod" <<'MOD'
+          module smoke
+
+          go 1.24
+          MOD
+          cat > "$source/service.go" <<'GO'
+          package smoke
+          func Run(x int) int { return x + 1 }
+          GO
+          mkdir -p "$source/java"
+          cat > "$source/java/Service.java" <<'JAVA'
+          package smoke;
+          public final class Service {
+            private Service() {}
+            public static int run(int x) { return x + 1; }
+          }
+          JAVA
+          cat > "$source/rust/Cargo.toml" <<'TOML'
+          [package]
+          name = "smoke"
+          version = "0.1.0"
+          edition = "2021"
+          TOML
+          cat > "$source/rust/src/lib.rs" <<'RUST'
+          pub fn run(x: i32) -> i32 { x.wrapping_add(1) }
+          RUST
+          cat > "$source/typescript/service.ts" <<'TYPESCRIPT'
+          export function run(x: number): number { return x + 1; }
+          TYPESCRIPT
+          cat > "$source/typescript/tsconfig.json" <<'JSON'
+          {"compilerOptions":{"strict":true},"include":["service.ts"]}
+          JSON
+          (
+            cd "$source"
+            env -u GOROOT "$unpack/build/slopmark" --format json . > "$RUNNER_TEMP/v4-report.json"
+            env -u GOROOT "$unpack/build/slopmark" --format json --score-profile legacy-signature-v3 . > "$RUNNER_TEMP/v4-legacy-report.json"
+          )
+          jq -e '
+            . as $report
+            | $report.schema_version == 4
+              and $report.score_profile == "responsibility-v4"
+              and all(["go", "java", "rust", "typescript"][];
+                . as $language
+                | any($report.files[];
+                    .language == $language
+                    and .complete == true
+                    and .components.module_shallowness.depth_version == "responsibility-burden-v4"
+                    and .components.module_shallowness.depth_state == "measured"
+                    and (.components.module_shallowness.raw_max | type) == "number"
+                    and .components.module_shallowness.raw_max == 30))
+          ' "$RUNNER_TEMP/v4-report.json" >/dev/null || {
+            echo "Packaged default v4 smoke test did not produce measured numeric SHALLOW for every language"
+            jq '{schema_version, score_profile, policy_revision, files: [.files[] | {path, language, complete, shallow: .components.module_shallowness}]}' "$RUNNER_TEMP/v4-report.json"
+            exit 1
+          }
+          jq -S '
+            {files: [.files[] | {
+              path, language, complete,
+              coverage: ((.coverage // {}) | del(.module_shallowness)),
+              components: ((.components // {}) | del(.module_shallowness))
+            }]}
+          ' "$RUNNER_TEMP/v4-report.json" > "$RUNNER_TEMP/v4-nonshallow.json"
+          jq -S '
+            {files: [.files[] | {
+              path, language, complete,
+              coverage: ((.coverage // {}) | del(.module_shallowness)),
+              components: ((.components // {}) | del(.module_shallowness))
+            }]}
+          ' "$RUNNER_TEMP/v4-legacy-report.json" > "$RUNNER_TEMP/v4-legacy-nonshallow.json"
+          diff -u "$RUNNER_TEMP/v4-legacy-nonshallow.json" "$RUNNER_TEMP/v4-nonshallow.json"
 
       - name: Create or update GitHub release
         env:

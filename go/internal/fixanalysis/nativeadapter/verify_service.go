@@ -56,7 +56,7 @@ func (service *Service) Verify(ctx context.Context, request fixanalysis.Verifica
 	result.Complete = true
 	result.TargetMet = true
 	for index, baseline := range request.Contract.Targets {
-		fileResult, convertErr := verifyFile(baseline, files[baseline.Path], request.Contract.Goal, request.Contract.RequireComplete)
+		fileResult, convertErr := verifyFile(baseline, files[baseline.Path], document.Depth, request.Contract.Goal, request.Contract.RequireComplete)
 		if convertErr != nil {
 			return fixanalysis.VerificationResult{}, convertErr
 		}

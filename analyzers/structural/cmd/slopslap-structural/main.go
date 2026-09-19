@@ -4,6 +4,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"os"
@@ -183,6 +184,8 @@ func run(input request, writer io.Writer) int {
 		kernels = append(kernels, item.ID)
 	}
 	sort.Strings(kernels)
+	strategies := requestStrategies(input)
+	adapterOptions := requestAdapterOptions(input)
 	analyzed := make([]string, 0, len(input.Units))
 	failed := make([]string, 0)
 	adapterRegistry, registryErr := adapters.NewRegistry(
@@ -203,13 +206,13 @@ func run(input request, writer io.Writer) int {
 			failed = append(failed, item.ID)
 			continue
 		}
-		program, err := languageAdapter.Analyze(input.Workspace, item.Paths, input.Options)
+		program, err := languageAdapter.Analyze(input.Workspace, item.Paths, adapterOptions)
 		if err != nil {
 			failUnit(out, item, input.Components, err.Error())
 			failed = append(failed, item.ID)
 			continue
 		}
-		measurements, strategyErr := strategyRegistry.Analyze(program, requested)
+		measurements, strategyErr := strategies.Analyze(program, requested)
 		if strategyErr != nil {
 			failUnit(out, item, input.Components, strategyErr.Error())
 			failed = append(failed, item.ID)
@@ -267,6 +270,13 @@ func decodeRequest(reader io.Reader) (request, error) {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--evaluate-depth-v4" {
+		if err := runDepthEvaluator(os.Stdin, os.Stdout); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		return
+	}
 	input, err := decodeRequest(os.Stdin)
 	if err != nil {
 		os.Exit(2)

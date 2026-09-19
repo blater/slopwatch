@@ -47,6 +47,7 @@ func openSourceView(model *Model) tea.Cmd {
 		prepared.GotoTop()
 		return sourceLoaded{
 			generation: generation,
+			err:        err,
 			path:       file.Path,
 			contents:   string(contents),
 			viewport:   prepared,

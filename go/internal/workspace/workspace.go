@@ -263,6 +263,11 @@ func (m *eventManager) markPath(path string, reason Reason, isDir bool) {
 	}
 	rel, ok := m.paths.relative(path)
 	if !ok {
+		// Explicit configuration/dependency inputs may live above the source root.
+		// They invalidate the whole workspace rather than introducing outside source paths.
+		if classification.Kind != KindSource {
+			m.markAll(reason)
+		}
 		return
 	}
 	m.dirty.mark(DirtyEntry{Path: rel, Kind: classification.Kind, Reasons: reason})

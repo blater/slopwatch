@@ -1,0 +1,425 @@
+{
+  "policy_revision": "r20",
+  "contract_version": "adapter-v1-r6",
+  "summary": {
+    "go": {
+      "total": 14,
+      "numeric": 8,
+      "estimated": 0,
+      "definitive_numeric": 8,
+      "conforming": 8
+    },
+    "java": {
+      "total": 15,
+      "numeric": 15,
+      "estimated": 8,
+      "definitive_numeric": 7,
+      "conforming": 5
+    },
+    "rust": {
+      "total": 14,
+      "numeric": 2,
+      "estimated": 0,
+      "definitive_numeric": 2,
+      "conforming": 2
+    },
+    "typescript": {
+      "total": 16,
+      "numeric": 6,
+      "estimated": 0,
+      "definitive_numeric": 6,
+      "conforming": 5
+    }
+  },
+  "failures": [
+    {
+      "case": "pure_reduction",
+      "language": "java",
+      "variant": "main",
+      "errors": [
+        "expected definitive measurement, got provisional recognition estimate",
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "shallow: expected 30, got 100"
+      ]
+    },
+    {
+      "case": "pure_reduction",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "shallow: expected 30, got None"
+      ]
+    },
+    {
+      "case": "validation",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 3, got 0",
+        "categories: expected ['V', 'X'], got []"
+      ]
+    },
+    {
+      "case": "validation_bypass",
+      "language": "java",
+      "variant": "main",
+      "errors": [
+        "H: expected 2, got 3",
+        "conditional validation: expected True, got False",
+        "families: expected 1, got 2"
+      ]
+    },
+    {
+      "case": "validation_bypass",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "conditional validation: expected True, got False",
+        "families: expected 1, got 2"
+      ]
+    },
+    {
+      "case": "shared_state",
+      "language": "go",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "C_obligations: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "shared_state",
+      "language": "java",
+      "variant": "main",
+      "errors": [
+        "expected definitive measurement, got provisional recognition estimate",
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "C_obligations: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "shared_state",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "C_obligations: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "local_policy",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "P: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "boolean_data",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0"
+      ]
+    },
+    {
+      "case": "default_route",
+      "language": "java",
+      "variant": "main",
+      "errors": [
+        "O: expected 1, got 2",
+        "A: expected 1, got 3",
+        "E: expected 1, got 0",
+        "P: expected 0, got 1",
+        "shallow: expected 37, got 54"
+      ]
+    },
+    {
+      "case": "default_route",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "O: expected 1, got 2",
+        "A: expected 1, got 3",
+        "E: expected 1, got 0",
+        "H: expected 2, got 0",
+        "shallow: expected 37, got None"
+      ]
+    },
+    {
+      "case": "passive_creation",
+      "language": "go",
+      "variant": "main",
+      "errors": [
+        "state: expected 'not_applicable', got 'partial'"
+      ]
+    },
+    {
+      "case": "passive_creation",
+      "language": "java",
+      "variant": "main",
+      "errors": [
+        "state: expected 'not_applicable', got 'partial'"
+      ]
+    },
+    {
+      "case": "passive_creation",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'not_applicable', got 'partial'"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "go",
+      "variant": "literal",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "O: expected 2, got 0",
+        "H: expected 2, got 0",
+        "creation_H: missing creation-family responsibility"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "go",
+      "variant": "factory",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "O: expected 2, got 1",
+        "H: expected 2, got 0",
+        "creation_H: missing creation-family responsibility"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "java",
+      "variant": "implicit",
+      "errors": [
+        "expected definitive measurement, got provisional recognition estimate",
+        "state: expected 'measured', got 'partial'"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "java",
+      "variant": "explicit",
+      "errors": [
+        "expected definitive measurement, got provisional recognition estimate",
+        "state: expected 'measured', got 'partial'"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "java",
+      "variant": "factory",
+      "errors": [
+        "expected definitive measurement, got provisional recognition estimate",
+        "state: expected 'measured', got 'partial'",
+        "creation_H: missing creation-family responsibility"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "rust",
+      "variant": "literal",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "O: expected 2, got 0",
+        "H: expected 2, got 0",
+        "creation_H: missing creation-family responsibility"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "rust",
+      "variant": "factory",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "O: expected 2, got 0",
+        "H: expected 2, got 0",
+        "creation_H: missing creation-family responsibility"
+      ]
+    },
+    {
+      "case": "owned_alias",
+      "language": "go",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "L: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "owned_alias",
+      "language": "java",
+      "variant": "main",
+      "errors": [
+        "expected definitive measurement, got provisional recognition estimate",
+        "state: expected 'measured', got 'partial'",
+        "L: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "owned_alias",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "L: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "recursive_path_limit",
+      "language": "go",
+      "variant": "main",
+      "errors": [
+        "reason: expected 'access_path_limit', got ['call_argument_type', 'incomplete_flow_evaluation', 'incomplete_validation_flow', 'invalid_child', 'missing_normal_behavior', 'unknown_branch_condition', 'unknown_operation', 'unknown_resource_effect', 'unsupported_effect_proof', 'unsupported_formal_proof', 'unsupported_surface_type', 'unsupported_type_boundary']"
+      ]
+    },
+    {
+      "case": "recursive_path_limit",
+      "language": "java",
+      "variant": "main",
+      "errors": [
+        "reason: expected 'access_path_limit', got ['bounded_source_limit']",
+        "shallow: expected None, got 100"
+      ]
+    },
+    {
+      "case": "recursive_path_limit",
+      "language": "rust",
+      "variant": "main",
+      "errors": [
+        "reason: expected 'access_path_limit', got ['incomplete_flow_evaluation', 'incomplete_validation_flow', 'missing_normal_behavior', 'unknown_operation', 'unknown_resource_effect', 'unsupported_effect_proof', 'unsupported_public_item', 'unsupported_surface_type']"
+      ]
+    },
+    {
+      "case": "pure_reduction",
+      "language": "typescript",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "shallow: expected 30, got None"
+      ]
+    },
+    {
+      "case": "validation_bypass",
+      "language": "typescript",
+      "variant": "main",
+      "errors": [
+        "H: expected 2, got 3",
+        "conditional validation: expected True, got False",
+        "families: expected 1, got 2"
+      ]
+    },
+    {
+      "case": "shared_state",
+      "language": "typescript",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "H: expected 2, got 0",
+        "C_obligations: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "default_route",
+      "language": "typescript",
+      "variant": "parameter",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "A: expected 1, got 2",
+        "E: expected 1, got 0",
+        "P: expected 0, got 1",
+        "T: expected 2, got 1",
+        "shallow: expected 37, got None"
+      ]
+    },
+    {
+      "case": "default_route",
+      "language": "typescript",
+      "variant": "record",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "E: expected 1, got 0",
+        "T: expected 2, got 1",
+        "H: expected 2, got 0",
+        "shallow: expected 37, got None"
+      ]
+    },
+    {
+      "case": "passive_creation",
+      "language": "typescript",
+      "variant": "main",
+      "errors": [
+        "state: expected 'not_applicable', got 'partial'"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "typescript",
+      "variant": "implicit",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "O: expected 2, got 1",
+        "H: expected 2, got 0",
+        "creation_H: missing creation-family responsibility"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "typescript",
+      "variant": "explicit",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "O: expected 2, got 1",
+        "H: expected 2, got 0",
+        "creation_H: missing creation-family responsibility"
+      ]
+    },
+    {
+      "case": "behavioral_creation",
+      "language": "typescript",
+      "variant": "factory",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "O: expected 2, got 1",
+        "H: expected 2, got 0",
+        "creation_H: missing creation-family responsibility"
+      ]
+    },
+    {
+      "case": "owned_alias",
+      "language": "typescript",
+      "variant": "main",
+      "errors": [
+        "state: expected 'measured', got 'partial'",
+        "L: expected 1, got 0"
+      ]
+    },
+    {
+      "case": "recursive_path_limit",
+      "language": "typescript",
+      "variant": "main",
+      "errors": [
+        "reason: expected 'access_path_limit', got ['incomplete_flow_evaluation', 'incomplete_validation_flow', 'missing_normal_behavior', 'missing_route_flow']"
+      ]
+    }
+  ]
+}

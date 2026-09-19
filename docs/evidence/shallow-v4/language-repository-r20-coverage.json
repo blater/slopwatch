@@ -1,0 +1,80 @@
+{
+  "scope": "Single uncached runs; no sustained idle or capacity claim.",
+  "policy_revision": "r20",
+  "repositories": [
+    {
+      "repository": "/Users/blater/src/cargo-coupling",
+      "language": "rust",
+      "seconds": 0.1,
+      "files": 40,
+      "boundaries": 40,
+      "definitive_numeric": 0,
+      "estimated_numeric": 0,
+      "not_applicable": 0,
+      "reason_occurrences": {
+        "missing_boundary_flow": 24,
+        "unresolved_external_module": 4,
+        "unresolved_or_absent_public_surface": 24,
+        "unresolved_reexport": 7,
+        "incomplete_flow_evaluation": 16,
+        "incomplete_validation_flow": 16,
+        "missing_normal_behavior": 16,
+        "unknown_module_visibility": 38,
+        "unknown_operation": 16,
+        "unknown_resource_effect": 16,
+        "unsupported_effect_proof": 16,
+        "unsupported_public_item": 25,
+        "unsupported_surface_type": 14,
+        "unsupported_signature_shape": 3
+      }
+    },
+    {
+      "repository": "/Users/blater/src/ap/warren",
+      "language": "typescript",
+      "seconds": 0.76,
+      "files": 486,
+      "boundaries": 486,
+      "definitive_numeric": 0,
+      "estimated_numeric": 0,
+      "not_applicable": 0,
+      "reason_occurrences": {},
+      "limitation": "Analysis unavailable: typescript.multiple_projects; this is an invocation/inventory limitation, not a measured semantic-coverage result."
+    },
+    {
+      "repository": "/Users/blater/src/slopwatch/go",
+      "language": "go",
+      "seconds": 0.24,
+      "files": 344,
+      "boundaries": 32,
+      "definitive_numeric": 1,
+      "estimated_numeric": 0,
+      "not_applicable": 0,
+      "reason_occurrences": {
+        "missing_boundary_flow": 31,
+        "unavailable_go_types": 31,
+        "unresolved_or_absent_public_surface": 31
+      },
+      "limitation": "31 of 32 package boundaries report unavailable_go_types; result includes dependency/type attribution limits, not only responsibility recognition."
+    },
+    {
+      "repository": "/Users/blater/src/ap/warren",
+      "scope": "Backend src files only; UI has a separate tsconfig and cannot be analyzed in the same authoritative TS unit.",
+      "language": "typescript",
+      "seconds": 1.12,
+      "files": 349,
+      "boundaries": 349,
+      "definitive_numeric": 0,
+      "estimated_numeric": 0,
+      "reason_occurrences": {},
+      "diagnostics": {
+        "typescript.structural_semantic_exceptions": 1,
+        "typescript.compiler.2688": 1,
+        "typescript.compiler.2307": 13,
+        "typescript.compiler.2591": 32,
+        "typescript.compiler.7006": 3,
+        "typescript.compiler.2339": 1
+      },
+      "limitation": "Compiler context unavailable: missing bun/node types and unresolved imports. These files are unavailable; zero is not a measurement of semantic capability."
+    }
+  ]
+}

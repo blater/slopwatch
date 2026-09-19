@@ -1,0 +1,621 @@
+PASS java/java_lifecycle_low
+PASS java/java_lifecycle_mid
+PASS java/java_lifecycle_high
+PASS java/java_representation_low
+PASS java/java_representation_mid
+PASS java/java_representation_high
+PASS java/java_forwarding_low
+PASS java/java_forwarding_mid
+PASS java/java_forwarding_high
+PASS java/java_control_passive
+PASS go/go_lifecycle_low
+PASS go/go_lifecycle_mid
+PASS go/go_lifecycle_high
+PASS go/go_representation_low
+PASS go/go_representation_mid
+PASS go/go_representation_high
+PASS go/go_forwarding_low
+PASS go/go_forwarding_mid
+PASS go/go_forwarding_high
+PASS go/go_control_passive
+PASS typescript/typescript_lifecycle_low
+PASS typescript/typescript_lifecycle_mid
+PASS typescript/typescript_lifecycle_high
+PASS typescript/typescript_representation_low
+PASS typescript/typescript_representation_mid
+PASS typescript/typescript_representation_high
+PASS typescript/typescript_forwarding_low
+PASS typescript/typescript_forwarding_mid
+PASS typescript/typescript_forwarding_high
+PASS typescript/typescript_control_passive
+PASS rust/rust_lifecycle_low
+PASS rust/rust_lifecycle_mid
+PASS rust/rust_lifecycle_high
+PASS rust/rust_representation_low
+PASS rust/rust_representation_mid
+PASS rust/rust_representation_high
+PASS rust/rust_forwarding_low
+PASS rust/rust_forwarding_mid
+PASS rust/rust_forwarding_high
+PASS rust/rust_control_passive
+PASS java/java_lifecycle_low__helper_extracted
+PASS java/java_lifecycle_low__renamed
+PASS java/java_lifecycle_low__harmless_syntax
+PASS java/java_lifecycle_low__dependency_hidden
+PASS go/go_lifecycle_low__helper_extracted
+PASS go/go_lifecycle_low__renamed
+PASS go/go_lifecycle_low__harmless_syntax
+PASS go/go_lifecycle_low__dependency_hidden
+PASS typescript/typescript_lifecycle_low__helper_extracted
+PASS typescript/typescript_lifecycle_low__renamed
+PASS typescript/typescript_lifecycle_low__harmless_syntax
+PASS typescript/typescript_lifecycle_low__dependency_hidden
+PASS rust/rust_lifecycle_low__helper_extracted
+PASS rust/rust_lifecycle_low__renamed
+PASS rust/rust_lifecycle_low__harmless_syntax
+PASS rust/rust_lifecycle_low__dependency_hidden
+PASS java/java_lifecycle_high__dependency_hidden
+PASS go/go_lifecycle_high__dependency_hidden
+PASS typescript/typescript_lifecycle_high__dependency_hidden
+PASS rust/rust_lifecycle_high__dependency_hidden
+Report: /Users/blater/src/slopwatch/docs/evidence/shallow-v4/constraint-coupling/graded-r42.json
+{
+  "languages": {
+    "go": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 15,
+      "estimated_rate": 1.0,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 15
+      },
+      "all_state_distribution": {
+        "partial": 15
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "java": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 1,
+      "semantic_complete_rate": 0.06666666666666667,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "rust": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "typescript": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 1,
+      "semantic_complete_rate": 0.06666666666666667,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 7,
+        "1-25": 1,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    }
+  },
+  "after": {
+    "go": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 15,
+      "estimated_rate": 1.0,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 15
+      },
+      "all_state_distribution": {
+        "partial": 15
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "java": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 1,
+      "semantic_complete_rate": 0.06666666666666667,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "rust": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "typescript": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 1,
+      "semantic_complete_rate": 0.06666666666666667,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 7,
+        "1-25": 1,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    }
+  },
+  "go": {
+    "total": 15,
+    "applicable": 15,
+    "numeric": 15,
+    "not_applicable": 0,
+    "numeric_coverage": 1.0,
+    "semantic_applicable": 15,
+    "semantic_numeric": 15,
+    "semantic_numeric_coverage": 1.0,
+    "excluded_from_semantic_numeric_coverage": 0,
+    "excluded_numeric": 0,
+    "estimated": 15,
+    "estimated_rate": 1.0,
+    "uncertain": 14,
+    "uncertainty_rate": 0.9333333333333333,
+    "precise_complete": 0,
+    "semantic_complete_rate": 0.0,
+    "semantic_conformance": 15,
+    "behavioral_conformance": 15,
+    "semantic_coverage": {
+      "partial": 15
+    },
+    "all_state_distribution": {
+      "partial": 15
+    },
+    "bands": {
+      "0": 2,
+      "1-25": 6,
+      "26-64": 3,
+      "65-100": 4
+    },
+    "failures": 0
+  },
+  "java": {
+    "total": 15,
+    "applicable": 15,
+    "numeric": 15,
+    "not_applicable": 0,
+    "numeric_coverage": 1.0,
+    "semantic_applicable": 15,
+    "semantic_numeric": 15,
+    "semantic_numeric_coverage": 1.0,
+    "excluded_from_semantic_numeric_coverage": 0,
+    "excluded_numeric": 0,
+    "estimated": 14,
+    "estimated_rate": 0.9333333333333333,
+    "uncertain": 14,
+    "uncertainty_rate": 0.9333333333333333,
+    "precise_complete": 1,
+    "semantic_complete_rate": 0.06666666666666667,
+    "semantic_conformance": 15,
+    "behavioral_conformance": 15,
+    "semantic_coverage": {
+      "partial": 14,
+      "measured": 1
+    },
+    "all_state_distribution": {
+      "partial": 14,
+      "measured": 1
+    },
+    "bands": {
+      "0": 2,
+      "1-25": 6,
+      "26-64": 3,
+      "65-100": 4
+    },
+    "failures": 0
+  },
+  "rust": {
+    "total": 15,
+    "applicable": 15,
+    "numeric": 15,
+    "not_applicable": 0,
+    "numeric_coverage": 1.0,
+    "semantic_applicable": 15,
+    "semantic_numeric": 15,
+    "semantic_numeric_coverage": 1.0,
+    "excluded_from_semantic_numeric_coverage": 0,
+    "excluded_numeric": 0,
+    "estimated": 14,
+    "estimated_rate": 0.9333333333333333,
+    "uncertain": 14,
+    "uncertainty_rate": 0.9333333333333333,
+    "precise_complete": 0,
+    "semantic_complete_rate": 0.0,
+    "semantic_conformance": 15,
+    "behavioral_conformance": 15,
+    "semantic_coverage": {
+      "partial": 14,
+      "measured": 1
+    },
+    "all_state_distribution": {
+      "partial": 14,
+      "measured": 1
+    },
+    "bands": {
+      "0": 2,
+      "1-25": 6,
+      "26-64": 3,
+      "65-100": 4
+    },
+    "failures": 0
+  },
+  "typescript": {
+    "total": 15,
+    "applicable": 15,
+    "numeric": 15,
+    "not_applicable": 0,
+    "numeric_coverage": 1.0,
+    "semantic_applicable": 15,
+    "semantic_numeric": 15,
+    "semantic_numeric_coverage": 1.0,
+    "excluded_from_semantic_numeric_coverage": 0,
+    "excluded_numeric": 0,
+    "estimated": 14,
+    "estimated_rate": 0.9333333333333333,
+    "uncertain": 14,
+    "uncertainty_rate": 0.9333333333333333,
+    "precise_complete": 1,
+    "semantic_complete_rate": 0.06666666666666667,
+    "semantic_conformance": 15,
+    "behavioral_conformance": 15,
+    "semantic_coverage": {
+      "partial": 14,
+      "measured": 1
+    },
+    "all_state_distribution": {
+      "partial": 14,
+      "measured": 1
+    },
+    "bands": {
+      "0": 7,
+      "1-25": 1,
+      "26-64": 3,
+      "65-100": 4
+    },
+    "failures": 0
+  },
+  "before": {
+    "go": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 15,
+      "estimated_rate": 1.0,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 15
+      },
+      "all_state_distribution": {
+        "partial": 15
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "java": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 1,
+      "semantic_complete_rate": 0.06666666666666667,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "rust": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 2,
+        "1-25": 6,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    },
+    "typescript": {
+      "total": 15,
+      "applicable": 15,
+      "numeric": 15,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 15,
+      "semantic_numeric": 15,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 14,
+      "estimated_rate": 0.9333333333333333,
+      "uncertain": 14,
+      "uncertainty_rate": 0.9333333333333333,
+      "precise_complete": 1,
+      "semantic_complete_rate": 0.06666666666666667,
+      "semantic_conformance": 15,
+      "behavioral_conformance": 15,
+      "semantic_coverage": {
+        "partial": 14,
+        "measured": 1
+      },
+      "all_state_distribution": {
+        "partial": 14,
+        "measured": 1
+      },
+      "bands": {
+        "0": 7,
+        "1-25": 1,
+        "26-64": 3,
+        "65-100": 4
+      },
+      "failures": 0
+    }
+  }
+}

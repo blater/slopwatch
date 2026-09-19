@@ -148,6 +148,9 @@ public class Broken { public int run() { return ; }`)
 	if len(program.Failures) == 0 || program.Failures[0].Path != broken || program.Failures[0].Code != "SYNTAX_ERROR" || !strings.Contains(program.Failures[0].Diagnostic, broken+":") {
 		t.Fatalf("syntax failure = %#v", program.Failures)
 	}
+	if available, reason := program.Availability(valid, "god_class"); available || reason == "" {
+		t.Fatalf("cross-file availability beside syntax failure = %v, %q", available, reason)
+	}
 }
 
 func TestAdapterReportsEveryBrokenJavaSource(t *testing.T) {
@@ -171,6 +174,32 @@ func TestAdapterReportsEveryBrokenJavaSource(t *testing.T) {
 		if !got[path] {
 			t.Fatalf("missing located syntax failure for %s: %#v", path, program.Failures)
 		}
+	}
+}
+
+func TestAdapterRecoversFromRejectedSources(t *testing.T) {
+	root, adapter := javaTestAdapter(t)
+	valid := "src/main/java/example/Valid.java"
+	writeSource(t, root, valid, "package example; public class Valid { public int run() { return 7; } }")
+	program, err := adapter.Analyze(root, []string{"src/main/java/example/missing.java", "src/main/java/example/notes.txt", valid}, map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(program.Files, []string{valid}) || len(program.Functions) != 1 {
+		t.Fatalf("source rejection discarded valid Java facts: files=%v functions=%v", program.Files, program.Functions)
+	}
+	codes := make(map[string]string, len(program.Failures))
+	for _, failure := range program.Failures {
+		codes[failure.Path] = failure.Code
+		if !strings.HasPrefix(failure.Diagnostic, failure.Path+":") {
+			t.Fatalf("source failure is not located: %#v", failure)
+		}
+	}
+	if codes["src/main/java/example/missing.java"] != "SOURCE_READ_ERROR" || codes["src/main/java/example/notes.txt"] != "UNSUPPORTED_SOURCE" {
+		t.Fatalf("source failures = %#v", codes)
+	}
+	if available, reason := program.Availability(valid, "god_class"); available || reason == "" {
+		t.Fatalf("cross-file availability beside rejected sources = %v, %q", available, reason)
 	}
 }
 
@@ -428,15 +457,13 @@ func buildHelper(t *testing.T, root, javac, jar string) string {
 		t.Fatal(err)
 	}
 	sourceRoot := filepath.Join("..", "..", "adapters", "java", "src", "dev", "slopslap", "structural")
-	sources := []string{
-		"Facts.java", "Protocol.java", "JavaAnalyzer.java", "JavaParser.java",
-		"JavaClassFacts.java", "JavaControlStatements.java", "JavaMethodBodyFacts.java",
-		"JavaNestedClasses.java", "JavaStatements.java", "JavaExpressions.java",
-		"JavaTypeNames.java", "JavaTypeShapes.java", "Main.java",
+	sources, err := filepath.Glob(filepath.Join(sourceRoot, "*.java"))
+	if err != nil {
+		t.Fatal(err)
 	}
 	arguments := []string{"--release", "17", "-d", classes}
 	for _, source := range sources {
-		arguments = append(arguments, filepath.Join(sourceRoot, source))
+		arguments = append(arguments, source)
 	}
 	if output, err := exec.Command(javac, arguments...).CombinedOutput(); err != nil {
 		t.Fatalf("javac failed: %v: %s", err, output)

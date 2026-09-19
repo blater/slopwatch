@@ -11,18 +11,30 @@ import (
 	"sync"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/sourceignore"
 	"github.com/blater/slopwatch/internal/sourcepath"
 )
 
 var ErrUnsupported = errors.New("native analyzer path is not yet supported")
 
+const (
+	ShallowProfileLegacy           = "legacy-signature-v3"
+	ShallowProfileResponsibilityV4 = "responsibility-v4"
+	ShallowPolicyRevisionV4        = "r42"
+	ShallowDefinitionV4            = "responsibility-burden-v4"
+)
+
 type Options struct {
-	Targets         []string
-	Languages       []string
-	IncludeTests    bool
-	TypeScriptTypes bool
-	FollowSymlinks  bool
-	PassScore       *float64
+	DisableGitignore bool
+	ignorePolicy     string
+	ignoreMatcher    *sourceignore.Matcher
+	Targets          []string
+	Languages        []string
+	IncludeTests     bool
+	TypeScriptTypes  bool
+	ShallowProfile   string
+	FollowSymlinks   bool
+	PassScore        *float64
 	// ReadCache permits reuse of verified unit artifacts. Cache writes remain
 	// enabled whenever a store is configured, independently of this option.
 	ReadCache bool
@@ -48,8 +60,14 @@ func (analyzer *Analyzer) discover(targets []string, includeTests, followSymlink
 	return discover(analyzer.engine(), targets, includeTests, followSymlinks)
 }
 
-// SetTypeScriptTypes changes whether subsequent analyses build the optional
-// compiler-aware TypeScript graph. In-flight analyses retain their snapshot.
+// SetDisableGitignore changes filtering for subsequent analysis snapshots.
+func (analyzer *Analyzer) SetDisableGitignore(disabled bool) {
+	analyzer.optionsMu.Lock()
+	defer analyzer.optionsMu.Unlock()
+	analyzer.options.DisableGitignore = disabled
+}
+
+// SetTypeScriptTypes changes the optional compiler-aware TypeScript graph.
 func (analyzer *Analyzer) SetTypeScriptTypes(enabled bool) {
 	analyzer.optionsMu.Lock()
 	analyzer.options.TypeScriptTypes = enabled
@@ -61,7 +79,22 @@ func New(workspace, installationRoot string, options Options) (*Analyzer, error)
 	if err != nil {
 		return nil, err
 	}
+	options = normalizeOptions(options)
 	return &Analyzer{workspace: workspace, root: installationRoot, catalog: catalog, options: options}, nil
+}
+
+func normalizeOptions(options Options) Options {
+	if options.ShallowProfile == "" {
+		options.ShallowProfile = ShallowProfileResponsibilityV4
+	}
+	return options
+}
+
+func shallowProfile(options Options) string {
+	if options.ShallowProfile == "" {
+		return ShallowProfileResponsibilityV4
+	}
+	return options.ShallowProfile
 }
 
 // ScoringIdentity returns the immutable active catalog identity used by this
@@ -98,8 +131,16 @@ func selectedLanguages(requested []string, discovered map[string][]string) ([]st
 }
 
 func activeCatalog(catalog catalogDocument, options Options) catalogDocument {
+	profile := shallowProfile(options)
 	active := catalog
 	active.Components = append([]componentDescriptor(nil), catalog.Components...)
+	if profile == ShallowProfileResponsibilityV4 {
+		for index := range active.Components {
+			if active.Components[index].ID == "module_shallowness" {
+				active.Components[index].Version = ShallowDefinitionV4
+			}
+		}
+	}
 	if options.TypeScriptTypes {
 		return active
 	}
@@ -129,14 +170,23 @@ func analyzeLanguage(analyzer *analysisEngine, parent context.Context, catalog c
 	if options.TypeScriptTypes {
 		typeScriptMode = "auto"
 	}
-	requestOptions := map[string]any{"include_tests": options.IncludeTests, "typescript_types": typeScriptMode}
+	requestOptions := analyzerRequestOptions(analyzer, options, language, typeScriptMode)
 	unitOptions := map[string]any{"include_tests": options.IncludeTests, "follow_symlinks": options.FollowSymlinks}
 	request := analyzerRequest{"request", 1, invocation, analyzer.workspace, []protocolUnit{{language + "-unit", language, files, unitOptions}}, components, requestOptions, map[string]int{}}
 	records, runErr := runAnalyzer(parent, executable, request)
-	if runErr != nil {
-		return scoreInputs{}, fmt.Errorf("%s analyzer failed: %w", language, runErr)
+	return recoverAnalyzerInputs(parent, request, records, runErr)
+}
+
+func analyzerRequestOptions(analyzer *analysisEngine, options Options, language, typeScriptMode string) map[string]any {
+	profile := shallowProfile(options)
+	requestOptions := map[string]any{"include_tests": options.IncludeTests, "typescript_types": typeScriptMode}
+	if profile == ShallowProfileResponsibilityV4 {
+		requestOptions["depth_policy_revision"] = ShallowPolicyRevisionV4
+		if language == "typescript" {
+			requestOptions["depth_evaluator_path"] = filepath.Join(analyzer.root, "analyzers", "structural", "slopslap-structural")
+		}
 	}
-	return records, nil
+	return requestOptions
 }
 
 func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, languages []string) (report.Document, error) {
@@ -182,6 +232,10 @@ func analyzeFresh(
 		return report.Document{}, err
 	}
 	document.Summary["discovered_source_count"] = len(discoveredPathSet(discovered, selected))
+	if !options.ignoreMatcher.Unchanged() {
+		return report.Document{}, ErrWorkspaceChanged
+	}
+	document.Diagnostics = append(document.Diagnostics, options.ignoreMatcher.Diagnostics()...)
 	persistProjection(analyzer, document, options)
 	return document, nil
 }
@@ -193,7 +247,8 @@ func analyze(analyzer *analysisEngine, parent context.Context, targets []string,
 
 func analyzeWithPlan(analyzer *analysisEngine, parent context.Context, targets []string, languages []string) (report.Document, *analysisPlanSnapshot, error) {
 	options := analysisOptions(analyzer, targets, languages)
-	discovered, err := discover(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks)
+	options.ignoreMatcher = sourceignore.New(analyzer.workspace, options.DisableGitignore)
+	discovered, err := discoverPolicy(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore, options.ignoreMatcher)
 	if err != nil {
 		return report.Document{}, nil, err
 	}
@@ -205,6 +260,10 @@ func analyzeWithPlan(analyzer *analysisEngine, parent context.Context, targets [
 		return report.Document{}, nil, err
 	}
 	plan, planErr := workspacePlan(analyzer, options)
+	options.ignorePolicy = options.ignoreMatcher.Fingerprint()
+	if !options.ignoreMatcher.Unchanged() {
+		return report.Document{}, nil, ErrWorkspaceChanged
+	}
 	var snapshot *analysisPlanSnapshot
 	if planErr == nil {
 		snapshot = newPlanSnapshot(plan, discovered, selected, options)
@@ -322,6 +381,9 @@ func discoveredLanguage(path string, includeTests bool) (string, bool) {
 	if language == "" {
 		return "", false
 	}
+	if language == "typescript" && isTypeScriptDeclaration(name) {
+		return "", false
+	}
 	if !includeTests && language == "go" && strings.HasSuffix(name, "_test.go") {
 		return "", false
 	}
@@ -342,7 +404,7 @@ func excludedDiscoveryDirectory(relative string, includeTests bool) bool {
 	return false
 }
 
-func walkTarget(analyzer *analysisEngine, target string, grouped map[string]map[string]bool, includeTests, followSymlinks bool) error {
+func walkTarget(analyzer *analysisEngine, target string, grouped map[string]map[string]bool, includeTests, followSymlinks bool, matcher *sourceignore.Matcher) error {
 	metadata, err := os.Lstat(target)
 	if err != nil {
 		return err
@@ -354,13 +416,16 @@ func walkTarget(analyzer *analysisEngine, target string, grouped map[string]map[
 			return err
 		}
 	}
+	if matcher.Ignored(target, info.IsDir()) {
+		return nil
+	}
 	if !info.IsDir() {
 		return addDiscoveredPath(analyzer, grouped, target, includeTests)
 	}
-	return walkDirectory(analyzer, target, grouped, includeTests, followSymlinks, map[string]bool{})
+	return walkDirectory(analyzer, target, grouped, includeTests, followSymlinks, map[string]bool{}, matcher)
 }
 
-func walkDirectory(analyzer *analysisEngine, directory string, grouped map[string]map[string]bool, includeTests, followSymlinks bool, visited map[string]bool) error {
+func walkDirectory(analyzer *analysisEngine, directory string, grouped map[string]map[string]bool, includeTests, followSymlinks bool, visited map[string]bool, matcher *sourceignore.Matcher) error {
 	alreadyVisited, err := markVisitedDirectory(directory, followSymlinks, visited)
 	if err != nil || alreadyVisited {
 		return err
@@ -375,14 +440,14 @@ func walkDirectory(analyzer *analysisEngine, directory string, grouped map[strin
 		if err != nil {
 			return err
 		}
-		if !include {
+		if !include || matcher.Ignored(path, isDirectory) {
 			continue
 		}
 		if isDirectory {
 			if sourcepath.IsIgnoredDirectory(entry.Name()) {
 				continue
 			}
-			if err := walkDirectory(analyzer, path, grouped, includeTests, followSymlinks, visited); err != nil {
+			if err := walkDirectory(analyzer, path, grouped, includeTests, followSymlinks, visited, matcher); err != nil {
 				return err
 			}
 			continue
@@ -424,6 +489,15 @@ func discoveryEntryType(entry os.DirEntry, path string, followSymlinks bool) (is
 }
 
 func discover(analyzer *analysisEngine, targets []string, includeTests, followSymlinks bool) (map[string][]string, error) {
+	options := analysisOptions(analyzer, targets, nil)
+	return discoverPolicy(analyzer, targets, includeTests, followSymlinks, options.DisableGitignore)
+}
+
+func discoverPolicy(analyzer *analysisEngine, targets []string, includeTests, followSymlinks, disableGitignore bool, matchers ...*sourceignore.Matcher) (map[string][]string, error) {
+	matcher := sourceignore.New(analyzer.workspace, disableGitignore)
+	if len(matchers) > 0 && matchers[0] != nil {
+		matcher = matchers[0]
+	}
 	if len(targets) == 0 {
 		targets = []string{"."}
 	}
@@ -433,7 +507,7 @@ func discover(analyzer *analysisEngine, targets []string, includeTests, followSy
 		if !filepath.IsAbs(absolute) {
 			absolute = filepath.Join(analyzer.workspace, target)
 		}
-		if err := walkTarget(analyzer, filepath.Clean(absolute), grouped, includeTests, followSymlinks); err != nil {
+		if err := walkTarget(analyzer, filepath.Clean(absolute), grouped, includeTests, followSymlinks, matcher); err != nil {
 			return nil, err
 		}
 	}

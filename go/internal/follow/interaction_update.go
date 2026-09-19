@@ -1,12 +1,16 @@
 package follow
 
 import (
+	"errors"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/blater/slopwatch/internal/native"
 	"github.com/blater/slopwatch/internal/report"
 )
+
+const workspaceChurnRetryDelay = 250 * time.Millisecond
 
 func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := message.(type) {
@@ -16,6 +20,13 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 		return model, model.handleConfigResolved(message)
 	case configSavedMsg:
 		return model, model.handleConfigSaved(message)
+	case watcherReconfigureRetry:
+		if message.generation != model.watchGeneration {
+			return model, nil
+		}
+		return model, model.refreshIgnorePolicy()
+	case watcherReconfigured:
+		return model, model.handleWatcherReconfigured(message)
 	case watcherReady:
 		return handleWatcherReady(model, message)
 	case tea.WindowSizeMsg:
@@ -24,9 +35,11 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 		return handleSourceChange(model, message)
 	case analysisResult:
 		return handleAnalysisResult(model, message)
+	case analysisRetry:
+		return handleAnalysisRetry(model)
 	case animationTick:
 		model.animationFrame++
-		return model, tickAnimation(model.analyzing)
+		return model, tickAnimationFor(*model)
 	case startupLogoExpired:
 		model.startupLogoExpired = true
 		return model, nil
@@ -63,15 +76,24 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func handleWatcherReady(model *Model, message watcherReady) (tea.Model, tea.Cmd) {
+	if message.watcher != nil && message.watcher != model.watcher {
+		return model, nil
+	}
+	model.startupWatcherPending = false
+	if model.watchReconfigurePending {
+		model.analyzing = false
+		return model, model.resumeWatcherWait()
+	}
 	if message.err != nil {
 		model.analyzing = false
 		model.initialAnalysis = false
-		model.status = message.err.Error()
+		showRuntimeError(model, message.err)
 		markFreshness(model, nil, report.FreshnessStaleError, "workspace verification could not start")
 		return model, nil
 	}
+	model.analyzing = true
 	markFreshness(model, nil, report.FreshnessVerifying, "validating current workspace")
-	return model, tea.Batch(waitForChange(model.watcher), analysisCommand(model.analyzer, model.options.Targets, nil, true))
+	return model, tea.Batch(model.resumeWatcherWait(), analysisCommand(model.analyzer, model.options.Targets, nil, true))
 }
 
 func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -93,9 +115,20 @@ func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.C
 }
 
 func handleSourceChange(model *Model, message sourceChange) (tea.Model, tea.Cmd) {
-	command := waitForChange(model.watcher)
+	if message.watcher != nil && message.watcher != model.watcher {
+		return model, nil
+	}
+	model.watchNeedsWait = true
+	if message.IgnoreRules {
+		model.watchRetryCount = 0
+		return model, model.refreshIgnorePolicy()
+	}
+	command := model.resumeWatcherWait()
 	if message.Err != nil {
-		model.status = message.Err.Error()
+		showRuntimeError(model, message.Err)
+		return model, command
+	}
+	if model.watchReconfigurePending {
 		return model, command
 	}
 	if message.Full {
@@ -129,6 +162,9 @@ func handlePartialSourceChange(model *Model, message sourceChange, command tea.C
 }
 
 func queueChangedPaths(model *Model, paths []string) {
+	if model.queued == nil {
+		model.queued = map[string]bool{}
+	}
 	for _, path := range paths {
 		model.queued[path] = true
 		if state, exists := model.files.Rows[path]; exists {
@@ -140,6 +176,35 @@ func queueChangedPaths(model *Model, paths []string) {
 }
 
 func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.Cmd) {
+	if model.discardAnalysis {
+		model.discardAnalysis = false
+		model.analyzing = false
+		return continueQueuedAnalysis(model)
+	}
+	if errors.Is(message.err, native.ErrWorkspaceChanged) {
+		if message.full {
+			model.pendingFullAnalysis = true
+		} else {
+			queueChangedPaths(model, message.paths)
+		}
+		if model.analysisRetryPending {
+			return model, nil
+		}
+		model.analysisRetryPending = true
+		// Keep the in-flight marker set while waiting so watcher events
+		// continue to coalesce into the queued retry.
+		model.analyzing = true
+		return model, tea.Tick(workspaceChurnRetryDelay, func(time.Time) tea.Msg { return analysisRetry{} })
+	}
+	if message.full && errors.Is(message.err, native.ErrNoSources) {
+		message.err = nil
+		message.document = model.files.BaseDocument
+		message.document.Files = nil
+		message.document.Diagnostics = nil
+		message.document.ExecutionPlans = nil
+		message.document.Depth = nil
+		message.document.Summary = map[string]any{"discovered_source_count": 0}
+	}
 	wasInitial := model.initialAnalysis
 	model.analyzing = false
 	if message.full {
@@ -153,8 +218,17 @@ func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.
 	return continueQueuedAnalysis(model)
 }
 
+func handleAnalysisRetry(model *Model) (tea.Model, tea.Cmd) {
+	if !model.analysisRetryPending {
+		return model, nil
+	}
+	model.analysisRetryPending = false
+	model.analyzing = false
+	return continueQueuedAnalysis(model)
+}
+
 func handleAnalysisError(model *Model, message analysisResult) {
-	model.status = message.err.Error()
+	showRuntimeError(model, message.err)
 	markFreshness(model, message.replace, report.FreshnessStaleError, "verification failed: "+message.err.Error())
 }
 
@@ -178,6 +252,7 @@ func handleSourceLoaded(model *Model, message sourceLoaded) (tea.Model, tea.Cmd)
 	model.source.resize(width, height)
 	model.source.searchText = message.contents
 	model.source.loading = false
+	showRuntimeError(model, message.err)
 	if !message.highlight {
 		return model, nil
 	}
@@ -201,6 +276,9 @@ func currentSourceMessage(model *Model, generation uint64, path string) bool {
 }
 
 func continueQueuedAnalysis(model *Model) (tea.Model, tea.Cmd) {
+	if model.watchReconfigurePending {
+		return model, nil
+	}
 	if model.pendingFullAnalysis {
 		model.pendingFullAnalysis = false
 		model.queued = map[string]bool{}

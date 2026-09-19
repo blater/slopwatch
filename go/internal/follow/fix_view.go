@@ -40,6 +40,8 @@ func (model Model) featureOverlayView(base string, frame OverlayFrame) string {
 		return dirtyChoiceView(base, "UNSAVED SETTINGS", model.configSettings.dirtyCursor, model.width, model.height)
 	case OverlayShutdown:
 		return shutdownView(base, model.shutdown, model.width, model.height)
+	case OverlayRuntimeError:
+		return model.overlay(base, runtimeErrorPopup(model))
 	default:
 		return base
 	}

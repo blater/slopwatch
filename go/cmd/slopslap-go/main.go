@@ -39,6 +39,8 @@ type options struct {
 	follow          bool
 	trendWindow     time.Duration
 	includeTests    bool
+	shallowProfile  string
+	scoreProfile    string
 	typescriptTypes bool
 	followSymlinks  bool
 	limit           int
@@ -48,6 +50,8 @@ type options struct {
 	passScore       string
 	useCache        bool
 }
+
+const shallowProfileLegacy = native.ShallowProfileLegacy
 
 var errThreshold = errors.New("pass score exceeded")
 
@@ -62,12 +66,14 @@ func parser() (*flag.FlagSet, *options) {
 	flags.BoolVar(&options.follow, "follow", false, "open the live ranking dashboard")
 	flags.DurationVar(&options.trendWindow, "trend-window", 0, "movement indicator and edit-highlight window (default: saved preference or 10m)")
 	flags.BoolVar(&options.includeTests, "include-tests", false, "include test sources")
+	flags.StringVar(&options.shallowProfile, "shallow-profile", "", "select the SHALLOW profile (default responsibility-v4; legacy-signature-v3 for comparison)")
+	flags.StringVar(&options.scoreProfile, "score-profile", "", "select the scoring profile (legacy-signature-v3 or responsibility-v4)")
 	flags.BoolVar(&options.typescriptTypes, "typescript-types", false, "enable compiler-aware TypeScript type-safety analysis")
 	flags.BoolVar(&options.followSymlinks, "follow-symlinks", false, "follow symbolic links found inside target directories")
 	flags.IntVar(&options.limit, "limit", 0, "maximum results; 0 returns all")
 	flags.StringVar(&options.languages, "languages", "", "comma-separated languages")
 	flags.Var(&options.backends, "backend", "language=backend override (not supported by the native frontend)")
-	flags.StringVar(&options.config, "config", "", "preferences file (follow mode)")
+	flags.StringVar(&options.config, "config", "", "preferences file")
 	flags.StringVar(&options.passScore, "pass-score", "", "maximum passing score")
 	flags.BoolVar(&options.useCache, "use-cache", false, "reuse verified cached analysis units")
 	flags.Usage = func() {
@@ -105,6 +111,11 @@ func run(arguments []string) error {
 	if err := validateOptions(parsed); err != nil {
 		return err
 	}
+	profile, err := selectedShallowProfile(parsed)
+	if err != nil {
+		return err
+	}
+	parsed.shallowProfile = profile
 	workspace, err := absoluteWorkspace()
 	if err != nil {
 		return err
@@ -141,10 +152,28 @@ func validateOptions(parsed *options) error {
 	if len(parsed.backends) != 0 {
 		return errors.New("--backend is not supported by the native frontend")
 	}
-	if parsed.config != "" && !parsed.follow {
-		return errors.New("--config requires --follow")
+	_, err := selectedShallowProfile(parsed)
+	return err
+}
+
+func selectedShallowProfile(parsed *options) (string, error) {
+	if parsed.shallowProfile != "" && parsed.scoreProfile != "" && parsed.shallowProfile != parsed.scoreProfile {
+		return "", errors.New("--shallow-profile and --score-profile must agree")
 	}
-	return nil
+	profile := parsed.scoreProfile
+	if profile == "" {
+		profile = parsed.shallowProfile
+	}
+	switch profile {
+	case "":
+		return native.ShallowProfileResponsibilityV4, nil
+	case shallowProfileLegacy:
+		return shallowProfileLegacy, nil
+	case native.ShallowProfileResponsibilityV4:
+		return native.ShallowProfileResponsibilityV4, nil
+	default:
+		return "", fmt.Errorf("score profile must be %s or %s", shallowProfileLegacy, native.ShallowProfileResponsibilityV4)
+	}
 }
 
 func absoluteWorkspace() (string, error) {
@@ -182,7 +211,7 @@ func parsePassScore(raw string) (*float64, error) {
 func runFollow(workspace, installationRoot string, targets, languages []string, parsed *options, passScore *float64) error {
 	nativeAnalyzer, err := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages, IncludeTests: parsed.includeTests,
-		TypeScriptTypes: parsed.typescriptTypes, FollowSymlinks: parsed.followSymlinks,
+		TypeScriptTypes: parsed.typescriptTypes, ShallowProfile: parsed.shallowProfile, FollowSymlinks: parsed.followSymlinks,
 		PassScore: passScore,
 		ReadCache: true,
 	})
@@ -202,6 +231,11 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 			return fmt.Errorf("resolve preferences path: %w", err)
 		}
 	}
+	pref, err := preferences.LoadOrCreate(preferencesPath, preferences.DefaultDocument())
+	if err != nil {
+		return err
+	}
+	nativeAnalyzer.SetDisableGitignore(!pref.Files.HonorGitignore)
 	userDataRoot, err := userdata.Root()
 	if err != nil {
 		return err
@@ -250,17 +284,30 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 }
 
 func runReport(workspace, installationRoot string, targets, languages []string, parsed *options, passScore *float64) error {
+	preferencesPath := parsed.config
+	if preferencesPath == "" {
+		var err error
+		preferencesPath, err = preferences.DefaultPath()
+		if err != nil {
+			return err
+		}
+	}
+	pref, prefErr := preferences.LoadExisting(preferencesPath, preferences.DefaultDocument())
+	if prefErr != nil {
+		return prefErr
+	}
 	var document report.Document
 	var err error
 	nativeAnalyzer, nativeErr := native.New(workspace, installationRoot, native.Options{
 		Targets: targets, Languages: languages,
-		IncludeTests: parsed.includeTests, TypeScriptTypes: parsed.typescriptTypes,
+		IncludeTests: parsed.includeTests, TypeScriptTypes: parsed.typescriptTypes, ShallowProfile: parsed.shallowProfile,
 		FollowSymlinks: parsed.followSymlinks,
 		PassScore:      passScore, ReadCache: parsed.useCache,
 	})
 	if nativeErr != nil {
 		return nativeErr
 	}
+	nativeAnalyzer.SetDisableGitignore(!pref.Files.HonorGitignore)
 	nativeAnalyzer.EnableDefaultCache()
 	document, err = nativeAnalyzer.Analyze(context.Background(), targets, languages)
 	if err != nil {
@@ -274,7 +321,6 @@ func runReport(workspace, installationRoot string, targets, languages []string, 
 	}
 	if parsed.format == "json" {
 		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(document); err != nil {
 			return err
 		}

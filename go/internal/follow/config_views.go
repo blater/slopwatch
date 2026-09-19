@@ -17,7 +17,7 @@ import (
 func configSettingsRowsForState(state configSettingsState) int {
 	switch state.kind {
 	case configAgents:
-		return len(agentProviderChoices)
+		return len(agentProviderChoices) + 1
 	case configFix:
 		return fixSettingsMetricStart + len(fixSettingsMetrics())
 	case configConcurrency:
@@ -108,8 +108,8 @@ func configSettingsTitleForState(state configSettingsState) string {
 		}
 	}
 	return map[configSettingsKind]string{
-		configAgents: "AGENTS", configFix: "FIX DEFAULTS", configConcurrency: "CONCURRENCY & RETENTION",
-		configDelivery: "GIT & PULL REQUESTS",
+		configAgents: "AGENT SETUP", configFix: "FIX SETTINGS", configConcurrency: "CONCURRENCY & RETENTION",
+		configDelivery: "GIT SETTINGS",
 	}[state.kind]
 }
 
@@ -289,6 +289,7 @@ func agentSettingsLinesForState(state configSettingsState, catalog agent.Profile
 		lines = append(lines, lipgloss.NewStyle().Width(width).Background(background).Foreground(foreground).
 			Bold(choice.Runtime == activeRuntime).Render(truncate(row, width)))
 	}
+	lines = append(lines, style.ModalOption("Concurrency", state.cursor == len(agentProviderChoices), width))
 	selected := min(max(0, state.cursor), len(lines)-1)
 	return lines, selected, selected
 }

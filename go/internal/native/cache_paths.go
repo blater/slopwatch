@@ -43,6 +43,11 @@ func isTestPath(path, language string) bool {
 	}
 }
 
+func isTypeScriptDeclaration(path string) bool {
+	lower := strings.ToLower(filepath.ToSlash(path))
+	return strings.HasSuffix(lower, ".d.ts") || strings.HasSuffix(lower, ".d.mts") || strings.HasSuffix(lower, ".d.cts")
+}
+
 func discoveredPathSet(discovered map[string][]string, selected []string) map[string]bool {
 	result := make(map[string]bool)
 	for _, language := range selected {

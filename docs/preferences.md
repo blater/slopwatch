@@ -226,7 +226,7 @@ job state. Candidate source monitoring uses the pinned preview byte and line set
 larger files are explicitly labelled truncated instead of being rejected by a
 compiled 4 MiB/5,000-line ceiling.
 
-Settings › Git & pull requests controls whether new PRs are drafts or
+Settings › Agents › Git Settings controls whether new PRs are drafts or
 ready for review, the user-selected
 base, the organisation's branch template, and the shared candidate/delivery/
 publisher command-output budget. These commands have no Slopwatch wall-clock
@@ -248,3 +248,23 @@ Analyzer thresholds, formulas, and caps remain versioned in
 `component-catalog.json`: changing them alters the meaning of analyzer output
 and therefore requires cache-key and evidence-contract handling rather than a
 presentation preference.
+
+## Source file filtering
+
+Settings › Static Analysis › Files contains **Honor gitignore**, enabled by default.
+The setting applies to CLI reports, live scans, and fix verification. `.gitignore`
+rules apply to tracked and untracked sources, including nested rules and ancestor
+rules for explicit targets, without requiring Git. Turning it off keeps the normal
+build, dependency, language, test, and symlink exclusions.
+
+```toml
+[files]
+honor_gitignore = true
+```
+
+Existing preferences without this key default to `true`. Changes in the dashboard
+or relevant `.gitignore` files refresh the inventory and watcher registrations.
+
+Settings has three groups: Agents (Agent Setup, Fix Settings, Git Settings),
+Appearance (Theme, Columns), and Static Analysis (Files, Weights). Concurrency is
+inside Agent Setup. Escape restores each caller and its selection.

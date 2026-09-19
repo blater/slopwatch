@@ -1,0 +1,1185 @@
+{
+  "manifest": "/Users/blater/src/slopwatch/docs/evidence/shallow-v4/calibration-holdout/manifest.json",
+  "results": [
+    {
+      "id": "river-bound-access",
+      "language": "java",
+      "target": "SqlBoundAccess.java",
+      "group": "high",
+      "kind": null,
+      "expected_range": [
+        65,
+        100
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [
+        "raw_max 0 is outside expected range [65, 100]"
+      ],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 0,
+      "contribution": 0,
+      "score": 0,
+      "observed_score": 0,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "complete",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "21:io.riverdb.engine.sql7:package4:type36:io.riverdb.engine.sql.SqlBoundAccess",
+          "state": "measured",
+          "policy_revision": "r38",
+          "estimated": true,
+          "files": [
+            "SqlBoundAccess.java"
+          ],
+          "raw": {
+            "B8": 87,
+            "H": 0,
+            "alternatives": null,
+            "burden": {
+              "A": 0,
+              "E": 7,
+              "L": 0,
+              "O": 9,
+              "P": 0,
+              "S": 0,
+              "T": 2
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unsupported_outcome_range_0_2"
+              ],
+              "residual_burden": 0,
+              "responsibilities": {},
+              "supported_burden": 0,
+              "surface": {
+                "evidence": [
+                  "operation:SqlBoundAccess.java#resetRootAccess/0:1"
+                ],
+                "input_units": 0,
+                "operation_units": 1,
+                "representation_units": 0
+              },
+              "zero_reason": "lowest_range_supported"
+            },
+            "penalty_basis": "graded-caller-responsibility",
+            "responsibility_ratio": 0,
+            "zero_reason": "lowest_range_supported"
+          }
+        },
+        {
+          "scope": "file",
+          "id": "source:java:SqlBoundAccess.java",
+          "state": "partial",
+          "policy_revision": "r38",
+          "estimated": true,
+          "files": [
+            "SqlBoundAccess.java"
+          ],
+          "raw": {
+            "B8": 8,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "package",
+                  "burden": 1,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:SqlBoundAccess.java#resetRootAccess/0:1"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "SqlBoundAccess",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1
+                }
+              ],
+              "burden": 1,
+              "categories": {
+                "unknown_outcome": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unsupported_outcome_range_0_2"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 0,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 1,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unsupported_outcome_range_0_2"
+              ],
+              "residual_burden": 0,
+              "responsibilities": {},
+              "supported_burden": 0,
+              "surface": {
+                "evidence": [
+                  "operation:SqlBoundAccess.java#resetRootAccess/0:1"
+                ],
+                "input_units": 0,
+                "operation_units": 1,
+                "representation_units": 0
+              },
+              "zero_reason": "lowest_range_supported"
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": "lowest_range_supported"
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unsupported_outcome_range_0_2"
+        ]
+      ],
+      "zero_reason": "lowest_range_supported",
+      "zero_basis": "graded-caller-responsibility",
+      "support": [
+        {
+          "name": "21:io.riverdb.engine.sql7:package4:type36:io.riverdb.engine.sql.SqlBoundAccess",
+          "symbol": "21:io.riverdb.engine.sql7:package4:type36:io.riverdb.engine.sql.SqlBoundAccess",
+          "scope": "file",
+          "value": 0,
+          "location": {
+            "path": "SqlBoundAccess.java",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "21:io.riverdb.engine.sql7:package4:type36:io.riverdb.engine.sql.SqlBoundAccess"
+          }
+        },
+        {
+          "name": "source:java:SqlBoundAccess.java",
+          "symbol": "source:java:SqlBoundAccess.java",
+          "scope": "file",
+          "value": 0,
+          "location": {
+            "path": "SqlBoundAccess.java",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:java:SqlBoundAccess.java"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [],
+      "analysis_mode": "estimated",
+      "zero_category": "lowest_range_supported",
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": false,
+      "behavioral_conformance": false,
+      "semantic_conformance": false
+    },
+    {
+      "id": "river-descriptor-scan-context",
+      "language": "java",
+      "target": "SqlDescriptorScanContext.java",
+      "group": "high",
+      "kind": null,
+      "expected_range": [
+        65,
+        100
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [
+        "raw_max 22 is outside expected range [65, 100]"
+      ],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 22,
+      "contribution": 5.68751761875,
+      "score": 15.68751761875,
+      "observed_score": 15.68751761875,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:java:SqlDescriptorScanContext.java",
+          "state": "partial",
+          "policy_revision": "r38",
+          "estimated": true,
+          "files": [
+            "SqlDescriptorScanContext.java"
+          ],
+          "raw": {
+            "B8": 34,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "package",
+                  "burden": 4.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 3,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+                      "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+                      "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+                      "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+                      "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+                      "unresolved_call_range_0_2:boundPredicate.active/",
+                      "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+                      "unresolved_call_range_0_2:boundPredicate.matched/",
+                      "unresolved_call_range_0_2:predicate.evaluate/row",
+                      "unresolved_call_range_0_2:predicate.matched/",
+                      "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+                      "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/"
+                    ],
+                    "residual_burden": 2,
+                    "responsibilities": {},
+                    "supported_burden": 2,
+                    "surface": {
+                      "evidence": [
+                        "constructor-inputs:SqlDescriptorScanContext:1",
+                        "operation:SqlDescriptorScanContext.java#evaluatePredicate/1:1",
+                        "operation:SqlDescriptorScanContext.java#predicateMatched/2:1"
+                      ],
+                      "input_units": 1.25,
+                      "operation_units": 2,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+                    "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+                    "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+                    "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+                    "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+                    "unresolved_call_range_0_2:boundPredicate.active/",
+                    "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+                    "unresolved_call_range_0_2:boundPredicate.matched/",
+                    "unresolved_call_range_0_2:predicate.evaluate/row",
+                    "unresolved_call_range_0_2:predicate.matched/",
+                    "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+                    "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/",
+                    "unsupported_execution_alternatives:?"
+                  ],
+                  "name": "SqlDescriptorScanContext",
+                  "published_penalty": 22,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 4.25
+                }
+              ],
+              "burden": 4.25,
+              "categories": {
+                "unknown_call": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+                "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+                "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+                "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+                "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+                "unresolved_call_range_0_2:boundPredicate.active/",
+                "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+                "unresolved_call_range_0_2:boundPredicate.matched/",
+                "unresolved_call_range_0_2:predicate.evaluate/row",
+                "unresolved_call_range_0_2:predicate.matched/",
+                "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+                "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/",
+                "unsupported_execution_alternatives:?"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 22,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 4.25,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 3,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+                "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+                "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+                "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+                "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+                "unresolved_call_range_0_2:boundPredicate.active/",
+                "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+                "unresolved_call_range_0_2:boundPredicate.matched/",
+                "unresolved_call_range_0_2:predicate.evaluate/row",
+                "unresolved_call_range_0_2:predicate.matched/",
+                "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+                "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/"
+              ],
+              "residual_burden": 2,
+              "responsibilities": {},
+              "supported_burden": 2,
+              "surface": {
+                "evidence": [
+                  "constructor-inputs:SqlDescriptorScanContext:1",
+                  "operation:SqlDescriptorScanContext.java#evaluatePredicate/1:1",
+                  "operation:SqlDescriptorScanContext.java#predicateMatched/2:1"
+                ],
+                "input_units": 1.25,
+                "operation_units": 2,
+                "representation_units": 0
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+          "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+          "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+          "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+          "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+          "unresolved_call_range_0_2:boundPredicate.active/",
+          "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+          "unresolved_call_range_0_2:boundPredicate.matched/",
+          "unresolved_call_range_0_2:predicate.evaluate/row",
+          "unresolved_call_range_0_2:predicate.matched/",
+          "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+          "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/",
+          "unsupported_execution_alternatives:?"
+        ],
+        [
+          "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+          "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+          "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+          "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+          "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+          "unresolved_call_range_0_2:boundPredicate.active/",
+          "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+          "unresolved_call_range_0_2:boundPredicate.matched/",
+          "unresolved_call_range_0_2:predicate.evaluate/row",
+          "unresolved_call_range_0_2:predicate.matched/",
+          "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+          "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/",
+          "unsupported_execution_alternatives:?"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": null,
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:java:SqlDescriptorScanContext.java",
+          "symbol": "source:java:SqlDescriptorScanContext.java",
+          "scope": "file",
+          "value": 22,
+          "location": {
+            "path": "SqlDescriptorScanContext.java",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:java:SqlDescriptorScanContext.java"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-dizzily-coxalgic-lorean",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "SqlDescriptorScanContext.java",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "java-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": null,
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": false,
+      "behavioral_conformance": false,
+      "semantic_conformance": false
+    },
+    {
+      "id": "nql-hierarchy-row-context",
+      "language": "java",
+      "target": "HierarchyRowContext.java",
+      "group": "low",
+      "kind": null,
+      "expected_range": [
+        0,
+        25
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [
+        "raw_max 64 is outside expected range [0, 25]"
+      ],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 64,
+      "contribution": 13.390359525563,
+      "score": 13.390359525563,
+      "observed_score": 13.390359525563,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:java:HierarchyRowContext.java",
+          "state": "partial",
+          "policy_revision": "r38",
+          "estimated": true,
+          "files": [
+            "HierarchyRowContext.java"
+          ],
+          "raw": {
+            "B8": 24,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "package",
+                  "burden": 3,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:Node/__empty_string__",
+                      "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+                      "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+                      "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+                      "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+                      "unresolved_call_range_0_2:parent.addNode/child",
+                      "unresolved_call_range_0_2:path.getTerminalNodeName/"
+                    ],
+                    "residual_burden": 1.75,
+                    "responsibilities": {},
+                    "supported_burden": 1.75,
+                    "surface": {
+                      "evidence": [
+                        "operation:HierarchyRowContext.java#anonymousChild/1:1",
+                        "operation:HierarchyRowContext.java#objectChild/0:1"
+                      ],
+                      "input_units": 1,
+                      "operation_units": 2,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:Node/__empty_string__",
+                    "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+                    "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+                    "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+                    "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+                    "unresolved_call_range_0_2:parent.addNode/child",
+                    "unresolved_call_range_0_2:path.getTerminalNodeName/"
+                  ],
+                  "name": "HierarchyRowContext",
+                  "published_penalty": 64,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 3
+                }
+              ],
+              "burden": 3,
+              "categories": {
+                "unknown_call": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:Node/__empty_string__",
+                "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+                "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+                "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+                "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+                "unresolved_call_range_0_2:parent.addNode/child",
+                "unresolved_call_range_0_2:path.getTerminalNodeName/"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 64,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 3,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unresolved_call_range_0_2:Node/__empty_string__",
+                "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+                "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+                "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+                "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+                "unresolved_call_range_0_2:parent.addNode/child",
+                "unresolved_call_range_0_2:path.getTerminalNodeName/"
+              ],
+              "residual_burden": 1.75,
+              "responsibilities": {},
+              "supported_burden": 1.75,
+              "surface": {
+                "evidence": [
+                  "operation:HierarchyRowContext.java#anonymousChild/1:1",
+                  "operation:HierarchyRowContext.java#objectChild/0:1"
+                ],
+                "input_units": 1,
+                "operation_units": 2,
+                "representation_units": 0
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:Node/__empty_string__",
+          "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+          "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+          "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+          "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+          "unresolved_call_range_0_2:parent.addNode/child",
+          "unresolved_call_range_0_2:path.getTerminalNodeName/"
+        ],
+        [
+          "unresolved_call_range_0_2:Node/__empty_string__",
+          "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+          "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+          "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+          "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+          "unresolved_call_range_0_2:parent.addNode/child",
+          "unresolved_call_range_0_2:path.getTerminalNodeName/"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": null,
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:java:HierarchyRowContext.java",
+          "symbol": "source:java:HierarchyRowContext.java",
+          "scope": "file",
+          "value": 64,
+          "location": {
+            "path": "HierarchyRowContext.java",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:java:HierarchyRowContext.java"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-gingerly-apologal-donovan",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "HierarchyRowContext.java",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "java-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": null,
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": false,
+      "behavioral_conformance": false,
+      "semantic_conformance": false
+    },
+    {
+      "id": "xmltoaster-sql-row-cursor",
+      "language": "java",
+      "target": "SqlRowCursor.java",
+      "group": "mixed",
+      "kind": null,
+      "expected_range": [
+        26,
+        64
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [
+        "raw_max 80 is outside expected range [26, 64]"
+      ],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 80,
+      "contribution": 15,
+      "score": 15,
+      "observed_score": 15,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:java:SqlRowCursor.java",
+          "state": "partial",
+          "policy_revision": "r38",
+          "estimated": true,
+          "files": [
+            "SqlRowCursor.java"
+          ],
+          "raw": {
+            "B8": 84,
+            "H": 1,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 10.5,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 1,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+                      "unresolved_call_range_0_2:Log.warn/__string__,ex",
+                      "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+                      "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+                      "unresolved_call_range_0_2:col.getColumnIndex/",
+                      "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+                      "unresolved_call_range_0_2:ex.getMessage/",
+                      "unresolved_call_range_0_2:metaData.getColumnCount/",
+                      "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+                      "unresolved_call_range_0_2:metaData.getColumnType/index",
+                      "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+                      "unresolved_call_range_0_2:resultSet.close/",
+                      "unresolved_call_range_0_2:resultSet.getMetaData/",
+                      "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+                      "unresolved_call_range_0_2:resultSet.getObject/index",
+                      "unresolved_call_range_0_2:resultSet.getString/index",
+                      "unresolved_call_range_0_2:resultSet.next/",
+                      "unresolved_call_range_0_2:row.getColumnValues/",
+                      "unresolved_call_range_0_2:statement.close/",
+                      "unresolved_call_range_0_2:values/"
+                    ],
+                    "residual_burden": 12.25,
+                    "responsibilities": {
+                      "validation": 1
+                    },
+                    "supported_burden": 12.25,
+                    "surface": {
+                      "evidence": [
+                        "caller-sequencing:resultSet",
+                        "constructor-inputs:SqlRowCursor:0.5",
+                        "operation:SqlRowCursor.java#close/8:1",
+                        "operation:SqlRowCursor.java#columnCount/3:1",
+                        "operation:SqlRowCursor.java#columnLabel/4:1",
+                        "operation:SqlRowCursor.java#columnType/5:1",
+                        "operation:SqlRowCursor.java#next/1:1",
+                        "operation:SqlRowCursor.java#row/2:1",
+                        "operation:SqlRowCursor.java#stringValue/7:1",
+                        "operation:SqlRowCursor.java#value/6:1"
+                      ],
+                      "input_units": 1.5,
+                      "operation_units": 8,
+                      "representation_units": 4
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 1,
+                  "limitations": [
+                    "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+                    "unresolved_call_range_0_2:Log.warn/__string__,ex",
+                    "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+                    "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+                    "unresolved_call_range_0_2:col.getColumnIndex/",
+                    "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+                    "unresolved_call_range_0_2:ex.getMessage/",
+                    "unresolved_call_range_0_2:metaData.getColumnCount/",
+                    "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+                    "unresolved_call_range_0_2:metaData.getColumnType/index",
+                    "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+                    "unresolved_call_range_0_2:resultSet.close/",
+                    "unresolved_call_range_0_2:resultSet.getMetaData/",
+                    "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+                    "unresolved_call_range_0_2:resultSet.getObject/index",
+                    "unresolved_call_range_0_2:resultSet.getString/index",
+                    "unresolved_call_range_0_2:resultSet.next/",
+                    "unresolved_call_range_0_2:row.getColumnValues/",
+                    "unresolved_call_range_0_2:statement.close/",
+                    "unresolved_call_range_0_2:values/",
+                    "unsupported_execution_alternatives:?",
+                    "unsupported_execution_alternatives:catch",
+                    "unsupported_execution_alternatives:for",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:try"
+                  ],
+                  "name": "SqlRowCursor",
+                  "published_penalty": 80,
+                  "recognized_hidden": 1,
+                  "uncertain_burden": 10.5
+                }
+              ],
+              "burden": 10.5,
+              "categories": {
+                "unknown_call": 1,
+                "validation": 1
+              },
+              "descriptive_ratio": 84,
+              "findings": [],
+              "hidden": 1,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+                "unresolved_call_range_0_2:Log.warn/__string__,ex",
+                "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+                "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+                "unresolved_call_range_0_2:col.getColumnIndex/",
+                "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+                "unresolved_call_range_0_2:ex.getMessage/",
+                "unresolved_call_range_0_2:metaData.getColumnCount/",
+                "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+                "unresolved_call_range_0_2:metaData.getColumnType/index",
+                "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+                "unresolved_call_range_0_2:resultSet.close/",
+                "unresolved_call_range_0_2:resultSet.getMetaData/",
+                "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+                "unresolved_call_range_0_2:resultSet.getObject/index",
+                "unresolved_call_range_0_2:resultSet.getString/index",
+                "unresolved_call_range_0_2:resultSet.next/",
+                "unresolved_call_range_0_2:row.getColumnValues/",
+                "unresolved_call_range_0_2:statement.close/",
+                "unresolved_call_range_0_2:values/",
+                "unsupported_execution_alternatives:?",
+                "unsupported_execution_alternatives:catch",
+                "unsupported_execution_alternatives:for",
+                "unsupported_execution_alternatives:if",
+                "unsupported_execution_alternatives:try"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 80,
+              "recognized_hidden": 1,
+              "roles": null,
+              "source_hidden": 1,
+              "uncertain_burden": 10.5,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 1,
+              "material_limitations": [
+                "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+                "unresolved_call_range_0_2:Log.warn/__string__,ex",
+                "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+                "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+                "unresolved_call_range_0_2:col.getColumnIndex/",
+                "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+                "unresolved_call_range_0_2:ex.getMessage/",
+                "unresolved_call_range_0_2:metaData.getColumnCount/",
+                "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+                "unresolved_call_range_0_2:metaData.getColumnType/index",
+                "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+                "unresolved_call_range_0_2:resultSet.close/",
+                "unresolved_call_range_0_2:resultSet.getMetaData/",
+                "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+                "unresolved_call_range_0_2:resultSet.getObject/index",
+                "unresolved_call_range_0_2:resultSet.getString/index",
+                "unresolved_call_range_0_2:resultSet.next/",
+                "unresolved_call_range_0_2:row.getColumnValues/",
+                "unresolved_call_range_0_2:statement.close/",
+                "unresolved_call_range_0_2:values/"
+              ],
+              "residual_burden": 12.25,
+              "responsibilities": {
+                "validation": 1
+              },
+              "supported_burden": 12.25,
+              "surface": {
+                "evidence": [
+                  "caller-sequencing:resultSet",
+                  "constructor-inputs:SqlRowCursor:0.5",
+                  "operation:SqlRowCursor.java#close/8:1",
+                  "operation:SqlRowCursor.java#columnCount/3:1",
+                  "operation:SqlRowCursor.java#columnLabel/4:1",
+                  "operation:SqlRowCursor.java#columnType/5:1",
+                  "operation:SqlRowCursor.java#next/1:1",
+                  "operation:SqlRowCursor.java#row/2:1",
+                  "operation:SqlRowCursor.java#stringValue/7:1",
+                  "operation:SqlRowCursor.java#value/6:1"
+                ],
+                "input_units": 1.5,
+                "operation_units": 8,
+                "representation_units": 4
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 84,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+          "unresolved_call_range_0_2:Log.warn/__string__,ex",
+          "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+          "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+          "unresolved_call_range_0_2:col.getColumnIndex/",
+          "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+          "unresolved_call_range_0_2:ex.getMessage/",
+          "unresolved_call_range_0_2:metaData.getColumnCount/",
+          "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+          "unresolved_call_range_0_2:metaData.getColumnType/index",
+          "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+          "unresolved_call_range_0_2:resultSet.close/",
+          "unresolved_call_range_0_2:resultSet.getMetaData/",
+          "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+          "unresolved_call_range_0_2:resultSet.getObject/index",
+          "unresolved_call_range_0_2:resultSet.getString/index",
+          "unresolved_call_range_0_2:resultSet.next/",
+          "unresolved_call_range_0_2:row.getColumnValues/",
+          "unresolved_call_range_0_2:statement.close/",
+          "unresolved_call_range_0_2:values/",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:catch",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:try"
+        ],
+        [
+          "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+          "unresolved_call_range_0_2:Log.warn/__string__,ex",
+          "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+          "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+          "unresolved_call_range_0_2:col.getColumnIndex/",
+          "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+          "unresolved_call_range_0_2:ex.getMessage/",
+          "unresolved_call_range_0_2:metaData.getColumnCount/",
+          "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+          "unresolved_call_range_0_2:metaData.getColumnType/index",
+          "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+          "unresolved_call_range_0_2:resultSet.close/",
+          "unresolved_call_range_0_2:resultSet.getMetaData/",
+          "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+          "unresolved_call_range_0_2:resultSet.getObject/index",
+          "unresolved_call_range_0_2:resultSet.getString/index",
+          "unresolved_call_range_0_2:resultSet.next/",
+          "unresolved_call_range_0_2:row.getColumnValues/",
+          "unresolved_call_range_0_2:statement.close/",
+          "unresolved_call_range_0_2:values/",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:catch",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:try"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": null,
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:java:SqlRowCursor.java",
+          "symbol": "source:java:SqlRowCursor.java",
+          "scope": "file",
+          "value": 80,
+          "location": {
+            "path": "SqlRowCursor.java",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:java:SqlRowCursor.java"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-unitedly-scornful-sunny",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "SqlRowCursor.java",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "java-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": null,
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": false,
+      "behavioral_conformance": false,
+      "semantic_conformance": false
+    }
+  ],
+  "failures": [
+    {
+      "case": "river-bound-access",
+      "failure": "raw_max 0 is outside expected range [65, 100]"
+    },
+    {
+      "case": "river-descriptor-scan-context",
+      "failure": "raw_max 22 is outside expected range [65, 100]"
+    },
+    {
+      "case": "nql-hierarchy-row-context",
+      "failure": "raw_max 64 is outside expected range [0, 25]"
+    },
+    {
+      "case": "xmltoaster-sql-row-cursor",
+      "failure": "raw_max 80 is outside expected range [26, 64]"
+    },
+    {
+      "kind": "comparison",
+      "lower": "nql-hierarchy-row-context",
+      "higher": "river-bound-access",
+      "min_delta": 25,
+      "delta": -64.0,
+      "passed": false,
+      "failure": "delta -64 is below required 25"
+    },
+    {
+      "kind": "comparison",
+      "lower": "nql-hierarchy-row-context",
+      "higher": "river-descriptor-scan-context",
+      "min_delta": 25,
+      "delta": -42.0,
+      "passed": false,
+      "failure": "delta -42 is below required 25"
+    }
+  ],
+  "manifest_sha256": "e61d96bc580996507748ba614e8aedd78834cf13736a09eeef8094c04c30ff19",
+  "binary_sha256": "524a6d2404d64428e02ca8ba13b9113892c0b17fcbc9a847a068c115732c4e42",
+  "evaluated_at_utc": "2026-09-18T16:03:39.051180+00:00",
+  "limitations": [
+    "Purposive sample of four Java boundaries across three local repositories; not random sampling or four-language coverage.",
+    "High examples test package audience and executable coupled mutable representation; not the quality of the entire containing service.",
+    "Snapshots omit complete workspaces; uncertainty must remain visible.",
+    "After first evaluation failures stay failures, expectations stay frozen. Any tuning consumes this holdout; a fresh blind sample is needed for another generalization claim."
+  ],
+  "relations": [
+    {
+      "checks": [
+        {
+          "lower": "nql-hierarchy-row-context",
+          "higher": "river-bound-access",
+          "min_delta": 25,
+          "delta": -64.0,
+          "passed": false,
+          "failure": "delta -64 is below required 25"
+        },
+        {
+          "lower": "nql-hierarchy-row-context",
+          "higher": "river-descriptor-scan-context",
+          "min_delta": 25,
+          "delta": -42.0,
+          "passed": false,
+          "failure": "delta -42 is below required 25"
+        },
+        {
+          "lower": "nql-hierarchy-row-context",
+          "higher": "xmltoaster-sql-row-cursor",
+          "min_delta": 5,
+          "delta": 16.0,
+          "passed": true
+        }
+      ],
+      "failures": [
+        {
+          "kind": "comparison",
+          "lower": "nql-hierarchy-row-context",
+          "higher": "river-bound-access",
+          "min_delta": 25,
+          "delta": -64.0,
+          "passed": false,
+          "failure": "delta -64 is below required 25"
+        },
+        {
+          "kind": "comparison",
+          "lower": "nql-hierarchy-row-context",
+          "higher": "river-descriptor-scan-context",
+          "min_delta": 25,
+          "delta": -42.0,
+          "passed": false,
+          "failure": "delta -42 is below required 25"
+        }
+      ]
+    }
+  ],
+  "positive_detection": {
+    "predeclared_real_high_cases": 2,
+    "detected_high": 0,
+    "cases": [
+      {
+        "id": "river-bound-access",
+        "value": 0,
+        "passed": false
+      },
+      {
+        "id": "river-descriptor-scan-context",
+        "value": 22,
+        "passed": false
+      }
+    ]
+  },
+  "languages": {
+    "java": {
+      "total": 4,
+      "applicable": 4,
+      "numeric": 4,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 4,
+      "semantic_numeric": 4,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 4,
+      "estimated_rate": 1.0,
+      "uncertain": 4,
+      "uncertainty_rate": 1.0,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 0,
+      "behavioral_conformance": 0,
+      "semantic_coverage": {
+        "partial": 4
+      },
+      "all_state_distribution": {
+        "partial": 4
+      },
+      "bands": {
+        "0": 1,
+        "1-25": 1,
+        "26-64": 1,
+        "65-100": 1
+      },
+      "failures": 4
+    }
+  }
+}

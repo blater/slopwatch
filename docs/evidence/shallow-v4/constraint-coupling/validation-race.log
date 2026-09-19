@@ -1,0 +1,4 @@
+ok  	github.com/blater/slopwatch/internal/sourceestimate	28.815s
+ok  	github.com/blater/slopwatch/internal/native	16.525s
+ok  	github.com/blater/slopwatch/internal/follow	4.182s
+ok  	github.com/blater/slopwatch/internal/fixanalysis/nativeadapter	1.628s

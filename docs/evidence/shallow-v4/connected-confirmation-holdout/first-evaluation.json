@@ -1,0 +1,2508 @@
+{
+  "manifest": "/Users/blater/src/slopwatch/docs/evidence/shallow-v4/connected-confirmation-holdout/manifest.json",
+  "required_high_languages": [],
+  "results": [
+    {
+      "id": "go-condition-variable",
+      "language": "go",
+      "target": "cond.go",
+      "group": "high",
+      "kind": null,
+      "expected_range": [
+        65,
+        100
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "go_mod_auto": true,
+      "report_schema_version": 4,
+      "raw_max": 79,
+      "contribution": 14.909263266449,
+      "score": 14.909263266449,
+      "observed_score": 14.909263266449,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:go:cond.go",
+          "state": "partial",
+          "policy_revision": "r41",
+          "estimated": true,
+          "files": [
+            "cond.go"
+          ],
+          "raw": {
+            "B8": 24,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "constructor-inputs:Cond:0.25"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 0,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "NewCond",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.25
+                },
+                {
+                  "audience": "external",
+                  "burden": 3,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:c.L.Lock/",
+                      "unresolved_call_range_0_2:c.L.Unlock/",
+                      "unresolved_call_range_0_2:c.checker.check/",
+                      "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+                      "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+                      "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+                      "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+                    ],
+                    "residual_burden": 3.75,
+                    "responsibilities": {},
+                    "supported_burden": 3.75,
+                    "surface": {
+                      "evidence": [
+                        "operation:cond.go#Broadcast/3:1",
+                        "operation:cond.go#Signal/2:1",
+                        "operation:cond.go#Wait/1:1",
+                        "representation:coupled-fields:L:2"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 3,
+                      "representation_units": 2
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:c.L.Lock/",
+                    "unresolved_call_range_0_2:c.L.Unlock/",
+                    "unresolved_call_range_0_2:c.checker.check/",
+                    "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+                    "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+                    "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+                    "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+                  ],
+                  "name": "Cond",
+                  "published_penalty": 79,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 3
+                },
+                {
+                  "audience": "external",
+                  "burden": 2,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": null,
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:cond.go#Lock/5:0.25",
+                        "operation:cond.go#Unlock/6:0.25"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 0.5,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": null,
+                  "name": "noCopy",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 0
+                },
+                {
+                  "audience": "local-unresolved",
+                  "burden": 1,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 1,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:atomic.CompareAndSwapUintptr/(*uintptr)(c),0,uintptr(unsafe.Pointer(c))",
+                      "unresolved_call_range_0_2:panic/__string__",
+                      "unresolved_call_range_0_2:uintptr/*c",
+                      "unresolved_call_range_0_2:uintptr/unsafe.Pointer(c)",
+                      "unresolved_call_range_0_2:unsafe.Pointer/c"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {
+                      "validation": 1
+                    },
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:cond.go#check/4:1"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 1,
+                  "limitations": [
+                    "unresolved_call_range_0_2:atomic.CompareAndSwapUintptr/(*uintptr)(c),0,uintptr(unsafe.Pointer(c))",
+                    "unresolved_call_range_0_2:panic/__string__",
+                    "unresolved_call_range_0_2:uintptr/*c",
+                    "unresolved_call_range_0_2:uintptr/unsafe.Pointer(c)",
+                    "unresolved_call_range_0_2:unsafe.Pointer/c",
+                    "unsupported_execution_alternatives:&&",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:unsafe"
+                  ],
+                  "name": "copyChecker.check",
+                  "published_penalty": 0,
+                  "recognized_hidden": 1,
+                  "uncertain_burden": 1
+                }
+              ],
+              "burden": 3,
+              "categories": {
+                "unknown_call": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:c.L.Lock/",
+                "unresolved_call_range_0_2:c.L.Unlock/",
+                "unresolved_call_range_0_2:c.checker.check/",
+                "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+                "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+                "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+                "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 79,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 3,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unresolved_call_range_0_2:c.L.Lock/",
+                "unresolved_call_range_0_2:c.L.Unlock/",
+                "unresolved_call_range_0_2:c.checker.check/",
+                "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+                "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+                "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+                "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+              ],
+              "residual_burden": 3.75,
+              "responsibilities": {},
+              "supported_burden": 3.75,
+              "surface": {
+                "evidence": [
+                  "operation:cond.go#Broadcast/3:1",
+                  "operation:cond.go#Signal/2:1",
+                  "operation:cond.go#Wait/1:1",
+                  "representation:coupled-fields:L:2"
+                ],
+                "input_units": 0,
+                "operation_units": 3,
+                "representation_units": 2
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:c.L.Lock/",
+          "unresolved_call_range_0_2:c.L.Unlock/",
+          "unresolved_call_range_0_2:c.checker.check/",
+          "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+          "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+          "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+          "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+        ],
+        [
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unresolved_call_range_0_2:c.L.Lock/",
+          "unresolved_call_range_0_2:c.L.Unlock/",
+          "unresolved_call_range_0_2:c.checker.check/",
+          "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+          "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+          "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+          "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+        ],
+        [
+          "unresolved_call_range_0_2:atomic.CompareAndSwapUintptr/(*uintptr)(c),0,uintptr(unsafe.Pointer(c))",
+          "unresolved_call_range_0_2:panic/__string__",
+          "unresolved_call_range_0_2:uintptr/*c",
+          "unresolved_call_range_0_2:uintptr/unsafe.Pointer(c)",
+          "unresolved_call_range_0_2:unsafe.Pointer/c",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:unsafe"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": "lowest_range_supported",
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:go:cond.go",
+          "symbol": "source:go:cond.go",
+          "scope": "file",
+          "value": 79,
+          "location": {
+            "path": "cond.go",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:go:cond.go"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-puffily-pappose-wilson",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "cond.go",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "go-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": "lowest_range_supported",
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "go-once-initializer",
+      "language": "go",
+      "target": "once.go",
+      "group": "low",
+      "kind": null,
+      "expected_range": [
+        0,
+        25
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "go_mod_auto": true,
+      "report_schema_version": 4,
+      "raw_max": 0,
+      "contribution": 0,
+      "score": 0,
+      "observed_score": 0,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:go:once.go",
+          "state": "partial",
+          "policy_revision": "r41",
+          "estimated": true,
+          "files": [
+            "once.go"
+          ],
+          "raw": {
+            "B8": 10,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:f/",
+                      "unresolved_call_range_0_2:o.done.Load/",
+                      "unresolved_call_range_0_2:o.done.Store/true",
+                      "unresolved_call_range_0_2:o.m.Lock/",
+                      "unresolved_call_range_0_2:o.m.Unlock/"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:once.go#Do/0:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:f/",
+                    "unresolved_call_range_0_2:o.done.Load/",
+                    "unresolved_call_range_0_2:o.done.Store/true",
+                    "unresolved_call_range_0_2:o.m.Lock/",
+                    "unresolved_call_range_0_2:o.m.Unlock/",
+                    "unsupported_execution_alternatives:if"
+                  ],
+                  "name": "Once",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.25
+                }
+              ],
+              "burden": 1.25,
+              "categories": {
+                "unknown_call": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:f/",
+                "unresolved_call_range_0_2:o.done.Load/",
+                "unresolved_call_range_0_2:o.done.Store/true",
+                "unresolved_call_range_0_2:o.m.Lock/",
+                "unresolved_call_range_0_2:o.m.Unlock/",
+                "unsupported_execution_alternatives:if"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 0,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 1.25,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unresolved_call_range_0_2:f/",
+                "unresolved_call_range_0_2:o.done.Load/",
+                "unresolved_call_range_0_2:o.done.Store/true",
+                "unresolved_call_range_0_2:o.m.Lock/",
+                "unresolved_call_range_0_2:o.m.Unlock/"
+              ],
+              "residual_burden": 0,
+              "responsibilities": {},
+              "supported_burden": 0,
+              "surface": {
+                "evidence": [
+                  "operation:once.go#Do/0:1"
+                ],
+                "input_units": 0.25,
+                "operation_units": 1,
+                "representation_units": 0
+              },
+              "zero_reason": "lowest_range_supported"
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": "lowest_range_supported"
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:f/",
+          "unresolved_call_range_0_2:o.done.Load/",
+          "unresolved_call_range_0_2:o.done.Store/true",
+          "unresolved_call_range_0_2:o.m.Lock/",
+          "unresolved_call_range_0_2:o.m.Unlock/",
+          "unsupported_execution_alternatives:if"
+        ],
+        [
+          "unresolved_call_range_0_2:f/",
+          "unresolved_call_range_0_2:o.done.Load/",
+          "unresolved_call_range_0_2:o.done.Store/true",
+          "unresolved_call_range_0_2:o.m.Lock/",
+          "unresolved_call_range_0_2:o.m.Unlock/",
+          "unsupported_execution_alternatives:if"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": "lowest_range_supported",
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:go:once.go",
+          "symbol": "source:go:once.go",
+          "scope": "file",
+          "value": 0,
+          "location": {
+            "path": "once.go",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:go:once.go"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-left-unhued-lakeisha",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "once.go",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "go-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": "lowest_range_supported",
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "typescript-finalize-coordinator",
+      "language": "typescript",
+      "target": "finalize-coordinator.ts",
+      "group": "mixed",
+      "kind": null,
+      "expected_range": [
+        26,
+        64
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 50,
+      "contribution": 11.609640474437,
+      "score": 11.609640474437,
+      "observed_score": 11.609640474437,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:typescript:finalize-coordinator.ts",
+          "state": "partial",
+          "policy_revision": "r41",
+          "estimated": true,
+          "files": [
+            "finalize-coordinator.ts"
+          ],
+          "raw": {
+            "B8": 56,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 7,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 3,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:entry.resolve/result",
+                      "unresolved_call_range_0_2:generateId/__string__",
+                      "unresolved_call_range_0_2:this.byRun.delete/runId",
+                      "unresolved_call_range_0_2:this.byRun.get/runId",
+                      "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}"
+                    ],
+                    "residual_burden": 7,
+                    "responsibilities": {},
+                    "supported_burden": 7,
+                    "surface": {
+                      "evidence": [
+                        "caller-sequencing:this.byRun",
+                        "operation:finalize-coordinator.ts#abort/3:1",
+                        "operation:finalize-coordinator.ts#peekIntent/1:1",
+                        "operation:finalize-coordinator.ts#pendingCount/4:0.25",
+                        "operation:finalize-coordinator.ts#register/0:1",
+                        "operation:finalize-coordinator.ts#submit/2:1"
+                      ],
+                      "input_units": 2,
+                      "operation_units": 4.25,
+                      "representation_units": 2
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:entry.resolve/result",
+                    "unresolved_call_range_0_2:generateId/__string__",
+                    "unresolved_call_range_0_2:this.byRun.delete/runId",
+                    "unresolved_call_range_0_2:this.byRun.get/runId",
+                    "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}",
+                    "unsupported_execution_alternatives:&&",
+                    "unsupported_execution_alternatives:?",
+                    "unsupported_execution_alternatives:if"
+                  ],
+                  "name": "external:FinalizeCoordinator",
+                  "published_penalty": 50,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 6
+                }
+              ],
+              "burden": 7,
+              "categories": {
+                "unknown_call": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:entry.resolve/result",
+                "unresolved_call_range_0_2:generateId/__string__",
+                "unresolved_call_range_0_2:this.byRun.delete/runId",
+                "unresolved_call_range_0_2:this.byRun.get/runId",
+                "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}",
+                "unsupported_execution_alternatives:&&",
+                "unsupported_execution_alternatives:?",
+                "unsupported_execution_alternatives:if"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 50,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 6,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 3,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unresolved_call_range_0_2:entry.resolve/result",
+                "unresolved_call_range_0_2:generateId/__string__",
+                "unresolved_call_range_0_2:this.byRun.delete/runId",
+                "unresolved_call_range_0_2:this.byRun.get/runId",
+                "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}"
+              ],
+              "residual_burden": 7,
+              "responsibilities": {},
+              "supported_burden": 7,
+              "surface": {
+                "evidence": [
+                  "caller-sequencing:this.byRun",
+                  "operation:finalize-coordinator.ts#abort/3:1",
+                  "operation:finalize-coordinator.ts#peekIntent/1:1",
+                  "operation:finalize-coordinator.ts#pendingCount/4:0.25",
+                  "operation:finalize-coordinator.ts#register/0:1",
+                  "operation:finalize-coordinator.ts#submit/2:1"
+                ],
+                "input_units": 2,
+                "operation_units": 4.25,
+                "representation_units": 2
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:entry.resolve/result",
+          "unresolved_call_range_0_2:generateId/__string__",
+          "unresolved_call_range_0_2:this.byRun.delete/runId",
+          "unresolved_call_range_0_2:this.byRun.get/runId",
+          "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:if"
+        ],
+        [
+          "unresolved_call_range_0_2:entry.resolve/result",
+          "unresolved_call_range_0_2:generateId/__string__",
+          "unresolved_call_range_0_2:this.byRun.delete/runId",
+          "unresolved_call_range_0_2:this.byRun.get/runId",
+          "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:if"
+        ],
+        {
+          "severity": "info",
+          "code": "typescript.structural_semantic_exceptions",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module '../../core/ids.ts' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module '../contract.ts' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module './finalize-wire.ts' or its corresponding type declarations."
+        }
+      ],
+      "zero_reason": null,
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:typescript:finalize-coordinator.ts",
+          "symbol": "source:typescript:finalize-coordinator.ts",
+          "scope": "file",
+          "value": 50,
+          "location": {
+            "path": "finalize-coordinator.ts",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:typescript:finalize-coordinator.ts"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "typescript.structural_semantic_exceptions",
+          "invocation_id": "invocation-left-proalien-macey",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects.",
+          "path": null,
+          "protocol_version": 1,
+          "severity": "info",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-left-proalien-macey",
+          "message": "Cannot find module '../../core/ids.ts' or its corresponding type declarations.",
+          "path": "finalize-coordinator.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-left-proalien-macey",
+          "message": "Cannot find module '../contract.ts' or its corresponding type declarations.",
+          "path": "finalize-coordinator.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-left-proalien-macey",
+          "message": "Cannot find module './finalize-wire.ts' or its corresponding type declarations.",
+          "path": "finalize-coordinator.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": null,
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "typescript-recent-log-buffer",
+      "language": "typescript",
+      "target": "logbuf.ts",
+      "group": "low",
+      "kind": null,
+      "expected_range": [
+        0,
+        25
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 0,
+      "contribution": 0,
+      "score": 0,
+      "observed_score": 0,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:typescript:logbuf.ts",
+          "state": "partial",
+          "policy_revision": "r41",
+          "estimated": true,
+          "files": [
+            "logbuf.ts"
+          ],
+          "raw": {
+            "B8": 10,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 1,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:BUF.slice/"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:logbuf.ts#recentLogs/2:1"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:BUF.slice/"
+                  ],
+                  "name": "external:recentLogs",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1
+                },
+                {
+                  "audience": "local-unresolved",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+                      "unresolved_call_range_0_2:BUF.shift/",
+                      "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+                      "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+                      "unresolved_call_range_0_2:origFetch/...args",
+                      "unresolved_call_range_0_2:slice/0,300",
+                      "unresolved_call_range_0_2:u.pathname.startsWith/__string__"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:logbuf.ts#async/1:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+                    "unresolved_call_range_0_2:BUF.shift/",
+                    "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+                    "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+                    "unresolved_call_range_0_2:origFetch/...args",
+                    "unresolved_call_range_0_2:slice/0,300",
+                    "unresolved_call_range_0_2:u.pathname.startsWith/__string__",
+                    "unsupported_execution_alternatives:&&",
+                    "unsupported_execution_alternatives:?",
+                    "unsupported_execution_alternatives:await",
+                    "unsupported_execution_alternatives:catch",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:try"
+                  ],
+                  "name": "local-unresolved:async",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.25
+                }
+              ],
+              "burden": 1.25,
+              "categories": {
+                "unknown_call": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+                "unresolved_call_range_0_2:BUF.shift/",
+                "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+                "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+                "unresolved_call_range_0_2:origFetch/...args",
+                "unresolved_call_range_0_2:slice/0,300",
+                "unresolved_call_range_0_2:u.pathname.startsWith/__string__",
+                "unsupported_execution_alternatives:&&",
+                "unsupported_execution_alternatives:?",
+                "unsupported_execution_alternatives:await",
+                "unsupported_execution_alternatives:catch",
+                "unsupported_execution_alternatives:if",
+                "unsupported_execution_alternatives:try"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 0,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 1.25,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+                "unresolved_call_range_0_2:BUF.shift/",
+                "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+                "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+                "unresolved_call_range_0_2:origFetch/...args",
+                "unresolved_call_range_0_2:slice/0,300",
+                "unresolved_call_range_0_2:u.pathname.startsWith/__string__"
+              ],
+              "residual_burden": 0,
+              "responsibilities": {},
+              "supported_burden": 0,
+              "surface": {
+                "evidence": [
+                  "operation:logbuf.ts#async/1:1"
+                ],
+                "input_units": 0.25,
+                "operation_units": 1,
+                "representation_units": 0
+              },
+              "zero_reason": "lowest_range_supported"
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": "lowest_range_supported"
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+          "unresolved_call_range_0_2:BUF.shift/",
+          "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+          "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+          "unresolved_call_range_0_2:origFetch/...args",
+          "unresolved_call_range_0_2:slice/0,300",
+          "unresolved_call_range_0_2:u.pathname.startsWith/__string__",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:await",
+          "unsupported_execution_alternatives:catch",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:try"
+        ],
+        [
+          "unresolved_call_range_0_2:BUF.slice/"
+        ],
+        [
+          "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+          "unresolved_call_range_0_2:BUF.shift/",
+          "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+          "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+          "unresolved_call_range_0_2:origFetch/...args",
+          "unresolved_call_range_0_2:slice/0,300",
+          "unresolved_call_range_0_2:u.pathname.startsWith/__string__",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:await",
+          "unsupported_execution_alternatives:catch",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:try"
+        ],
+        {
+          "severity": "info",
+          "code": "typescript.structural_semantic_exceptions",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects."
+        }
+      ],
+      "zero_reason": "lowest_range_supported",
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:typescript:logbuf.ts",
+          "symbol": "source:typescript:logbuf.ts",
+          "scope": "file",
+          "value": 0,
+          "location": {
+            "path": "logbuf.ts",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:typescript:logbuf.ts"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "typescript.structural_semantic_exceptions",
+          "invocation_id": "invocation-mopingly-basidial-joseph",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects.",
+          "path": null,
+          "protocol_version": 1,
+          "severity": "info",
+          "type": "diagnostic",
+          "unit_id": ""
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": "lowest_range_supported",
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "rust-maybe-uninit",
+      "language": "rust",
+      "target": "maybe_uninit.rs",
+      "group": "high",
+      "kind": null,
+      "expected_range": [
+        65,
+        100
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 91,
+      "contribution": 15.929332726557,
+      "score": 15.929332726557,
+      "observed_score": 15.929332726557,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "failed",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:rust:maybe_uninit.rs",
+          "state": "partial",
+          "policy_revision": "r41",
+          "estimated": true,
+          "files": [
+            "maybe_uninit.rs"
+          ],
+          "raw": {
+            "B8": 90,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "internal",
+                  "burden": 11.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:ManuallyDrop.new/val",
+                      "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+                      "unresolved_call_range_0_2:read/",
+                      "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+                      "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+                      "unresolved_call_range_0_2:transmute_neo/self",
+                      "unresolved_call_range_0_2:u.as_mut_ptr/",
+                      "unresolved_call_range_0_2:write_bytes/0u8,1",
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 10,
+                    "responsibilities": {},
+                    "supported_burden": 10,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#as_bytes/13:1",
+                        "operation:maybe_uninit.rs#as_bytes_mut/14:1",
+                        "operation:maybe_uninit.rs#as_mut_ptr/7:1",
+                        "operation:maybe_uninit.rs#as_ptr/6:1",
+                        "operation:maybe_uninit.rs#assume_init/8:1",
+                        "operation:maybe_uninit.rs#assume_init_drop/10:1",
+                        "operation:maybe_uninit.rs#assume_init_mut/12:1",
+                        "operation:maybe_uninit.rs#assume_init_read/9:1",
+                        "operation:maybe_uninit.rs#assume_init_ref/11:1",
+                        "operation:maybe_uninit.rs#write/5:1",
+                        "operation:maybe_uninit.rs#zeroed/4:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 11,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:ManuallyDrop.new/val",
+                    "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+                    "unresolved_call_range_0_2:read/",
+                    "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+                    "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+                    "unresolved_call_range_0_2:transmute_neo/self",
+                    "unresolved_call_range_0_2:u.as_mut_ptr/",
+                    "unresolved_call_range_0_2:write_bytes/0u8,1",
+                    "unsupported_execution_alternatives:unsafe",
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "maybe_uninit.rs#internal:MaybeUninit",
+                  "published_penalty": 91,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 11.25
+                },
+                {
+                  "audience": "internal",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:self.copy_from_slice/uninit_src",
+                      "unresolved_call_range_0_2:super.transmute/src",
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#write_copy_of_slice/15:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:self.copy_from_slice/uninit_src",
+                    "unresolved_call_range_0_2:super.transmute/src",
+                    "unsupported_execution_alternatives:unsafe",
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "maybe_uninit.rs#internal:write_copy_of_slice",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.25
+                },
+                {
+                  "audience": "internal",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 3,
+                    "material_limitations": [
+                      "unexpanded_macro",
+                      "unresolved_call_range_0_2:clone/",
+                      "unresolved_call_range_0_2:self.len/",
+                      "unresolved_call_range_0_2:src.len/",
+                      "unresolved_call_range_0_2:super.forget/guard",
+                      "unresolved_call_range_0_2:write/src[i].clone()",
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {
+                      "state": 2,
+                      "validation": 1
+                    },
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#write_clone_of_slice/16:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 2,
+                  "limitations": [
+                    "unexpanded_macro",
+                    "unresolved_call_range_0_2:clone/",
+                    "unresolved_call_range_0_2:self.len/",
+                    "unresolved_call_range_0_2:src.len/",
+                    "unresolved_call_range_0_2:super.forget/guard",
+                    "unresolved_call_range_0_2:write/src[i].clone()",
+                    "unsupported_execution_alternatives:for",
+                    "unsupported_execution_alternatives:unsafe",
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "maybe_uninit.rs#internal:write_clone_of_slice",
+                  "published_penalty": 0,
+                  "recognized_hidden": 2,
+                  "uncertain_burden": 1.25
+                },
+                {
+                  "audience": "internal",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:SpecFill.spec_fill/self,value",
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#write_filled/17:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:SpecFill.spec_fill/self,value",
+                    "unsupported_execution_alternatives:unsafe",
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "maybe_uninit.rs#internal:write_filled",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.25
+                },
+                {
+                  "audience": "internal",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 2,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:element.write/f(idx)",
+                      "unresolved_call_range_0_2:enumerate/",
+                      "unresolved_call_range_0_2:f/idx",
+                      "unresolved_call_range_0_2:guard.slice.iter_mut/",
+                      "unresolved_call_range_0_2:super.forget/guard",
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {
+                      "state": 2
+                    },
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#write_with/18:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 2,
+                  "limitations": [
+                    "unresolved_call_range_0_2:element.write/f(idx)",
+                    "unresolved_call_range_0_2:enumerate/",
+                    "unresolved_call_range_0_2:f/idx",
+                    "unresolved_call_range_0_2:guard.slice.iter_mut/",
+                    "unresolved_call_range_0_2:super.forget/guard",
+                    "unsupported_execution_alternatives:for",
+                    "unsupported_execution_alternatives:unsafe",
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "maybe_uninit.rs#internal:write_with",
+                  "published_penalty": 0,
+                  "recognized_hidden": 2,
+                  "uncertain_burden": 1.25
+                },
+                {
+                  "audience": "internal",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 2,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:element.write/val",
+                      "unresolved_call_range_0_2:guard.slice.iter_mut/",
+                      "unresolved_call_range_0_2:initted.assume_init_mut/",
+                      "unresolved_call_range_0_2:it.into_iter/",
+                      "unresolved_call_range_0_2:let/initted,remainder",
+                      "unresolved_call_range_0_2:self.split_at_mut_unchecked/initialized_len",
+                      "unresolved_call_range_0_2:super.forget/guard",
+                      "unresolved_call_range_0_2:zip/iter"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {
+                      "state": 2
+                    },
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#write_iter/19:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 2,
+                  "limitations": [
+                    "unresolved_call_range_0_2:element.write/val",
+                    "unresolved_call_range_0_2:guard.slice.iter_mut/",
+                    "unresolved_call_range_0_2:initted.assume_init_mut/",
+                    "unresolved_call_range_0_2:it.into_iter/",
+                    "unresolved_call_range_0_2:let/initted,remainder",
+                    "unresolved_call_range_0_2:self.split_at_mut_unchecked/initialized_len",
+                    "unresolved_call_range_0_2:super.forget/guard",
+                    "unresolved_call_range_0_2:zip/iter",
+                    "unsupported_execution_alternatives:for",
+                    "unsupported_execution_alternatives:unsafe"
+                  ],
+                  "name": "maybe_uninit.rs#internal:write_iter",
+                  "published_penalty": 0,
+                  "recognized_hidden": 2,
+                  "uncertain_burden": 1.25
+                },
+                {
+                  "audience": "internal",
+                  "burden": 1,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:self.as_ptr/",
+                      "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of_val(self)",
+                      "unresolved_call_range_0_2:super.size_of_val/self"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#as_bytes/20:1"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:self.as_ptr/",
+                    "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of_val(self)",
+                    "unresolved_call_range_0_2:super.size_of_val/self",
+                    "unsupported_execution_alternatives:unsafe"
+                  ],
+                  "name": "maybe_uninit.rs#internal:as_bytes",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1
+                },
+                {
+                  "audience": "internal",
+                  "burden": 1,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:self.as_mut_ptr/",
+                      "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr()as*mutMaybeUninit<u8>,super::size_of_val(self),",
+                      "unresolved_call_range_0_2:super.size_of_val/self"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#as_bytes_mut/21:1"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:self.as_mut_ptr/",
+                    "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr()as*mutMaybeUninit<u8>,super::size_of_val(self),",
+                    "unresolved_call_range_0_2:super.size_of_val/self",
+                    "unsupported_execution_alternatives:unsafe"
+                  ],
+                  "name": "maybe_uninit.rs#internal:as_bytes_mut",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1
+                },
+                {
+                  "audience": "internal",
+                  "burden": 1,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "evidence": [
+                        "operation:maybe_uninit.rs#assume_init_ref/23:1"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unsupported_execution_alternatives:unsafe",
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "maybe_uninit.rs#internal:assume_init_ref",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1
+                }
+              ],
+              "burden": 11.25,
+              "categories": {
+                "unknown_call": 1,
+                "unknown_outcome": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:ManuallyDrop.new/val",
+                "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+                "unresolved_call_range_0_2:read/",
+                "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+                "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+                "unresolved_call_range_0_2:transmute_neo/self",
+                "unresolved_call_range_0_2:u.as_mut_ptr/",
+                "unresolved_call_range_0_2:write_bytes/0u8,1",
+                "unsupported_execution_alternatives:unsafe",
+                "unsupported_outcome_range_0_2"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 91,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 11.25,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unresolved_call_range_0_2:ManuallyDrop.new/val",
+                "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+                "unresolved_call_range_0_2:read/",
+                "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+                "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+                "unresolved_call_range_0_2:transmute_neo/self",
+                "unresolved_call_range_0_2:u.as_mut_ptr/",
+                "unresolved_call_range_0_2:write_bytes/0u8,1",
+                "unsupported_outcome_range_0_2"
+              ],
+              "residual_burden": 10,
+              "responsibilities": {},
+              "supported_burden": 10,
+              "surface": {
+                "evidence": [
+                  "operation:maybe_uninit.rs#as_bytes/13:1",
+                  "operation:maybe_uninit.rs#as_bytes_mut/14:1",
+                  "operation:maybe_uninit.rs#as_mut_ptr/7:1",
+                  "operation:maybe_uninit.rs#as_ptr/6:1",
+                  "operation:maybe_uninit.rs#assume_init/8:1",
+                  "operation:maybe_uninit.rs#assume_init_drop/10:1",
+                  "operation:maybe_uninit.rs#assume_init_mut/12:1",
+                  "operation:maybe_uninit.rs#assume_init_read/9:1",
+                  "operation:maybe_uninit.rs#assume_init_ref/11:1",
+                  "operation:maybe_uninit.rs#write/5:1",
+                  "operation:maybe_uninit.rs#zeroed/4:1"
+                ],
+                "input_units": 0.25,
+                "operation_units": 11,
+                "representation_units": 0
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:ManuallyDrop.new/val",
+          "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+          "unresolved_call_range_0_2:read/",
+          "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+          "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+          "unresolved_call_range_0_2:transmute_neo/self",
+          "unresolved_call_range_0_2:u.as_mut_ptr/",
+          "unresolved_call_range_0_2:write_bytes/0u8,1",
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unresolved_call_range_0_2:ManuallyDrop.new/val",
+          "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+          "unresolved_call_range_0_2:read/",
+          "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+          "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+          "unresolved_call_range_0_2:transmute_neo/self",
+          "unresolved_call_range_0_2:u.as_mut_ptr/",
+          "unresolved_call_range_0_2:write_bytes/0u8,1",
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unresolved_call_range_0_2:self.copy_from_slice/uninit_src",
+          "unresolved_call_range_0_2:super.transmute/src",
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:clone/",
+          "unresolved_call_range_0_2:self.len/",
+          "unresolved_call_range_0_2:src.len/",
+          "unresolved_call_range_0_2:super.forget/guard",
+          "unresolved_call_range_0_2:write/src[i].clone()",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unresolved_call_range_0_2:SpecFill.spec_fill/self,value",
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unresolved_call_range_0_2:element.write/f(idx)",
+          "unresolved_call_range_0_2:enumerate/",
+          "unresolved_call_range_0_2:f/idx",
+          "unresolved_call_range_0_2:guard.slice.iter_mut/",
+          "unresolved_call_range_0_2:super.forget/guard",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unresolved_call_range_0_2:element.write/val",
+          "unresolved_call_range_0_2:guard.slice.iter_mut/",
+          "unresolved_call_range_0_2:initted.assume_init_mut/",
+          "unresolved_call_range_0_2:it.into_iter/",
+          "unresolved_call_range_0_2:let/initted,remainder",
+          "unresolved_call_range_0_2:self.split_at_mut_unchecked/initialized_len",
+          "unresolved_call_range_0_2:super.forget/guard",
+          "unresolved_call_range_0_2:zip/iter",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:unsafe"
+        ],
+        [
+          "unresolved_call_range_0_2:self.as_ptr/",
+          "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of_val(self)",
+          "unresolved_call_range_0_2:super.size_of_val/self",
+          "unsupported_execution_alternatives:unsafe"
+        ],
+        [
+          "unresolved_call_range_0_2:self.as_mut_ptr/",
+          "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr()as*mutMaybeUninit<u8>,super::size_of_val(self),",
+          "unresolved_call_range_0_2:super.size_of_val/self",
+          "unsupported_execution_alternatives:unsafe"
+        ],
+        [
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_outcome_range_0_2"
+        ],
+        {
+          "severity": "error",
+          "code": "SYNTAX_ERROR",
+          "message": "maybe_uninit.rs:828:12: expected identifier"
+        }
+      ],
+      "zero_reason": "lowest_range_supported",
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:rust:maybe_uninit.rs",
+          "symbol": "source:rust:maybe_uninit.rs",
+          "scope": "file",
+          "value": 91,
+          "location": {
+            "path": "maybe_uninit.rs",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:rust:maybe_uninit.rs"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "SYNTAX_ERROR",
+          "invocation_id": "invocation-showily-placoid-maxima",
+          "message": "maybe_uninit.rs:828:12: expected identifier",
+          "path": "maybe_uninit.rs",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": "rust-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": "lowest_range_supported",
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "rust-once-lock",
+      "language": "rust",
+      "target": "once_lock.rs",
+      "group": "low",
+      "kind": null,
+      "expected_range": [
+        0,
+        25
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [
+        "raw_max 69 is outside expected range [0, 25]"
+      ],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 69,
+      "contribution": 13.932981809454,
+      "score": 13.932981809454,
+      "observed_score": 13.932981809454,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "failed",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:rust:once_lock.rs",
+          "state": "partial",
+          "policy_revision": "r41",
+          "estimated": true,
+          "files": [
+            "once_lock.rs"
+          ],
+          "raw": {
+            "B8": 108,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 13.5,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 2,
+                    "material_limitations": [
+                      "call_depth_limit",
+                      "unexpanded_macro",
+                      "unresolved_call_range_0_2:Err/(_,value)",
+                      "unresolved_call_range_0_2:Err/(res,value)",
+                      "unresolved_call_range_0_2:Err/e",
+                      "unresolved_call_range_0_2:Err/value",
+                      "unresolved_call_range_0_2:MaybeUninit.uninit/",
+                      "unresolved_call_range_0_2:Ok/()",
+                      "unresolved_call_range_0_2:Ok/_",
+                      "unresolved_call_range_0_2:Ok/res",
+                      "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+                      "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+                      "unresolved_call_range_0_2:Ok/val",
+                      "unresolved_call_range_0_2:Ok/value",
+                      "unresolved_call_range_0_2:Once.new/",
+                      "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+                      "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+                      "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+                      "unresolved_call_range_0_2:Some/value",
+                      "unresolved_call_range_0_2:T/",
+                      "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+                      "unresolved_call_range_0_2:assume_init_mut/",
+                      "unresolved_call_range_0_2:assume_init_read/",
+                      "unresolved_call_range_0_2:assume_init_ref/",
+                      "unresolved_call_range_0_2:f/",
+                      "unresolved_call_range_0_2:is_none/",
+                      "unresolved_call_range_0_2:p.poison/",
+                      "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                      "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                      "unresolved_call_range_0_2:self.once.is_completed/",
+                      "unresolved_call_range_0_2:self.once.state/",
+                      "unresolved_call_range_0_2:self.once.wait_force/",
+                      "unresolved_call_range_0_2:self.value.get/",
+                      "unresolved_call_range_0_2:self.value.get_mut/",
+                      "unresolved_call_range_0_2:slot.get/",
+                      "unresolved_call_range_0_2:unwrap/",
+                      "unresolved_call_range_0_2:value.take/",
+                      "unresolved_call_range_0_2:write/value"
+                    ],
+                    "residual_burden": 11.25,
+                    "responsibilities": {
+                      "representation-transformation": 2
+                    },
+                    "supported_burden": 11.25,
+                    "surface": {
+                      "evidence": [
+                        "operation:once_lock.rs#get/1:1",
+                        "operation:once_lock.rs#get_mut/2:1",
+                        "operation:once_lock.rs#get_mut_or_init/7:1",
+                        "operation:once_lock.rs#get_mut_or_try_init/9:1",
+                        "operation:once_lock.rs#get_or_init/6:1",
+                        "operation:once_lock.rs#get_or_try_init/8:1",
+                        "operation:once_lock.rs#into_inner/10:1",
+                        "operation:once_lock.rs#set/4:1",
+                        "operation:once_lock.rs#take/11:1",
+                        "operation:once_lock.rs#try_insert/5:1",
+                        "operation:once_lock.rs#wait/3:1"
+                      ],
+                      "input_units": 1.5,
+                      "operation_units": 11,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "call_depth_limit",
+                    "unexpanded_macro",
+                    "unresolved_call_range_0_2:Err/(_,value)",
+                    "unresolved_call_range_0_2:Err/(res,value)",
+                    "unresolved_call_range_0_2:Err/e",
+                    "unresolved_call_range_0_2:Err/value",
+                    "unresolved_call_range_0_2:MaybeUninit.uninit/",
+                    "unresolved_call_range_0_2:Ok/()",
+                    "unresolved_call_range_0_2:Ok/_",
+                    "unresolved_call_range_0_2:Ok/res",
+                    "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+                    "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+                    "unresolved_call_range_0_2:Ok/val",
+                    "unresolved_call_range_0_2:Ok/value",
+                    "unresolved_call_range_0_2:Once.new/",
+                    "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+                    "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+                    "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+                    "unresolved_call_range_0_2:Some/value",
+                    "unresolved_call_range_0_2:T/",
+                    "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+                    "unresolved_call_range_0_2:assume_init_mut/",
+                    "unresolved_call_range_0_2:assume_init_read/",
+                    "unresolved_call_range_0_2:assume_init_ref/",
+                    "unresolved_call_range_0_2:f/",
+                    "unresolved_call_range_0_2:is_none/",
+                    "unresolved_call_range_0_2:p.poison/",
+                    "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                    "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                    "unresolved_call_range_0_2:self.once.is_completed/",
+                    "unresolved_call_range_0_2:self.once.state/",
+                    "unresolved_call_range_0_2:self.once.wait_force/",
+                    "unresolved_call_range_0_2:self.value.get/",
+                    "unresolved_call_range_0_2:self.value.get_mut/",
+                    "unresolved_call_range_0_2:slot.get/",
+                    "unresolved_call_range_0_2:unwrap/",
+                    "unresolved_call_range_0_2:value.take/",
+                    "unresolved_call_range_0_2:write/value",
+                    "unsupported_execution_alternatives:?",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:match",
+                    "unsupported_execution_alternatives:unsafe",
+                    "unsupported_execution_alternatives:||"
+                  ],
+                  "name": "once_lock.rs#external:OnceLock",
+                  "published_penalty": 69,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 13.5
+                },
+                {
+                  "audience": "internal",
+                  "burden": 11,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 1,
+                    "hidden_responsibility": 2,
+                    "material_limitations": [
+                      "unexpanded_macro",
+                      "unresolved_call_range_0_2:Err/e",
+                      "unresolved_call_range_0_2:MaybeUninit.new/value",
+                      "unresolved_call_range_0_2:MaybeUninit.uninit/",
+                      "unresolved_call_range_0_2:Ok/()",
+                      "unresolved_call_range_0_2:Ok/value",
+                      "unresolved_call_range_0_2:Once.new/",
+                      "unresolved_call_range_0_2:Once.new_complete/",
+                      "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+                      "unresolved_call_range_0_2:Some/v",
+                      "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::new(value)",
+                      "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+                      "unresolved_call_range_0_2:assume_init_mut/",
+                      "unresolved_call_range_0_2:assume_init_ref/",
+                      "unresolved_call_range_0_2:cloned/",
+                      "unresolved_call_range_0_2:d.field/&format_args!(__string__)",
+                      "unresolved_call_range_0_2:d.field/v",
+                      "unresolved_call_range_0_2:d.finish/",
+                      "unresolved_call_range_0_2:f.debug_tuple/__string__",
+                      "unresolved_call_range_0_2:f/",
+                      "unresolved_call_range_0_2:map_or_default/Self::from",
+                      "unresolved_call_range_0_2:other.get/",
+                      "unresolved_call_range_0_2:p.poison/",
+                      "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                      "unresolved_call_range_0_2:self.once.is_completed/",
+                      "unresolved_call_range_0_2:self.once.state/",
+                      "unresolved_call_range_0_2:self.value.get/",
+                      "unresolved_call_range_0_2:self.value.get_mut/",
+                      "unresolved_call_range_0_2:slot.get/",
+                      "unresolved_call_range_0_2:write/value"
+                    ],
+                    "residual_burden": 9,
+                    "responsibilities": {
+                      "representation-transformation": 2
+                    },
+                    "supported_burden": 9,
+                    "surface": {
+                      "evidence": [
+                        "operation:once_lock.rs#clone/19:1",
+                        "operation:once_lock.rs#default/17:1",
+                        "operation:once_lock.rs#eq/21:1",
+                        "operation:once_lock.rs#fmt/18:1",
+                        "operation:once_lock.rs#from/20:1",
+                        "operation:once_lock.rs#get_unchecked/15:1",
+                        "operation:once_lock.rs#get_unchecked_mut/16:1",
+                        "operation:once_lock.rs#initialize/14:1",
+                        "operation:once_lock.rs#initialized/12:0.25",
+                        "operation:once_lock.rs#initialized_mut/13:1"
+                      ],
+                      "input_units": 1,
+                      "operation_units": 9.25,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unexpanded_macro",
+                    "unresolved_call_range_0_2:Err/e",
+                    "unresolved_call_range_0_2:MaybeUninit.new/value",
+                    "unresolved_call_range_0_2:MaybeUninit.uninit/",
+                    "unresolved_call_range_0_2:Ok/()",
+                    "unresolved_call_range_0_2:Ok/value",
+                    "unresolved_call_range_0_2:Once.new/",
+                    "unresolved_call_range_0_2:Once.new_complete/",
+                    "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+                    "unresolved_call_range_0_2:Some/v",
+                    "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::new(value)",
+                    "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+                    "unresolved_call_range_0_2:assume_init_mut/",
+                    "unresolved_call_range_0_2:assume_init_ref/",
+                    "unresolved_call_range_0_2:cloned/",
+                    "unresolved_call_range_0_2:d.field/&format_args!(__string__)",
+                    "unresolved_call_range_0_2:d.field/v",
+                    "unresolved_call_range_0_2:d.finish/",
+                    "unresolved_call_range_0_2:f.debug_tuple/__string__",
+                    "unresolved_call_range_0_2:f/",
+                    "unresolved_call_range_0_2:map_or_default/Self::from",
+                    "unresolved_call_range_0_2:other.get/",
+                    "unresolved_call_range_0_2:p.poison/",
+                    "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                    "unresolved_call_range_0_2:self.once.is_completed/",
+                    "unresolved_call_range_0_2:self.once.state/",
+                    "unresolved_call_range_0_2:self.value.get/",
+                    "unresolved_call_range_0_2:self.value.get_mut/",
+                    "unresolved_call_range_0_2:slot.get/",
+                    "unresolved_call_range_0_2:write/value",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:match",
+                    "unsupported_execution_alternatives:unsafe"
+                  ],
+                  "name": "once_lock.rs#internal:OnceLock",
+                  "published_penalty": 56,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 11
+                }
+              ],
+              "burden": 13.5,
+              "categories": {
+                "unknown_call": 1,
+                "unknown_outcome": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "call_depth_limit",
+                "unexpanded_macro",
+                "unresolved_call_range_0_2:Err/(_,value)",
+                "unresolved_call_range_0_2:Err/(res,value)",
+                "unresolved_call_range_0_2:Err/e",
+                "unresolved_call_range_0_2:Err/value",
+                "unresolved_call_range_0_2:MaybeUninit.uninit/",
+                "unresolved_call_range_0_2:Ok/()",
+                "unresolved_call_range_0_2:Ok/_",
+                "unresolved_call_range_0_2:Ok/res",
+                "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+                "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+                "unresolved_call_range_0_2:Ok/val",
+                "unresolved_call_range_0_2:Ok/value",
+                "unresolved_call_range_0_2:Once.new/",
+                "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+                "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+                "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+                "unresolved_call_range_0_2:Some/value",
+                "unresolved_call_range_0_2:T/",
+                "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+                "unresolved_call_range_0_2:assume_init_mut/",
+                "unresolved_call_range_0_2:assume_init_read/",
+                "unresolved_call_range_0_2:assume_init_ref/",
+                "unresolved_call_range_0_2:f/",
+                "unresolved_call_range_0_2:is_none/",
+                "unresolved_call_range_0_2:p.poison/",
+                "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                "unresolved_call_range_0_2:self.once.is_completed/",
+                "unresolved_call_range_0_2:self.once.state/",
+                "unresolved_call_range_0_2:self.once.wait_force/",
+                "unresolved_call_range_0_2:self.value.get/",
+                "unresolved_call_range_0_2:self.value.get_mut/",
+                "unresolved_call_range_0_2:slot.get/",
+                "unresolved_call_range_0_2:unwrap/",
+                "unresolved_call_range_0_2:value.take/",
+                "unresolved_call_range_0_2:write/value",
+                "unsupported_execution_alternatives:?",
+                "unsupported_execution_alternatives:if",
+                "unsupported_execution_alternatives:match",
+                "unsupported_execution_alternatives:unsafe",
+                "unsupported_execution_alternatives:||"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 69,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 13.5,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 2,
+              "material_limitations": [
+                "call_depth_limit",
+                "unexpanded_macro",
+                "unresolved_call_range_0_2:Err/(_,value)",
+                "unresolved_call_range_0_2:Err/(res,value)",
+                "unresolved_call_range_0_2:Err/e",
+                "unresolved_call_range_0_2:Err/value",
+                "unresolved_call_range_0_2:MaybeUninit.uninit/",
+                "unresolved_call_range_0_2:Ok/()",
+                "unresolved_call_range_0_2:Ok/_",
+                "unresolved_call_range_0_2:Ok/res",
+                "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+                "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+                "unresolved_call_range_0_2:Ok/val",
+                "unresolved_call_range_0_2:Ok/value",
+                "unresolved_call_range_0_2:Once.new/",
+                "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+                "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+                "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+                "unresolved_call_range_0_2:Some/value",
+                "unresolved_call_range_0_2:T/",
+                "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+                "unresolved_call_range_0_2:assume_init_mut/",
+                "unresolved_call_range_0_2:assume_init_read/",
+                "unresolved_call_range_0_2:assume_init_ref/",
+                "unresolved_call_range_0_2:f/",
+                "unresolved_call_range_0_2:is_none/",
+                "unresolved_call_range_0_2:p.poison/",
+                "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+                "unresolved_call_range_0_2:self.once.is_completed/",
+                "unresolved_call_range_0_2:self.once.state/",
+                "unresolved_call_range_0_2:self.once.wait_force/",
+                "unresolved_call_range_0_2:self.value.get/",
+                "unresolved_call_range_0_2:self.value.get_mut/",
+                "unresolved_call_range_0_2:slot.get/",
+                "unresolved_call_range_0_2:unwrap/",
+                "unresolved_call_range_0_2:value.take/",
+                "unresolved_call_range_0_2:write/value"
+              ],
+              "residual_burden": 11.25,
+              "responsibilities": {
+                "representation-transformation": 2
+              },
+              "supported_burden": 11.25,
+              "surface": {
+                "evidence": [
+                  "operation:once_lock.rs#get/1:1",
+                  "operation:once_lock.rs#get_mut/2:1",
+                  "operation:once_lock.rs#get_mut_or_init/7:1",
+                  "operation:once_lock.rs#get_mut_or_try_init/9:1",
+                  "operation:once_lock.rs#get_or_init/6:1",
+                  "operation:once_lock.rs#get_or_try_init/8:1",
+                  "operation:once_lock.rs#into_inner/10:1",
+                  "operation:once_lock.rs#set/4:1",
+                  "operation:once_lock.rs#take/11:1",
+                  "operation:once_lock.rs#try_insert/5:1",
+                  "operation:once_lock.rs#wait/3:1"
+                ],
+                "input_units": 1.5,
+                "operation_units": 11,
+                "representation_units": 0
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "call_depth_limit",
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:Err/(_,value)",
+          "unresolved_call_range_0_2:Err/(res,value)",
+          "unresolved_call_range_0_2:Err/e",
+          "unresolved_call_range_0_2:Err/value",
+          "unresolved_call_range_0_2:MaybeUninit.uninit/",
+          "unresolved_call_range_0_2:Ok/()",
+          "unresolved_call_range_0_2:Ok/_",
+          "unresolved_call_range_0_2:Ok/res",
+          "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+          "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+          "unresolved_call_range_0_2:Ok/val",
+          "unresolved_call_range_0_2:Ok/value",
+          "unresolved_call_range_0_2:Once.new/",
+          "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+          "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+          "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+          "unresolved_call_range_0_2:Some/value",
+          "unresolved_call_range_0_2:T/",
+          "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+          "unresolved_call_range_0_2:assume_init_mut/",
+          "unresolved_call_range_0_2:assume_init_read/",
+          "unresolved_call_range_0_2:assume_init_ref/",
+          "unresolved_call_range_0_2:f/",
+          "unresolved_call_range_0_2:is_none/",
+          "unresolved_call_range_0_2:p.poison/",
+          "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+          "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+          "unresolved_call_range_0_2:self.once.is_completed/",
+          "unresolved_call_range_0_2:self.once.state/",
+          "unresolved_call_range_0_2:self.once.wait_force/",
+          "unresolved_call_range_0_2:self.value.get/",
+          "unresolved_call_range_0_2:self.value.get_mut/",
+          "unresolved_call_range_0_2:slot.get/",
+          "unresolved_call_range_0_2:unwrap/",
+          "unresolved_call_range_0_2:value.take/",
+          "unresolved_call_range_0_2:write/value",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:match",
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_execution_alternatives:||"
+        ],
+        [
+          "call_depth_limit",
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:Err/(_,value)",
+          "unresolved_call_range_0_2:Err/(res,value)",
+          "unresolved_call_range_0_2:Err/e",
+          "unresolved_call_range_0_2:Err/value",
+          "unresolved_call_range_0_2:MaybeUninit.uninit/",
+          "unresolved_call_range_0_2:Ok/()",
+          "unresolved_call_range_0_2:Ok/_",
+          "unresolved_call_range_0_2:Ok/res",
+          "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+          "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+          "unresolved_call_range_0_2:Ok/val",
+          "unresolved_call_range_0_2:Ok/value",
+          "unresolved_call_range_0_2:Once.new/",
+          "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+          "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+          "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+          "unresolved_call_range_0_2:Some/value",
+          "unresolved_call_range_0_2:T/",
+          "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+          "unresolved_call_range_0_2:assume_init_mut/",
+          "unresolved_call_range_0_2:assume_init_read/",
+          "unresolved_call_range_0_2:assume_init_ref/",
+          "unresolved_call_range_0_2:f/",
+          "unresolved_call_range_0_2:is_none/",
+          "unresolved_call_range_0_2:p.poison/",
+          "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+          "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+          "unresolved_call_range_0_2:self.once.is_completed/",
+          "unresolved_call_range_0_2:self.once.state/",
+          "unresolved_call_range_0_2:self.once.wait_force/",
+          "unresolved_call_range_0_2:self.value.get/",
+          "unresolved_call_range_0_2:self.value.get_mut/",
+          "unresolved_call_range_0_2:slot.get/",
+          "unresolved_call_range_0_2:unwrap/",
+          "unresolved_call_range_0_2:value.take/",
+          "unresolved_call_range_0_2:write/value",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:match",
+          "unsupported_execution_alternatives:unsafe",
+          "unsupported_execution_alternatives:||"
+        ],
+        [
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:Err/e",
+          "unresolved_call_range_0_2:MaybeUninit.new/value",
+          "unresolved_call_range_0_2:MaybeUninit.uninit/",
+          "unresolved_call_range_0_2:Ok/()",
+          "unresolved_call_range_0_2:Ok/value",
+          "unresolved_call_range_0_2:Once.new/",
+          "unresolved_call_range_0_2:Once.new_complete/",
+          "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+          "unresolved_call_range_0_2:Some/v",
+          "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::new(value)",
+          "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+          "unresolved_call_range_0_2:assume_init_mut/",
+          "unresolved_call_range_0_2:assume_init_ref/",
+          "unresolved_call_range_0_2:cloned/",
+          "unresolved_call_range_0_2:d.field/&format_args!(__string__)",
+          "unresolved_call_range_0_2:d.field/v",
+          "unresolved_call_range_0_2:d.finish/",
+          "unresolved_call_range_0_2:f.debug_tuple/__string__",
+          "unresolved_call_range_0_2:f/",
+          "unresolved_call_range_0_2:map_or_default/Self::from",
+          "unresolved_call_range_0_2:other.get/",
+          "unresolved_call_range_0_2:p.poison/",
+          "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+          "unresolved_call_range_0_2:self.once.is_completed/",
+          "unresolved_call_range_0_2:self.once.state/",
+          "unresolved_call_range_0_2:self.value.get/",
+          "unresolved_call_range_0_2:self.value.get_mut/",
+          "unresolved_call_range_0_2:slot.get/",
+          "unresolved_call_range_0_2:write/value",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:match",
+          "unsupported_execution_alternatives:unsafe"
+        ],
+        {
+          "severity": "error",
+          "code": "SYNTAX_ERROR",
+          "message": "once_lock.rs:595:7: expected identifier or `_`"
+        }
+      ],
+      "zero_reason": null,
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:rust:once_lock.rs",
+          "symbol": "source:rust:once_lock.rs",
+          "scope": "file",
+          "value": 69,
+          "location": {
+            "path": "once_lock.rs",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:rust:once_lock.rs"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "SYNTAX_ERROR",
+          "invocation_id": "invocation-mustily-drowsier-usha",
+          "message": "once_lock.rs:595:7: expected identifier or `_`",
+          "path": "once_lock.rs",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": "rust-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": null,
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": false,
+      "behavioral_conformance": false,
+      "semantic_conformance": false
+    }
+  ],
+  "failures": [
+    {
+      "case": "rust-once-lock",
+      "failure": "raw_max 69 is outside expected range [0, 25]"
+    },
+    {
+      "kind": "comparison",
+      "lower": "rust-once-lock",
+      "higher": "rust-maybe-uninit",
+      "min_delta": 25,
+      "delta": 22.0,
+      "passed": false,
+      "failure": "delta 22 is below required 25"
+    }
+  ],
+  "manifest_sha256": "9541af288953ae22692b97873619434c2d5b04ef2ee6f00e25083052f3397147",
+  "binary_sha256": "1beea8e174fa5b18f0ee36ba49e9d170b1ffd06ba39de77eba779ceba6beb332",
+  "evaluated_at_utc": "2026-09-18T19:08:18.324880+00:00",
+  "limitations": [
+    "Two cases per language: Go high/low, Rust high/low, TypeScript mixed/low. No new TypeScript-high claim. Original source pool did not suffice for balanced high-band coverage; expansion to installed Go/Rust source and local career-ops/ap sources still did not yield a defensible fresh TS high within the bounded review.",
+    "Existing connected-high corpus and its first evaluation remain unchanged. This confirmation corpus cannot erase earlier Go/TypeScript high misses or substitute for their regression criteria.",
+    "Purposive small sample, not random or enterprise representativeness. System primitives are intentionally low-level APIs; high SHALLOW here describes retained caller responsibility, not an assertion that the primitives should be redesigned.",
+    "Selection did not invoke any scorer or inspect candidate scores, grading outputs or sourceestimate implementation. Prior-task exposure: structural.ts lines 875-905, beginning of legacy feature aggregation during caller tracing. The selector was told earlier connected-high Go/TS cases missed high; candidate-specific scores were not supplied.",
+    "MaybeUninit contains meaningful slice-initialization guards and OnceLock contains compiler-internal/unstable syntax. Exact installed source is preserved; unsupported syntax, missing numeric ratings and grading failures must remain visible, with no fixture edits to manufacture a pass.",
+    "Snapshots omit full build workspaces, runtime internals and third-party dependencies. Witness files are not scored inputs; incomplete evidence must be reported honestly.",
+    "After first evaluation all expectations, relations and hashes remain frozen. Tuning against this corpus consumes its confirmation status; retain failures unchanged."
+  ],
+  "relations": [
+    {
+      "checks": [
+        {
+          "lower": "go-once-initializer",
+          "higher": "go-condition-variable",
+          "min_delta": 25,
+          "delta": 79.0,
+          "passed": true
+        },
+        {
+          "lower": "rust-once-lock",
+          "higher": "rust-maybe-uninit",
+          "min_delta": 25,
+          "delta": 22.0,
+          "passed": false,
+          "failure": "delta 22 is below required 25"
+        },
+        {
+          "lower": "typescript-recent-log-buffer",
+          "higher": "typescript-finalize-coordinator",
+          "min_delta": 5,
+          "delta": 50.0,
+          "passed": true
+        }
+      ],
+      "failures": [
+        {
+          "kind": "comparison",
+          "lower": "rust-once-lock",
+          "higher": "rust-maybe-uninit",
+          "min_delta": 25,
+          "delta": 22.0,
+          "passed": false,
+          "failure": "delta 22 is below required 25"
+        }
+      ]
+    }
+  ],
+  "positive_detection": {
+    "predeclared_real_high_cases": 2,
+    "high_band_coverage": true,
+    "detected_high": 2,
+    "cases": [
+      {
+        "id": "go-condition-variable",
+        "value": 79,
+        "passed": true
+      },
+      {
+        "id": "rust-maybe-uninit",
+        "value": 91,
+        "passed": true
+      }
+    ],
+    "by_language": {
+      "go": {
+        "predeclared_real_high_cases": 1,
+        "detected_high": 1
+      },
+      "rust": {
+        "predeclared_real_high_cases": 1,
+        "detected_high": 1
+      },
+      "typescript": {
+        "predeclared_real_high_cases": 0,
+        "detected_high": 0
+      }
+    }
+  },
+  "languages": {
+    "go": {
+      "total": 2,
+      "applicable": 2,
+      "numeric": 2,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 2,
+      "semantic_numeric": 2,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 2,
+      "estimated_rate": 1.0,
+      "uncertain": 2,
+      "uncertainty_rate": 1.0,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 2,
+      "behavioral_conformance": 2,
+      "semantic_coverage": {
+        "partial": 2
+      },
+      "all_state_distribution": {
+        "partial": 2
+      },
+      "bands": {
+        "0": 1,
+        "1-25": 0,
+        "26-64": 0,
+        "65-100": 1
+      },
+      "failures": 0
+    },
+    "rust": {
+      "total": 2,
+      "applicable": 2,
+      "numeric": 2,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 2,
+      "semantic_numeric": 2,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 2,
+      "estimated_rate": 1.0,
+      "uncertain": 2,
+      "uncertainty_rate": 1.0,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 1,
+      "behavioral_conformance": 1,
+      "semantic_coverage": {
+        "partial": 2
+      },
+      "all_state_distribution": {
+        "partial": 2
+      },
+      "bands": {
+        "0": 0,
+        "1-25": 0,
+        "26-64": 0,
+        "65-100": 2
+      },
+      "failures": 1
+    },
+    "typescript": {
+      "total": 2,
+      "applicable": 2,
+      "numeric": 2,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 2,
+      "semantic_numeric": 2,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 2,
+      "estimated_rate": 1.0,
+      "uncertain": 2,
+      "uncertainty_rate": 1.0,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 2,
+      "behavioral_conformance": 2,
+      "semantic_coverage": {
+        "partial": 2
+      },
+      "all_state_distribution": {
+        "partial": 2
+      },
+      "bands": {
+        "0": 1,
+        "1-25": 0,
+        "26-64": 1,
+        "65-100": 0
+      },
+      "failures": 0
+    }
+  }
+}

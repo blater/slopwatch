@@ -2,6 +2,7 @@ package follow
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -43,7 +44,7 @@ var metricInformation = []metricInfo{
 	{key: "cog", label: "COG", short: "cognitive complexity", description: "Cognitive complexity estimates the mental effort needed to understand a routine. Decisions cost more when they are nested. Boolean sequences, conditional expressions, recursion, and labeled jumps add further cost. Lower is better."},
 	{key: "npath", label: "NPATH", short: "execution path complexity", description: "NPath complexity counts distinct acyclic execution routes through a routine. Branches combine their possible outcomes, boolean expressions include short-circuit outcomes, loops retain their zero-iteration route, and switches account for their cases. Lower is better."},
 	{key: "cyclo", label: "CYCLO", short: "cyclomatic complexity", description: "Cyclomatic complexity counts independent control-flow decisions. It starts at one and increases for branches, loops, non-default switch cases, boolean decisions, conditional expressions, and other exposed decision points. Lower is better."},
-	{key: "deep", label: "SHALLOW", short: "module depth", description: "SHALLOW estimates how much useful functionality a module provides through its caller-visible interface. A module is shallower when its interface is large relative to the functionality it delivers. Higher is worse."},
+	{key: "deep", label: "SHALLOW", short: "module depth", description: "SHALLOW estimates how much useful functionality a module provides through its caller-visible interface. A module is shallower when its interface is large relative to the functionality it delivers. Higher is worse. Ratings belong to the abstractions declared in the file; reachable helpers are followed across files."},
 	{key: "god", label: "GOD", short: "responsibility concentration", description: "GOD identifies types that concentrate too much responsibility. It uses weighted routine complexity, access to foreign data, and type cohesion. A non-zero value means the type meets the combined responsibility-concentration conditions. Lower is better."},
 	{key: "coupling", label: "CPL", short: "dependency entanglement", description: "CPL measures how many other types a type depends on. High coupling makes changes more likely to cross type boundaries and increases the cost of change. Lower is better."},
 	{key: "nesting", label: "NEST", short: "deep nesting", description: "NEST counts control-flow branches nested beyond the configured depth. It isolates the cost of excessive nesting, which COG already reflects, so this measure is disabled by default. Enable it when that additional signal is useful. Lower is better."},
@@ -158,7 +159,15 @@ func infoView(model Model) string {
 		return ""
 	}
 	width := max(1, min(90, model.width-8))
-	content := wrapText(info.description, max(1, width-4), "", "")
+	description := info.description
+	if model.infoKey == "deep" {
+		if file, selected := model.files.selectedFile(model.options.Limit); selected {
+			if lines := depthSummaryLines(model.files.Document, file); len(lines) > 0 {
+				description += "\n\n" + strings.Join(lines, "\n")
+			}
+		}
+	}
+	content := wrapText(description, max(1, width-4), "", "")
 	return style.Popup(style.Heading(fmt.Sprintf("%s  %s", info.label, info.short)), content, "", width)
 }
 

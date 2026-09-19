@@ -1,0 +1,5718 @@
+{
+  "calibrated": true,
+  "configuration": null,
+  "diagnostics": [
+    {
+      "code": "typescript.structural_semantic_exceptions",
+      "invocation_id": "invocation-pallidly-snuffier-ingeborg",
+      "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects.",
+      "path": null,
+      "protocol_version": 1,
+      "severity": "info",
+      "type": "diagnostic",
+      "unit_id": ""
+    }
+  ],
+  "execution_plans": [
+    {
+      "discovered_source_count": 5,
+      "invocation_id": "invocation-unholy-decurved-yukiko",
+      "kernels": [
+        "cognitive_complexity",
+        "coupling_between_objects",
+        "cyclomatic_class_complexity",
+        "cyclomatic_method_complexity",
+        "deeply_nested_if",
+        "god_class",
+        "module_shallowness",
+        "npath_complexity"
+      ],
+      "parsed_source_count": 5,
+      "parser_modes": [
+        "go-ast-syntax",
+        "go-types-exact-source",
+        "go-ast-type-fallback"
+      ],
+      "protocol_version": 1,
+      "type": "execution_plan",
+      "unit_id": "go-unit"
+    },
+    {
+      "discovered_source_count": 4,
+      "invocation_id": "invocation-oozily-unclever-mireya",
+      "kernels": [
+        "cognitive_complexity",
+        "coupling_between_objects",
+        "cyclomatic_class_complexity",
+        "cyclomatic_method_complexity",
+        "deeply_nested_if",
+        "god_class",
+        "module_shallowness",
+        "npath_complexity"
+      ],
+      "parsed_source_count": 4,
+      "parser_modes": [
+        "jdk-compiler-tree-no-processing"
+      ],
+      "protocol_version": 1,
+      "type": "execution_plan",
+      "unit_id": "java-unit"
+    },
+    {
+      "discovered_source_count": 5,
+      "invocation_id": "invocation-frowzily-unboding-kiesha",
+      "kernels": [
+        "cognitive_complexity",
+        "coupling_between_objects",
+        "cyclomatic_class_complexity",
+        "cyclomatic_method_complexity",
+        "deeply_nested_if",
+        "god_class",
+        "module_shallowness",
+        "npath_complexity"
+      ],
+      "parsed_source_count": 5,
+      "parser_modes": [
+        "syn-full-no-macro-expansion"
+      ],
+      "protocol_version": 1,
+      "type": "execution_plan",
+      "unit_id": "rust-unit"
+    },
+    {
+      "discovered_source_count": 6,
+      "invocation_id": "invocation-pallidly-snuffier-ingeborg",
+      "kernels": [
+        "cognitive_complexity",
+        "coupling_between_objects",
+        "cyclomatic_class_complexity",
+        "cyclomatic_method_complexity",
+        "deeply_nested_if",
+        "god_class",
+        "module_shallowness",
+        "npath_complexity"
+      ],
+      "parsed_source_count": 6,
+      "parser_modes": [
+        "typescript-syntax"
+      ],
+      "protocol_version": 1,
+      "type": "execution_plan",
+      "unit_id": "typescript-unit"
+    }
+  ],
+  "files": [
+    {
+      "axes": {
+        "structural_core": 12.297158093186,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Output.emit",
+              "symbol": "Output.emit",
+              "routine": "Output.emit",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "java/void/Output.java",
+                "start": {
+                  "line": 1,
+                  "column": 23
+                },
+                "end": {
+                  "line": 1,
+                  "column": 81
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Output.emit@1:23-1:81",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Output",
+              "symbol": "Output",
+              "scope": "type",
+              "value": 0,
+              "location": {
+                "path": "java/void/Output.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 83
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "coupling_between_objects/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Output@1:1-1:83",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Output",
+              "symbol": "Output",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "java/void/Output.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 83
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_class_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Output@1:1-1:83",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Output.emit",
+              "symbol": "Output.emit",
+              "routine": "Output.emit",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "java/void/Output.java",
+                "start": {
+                  "line": 1,
+                  "column": 23
+                },
+                "end": {
+                  "line": 1,
+                  "column": 81
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Output.emit@1:23-1:81",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Output",
+              "symbol": "Output",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "java/void/Output.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 83
+                }
+              },
+              "attributes": {
+                "atfd": 1,
+                "kind": "class",
+                "tcc": 0,
+                "wmc": 1
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "god_class/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Output@1:1-1:83",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 12.297158093186,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "java/void/Output.java",
+              "symbol": "java/void/Output.java",
+              "scope": "file",
+              "value": 55,
+              "location": {
+                "path": "java/void/Output.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 68.37444655281469,
+                "depth_reference": 1.054,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 0,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 1,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 1,
+                "raw_depth_ratio": 0.3333333333333333,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "command",
+                "reference_sample_count": 0,
+                "result_count": 0,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.9,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 12.297158093186,
+          "subjects": [
+            {
+              "contribution": 12.297158093186,
+              "subject": "java/void/Output.java@1:1-1:1",
+              "value": 55
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Output.emit",
+              "symbol": "Output.emit",
+              "routine": "Output.emit",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "java/void/Output.java",
+                "start": {
+                  "line": 1,
+                  "column": 23
+                },
+                "end": {
+                  "line": 1,
+                  "column": 81
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Output.emit@1:23-1:81",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "java",
+      "observed_axes": {
+        "structural_core": 12.297158093186,
+        "structural_language": 0
+      },
+      "observed_score": 12.297158093186,
+      "path": "java/void/Output.java",
+      "rank": 1,
+      "score": 12.297158093186,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Emit",
+              "symbol": "Emit",
+              "routine": "Emit",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "go/void/service.go",
+                "start": {
+                  "line": 3,
+                  "column": 1
+                },
+                "end": {
+                  "line": 3,
+                  "column": 44
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Emit@3:1-3:44",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Emit",
+              "symbol": "Emit",
+              "routine": "Emit",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "go/void/service.go",
+                "start": {
+                  "line": 3,
+                  "column": 1
+                },
+                "end": {
+                  "line": 3,
+                  "column": 44
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Emit@3:1-3:44",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 10.178119548654,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "go/void/service.go",
+              "symbol": "go/void/service.go",
+              "scope": "file",
+              "value": 41,
+              "location": {
+                "path": "go/void/service.go",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 51.3145082765336,
+                "depth_reference": 1.0270000000000001,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 0,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 1,
+                "information_hiding_cost": 0,
+                "interface_cost": 2,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.5,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "command",
+                "reference_sample_count": 0,
+                "result_count": 0,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.9,
+                "total_weight": 1,
+                "type_cost": 1,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 10.178119548654,
+          "subjects": [
+            {
+              "contribution": 10.178119548654,
+              "subject": "go/void/service.go@1:1-1:1",
+              "value": 41
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Emit",
+              "symbol": "Emit",
+              "routine": "Emit",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "go/void/service.go",
+                "start": {
+                  "line": 3,
+                  "column": 1
+                },
+                "end": {
+                  "line": 3,
+                  "column": 44
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Emit@3:1-3:44",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "go",
+      "observed_axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "observed_score": 10.178119548654,
+      "path": "go/void/service.go",
+      "rank": 2,
+      "score": 10.178119548654,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 2,
+              "location": {
+                "path": "java/behavior/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 174
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:174",
+              "value": 2
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "java/behavior/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 176
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "coupling_between_objects/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:176",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 4,
+              "location": {
+                "path": "java/behavior/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 176
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_class_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:176",
+              "value": 4
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 4,
+              "location": {
+                "path": "java/behavior/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 174
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:174",
+              "value": 4
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 4,
+              "location": {
+                "path": "java/behavior/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 176
+                }
+              },
+              "attributes": {
+                "atfd": 0,
+                "kind": "class",
+                "tcc": 0,
+                "wmc": 4
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "god_class/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:176",
+              "value": 4
+            }
+          ],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 10.178119548654,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "java/behavior/Service.java",
+              "symbol": "java/behavior/Service.java",
+              "scope": "file",
+              "value": 41,
+              "location": {
+                "path": "java/behavior/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 51.040391676866584,
+                "depth_reference": 1.02125,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 4,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 1,
+                "raw_depth_ratio": 0.5,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 3,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 10.178119548654,
+          "subjects": [
+            {
+              "contribution": 10.178119548654,
+              "subject": "java/behavior/Service.java@1:1-1:1",
+              "value": 41
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 3,
+              "location": {
+                "path": "java/behavior/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 174
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:174",
+              "value": 3
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "java",
+      "observed_axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "observed_score": 10.178119548654,
+      "path": "java/behavior/Service.java",
+      "rank": 3,
+      "score": 10.178119548654,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.check",
+              "symbol": "Service.check",
+              "routine": "Service.check",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "java/boolean/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 75
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.check@1:24-1:75",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 0,
+              "location": {
+                "path": "java/boolean/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 77
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "coupling_between_objects/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:77",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "java/boolean/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 77
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_class_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:77",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.check",
+              "symbol": "Service.check",
+              "routine": "Service.check",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "java/boolean/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 75
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.check@1:24-1:75",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "java/boolean/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 77
+                }
+              },
+              "attributes": {
+                "atfd": 0,
+                "kind": "class",
+                "tcc": 0,
+                "wmc": 1
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "god_class/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:77",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 10.178119548654,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "java/boolean/Service.java",
+              "symbol": "java/boolean/Service.java",
+              "scope": "file",
+              "value": 41,
+              "location": {
+                "path": "java/boolean/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 51.040391676866584,
+                "depth_reference": 1.02125,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 4,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 1,
+                "raw_depth_ratio": 0.5,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 3,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 10.178119548654,
+          "subjects": [
+            {
+              "contribution": 10.178119548654,
+              "subject": "java/boolean/Service.java@1:1-1:1",
+              "value": 41
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.check",
+              "symbol": "Service.check",
+              "routine": "Service.check",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "java/boolean/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 75
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.check@1:24-1:75",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "java",
+      "observed_axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "observed_score": 10.178119548654,
+      "path": "java/boolean/Service.java",
+      "rank": 4,
+      "score": 10.178119548654,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "java/simple/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 73
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:73",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 0,
+              "location": {
+                "path": "java/simple/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 75
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "coupling_between_objects/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:75",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "java/simple/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 75
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_class_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:75",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "java/simple/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 73
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:73",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "java/simple/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 75
+                }
+              },
+              "attributes": {
+                "atfd": 0,
+                "kind": "class",
+                "tcc": 0,
+                "wmc": 1
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "god_class/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:75",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 10.178119548654,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "java/simple/Service.java",
+              "symbol": "java/simple/Service.java",
+              "scope": "file",
+              "value": 41,
+              "location": {
+                "path": "java/simple/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 51.040391676866584,
+                "depth_reference": 1.02125,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 4,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 1,
+                "raw_depth_ratio": 0.5,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 3,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 10.178119548654,
+          "subjects": [
+            {
+              "contribution": 10.178119548654,
+              "subject": "java/simple/Service.java@1:1-1:1",
+              "value": 41
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "java/simple/Service.java",
+                "start": {
+                  "line": 1,
+                  "column": 24
+                },
+                "end": {
+                  "line": 1,
+                  "column": 73
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:73",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "java",
+      "observed_axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "observed_score": 10.178119548654,
+      "path": "java/simple/Service.java",
+      "rank": 5,
+      "score": 10.178119548654,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "emit",
+              "symbol": "emit",
+              "routine": "emit",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "rust/void/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 51
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "emit@1:1-1:51",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "emit",
+              "symbol": "emit",
+              "routine": "emit",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/void/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 51
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "emit@1:1-1:51",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 10.178119548654,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "rust/void/service.rs",
+              "symbol": "rust/void/service.rs",
+              "scope": "file",
+              "value": 41,
+              "location": {
+                "path": "rust/void/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 51.3145082765336,
+                "depth_reference": 1.0270000000000001,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 0,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 1,
+                "information_hiding_cost": 0,
+                "interface_cost": 2,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.5,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "command",
+                "reference_sample_count": 0,
+                "result_count": 0,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.9,
+                "total_weight": 1,
+                "type_cost": 1,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 10.178119548654,
+          "subjects": [
+            {
+              "contribution": 10.178119548654,
+              "subject": "rust/void/service.rs@1:1-1:1",
+              "value": 41
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "emit",
+              "symbol": "emit",
+              "routine": "emit",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/void/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 51
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "emit@1:1-1:51",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "rust",
+      "observed_axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "observed_score": 10.178119548654,
+      "path": "rust/void/service.rs",
+      "rank": 6,
+      "score": 10.178119548654,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "emit",
+              "symbol": "emit",
+              "routine": "emit",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "typescript/void/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 66,
+                  "offset": 65
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "emit@1:1-1:66",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "emit",
+              "symbol": "emit",
+              "routine": "emit",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/void/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 66,
+                  "offset": 65
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "emit@1:1-1:66",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 10.178119548654,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "typescript/void/service.ts",
+              "symbol": "typescript/void/service.ts",
+              "scope": "file",
+              "value": 41,
+              "location": {
+                "path": "typescript/void/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 1,
+                  "offset": 66
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 51.3145082765336,
+                "depth_reference": 1.0270000000000001,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 0,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 1,
+                "information_hiding_cost": 0,
+                "interface_cost": 2,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.5,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "command",
+                "reference_sample_count": 0,
+                "result_count": 0,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.9,
+                "total_weight": 1,
+                "type_cost": 1,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 10.178119548654,
+          "subjects": [
+            {
+              "contribution": 10.178119548654,
+              "subject": "typescript/void/service.ts@1:1-2:1",
+              "value": 41
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "emit",
+              "symbol": "emit",
+              "routine": "emit",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/void/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 66,
+                  "offset": 65
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "emit@1:1-1:66",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "typescript",
+      "observed_axes": {
+        "structural_core": 10.178119548654,
+        "structural_language": 0
+      },
+      "observed_score": 10.178119548654,
+      "path": "typescript/void/service.ts",
+      "rank": 7,
+      "score": 10.178119548654,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.427134135851,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "hidden.Run",
+              "symbol": "hidden.Run",
+              "routine": "hidden.Run",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "go/hidden/service.go",
+                "start": {
+                  "line": 3,
+                  "column": 1
+                },
+                "end": {
+                  "line": 3,
+                  "column": 52
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "hidden.Run@3:1-3:52",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "hidden",
+              "symbol": "hidden",
+              "scope": "type",
+              "value": 0,
+              "location": {
+                "path": "go/hidden/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 6
+                },
+                "end": {
+                  "line": 2,
+                  "column": 22
+                }
+              },
+              "attributes": {
+                "kind": "struct"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "coupling_between_objects/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "hidden@2:6-2:22",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "hidden",
+              "symbol": "hidden",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "go/hidden/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 6
+                },
+                "end": {
+                  "line": 2,
+                  "column": 22
+                }
+              },
+              "attributes": {
+                "kind": "struct"
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_class_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "hidden@2:6-2:22",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "hidden.Run",
+              "symbol": "hidden.Run",
+              "routine": "hidden.Run",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "go/hidden/service.go",
+                "start": {
+                  "line": 3,
+                  "column": 1
+                },
+                "end": {
+                  "line": 3,
+                  "column": 52
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "hidden.Run@3:1-3:52",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "hidden",
+              "symbol": "hidden",
+              "scope": "type",
+              "value": 1,
+              "location": {
+                "path": "go/hidden/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 6
+                },
+                "end": {
+                  "line": 2,
+                  "column": 22
+                }
+              },
+              "attributes": {
+                "atfd": 0,
+                "kind": "struct",
+                "tcc": 0,
+                "wmc": 1
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "god_class/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "hidden@2:6-2:22",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.427134135851,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "go/hidden/service.go",
+              "symbol": "go/hidden/service.go",
+              "scope": "file",
+              "value": 28,
+              "location": {
+                "path": "go/hidden/service.go",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.720522235822116,
+                "depth_reference": 1.02125,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.427134135851,
+          "subjects": [
+            {
+              "contribution": 7.427134135851,
+              "subject": "go/hidden/service.go@1:1-1:1",
+              "value": 28
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "hidden.Run",
+              "symbol": "hidden.Run",
+              "routine": "hidden.Run",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "go/hidden/service.go",
+                "start": {
+                  "line": 3,
+                  "column": 1
+                },
+                "end": {
+                  "line": 3,
+                  "column": 52
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "hidden.Run@3:1-3:52",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "go",
+      "observed_axes": {
+        "structural_core": 7.427134135851,
+        "structural_language": 0
+      },
+      "observed_score": 7.427134135851,
+      "path": "go/hidden/service.go",
+      "rank": 8,
+      "score": 7.427134135851,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.427134135851,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "check",
+              "symbol": "check",
+              "routine": "check",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "typescript/boolean/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 66,
+                  "offset": 65
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "check@1:1-1:66",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "check",
+              "symbol": "check",
+              "routine": "check",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/boolean/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 66,
+                  "offset": 65
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "check@1:1-1:66",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.427134135851,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "typescript/boolean/service.ts",
+              "symbol": "typescript/boolean/service.ts",
+              "scope": "file",
+              "value": 28,
+              "location": {
+                "path": "typescript/boolean/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 1,
+                  "offset": 66
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 35.08601103537814,
+                "depth_reference": 1.0270000000000001,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "command",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.9,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.427134135851,
+          "subjects": [
+            {
+              "contribution": 7.427134135851,
+              "subject": "typescript/boolean/service.ts@1:1-2:1",
+              "value": 28
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "check",
+              "symbol": "check",
+              "routine": "check",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/boolean/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 66,
+                  "offset": 65
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "check@1:1-1:66",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "typescript",
+      "observed_axes": {
+        "structural_core": 7.427134135851,
+        "structural_language": 0
+      },
+      "observed_score": 7.427134135851,
+      "path": "typescript/boolean/service.ts",
+      "rank": 9,
+      "score": 7.427134135851,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.427134135851,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "typescript/class/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 24,
+                  "offset": 23
+                },
+                "end": {
+                  "line": 1,
+                  "column": 74,
+                  "offset": 73
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:74",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 0,
+              "location": {
+                "path": "typescript/class/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 76,
+                  "offset": 75
+                }
+              },
+              "attributes": {
+                "kind": "class",
+                "referenced_types": []
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "coupling_between_objects/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:76",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 2,
+              "location": {
+                "path": "typescript/class/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 76,
+                  "offset": 75
+                }
+              },
+              "attributes": {
+                "kind": "class"
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_class_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:76",
+              "value": 2
+            }
+          ],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/class/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 24,
+                  "offset": 23
+                },
+                "end": {
+                  "line": 1,
+                  "column": 74,
+                  "offset": 73
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:74",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service",
+              "symbol": "Service",
+              "scope": "type",
+              "value": 2,
+              "location": {
+                "path": "typescript/class/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 76,
+                  "offset": 75
+                }
+              },
+              "attributes": {
+                "atfd": 0,
+                "kind": "class",
+                "tcc": 0,
+                "wmc": 2
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "god_class/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service@1:1-1:76",
+              "value": 2
+            }
+          ],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.427134135851,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "typescript/class/service.ts",
+              "symbol": "typescript/class/service.ts",
+              "scope": "file",
+              "value": 28,
+              "location": {
+                "path": "typescript/class/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 1,
+                  "offset": 76
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.720522235822116,
+                "depth_reference": 1.02125,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 1,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.427134135851,
+          "subjects": [
+            {
+              "contribution": 7.427134135851,
+              "subject": "typescript/class/service.ts@1:1-2:1",
+              "value": 28
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Service.calculate",
+              "symbol": "Service.calculate",
+              "routine": "Service.calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/class/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 24,
+                  "offset": 23
+                },
+                "end": {
+                  "line": 1,
+                  "column": 74,
+                  "offset": 73
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Service.calculate@1:24-1:74",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "typescript",
+      "observed_axes": {
+        "structural_core": 7.427134135851,
+        "structural_language": 0
+      },
+      "observed_score": 7.427134135851,
+      "path": "typescript/class/service.ts",
+      "rank": 10,
+      "score": 7.427134135851,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Calculate",
+              "symbol": "Calculate",
+              "routine": "Calculate",
+              "scope": "function",
+              "value": 2,
+              "location": {
+                "path": "go/behavior/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 129
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Calculate@2:1-2:129",
+              "value": 2
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Calculate",
+              "symbol": "Calculate",
+              "routine": "Calculate",
+              "scope": "function",
+              "value": 4,
+              "location": {
+                "path": "go/behavior/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 129
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Calculate@2:1-2:129",
+              "value": 4
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "go/behavior/service.go",
+              "symbol": "go/behavior/service.go",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "go/behavior/service.go",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "go/behavior/service.go@1:1-1:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Calculate",
+              "symbol": "Calculate",
+              "routine": "Calculate",
+              "scope": "function",
+              "value": 3,
+              "location": {
+                "path": "go/behavior/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 129
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Calculate@2:1-2:129",
+              "value": 3
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "go",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "go/behavior/service.go",
+      "rank": 11,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Check",
+              "symbol": "Check",
+              "routine": "Check",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "go/boolean/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 46
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Check@2:1-2:46",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Check",
+              "symbol": "Check",
+              "routine": "Check",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "go/boolean/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 46
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Check@2:1-2:46",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "go/boolean/service.go",
+              "symbol": "go/boolean/service.go",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "go/boolean/service.go",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "go/boolean/service.go@1:1-1:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Check",
+              "symbol": "Check",
+              "routine": "Check",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "go/boolean/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 46
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Check@2:1-2:46",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "go",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "go/boolean/service.go",
+      "rank": 12,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Calculate",
+              "symbol": "Calculate",
+              "routine": "Calculate",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "go/simple/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 47
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Calculate@2:1-2:47",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Calculate",
+              "symbol": "Calculate",
+              "routine": "Calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "go/simple/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 47
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Calculate@2:1-2:47",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "go/simple/service.go",
+              "symbol": "go/simple/service.go",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "go/simple/service.go",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "go/simple/service.go@1:1-1:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "Calculate",
+              "symbol": "Calculate",
+              "routine": "Calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "go/simple/service.go",
+                "start": {
+                  "line": 2,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 47
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "Calculate@2:1-2:47",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "go",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "go/simple/service.go",
+      "rank": 13,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/behavior/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 115
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:115",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 2,
+              "location": {
+                "path": "rust/behavior/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 115
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:115",
+              "value": 2
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "rust/behavior/service.rs",
+              "symbol": "rust/behavior/service.rs",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "rust/behavior/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "rust/behavior/service.rs@1:1-1:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 2,
+              "location": {
+                "path": "rust/behavior/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 115
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:115",
+              "value": 2
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "rust",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "rust/behavior/service.rs",
+      "rank": 14,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "check",
+              "symbol": "check",
+              "routine": "check",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "rust/boolean/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 45
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "check@1:1-1:45",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "check",
+              "symbol": "check",
+              "routine": "check",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/boolean/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 45
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "check@1:1-1:45",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "rust/boolean/service.rs",
+              "symbol": "rust/boolean/service.rs",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "rust/boolean/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "rust/boolean/service.rs@1:1-1:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "check",
+              "symbol": "check",
+              "routine": "check",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/boolean/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 45
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "check@1:1-1:45",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "rust",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "rust/boolean/service.rs",
+      "rank": 15,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "run",
+              "symbol": "run",
+              "routine": "run",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "rust/hidden/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 14
+                },
+                "end": {
+                  "line": 1,
+                  "column": 50
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "run@1:14-1:50",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "run",
+              "symbol": "run",
+              "routine": "run",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/hidden/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 14
+                },
+                "end": {
+                  "line": 1,
+                  "column": 50
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "run@1:14-1:50",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "rust/hidden/service.rs",
+              "symbol": "rust/hidden/service.rs",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "rust/hidden/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "rust/hidden/service.rs@1:1-1:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "run",
+              "symbol": "run",
+              "routine": "run",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/hidden/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 14
+                },
+                "end": {
+                  "line": 1,
+                  "column": 50
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "run@1:14-1:50",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "rust",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "rust/hidden/service.rs",
+      "rank": 16,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "rust/simple/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 46
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:46",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/simple/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 46
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:46",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "rust/simple/service.rs",
+              "symbol": "rust/simple/service.rs",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "rust/simple/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 1
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "rust/simple/service.rs@1:1-1:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "rust/simple/service.rs",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 46
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-structural",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:46",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "rust",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "rust/simple/service.rs",
+      "rank": 17,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 2,
+              "location": {
+                "path": "typescript/behavior/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 147,
+                  "offset": 146
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:147",
+              "value": 2
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 4,
+              "location": {
+                "path": "typescript/behavior/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 147,
+                  "offset": 146
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:147",
+              "value": 4
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "typescript/behavior/service.ts",
+              "symbol": "typescript/behavior/service.ts",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "typescript/behavior/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 1,
+                  "offset": 147
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "typescript/behavior/service.ts@1:1-2:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 3,
+              "location": {
+                "path": "typescript/behavior/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 147,
+                  "offset": 146
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:147",
+              "value": 3
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "typescript",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "typescript/behavior/service.ts",
+      "rank": 18,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "typescript/simple/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 67,
+                  "offset": 66
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:67",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/simple/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 67,
+                  "offset": 66
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:67",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 7.164797036381,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "typescript/simple/service.ts",
+              "symbol": "typescript/simple/service.ts",
+              "scope": "file",
+              "value": 27,
+              "location": {
+                "path": "typescript/simple/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 2,
+                  "column": 1,
+                  "offset": 67
+                }
+              },
+              "attributes": {
+                "available": true,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 34.03421974850548,
+                "depth_reference": 1.010625,
+                "entries": 1,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 1,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 2,
+                "information_hiding_cost": 0,
+                "interface_cost": 3,
+                "leakage_penalty": 0,
+                "operation_cost": 1,
+                "parameter_count": 1,
+                "public_types": 0,
+                "raw_depth_ratio": 0.6666666666666666,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "query",
+                "reference_sample_count": 0,
+                "result_count": 1,
+                "role_basis": "operation-result-shape",
+                "role_confidence": 0.85,
+                "total_weight": 1,
+                "type_cost": 2,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 7.164797036381,
+          "subjects": [
+            {
+              "contribution": 7.164797036381,
+              "subject": "typescript/simple/service.ts@1:1-2:1",
+              "value": 27
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "calculate",
+              "symbol": "calculate",
+              "routine": "calculate",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/simple/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 67,
+                  "offset": 66
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "calculate@1:1-1:67",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "typescript",
+      "observed_axes": {
+        "structural_core": 7.164797036381,
+        "structural_language": 0
+      },
+      "observed_score": 7.164797036381,
+      "path": "typescript/simple/service.ts",
+      "rank": 19,
+      "score": 7.164797036381,
+      "valid_zero_score": false
+    },
+    {
+      "axes": {
+        "structural_core": 0,
+        "structural_language": 0
+      },
+      "complete": true,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "run",
+              "symbol": "run",
+              "routine": "run",
+              "scope": "function",
+              "value": 0,
+              "location": {
+                "path": "typescript/reexport/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 54,
+                  "offset": 53
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cognitive_complexity/pmd-sonar-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "run@1:1-1:54",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "run",
+              "symbol": "run",
+              "routine": "run",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/reexport/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 54,
+                  "offset": 53
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "cyclomatic_method_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "run@1:1-1:54",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "deduplicated_observations": 0,
+          "observations": 0,
+          "observed_contribution": 0,
+          "subjects": [],
+          "waivers": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "typescript/reexport/service.ts",
+              "symbol": "typescript/reexport/service.ts",
+              "scope": "file",
+              "value": 0,
+              "location": {
+                "path": "typescript/reexport/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 3,
+                  "column": 1,
+                  "offset": 70
+                }
+              },
+              "attributes": {
+                "available": false,
+                "available_weight": 1,
+                "capability_basis": "cosmic-inspired-signature",
+                "depth_penalty": 0,
+                "depth_reference": 1,
+                "entries": 0,
+                "evidence_coverage": 1,
+                "evidence_level": 2,
+                "exits": 0,
+                "exposed_representation": 0,
+                "exposed_state_cost": 0,
+                "functionality": 0,
+                "information_hiding_cost": 0,
+                "interface_cost": 0,
+                "leakage_penalty": 0,
+                "operation_cost": 0,
+                "parameter_count": 0,
+                "public_types": 0,
+                "raw_depth_ratio": 0,
+                "reads": 0,
+                "reference_basis": "role-shape-v2",
+                "reference_policy": "role-shape-v2",
+                "reference_role": "unknown",
+                "reference_sample_count": 0,
+                "result_count": 0,
+                "role_basis": "insufficient-or-contradictory-evidence",
+                "role_confidence": 0,
+                "total_weight": 1,
+                "type_cost": 0,
+                "writes": 0
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "module_shallowness/ousterhout-v3"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "typescript/reexport/service.ts@1:1-3:1",
+              "value": 0
+            }
+          ],
+          "waivers": []
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "deduplicated_observations": 1,
+          "evidence": [
+            {
+              "name": "run",
+              "symbol": "run",
+              "routine": "run",
+              "scope": "function",
+              "value": 1,
+              "location": {
+                "path": "typescript/reexport/service.ts",
+                "start": {
+                  "line": 1,
+                  "column": 1
+                },
+                "end": {
+                  "line": 1,
+                  "column": 54,
+                  "offset": 53
+                }
+              },
+              "provenance": {
+                "analyzer": "slopslap-typescript",
+                "analyzer_version": "0.1.0",
+                "rule": "npath_complexity/pmd-v1"
+              }
+            }
+          ],
+          "observations": 1,
+          "observed_contribution": 0,
+          "subjects": [
+            {
+              "contribution": 0,
+              "subject": "run@1:1-1:54",
+              "value": 1
+            }
+          ],
+          "waivers": []
+        }
+      },
+      "coverage": {
+        "cognitive_complexity": "complete",
+        "coupling_between_objects": "complete",
+        "cyclomatic_class_complexity": "complete",
+        "cyclomatic_method_complexity": "complete",
+        "deeply_nested_if": "complete",
+        "god_class": "complete",
+        "module_shallowness": "complete",
+        "npath_complexity": "complete"
+      },
+      "language": "typescript",
+      "observed_axes": {
+        "structural_core": 0,
+        "structural_language": 0
+      },
+      "observed_score": 0,
+      "path": "typescript/reexport/service.ts",
+      "rank": 20,
+      "score": 0,
+      "valid_zero_score": true
+    }
+  ],
+  "profile_set_hash": "native-balanced-v1",
+  "returned_files": 20,
+  "schema_version": 3,
+  "summary": {
+    "complete_files": 20,
+    "discovered_source_count": 20,
+    "files_analyzed": 20
+  },
+  "truncated": false
+}

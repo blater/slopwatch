@@ -1,0 +1,13 @@
+ok  	github.com/blater/slopwatch/internal/sourceestimate	9.155s
+ok  	github.com/blater/slopwatch/internal/native	15.607s
+ok  	github.com/blater/slopwatch/internal/report	(cached)
+ok  	github.com/blater/slopwatch/internal/scoring	(cached)
+ok  	github.com/blater/slopwatch/internal/follow	2.736s
+ok  	github.com/blater/slopwatch/internal/fixanalysis/nativeadapter	1.398s
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 0.525s
+
+OK
+PASS: numeric weights unchanged or reviewed change evidence complete
+ok  	github.com/blater/slopwatch/internal/native	0.184s

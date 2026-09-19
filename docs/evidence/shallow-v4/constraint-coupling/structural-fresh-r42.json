@@ -1,0 +1,2737 @@
+{
+  "manifest": "/Users/blater/src/slopwatch/docs/evidence/shallow-v4/structural-fresh-holdout/manifest.json",
+  "required_high_languages": [],
+  "results": [
+    {
+      "id": "go-userdata-root",
+      "language": "go",
+      "target": "paths.go",
+      "group": "low",
+      "kind": null,
+      "expected_range": [
+        0,
+        25
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "go_mod_auto": true,
+      "report_schema_version": 4,
+      "raw_max": 0,
+      "contribution": 0,
+      "score": 0,
+      "observed_score": 0,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:go:paths.go",
+          "state": "partial",
+          "policy_revision": "r42",
+          "estimated": true,
+          "files": [
+            "paths.go"
+          ],
+          "raw": {
+            "B8": 8,
+            "H": 2,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 1,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 2,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:filepath.Clean/base",
+                      "unresolved_call_range_0_2:filepath.Clean/home",
+                      "unresolved_call_range_0_2:filepath.IsAbs/base",
+                      "unresolved_call_range_0_2:filepath.IsAbs/home",
+                      "unresolved_call_range_0_2:filepath.Join/filepath.Clean(base),__string__",
+                      "unresolved_call_range_0_2:filepath.Join/home,__string__",
+                      "unresolved_call_range_0_2:fmt.Errorf/__string__",
+                      "unresolved_call_range_0_2:fmt.Errorf/__string__,err",
+                      "unresolved_call_range_0_2:os.Getenv/__string__",
+                      "unresolved_call_range_0_2:os.UserHomeDir/",
+                      "unresolved_call_range_0_2:strings.ContainsRune/base,__string__",
+                      "unresolved_call_range_0_2:strings.ContainsRune/home,__string__",
+                      "unresolved_call_range_0_2:strings.TrimSpace/base",
+                      "unresolved_call_range_0_2:strings.TrimSpace/home"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {
+                      "validation": 2
+                    },
+                    "supported_burden": 0,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "operation:paths.go#Root/0:1"
+                      ],
+                      "input_units": 0,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 2,
+                  "limitations": [
+                    "unresolved_call_range_0_2:filepath.Clean/base",
+                    "unresolved_call_range_0_2:filepath.Clean/home",
+                    "unresolved_call_range_0_2:filepath.IsAbs/base",
+                    "unresolved_call_range_0_2:filepath.IsAbs/home",
+                    "unresolved_call_range_0_2:filepath.Join/filepath.Clean(base),__string__",
+                    "unresolved_call_range_0_2:filepath.Join/home,__string__",
+                    "unresolved_call_range_0_2:fmt.Errorf/__string__",
+                    "unresolved_call_range_0_2:fmt.Errorf/__string__,err",
+                    "unresolved_call_range_0_2:os.Getenv/__string__",
+                    "unresolved_call_range_0_2:os.UserHomeDir/",
+                    "unresolved_call_range_0_2:strings.ContainsRune/base,__string__",
+                    "unresolved_call_range_0_2:strings.ContainsRune/home,__string__",
+                    "unresolved_call_range_0_2:strings.TrimSpace/base",
+                    "unresolved_call_range_0_2:strings.TrimSpace/home",
+                    "unsupported_execution_alternatives:&&",
+                    "unsupported_execution_alternatives:if"
+                  ],
+                  "name": "Root",
+                  "published_penalty": 0,
+                  "recognized_hidden": 2,
+                  "uncertain_burden": 1
+                }
+              ],
+              "burden": 1,
+              "categories": {
+                "unknown_call": 1,
+                "validation": 2
+              },
+              "descriptive_ratio": 20,
+              "findings": [],
+              "hidden": 2,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:filepath.Clean/base",
+                "unresolved_call_range_0_2:filepath.Clean/home",
+                "unresolved_call_range_0_2:filepath.IsAbs/base",
+                "unresolved_call_range_0_2:filepath.IsAbs/home",
+                "unresolved_call_range_0_2:filepath.Join/filepath.Clean(base),__string__",
+                "unresolved_call_range_0_2:filepath.Join/home,__string__",
+                "unresolved_call_range_0_2:fmt.Errorf/__string__",
+                "unresolved_call_range_0_2:fmt.Errorf/__string__,err",
+                "unresolved_call_range_0_2:os.Getenv/__string__",
+                "unresolved_call_range_0_2:os.UserHomeDir/",
+                "unresolved_call_range_0_2:strings.ContainsRune/base,__string__",
+                "unresolved_call_range_0_2:strings.ContainsRune/home,__string__",
+                "unresolved_call_range_0_2:strings.TrimSpace/base",
+                "unresolved_call_range_0_2:strings.TrimSpace/home",
+                "unsupported_execution_alternatives:&&",
+                "unsupported_execution_alternatives:if"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 0,
+              "recognized_hidden": 2,
+              "roles": null,
+              "source_hidden": 2,
+              "uncertain_burden": 1,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 2,
+              "material_limitations": [
+                "unresolved_call_range_0_2:filepath.Clean/base",
+                "unresolved_call_range_0_2:filepath.Clean/home",
+                "unresolved_call_range_0_2:filepath.IsAbs/base",
+                "unresolved_call_range_0_2:filepath.IsAbs/home",
+                "unresolved_call_range_0_2:filepath.Join/filepath.Clean(base),__string__",
+                "unresolved_call_range_0_2:filepath.Join/home,__string__",
+                "unresolved_call_range_0_2:fmt.Errorf/__string__",
+                "unresolved_call_range_0_2:fmt.Errorf/__string__,err",
+                "unresolved_call_range_0_2:os.Getenv/__string__",
+                "unresolved_call_range_0_2:os.UserHomeDir/",
+                "unresolved_call_range_0_2:strings.ContainsRune/base,__string__",
+                "unresolved_call_range_0_2:strings.ContainsRune/home,__string__",
+                "unresolved_call_range_0_2:strings.TrimSpace/base",
+                "unresolved_call_range_0_2:strings.TrimSpace/home"
+              ],
+              "residual_burden": 0,
+              "responsibilities": {
+                "validation": 2
+              },
+              "supported_burden": 0,
+              "surface": {
+                "constraints": null,
+                "evidence": [
+                  "operation:paths.go#Root/0:1"
+                ],
+                "input_units": 0,
+                "operation_units": 1,
+                "representation_units": 0
+              },
+              "zero_reason": "lowest_range_supported"
+            },
+            "responsibility_ratio": 20,
+            "zero_reason": "lowest_range_supported"
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:filepath.Clean/base",
+          "unresolved_call_range_0_2:filepath.Clean/home",
+          "unresolved_call_range_0_2:filepath.IsAbs/base",
+          "unresolved_call_range_0_2:filepath.IsAbs/home",
+          "unresolved_call_range_0_2:filepath.Join/filepath.Clean(base),__string__",
+          "unresolved_call_range_0_2:filepath.Join/home,__string__",
+          "unresolved_call_range_0_2:fmt.Errorf/__string__",
+          "unresolved_call_range_0_2:fmt.Errorf/__string__,err",
+          "unresolved_call_range_0_2:os.Getenv/__string__",
+          "unresolved_call_range_0_2:os.UserHomeDir/",
+          "unresolved_call_range_0_2:strings.ContainsRune/base,__string__",
+          "unresolved_call_range_0_2:strings.ContainsRune/home,__string__",
+          "unresolved_call_range_0_2:strings.TrimSpace/base",
+          "unresolved_call_range_0_2:strings.TrimSpace/home",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:if"
+        ],
+        [
+          "unresolved_call_range_0_2:filepath.Clean/base",
+          "unresolved_call_range_0_2:filepath.Clean/home",
+          "unresolved_call_range_0_2:filepath.IsAbs/base",
+          "unresolved_call_range_0_2:filepath.IsAbs/home",
+          "unresolved_call_range_0_2:filepath.Join/filepath.Clean(base),__string__",
+          "unresolved_call_range_0_2:filepath.Join/home,__string__",
+          "unresolved_call_range_0_2:fmt.Errorf/__string__",
+          "unresolved_call_range_0_2:fmt.Errorf/__string__,err",
+          "unresolved_call_range_0_2:os.Getenv/__string__",
+          "unresolved_call_range_0_2:os.UserHomeDir/",
+          "unresolved_call_range_0_2:strings.ContainsRune/base,__string__",
+          "unresolved_call_range_0_2:strings.ContainsRune/home,__string__",
+          "unresolved_call_range_0_2:strings.TrimSpace/base",
+          "unresolved_call_range_0_2:strings.TrimSpace/home",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:if"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": "lowest_range_supported",
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:go:paths.go",
+          "symbol": "source:go:paths.go",
+          "scope": "file",
+          "value": 0,
+          "location": {
+            "path": "paths.go",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:go:paths.go"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-molly-landed-peyton",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "paths.go",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "go-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": "lowest_range_supported",
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "go-fix-subscription",
+      "language": "go",
+      "target": "subscription.go",
+      "group": "mixed",
+      "kind": null,
+      "expected_range": [
+        26,
+        64
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "go_mod_auto": true,
+      "report_schema_version": 4,
+      "raw_max": 50,
+      "contribution": 11.609640474437,
+      "score": 11.609640474437,
+      "observed_score": 11.609640474437,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:go:subscription.go",
+          "state": "partial",
+          "policy_revision": "r42",
+          "estimated": true,
+          "files": [
+            "subscription.go"
+          ],
+          "raw": {
+            "B8": 18,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 2.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:close/value.closed",
+                      "unresolved_call_range_0_2:ctx.Done/",
+                      "unresolved_call_range_0_2:ctx.Err/",
+                      "unresolved_call_range_0_2:func/",
+                      "unresolved_call_range_0_2:value.manager.notifyMu.Lock/",
+                      "unresolved_call_range_0_2:value.manager.notifyMu.Unlock/",
+                      "unresolved_call_range_0_2:value.mu.Lock/",
+                      "unresolved_call_range_0_2:value.mu.Unlock/",
+                      "unresolved_call_range_0_2:value.once.Do/func(){close(value.closed)}"
+                    ],
+                    "residual_burden": 1,
+                    "responsibilities": {},
+                    "supported_burden": 1,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "operation:subscription.go#Close/1:1",
+                        "operation:subscription.go#Wait/0:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 2,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:close/value.closed",
+                    "unresolved_call_range_0_2:ctx.Done/",
+                    "unresolved_call_range_0_2:ctx.Err/",
+                    "unresolved_call_range_0_2:func/",
+                    "unresolved_call_range_0_2:value.manager.notifyMu.Lock/",
+                    "unresolved_call_range_0_2:value.manager.notifyMu.Unlock/",
+                    "unresolved_call_range_0_2:value.mu.Lock/",
+                    "unresolved_call_range_0_2:value.mu.Unlock/",
+                    "unresolved_call_range_0_2:value.once.Do/func(){close(value.closed)}",
+                    "unsupported_execution_alternatives:select"
+                  ],
+                  "name": "subscription",
+                  "published_penalty": 50,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 2.25
+                }
+              ],
+              "burden": 2.25,
+              "categories": {
+                "unknown_call": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:close/value.closed",
+                "unresolved_call_range_0_2:ctx.Done/",
+                "unresolved_call_range_0_2:ctx.Err/",
+                "unresolved_call_range_0_2:func/",
+                "unresolved_call_range_0_2:value.manager.notifyMu.Lock/",
+                "unresolved_call_range_0_2:value.manager.notifyMu.Unlock/",
+                "unresolved_call_range_0_2:value.mu.Lock/",
+                "unresolved_call_range_0_2:value.mu.Unlock/",
+                "unresolved_call_range_0_2:value.once.Do/func(){close(value.closed)}",
+                "unsupported_execution_alternatives:select"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 50,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 2.25,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unresolved_call_range_0_2:close/value.closed",
+                "unresolved_call_range_0_2:ctx.Done/",
+                "unresolved_call_range_0_2:ctx.Err/",
+                "unresolved_call_range_0_2:func/",
+                "unresolved_call_range_0_2:value.manager.notifyMu.Lock/",
+                "unresolved_call_range_0_2:value.manager.notifyMu.Unlock/",
+                "unresolved_call_range_0_2:value.mu.Lock/",
+                "unresolved_call_range_0_2:value.mu.Unlock/",
+                "unresolved_call_range_0_2:value.once.Do/func(){close(value.closed)}"
+              ],
+              "residual_burden": 1,
+              "responsibilities": {},
+              "supported_burden": 1,
+              "surface": {
+                "constraints": null,
+                "evidence": [
+                  "operation:subscription.go#Close/1:1",
+                  "operation:subscription.go#Wait/0:1"
+                ],
+                "input_units": 0.25,
+                "operation_units": 2,
+                "representation_units": 0
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:close/value.closed",
+          "unresolved_call_range_0_2:ctx.Done/",
+          "unresolved_call_range_0_2:ctx.Err/",
+          "unresolved_call_range_0_2:func/",
+          "unresolved_call_range_0_2:value.manager.notifyMu.Lock/",
+          "unresolved_call_range_0_2:value.manager.notifyMu.Unlock/",
+          "unresolved_call_range_0_2:value.mu.Lock/",
+          "unresolved_call_range_0_2:value.mu.Unlock/",
+          "unresolved_call_range_0_2:value.once.Do/func(){close(value.closed)}",
+          "unsupported_execution_alternatives:select"
+        ],
+        [
+          "unresolved_call_range_0_2:close/value.closed",
+          "unresolved_call_range_0_2:ctx.Done/",
+          "unresolved_call_range_0_2:ctx.Err/",
+          "unresolved_call_range_0_2:func/",
+          "unresolved_call_range_0_2:value.manager.notifyMu.Lock/",
+          "unresolved_call_range_0_2:value.manager.notifyMu.Unlock/",
+          "unresolved_call_range_0_2:value.mu.Lock/",
+          "unresolved_call_range_0_2:value.mu.Unlock/",
+          "unresolved_call_range_0_2:value.once.Do/func(){close(value.closed)}",
+          "unsupported_execution_alternatives:select"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": null,
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:go:subscription.go",
+          "symbol": "source:go:subscription.go",
+          "scope": "file",
+          "value": 50,
+          "location": {
+            "path": "subscription.go",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:go:subscription.go"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-very-wakeful-summer",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "subscription.go",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "go-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": null,
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "typescript-source-context",
+      "language": "typescript",
+      "target": "context.ts",
+      "group": "mixed",
+      "kind": null,
+      "expected_range": [
+        26,
+        64
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 30,
+      "contribution": 7.924812503606,
+      "score": 29.671638891577,
+      "observed_score": 29.671638891577,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:typescript:context.ts",
+          "state": "partial",
+          "policy_revision": "r42",
+          "estimated": true,
+          "files": [
+            "context.ts"
+          ],
+          "raw": {
+            "B8": 64,
+            "H": 5,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 8,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 2,
+                    "hidden_responsibility": 5,
+                    "material_limitations": [
+                      "call_cycle",
+                      "unresolved_call_range_0_2:AnalysisContext/workspace,sources",
+                      "unresolved_call_range_0_2:Error/__string__,",
+                      "unresolved_call_range_0_2:SUPPORTED_EXTENSIONS.has/extension",
+                      "unresolved_call_range_0_2:SourceInventoryError/absolutePath,__string__,",
+                      "unresolved_call_range_0_2:a.relativePath.localeCompare/b.relativePath",
+                      "unresolved_call_range_0_2:absolutePath.endsWith/__string__",
+                      "unresolved_call_range_0_2:context.inventoryIssues.push/...inventoryIssues",
+                      "unresolved_call_range_0_2:context.syntaxParseCounts.set/file,count",
+                      "unresolved_call_range_0_2:fs.readFileSync/absolutePath,__string__",
+                      "unresolved_call_range_0_2:inventoryIssues.push/issue",
+                      "unresolved_call_range_0_2:items.map/(item)=>({code:__string__,severity:__string__asconst,message:__string__,})",
+                      "unresolved_call_range_0_2:iu.test/absolutePath",
+                      "unresolved_call_range_0_2:join/__string__",
+                      "unresolved_call_range_0_2:parseCounts.get/absolutePath",
+                      "unresolved_call_range_0_2:parseCounts.set/absolutePath,(parseCounts.get(absolutePath)??0)+1",
+                      "unresolved_call_range_0_2:path.extname/absolutePath",
+                      "unresolved_call_range_0_2:path.isAbsolute/configured",
+                      "unresolved_call_range_0_2:path.isAbsolute/relative",
+                      "unresolved_call_range_0_2:path.isAbsolute/relativeNative",
+                      "unresolved_call_range_0_2:path.isAbsolute/requestedPath",
+                      "unresolved_call_range_0_2:path.relative/this.workspace,path.resolve(file)",
+                      "unresolved_call_range_0_2:path.relative/workspace,absolutePath",
+                      "unresolved_call_range_0_2:path.relative/workspace,error.absolutePath",
+                      "unresolved_call_range_0_2:path.resolve/candidate",
+                      "unresolved_call_range_0_2:path.resolve/file",
+                      "unresolved_call_range_0_2:path.resolve/path.isAbsolute(requestedPath)?requestedPath:path.resolve(workspace,requestedPath),",
+                      "unresolved_call_range_0_2:path.resolve/request.workspace",
+                      "unresolved_call_range_0_2:path.resolve/this.workspace,configured",
+                      "unresolved_call_range_0_2:path.resolve/workspace,requestedPath",
+                      "unresolved_call_range_0_2:relative.split/path.sep",
+                      "unresolved_call_range_0_2:relative.startsWith/__string__",
+                      "unresolved_call_range_0_2:relativeNative.split/path.sep",
+                      "unresolved_call_range_0_2:relativeNative.startsWith/__string__",
+                      "unresolved_call_range_0_2:resolved.toLowerCase/",
+                      "unresolved_call_range_0_2:seen.get/absolutePath",
+                      "unresolved_call_range_0_2:seen.set/absolutePath,unit.unit_id",
+                      "unresolved_call_range_0_2:sources.push/source",
+                      "unresolved_call_range_0_2:sources.sort/(a,b)=>a.relativePath.localeCompare(b.relativePath)",
+                      "unresolved_call_range_0_2:toLowerCase/",
+                      "unresolved_call_range_0_2:ts.createSourceFile/absolutePath,text,ts.ScriptTarget.Latest,true,scriptKind(absolutePath),"
+                    ],
+                    "residual_burden": 6.5,
+                    "responsibilities": {
+                      "validation": 5
+                    },
+                    "supported_burden": 6.5,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "operation:context.ts#canonicalConfigPath/7:1",
+                        "operation:context.ts#canonicalKey/9:1",
+                        "operation:context.ts#configFailure/8:1",
+                        "operation:context.ts#create/5:1",
+                        "operation:context.ts#createTypedContext/6:1",
+                        "operation:context.ts#relativeIfInside/10:1"
+                      ],
+                      "input_units": 1.75,
+                      "operation_units": 6,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 5,
+                  "limitations": [
+                    "call_cycle",
+                    "unresolved_call_range_0_2:AnalysisContext/workspace,sources",
+                    "unresolved_call_range_0_2:Error/__string__,",
+                    "unresolved_call_range_0_2:SUPPORTED_EXTENSIONS.has/extension",
+                    "unresolved_call_range_0_2:SourceInventoryError/absolutePath,__string__,",
+                    "unresolved_call_range_0_2:a.relativePath.localeCompare/b.relativePath",
+                    "unresolved_call_range_0_2:absolutePath.endsWith/__string__",
+                    "unresolved_call_range_0_2:context.inventoryIssues.push/...inventoryIssues",
+                    "unresolved_call_range_0_2:context.syntaxParseCounts.set/file,count",
+                    "unresolved_call_range_0_2:fs.readFileSync/absolutePath,__string__",
+                    "unresolved_call_range_0_2:inventoryIssues.push/issue",
+                    "unresolved_call_range_0_2:items.map/(item)=>({code:__string__,severity:__string__asconst,message:__string__,})",
+                    "unresolved_call_range_0_2:iu.test/absolutePath",
+                    "unresolved_call_range_0_2:join/__string__",
+                    "unresolved_call_range_0_2:parseCounts.get/absolutePath",
+                    "unresolved_call_range_0_2:parseCounts.set/absolutePath,(parseCounts.get(absolutePath)??0)+1",
+                    "unresolved_call_range_0_2:path.extname/absolutePath",
+                    "unresolved_call_range_0_2:path.isAbsolute/configured",
+                    "unresolved_call_range_0_2:path.isAbsolute/relative",
+                    "unresolved_call_range_0_2:path.isAbsolute/relativeNative",
+                    "unresolved_call_range_0_2:path.isAbsolute/requestedPath",
+                    "unresolved_call_range_0_2:path.relative/this.workspace,path.resolve(file)",
+                    "unresolved_call_range_0_2:path.relative/workspace,absolutePath",
+                    "unresolved_call_range_0_2:path.relative/workspace,error.absolutePath",
+                    "unresolved_call_range_0_2:path.resolve/candidate",
+                    "unresolved_call_range_0_2:path.resolve/file",
+                    "unresolved_call_range_0_2:path.resolve/path.isAbsolute(requestedPath)?requestedPath:path.resolve(workspace,requestedPath),",
+                    "unresolved_call_range_0_2:path.resolve/request.workspace",
+                    "unresolved_call_range_0_2:path.resolve/this.workspace,configured",
+                    "unresolved_call_range_0_2:path.resolve/workspace,requestedPath",
+                    "unresolved_call_range_0_2:relative.split/path.sep",
+                    "unresolved_call_range_0_2:relative.startsWith/__string__",
+                    "unresolved_call_range_0_2:relativeNative.split/path.sep",
+                    "unresolved_call_range_0_2:relativeNative.startsWith/__string__",
+                    "unresolved_call_range_0_2:resolved.toLowerCase/",
+                    "unresolved_call_range_0_2:seen.get/absolutePath",
+                    "unresolved_call_range_0_2:seen.set/absolutePath,unit.unit_id",
+                    "unresolved_call_range_0_2:sources.push/source",
+                    "unresolved_call_range_0_2:sources.sort/(a,b)=>a.relativePath.localeCompare(b.relativePath)",
+                    "unresolved_call_range_0_2:toLowerCase/",
+                    "unresolved_call_range_0_2:ts.createSourceFile/absolutePath,text,ts.ScriptTarget.Latest,true,scriptKind(absolutePath),",
+                    "unsupported_execution_alternatives:&&",
+                    "unsupported_execution_alternatives:?",
+                    "unsupported_execution_alternatives:catch",
+                    "unsupported_execution_alternatives:for",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:try",
+                    "unsupported_execution_alternatives:||"
+                  ],
+                  "name": "external:AnalysisContext",
+                  "published_penalty": 30,
+                  "recognized_hidden": 5,
+                  "uncertain_burden": 8
+                },
+                {
+                  "audience": "local-unresolved",
+                  "burden": 1.5,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unsupported_outcome_range_0_2"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "constructor-inputs:AnalysisContext:0.25"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 0,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unsupported_outcome_range_0_2"
+                  ],
+                  "name": "local-unresolved:AnalysisContext",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.5
+                },
+                {
+                  "audience": "local-unresolved",
+                  "burden": 1.5,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:super/message"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "constructor-inputs:SourceInventoryError:0.5"
+                      ],
+                      "input_units": 0.5,
+                      "operation_units": 0,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:super/message"
+                  ],
+                  "name": "local-unresolved:SourceInventoryError",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.5
+                },
+                {
+                  "audience": "local-unresolved",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:ts.flattenDiagnosticMessageText/item.messageText,__string__"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {},
+                    "supported_burden": 0,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "operation:context.ts#formatTsDiagnostic/3:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unresolved_call_range_0_2:ts.flattenDiagnosticMessageText/item.messageText,__string__"
+                  ],
+                  "name": "local-unresolved:formatTsDiagnostic",
+                  "published_penalty": 0,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.25
+                }
+              ],
+              "burden": 8,
+              "categories": {
+                "unknown_call": 1,
+                "unknown_outcome": 1,
+                "validation": 5
+              },
+              "descriptive_ratio": 44,
+              "findings": [],
+              "hidden": 5,
+              "known_hidden": 0,
+              "limitations": [
+                "call_cycle",
+                "unresolved_call_range_0_2:AnalysisContext/workspace,sources",
+                "unresolved_call_range_0_2:Error/__string__,",
+                "unresolved_call_range_0_2:SUPPORTED_EXTENSIONS.has/extension",
+                "unresolved_call_range_0_2:SourceInventoryError/absolutePath,__string__,",
+                "unresolved_call_range_0_2:a.relativePath.localeCompare/b.relativePath",
+                "unresolved_call_range_0_2:absolutePath.endsWith/__string__",
+                "unresolved_call_range_0_2:context.inventoryIssues.push/...inventoryIssues",
+                "unresolved_call_range_0_2:context.syntaxParseCounts.set/file,count",
+                "unresolved_call_range_0_2:fs.readFileSync/absolutePath,__string__",
+                "unresolved_call_range_0_2:inventoryIssues.push/issue",
+                "unresolved_call_range_0_2:items.map/(item)=>({code:__string__,severity:__string__asconst,message:__string__,})",
+                "unresolved_call_range_0_2:iu.test/absolutePath",
+                "unresolved_call_range_0_2:join/__string__",
+                "unresolved_call_range_0_2:parseCounts.get/absolutePath",
+                "unresolved_call_range_0_2:parseCounts.set/absolutePath,(parseCounts.get(absolutePath)??0)+1",
+                "unresolved_call_range_0_2:path.extname/absolutePath",
+                "unresolved_call_range_0_2:path.isAbsolute/configured",
+                "unresolved_call_range_0_2:path.isAbsolute/relative",
+                "unresolved_call_range_0_2:path.isAbsolute/relativeNative",
+                "unresolved_call_range_0_2:path.isAbsolute/requestedPath",
+                "unresolved_call_range_0_2:path.relative/this.workspace,path.resolve(file)",
+                "unresolved_call_range_0_2:path.relative/workspace,absolutePath",
+                "unresolved_call_range_0_2:path.relative/workspace,error.absolutePath",
+                "unresolved_call_range_0_2:path.resolve/candidate",
+                "unresolved_call_range_0_2:path.resolve/file",
+                "unresolved_call_range_0_2:path.resolve/path.isAbsolute(requestedPath)?requestedPath:path.resolve(workspace,requestedPath),",
+                "unresolved_call_range_0_2:path.resolve/request.workspace",
+                "unresolved_call_range_0_2:path.resolve/this.workspace,configured",
+                "unresolved_call_range_0_2:path.resolve/workspace,requestedPath",
+                "unresolved_call_range_0_2:relative.split/path.sep",
+                "unresolved_call_range_0_2:relative.startsWith/__string__",
+                "unresolved_call_range_0_2:relativeNative.split/path.sep",
+                "unresolved_call_range_0_2:relativeNative.startsWith/__string__",
+                "unresolved_call_range_0_2:resolved.toLowerCase/",
+                "unresolved_call_range_0_2:seen.get/absolutePath",
+                "unresolved_call_range_0_2:seen.set/absolutePath,unit.unit_id",
+                "unresolved_call_range_0_2:sources.push/source",
+                "unresolved_call_range_0_2:sources.sort/(a,b)=>a.relativePath.localeCompare(b.relativePath)",
+                "unresolved_call_range_0_2:toLowerCase/",
+                "unresolved_call_range_0_2:ts.createSourceFile/absolutePath,text,ts.ScriptTarget.Latest,true,scriptKind(absolutePath),",
+                "unsupported_execution_alternatives:&&",
+                "unsupported_execution_alternatives:?",
+                "unsupported_execution_alternatives:catch",
+                "unsupported_execution_alternatives:for",
+                "unsupported_execution_alternatives:if",
+                "unsupported_execution_alternatives:try",
+                "unsupported_execution_alternatives:||"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 30,
+              "recognized_hidden": 5,
+              "roles": null,
+              "source_hidden": 5,
+              "uncertain_burden": 8,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 2,
+              "hidden_responsibility": 5,
+              "material_limitations": [
+                "call_cycle",
+                "unresolved_call_range_0_2:AnalysisContext/workspace,sources",
+                "unresolved_call_range_0_2:Error/__string__,",
+                "unresolved_call_range_0_2:SUPPORTED_EXTENSIONS.has/extension",
+                "unresolved_call_range_0_2:SourceInventoryError/absolutePath,__string__,",
+                "unresolved_call_range_0_2:a.relativePath.localeCompare/b.relativePath",
+                "unresolved_call_range_0_2:absolutePath.endsWith/__string__",
+                "unresolved_call_range_0_2:context.inventoryIssues.push/...inventoryIssues",
+                "unresolved_call_range_0_2:context.syntaxParseCounts.set/file,count",
+                "unresolved_call_range_0_2:fs.readFileSync/absolutePath,__string__",
+                "unresolved_call_range_0_2:inventoryIssues.push/issue",
+                "unresolved_call_range_0_2:items.map/(item)=>({code:__string__,severity:__string__asconst,message:__string__,})",
+                "unresolved_call_range_0_2:iu.test/absolutePath",
+                "unresolved_call_range_0_2:join/__string__",
+                "unresolved_call_range_0_2:parseCounts.get/absolutePath",
+                "unresolved_call_range_0_2:parseCounts.set/absolutePath,(parseCounts.get(absolutePath)??0)+1",
+                "unresolved_call_range_0_2:path.extname/absolutePath",
+                "unresolved_call_range_0_2:path.isAbsolute/configured",
+                "unresolved_call_range_0_2:path.isAbsolute/relative",
+                "unresolved_call_range_0_2:path.isAbsolute/relativeNative",
+                "unresolved_call_range_0_2:path.isAbsolute/requestedPath",
+                "unresolved_call_range_0_2:path.relative/this.workspace,path.resolve(file)",
+                "unresolved_call_range_0_2:path.relative/workspace,absolutePath",
+                "unresolved_call_range_0_2:path.relative/workspace,error.absolutePath",
+                "unresolved_call_range_0_2:path.resolve/candidate",
+                "unresolved_call_range_0_2:path.resolve/file",
+                "unresolved_call_range_0_2:path.resolve/path.isAbsolute(requestedPath)?requestedPath:path.resolve(workspace,requestedPath),",
+                "unresolved_call_range_0_2:path.resolve/request.workspace",
+                "unresolved_call_range_0_2:path.resolve/this.workspace,configured",
+                "unresolved_call_range_0_2:path.resolve/workspace,requestedPath",
+                "unresolved_call_range_0_2:relative.split/path.sep",
+                "unresolved_call_range_0_2:relative.startsWith/__string__",
+                "unresolved_call_range_0_2:relativeNative.split/path.sep",
+                "unresolved_call_range_0_2:relativeNative.startsWith/__string__",
+                "unresolved_call_range_0_2:resolved.toLowerCase/",
+                "unresolved_call_range_0_2:seen.get/absolutePath",
+                "unresolved_call_range_0_2:seen.set/absolutePath,unit.unit_id",
+                "unresolved_call_range_0_2:sources.push/source",
+                "unresolved_call_range_0_2:sources.sort/(a,b)=>a.relativePath.localeCompare(b.relativePath)",
+                "unresolved_call_range_0_2:toLowerCase/",
+                "unresolved_call_range_0_2:ts.createSourceFile/absolutePath,text,ts.ScriptTarget.Latest,true,scriptKind(absolutePath),"
+              ],
+              "residual_burden": 6.5,
+              "responsibilities": {
+                "validation": 5
+              },
+              "supported_burden": 6.5,
+              "surface": {
+                "constraints": null,
+                "evidence": [
+                  "operation:context.ts#canonicalConfigPath/7:1",
+                  "operation:context.ts#canonicalKey/9:1",
+                  "operation:context.ts#configFailure/8:1",
+                  "operation:context.ts#create/5:1",
+                  "operation:context.ts#createTypedContext/6:1",
+                  "operation:context.ts#relativeIfInside/10:1"
+                ],
+                "input_units": 1.75,
+                "operation_units": 6,
+                "representation_units": 0
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 44,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "call_cycle",
+          "unresolved_call_range_0_2:AnalysisContext/workspace,sources",
+          "unresolved_call_range_0_2:Error/__string__,",
+          "unresolved_call_range_0_2:SUPPORTED_EXTENSIONS.has/extension",
+          "unresolved_call_range_0_2:SourceInventoryError/absolutePath,__string__,",
+          "unresolved_call_range_0_2:a.relativePath.localeCompare/b.relativePath",
+          "unresolved_call_range_0_2:absolutePath.endsWith/__string__",
+          "unresolved_call_range_0_2:context.inventoryIssues.push/...inventoryIssues",
+          "unresolved_call_range_0_2:context.syntaxParseCounts.set/file,count",
+          "unresolved_call_range_0_2:fs.readFileSync/absolutePath,__string__",
+          "unresolved_call_range_0_2:inventoryIssues.push/issue",
+          "unresolved_call_range_0_2:items.map/(item)=>({code:__string__,severity:__string__asconst,message:__string__,})",
+          "unresolved_call_range_0_2:iu.test/absolutePath",
+          "unresolved_call_range_0_2:join/__string__",
+          "unresolved_call_range_0_2:parseCounts.get/absolutePath",
+          "unresolved_call_range_0_2:parseCounts.set/absolutePath,(parseCounts.get(absolutePath)??0)+1",
+          "unresolved_call_range_0_2:path.extname/absolutePath",
+          "unresolved_call_range_0_2:path.isAbsolute/configured",
+          "unresolved_call_range_0_2:path.isAbsolute/relative",
+          "unresolved_call_range_0_2:path.isAbsolute/relativeNative",
+          "unresolved_call_range_0_2:path.isAbsolute/requestedPath",
+          "unresolved_call_range_0_2:path.relative/this.workspace,path.resolve(file)",
+          "unresolved_call_range_0_2:path.relative/workspace,absolutePath",
+          "unresolved_call_range_0_2:path.relative/workspace,error.absolutePath",
+          "unresolved_call_range_0_2:path.resolve/candidate",
+          "unresolved_call_range_0_2:path.resolve/file",
+          "unresolved_call_range_0_2:path.resolve/path.isAbsolute(requestedPath)?requestedPath:path.resolve(workspace,requestedPath),",
+          "unresolved_call_range_0_2:path.resolve/request.workspace",
+          "unresolved_call_range_0_2:path.resolve/this.workspace,configured",
+          "unresolved_call_range_0_2:path.resolve/workspace,requestedPath",
+          "unresolved_call_range_0_2:relative.split/path.sep",
+          "unresolved_call_range_0_2:relative.startsWith/__string__",
+          "unresolved_call_range_0_2:relativeNative.split/path.sep",
+          "unresolved_call_range_0_2:relativeNative.startsWith/__string__",
+          "unresolved_call_range_0_2:resolved.toLowerCase/",
+          "unresolved_call_range_0_2:seen.get/absolutePath",
+          "unresolved_call_range_0_2:seen.set/absolutePath,unit.unit_id",
+          "unresolved_call_range_0_2:sources.push/source",
+          "unresolved_call_range_0_2:sources.sort/(a,b)=>a.relativePath.localeCompare(b.relativePath)",
+          "unresolved_call_range_0_2:toLowerCase/",
+          "unresolved_call_range_0_2:ts.createSourceFile/absolutePath,text,ts.ScriptTarget.Latest,true,scriptKind(absolutePath),",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:catch",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:try",
+          "unsupported_execution_alternatives:||"
+        ],
+        [
+          "call_cycle",
+          "unresolved_call_range_0_2:AnalysisContext/workspace,sources",
+          "unresolved_call_range_0_2:Error/__string__,",
+          "unresolved_call_range_0_2:SUPPORTED_EXTENSIONS.has/extension",
+          "unresolved_call_range_0_2:SourceInventoryError/absolutePath,__string__,",
+          "unresolved_call_range_0_2:a.relativePath.localeCompare/b.relativePath",
+          "unresolved_call_range_0_2:absolutePath.endsWith/__string__",
+          "unresolved_call_range_0_2:context.inventoryIssues.push/...inventoryIssues",
+          "unresolved_call_range_0_2:context.syntaxParseCounts.set/file,count",
+          "unresolved_call_range_0_2:fs.readFileSync/absolutePath,__string__",
+          "unresolved_call_range_0_2:inventoryIssues.push/issue",
+          "unresolved_call_range_0_2:items.map/(item)=>({code:__string__,severity:__string__asconst,message:__string__,})",
+          "unresolved_call_range_0_2:iu.test/absolutePath",
+          "unresolved_call_range_0_2:join/__string__",
+          "unresolved_call_range_0_2:parseCounts.get/absolutePath",
+          "unresolved_call_range_0_2:parseCounts.set/absolutePath,(parseCounts.get(absolutePath)??0)+1",
+          "unresolved_call_range_0_2:path.extname/absolutePath",
+          "unresolved_call_range_0_2:path.isAbsolute/configured",
+          "unresolved_call_range_0_2:path.isAbsolute/relative",
+          "unresolved_call_range_0_2:path.isAbsolute/relativeNative",
+          "unresolved_call_range_0_2:path.isAbsolute/requestedPath",
+          "unresolved_call_range_0_2:path.relative/this.workspace,path.resolve(file)",
+          "unresolved_call_range_0_2:path.relative/workspace,absolutePath",
+          "unresolved_call_range_0_2:path.relative/workspace,error.absolutePath",
+          "unresolved_call_range_0_2:path.resolve/candidate",
+          "unresolved_call_range_0_2:path.resolve/file",
+          "unresolved_call_range_0_2:path.resolve/path.isAbsolute(requestedPath)?requestedPath:path.resolve(workspace,requestedPath),",
+          "unresolved_call_range_0_2:path.resolve/request.workspace",
+          "unresolved_call_range_0_2:path.resolve/this.workspace,configured",
+          "unresolved_call_range_0_2:path.resolve/workspace,requestedPath",
+          "unresolved_call_range_0_2:relative.split/path.sep",
+          "unresolved_call_range_0_2:relative.startsWith/__string__",
+          "unresolved_call_range_0_2:relativeNative.split/path.sep",
+          "unresolved_call_range_0_2:relativeNative.startsWith/__string__",
+          "unresolved_call_range_0_2:resolved.toLowerCase/",
+          "unresolved_call_range_0_2:seen.get/absolutePath",
+          "unresolved_call_range_0_2:seen.set/absolutePath,unit.unit_id",
+          "unresolved_call_range_0_2:sources.push/source",
+          "unresolved_call_range_0_2:sources.sort/(a,b)=>a.relativePath.localeCompare(b.relativePath)",
+          "unresolved_call_range_0_2:toLowerCase/",
+          "unresolved_call_range_0_2:ts.createSourceFile/absolutePath,text,ts.ScriptTarget.Latest,true,scriptKind(absolutePath),",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:catch",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:try",
+          "unsupported_execution_alternatives:||"
+        ],
+        [
+          "unsupported_outcome_range_0_2"
+        ],
+        [
+          "unresolved_call_range_0_2:super/message"
+        ],
+        [
+          "unresolved_call_range_0_2:ts.flattenDiagnosticMessageText/item.messageText,__string__"
+        ],
+        {
+          "severity": "info",
+          "code": "typescript.structural_semantic_exceptions",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module 'node:fs' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module 'node:path' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module 'typescript' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module './model.js' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module './typed-context.js' or its corresponding type declarations."
+        }
+      ],
+      "zero_reason": "lowest_range_supported",
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:typescript:context.ts",
+          "symbol": "source:typescript:context.ts",
+          "scope": "file",
+          "value": 30,
+          "location": {
+            "path": "context.ts",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:typescript:context.ts"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "typescript.structural_semantic_exceptions",
+          "invocation_id": "invocation-badgerly-towardly-luke",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects.",
+          "path": null,
+          "protocol_version": 1,
+          "severity": "info",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 9,
+            "offset": 20
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-badgerly-towardly-luke",
+          "message": "Cannot find module 'node:fs' or its corresponding type declarations.",
+          "path": "context.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 11,
+            "offset": 53
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-badgerly-towardly-luke",
+          "message": "Cannot find module 'node:path' or its corresponding type declarations.",
+          "path": "context.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 12,
+            "offset": 81
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-badgerly-towardly-luke",
+          "message": "Cannot find module 'typescript' or its corresponding type declarations.",
+          "path": "context.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 12,
+            "offset": 177
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-badgerly-towardly-luke",
+          "message": "Cannot find module './model.js' or its corresponding type declarations.",
+          "path": "context.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 20,
+            "offset": 226
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-badgerly-towardly-luke",
+          "message": "Cannot find module './typed-context.js' or its corresponding type declarations.",
+          "path": "context.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": "lowest_range_supported",
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "typescript-public-operations",
+      "language": "typescript",
+      "target": "operations.ts",
+      "group": "low",
+      "kind": null,
+      "expected_range": [
+        0,
+        25
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 0,
+      "contribution": 0,
+      "score": 0,
+      "observed_score": 0,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:typescript:operations.ts",
+          "state": "partial",
+          "policy_revision": "r42",
+          "estimated": true,
+          "files": [
+            "operations.ts"
+          ],
+          "raw": {
+            "B8": 10,
+            "H": 9,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "external",
+                  "burden": 1.25,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 9,
+                    "material_limitations": [
+                      "unresolved_call_range_0_2:hasModifier/member,ts.SyntaxKind.ReadonlyKeyword",
+                      "unresolved_call_range_0_2:hasModifier/statement,ts.SyntaxKind.ExportKeyword",
+                      "unresolved_call_range_0_2:isContractMember/member",
+                      "unresolved_call_range_0_2:isFunctionInitializer/declaration.initializer",
+                      "unresolved_call_range_0_2:isOperationMember/member",
+                      "unresolved_call_range_0_2:operationFacts/declaration.initializerasFunctionNode",
+                      "unresolved_call_range_0_2:operationFacts/member",
+                      "unresolved_call_range_0_2:operationFacts/memberasFunctionNode",
+                      "unresolved_call_range_0_2:operationFacts/statement",
+                      "unresolved_call_range_0_2:publicMember/member",
+                      "unresolved_call_range_0_2:statement.members.filter/(member)=>!hasModifier(member,ts.SyntaxKind.ReadonlyKeyword),",
+                      "unresolved_call_range_0_2:surface.operations.push/operationFacts(declaration.initializerasFunctionNode),",
+                      "unresolved_call_range_0_2:surface.operations.push/operationFacts(member)",
+                      "unresolved_call_range_0_2:surface.operations.push/operationFacts(memberasFunctionNode)",
+                      "unresolved_call_range_0_2:surface.operations.push/operationFacts(statement)",
+                      "unresolved_call_range_0_2:ts.forEachChild/child,visit",
+                      "unresolved_call_range_0_2:ts.isClassDeclaration/statement",
+                      "unresolved_call_range_0_2:ts.isFunctionDeclaration/statement",
+                      "unresolved_call_range_0_2:ts.isFunctionLike/child",
+                      "unresolved_call_range_0_2:ts.isGetAccessorDeclaration/member",
+                      "unresolved_call_range_0_2:ts.isInterfaceDeclaration/statement",
+                      "unresolved_call_range_0_2:ts.isPropertyAccessExpression/child",
+                      "unresolved_call_range_0_2:ts.isPropertyDeclaration/member",
+                      "unresolved_call_range_0_2:ts.isSetAccessorDeclaration/member",
+                      "unresolved_call_range_0_2:ts.isTypeAliasDeclaration/statement",
+                      "unresolved_call_range_0_2:ts.isVariableStatement/statement",
+                      "unresolved_call_range_0_2:typeComplexity/statement.type",
+                      "unresolved_call_range_0_2:visit/member.body"
+                    ],
+                    "residual_burden": 0,
+                    "responsibilities": {
+                      "state": 8,
+                      "validation": 1
+                    },
+                    "supported_burden": 0,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "operation:operations.ts#publicOperations/0:1"
+                      ],
+                      "input_units": 0.25,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": "lowest_range_supported"
+                  },
+                  "hidden": 9,
+                  "limitations": [
+                    "unresolved_call_range_0_2:hasModifier/member,ts.SyntaxKind.ReadonlyKeyword",
+                    "unresolved_call_range_0_2:hasModifier/statement,ts.SyntaxKind.ExportKeyword",
+                    "unresolved_call_range_0_2:isContractMember/member",
+                    "unresolved_call_range_0_2:isFunctionInitializer/declaration.initializer",
+                    "unresolved_call_range_0_2:isOperationMember/member",
+                    "unresolved_call_range_0_2:operationFacts/declaration.initializerasFunctionNode",
+                    "unresolved_call_range_0_2:operationFacts/member",
+                    "unresolved_call_range_0_2:operationFacts/memberasFunctionNode",
+                    "unresolved_call_range_0_2:operationFacts/statement",
+                    "unresolved_call_range_0_2:publicMember/member",
+                    "unresolved_call_range_0_2:statement.members.filter/(member)=>!hasModifier(member,ts.SyntaxKind.ReadonlyKeyword),",
+                    "unresolved_call_range_0_2:surface.operations.push/operationFacts(declaration.initializerasFunctionNode),",
+                    "unresolved_call_range_0_2:surface.operations.push/operationFacts(member)",
+                    "unresolved_call_range_0_2:surface.operations.push/operationFacts(memberasFunctionNode)",
+                    "unresolved_call_range_0_2:surface.operations.push/operationFacts(statement)",
+                    "unresolved_call_range_0_2:ts.forEachChild/child,visit",
+                    "unresolved_call_range_0_2:ts.isClassDeclaration/statement",
+                    "unresolved_call_range_0_2:ts.isFunctionDeclaration/statement",
+                    "unresolved_call_range_0_2:ts.isFunctionLike/child",
+                    "unresolved_call_range_0_2:ts.isGetAccessorDeclaration/member",
+                    "unresolved_call_range_0_2:ts.isInterfaceDeclaration/statement",
+                    "unresolved_call_range_0_2:ts.isPropertyAccessExpression/child",
+                    "unresolved_call_range_0_2:ts.isPropertyDeclaration/member",
+                    "unresolved_call_range_0_2:ts.isSetAccessorDeclaration/member",
+                    "unresolved_call_range_0_2:ts.isTypeAliasDeclaration/statement",
+                    "unresolved_call_range_0_2:ts.isVariableStatement/statement",
+                    "unresolved_call_range_0_2:typeComplexity/statement.type",
+                    "unresolved_call_range_0_2:visit/member.body",
+                    "unsupported_execution_alternatives:&&",
+                    "unsupported_execution_alternatives:for",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:||"
+                  ],
+                  "name": "external:publicOperations",
+                  "published_penalty": 0,
+                  "recognized_hidden": 9,
+                  "uncertain_burden": 1.25
+                }
+              ],
+              "burden": 1.25,
+              "categories": {
+                "state": 8,
+                "unknown_call": 1,
+                "validation": 1
+              },
+              "descriptive_ratio": 6,
+              "findings": [],
+              "hidden": 9,
+              "known_hidden": 0,
+              "limitations": [
+                "unresolved_call_range_0_2:hasModifier/member,ts.SyntaxKind.ReadonlyKeyword",
+                "unresolved_call_range_0_2:hasModifier/statement,ts.SyntaxKind.ExportKeyword",
+                "unresolved_call_range_0_2:isContractMember/member",
+                "unresolved_call_range_0_2:isFunctionInitializer/declaration.initializer",
+                "unresolved_call_range_0_2:isOperationMember/member",
+                "unresolved_call_range_0_2:operationFacts/declaration.initializerasFunctionNode",
+                "unresolved_call_range_0_2:operationFacts/member",
+                "unresolved_call_range_0_2:operationFacts/memberasFunctionNode",
+                "unresolved_call_range_0_2:operationFacts/statement",
+                "unresolved_call_range_0_2:publicMember/member",
+                "unresolved_call_range_0_2:statement.members.filter/(member)=>!hasModifier(member,ts.SyntaxKind.ReadonlyKeyword),",
+                "unresolved_call_range_0_2:surface.operations.push/operationFacts(declaration.initializerasFunctionNode),",
+                "unresolved_call_range_0_2:surface.operations.push/operationFacts(member)",
+                "unresolved_call_range_0_2:surface.operations.push/operationFacts(memberasFunctionNode)",
+                "unresolved_call_range_0_2:surface.operations.push/operationFacts(statement)",
+                "unresolved_call_range_0_2:ts.forEachChild/child,visit",
+                "unresolved_call_range_0_2:ts.isClassDeclaration/statement",
+                "unresolved_call_range_0_2:ts.isFunctionDeclaration/statement",
+                "unresolved_call_range_0_2:ts.isFunctionLike/child",
+                "unresolved_call_range_0_2:ts.isGetAccessorDeclaration/member",
+                "unresolved_call_range_0_2:ts.isInterfaceDeclaration/statement",
+                "unresolved_call_range_0_2:ts.isPropertyAccessExpression/child",
+                "unresolved_call_range_0_2:ts.isPropertyDeclaration/member",
+                "unresolved_call_range_0_2:ts.isSetAccessorDeclaration/member",
+                "unresolved_call_range_0_2:ts.isTypeAliasDeclaration/statement",
+                "unresolved_call_range_0_2:ts.isVariableStatement/statement",
+                "unresolved_call_range_0_2:typeComplexity/statement.type",
+                "unresolved_call_range_0_2:visit/member.body",
+                "unsupported_execution_alternatives:&&",
+                "unsupported_execution_alternatives:for",
+                "unsupported_execution_alternatives:if",
+                "unsupported_execution_alternatives:||"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 0,
+              "recognized_hidden": 9,
+              "roles": null,
+              "source_hidden": 9,
+              "uncertain_burden": 1.25,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 9,
+              "material_limitations": [
+                "unresolved_call_range_0_2:hasModifier/member,ts.SyntaxKind.ReadonlyKeyword",
+                "unresolved_call_range_0_2:hasModifier/statement,ts.SyntaxKind.ExportKeyword",
+                "unresolved_call_range_0_2:isContractMember/member",
+                "unresolved_call_range_0_2:isFunctionInitializer/declaration.initializer",
+                "unresolved_call_range_0_2:isOperationMember/member",
+                "unresolved_call_range_0_2:operationFacts/declaration.initializerasFunctionNode",
+                "unresolved_call_range_0_2:operationFacts/member",
+                "unresolved_call_range_0_2:operationFacts/memberasFunctionNode",
+                "unresolved_call_range_0_2:operationFacts/statement",
+                "unresolved_call_range_0_2:publicMember/member",
+                "unresolved_call_range_0_2:statement.members.filter/(member)=>!hasModifier(member,ts.SyntaxKind.ReadonlyKeyword),",
+                "unresolved_call_range_0_2:surface.operations.push/operationFacts(declaration.initializerasFunctionNode),",
+                "unresolved_call_range_0_2:surface.operations.push/operationFacts(member)",
+                "unresolved_call_range_0_2:surface.operations.push/operationFacts(memberasFunctionNode)",
+                "unresolved_call_range_0_2:surface.operations.push/operationFacts(statement)",
+                "unresolved_call_range_0_2:ts.forEachChild/child,visit",
+                "unresolved_call_range_0_2:ts.isClassDeclaration/statement",
+                "unresolved_call_range_0_2:ts.isFunctionDeclaration/statement",
+                "unresolved_call_range_0_2:ts.isFunctionLike/child",
+                "unresolved_call_range_0_2:ts.isGetAccessorDeclaration/member",
+                "unresolved_call_range_0_2:ts.isInterfaceDeclaration/statement",
+                "unresolved_call_range_0_2:ts.isPropertyAccessExpression/child",
+                "unresolved_call_range_0_2:ts.isPropertyDeclaration/member",
+                "unresolved_call_range_0_2:ts.isSetAccessorDeclaration/member",
+                "unresolved_call_range_0_2:ts.isTypeAliasDeclaration/statement",
+                "unresolved_call_range_0_2:ts.isVariableStatement/statement",
+                "unresolved_call_range_0_2:typeComplexity/statement.type",
+                "unresolved_call_range_0_2:visit/member.body"
+              ],
+              "residual_burden": 0,
+              "responsibilities": {
+                "state": 8,
+                "validation": 1
+              },
+              "supported_burden": 0,
+              "surface": {
+                "constraints": null,
+                "evidence": [
+                  "operation:operations.ts#publicOperations/0:1"
+                ],
+                "input_units": 0.25,
+                "operation_units": 1,
+                "representation_units": 0
+              },
+              "zero_reason": "lowest_range_supported"
+            },
+            "responsibility_ratio": 6,
+            "zero_reason": "lowest_range_supported"
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unresolved_call_range_0_2:hasModifier/member,ts.SyntaxKind.ReadonlyKeyword",
+          "unresolved_call_range_0_2:hasModifier/statement,ts.SyntaxKind.ExportKeyword",
+          "unresolved_call_range_0_2:isContractMember/member",
+          "unresolved_call_range_0_2:isFunctionInitializer/declaration.initializer",
+          "unresolved_call_range_0_2:isOperationMember/member",
+          "unresolved_call_range_0_2:operationFacts/declaration.initializerasFunctionNode",
+          "unresolved_call_range_0_2:operationFacts/member",
+          "unresolved_call_range_0_2:operationFacts/memberasFunctionNode",
+          "unresolved_call_range_0_2:operationFacts/statement",
+          "unresolved_call_range_0_2:publicMember/member",
+          "unresolved_call_range_0_2:statement.members.filter/(member)=>!hasModifier(member,ts.SyntaxKind.ReadonlyKeyword),",
+          "unresolved_call_range_0_2:surface.operations.push/operationFacts(declaration.initializerasFunctionNode),",
+          "unresolved_call_range_0_2:surface.operations.push/operationFacts(member)",
+          "unresolved_call_range_0_2:surface.operations.push/operationFacts(memberasFunctionNode)",
+          "unresolved_call_range_0_2:surface.operations.push/operationFacts(statement)",
+          "unresolved_call_range_0_2:ts.forEachChild/child,visit",
+          "unresolved_call_range_0_2:ts.isClassDeclaration/statement",
+          "unresolved_call_range_0_2:ts.isFunctionDeclaration/statement",
+          "unresolved_call_range_0_2:ts.isFunctionLike/child",
+          "unresolved_call_range_0_2:ts.isGetAccessorDeclaration/member",
+          "unresolved_call_range_0_2:ts.isInterfaceDeclaration/statement",
+          "unresolved_call_range_0_2:ts.isPropertyAccessExpression/child",
+          "unresolved_call_range_0_2:ts.isPropertyDeclaration/member",
+          "unresolved_call_range_0_2:ts.isSetAccessorDeclaration/member",
+          "unresolved_call_range_0_2:ts.isTypeAliasDeclaration/statement",
+          "unresolved_call_range_0_2:ts.isVariableStatement/statement",
+          "unresolved_call_range_0_2:typeComplexity/statement.type",
+          "unresolved_call_range_0_2:visit/member.body",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:||"
+        ],
+        [
+          "unresolved_call_range_0_2:hasModifier/member,ts.SyntaxKind.ReadonlyKeyword",
+          "unresolved_call_range_0_2:hasModifier/statement,ts.SyntaxKind.ExportKeyword",
+          "unresolved_call_range_0_2:isContractMember/member",
+          "unresolved_call_range_0_2:isFunctionInitializer/declaration.initializer",
+          "unresolved_call_range_0_2:isOperationMember/member",
+          "unresolved_call_range_0_2:operationFacts/declaration.initializerasFunctionNode",
+          "unresolved_call_range_0_2:operationFacts/member",
+          "unresolved_call_range_0_2:operationFacts/memberasFunctionNode",
+          "unresolved_call_range_0_2:operationFacts/statement",
+          "unresolved_call_range_0_2:publicMember/member",
+          "unresolved_call_range_0_2:statement.members.filter/(member)=>!hasModifier(member,ts.SyntaxKind.ReadonlyKeyword),",
+          "unresolved_call_range_0_2:surface.operations.push/operationFacts(declaration.initializerasFunctionNode),",
+          "unresolved_call_range_0_2:surface.operations.push/operationFacts(member)",
+          "unresolved_call_range_0_2:surface.operations.push/operationFacts(memberasFunctionNode)",
+          "unresolved_call_range_0_2:surface.operations.push/operationFacts(statement)",
+          "unresolved_call_range_0_2:ts.forEachChild/child,visit",
+          "unresolved_call_range_0_2:ts.isClassDeclaration/statement",
+          "unresolved_call_range_0_2:ts.isFunctionDeclaration/statement",
+          "unresolved_call_range_0_2:ts.isFunctionLike/child",
+          "unresolved_call_range_0_2:ts.isGetAccessorDeclaration/member",
+          "unresolved_call_range_0_2:ts.isInterfaceDeclaration/statement",
+          "unresolved_call_range_0_2:ts.isPropertyAccessExpression/child",
+          "unresolved_call_range_0_2:ts.isPropertyDeclaration/member",
+          "unresolved_call_range_0_2:ts.isSetAccessorDeclaration/member",
+          "unresolved_call_range_0_2:ts.isTypeAliasDeclaration/statement",
+          "unresolved_call_range_0_2:ts.isVariableStatement/statement",
+          "unresolved_call_range_0_2:typeComplexity/statement.type",
+          "unresolved_call_range_0_2:visit/member.body",
+          "unsupported_execution_alternatives:&&",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:||"
+        ],
+        {
+          "severity": "info",
+          "code": "typescript.structural_semantic_exceptions",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module 'typescript' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module './surface.js' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module './syntax_helpers.js' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module './roles.js' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.2307",
+          "message": "Cannot find module './roles.js' or its corresponding type declarations."
+        },
+        {
+          "severity": "error",
+          "code": "typescript.compiler.7006",
+          "message": "Parameter 'member' implicitly has an 'any' type."
+        }
+      ],
+      "zero_reason": "lowest_range_supported",
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:typescript:operations.ts",
+          "symbol": "source:typescript:operations.ts",
+          "scope": "file",
+          "value": 0,
+          "location": {
+            "path": "operations.ts",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:typescript:operations.ts"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "typescript.structural_semantic_exceptions",
+          "invocation_id": "invocation-sundrily-untorn-roger",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects.",
+          "path": null,
+          "protocol_version": 1,
+          "severity": "info",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 12,
+            "offset": 15
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-sundrily-untorn-roger",
+          "message": "Cannot find module 'typescript' or its corresponding type declarations.",
+          "path": "operations.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 14,
+            "offset": 158
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-sundrily-untorn-roger",
+          "message": "Cannot find module './surface.js' or its corresponding type declarations.",
+          "path": "operations.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 21,
+            "offset": 256
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-sundrily-untorn-roger",
+          "message": "Cannot find module './syntax_helpers.js' or its corresponding type declarations.",
+          "path": "operations.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 12,
+            "offset": 318
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-sundrily-untorn-roger",
+          "message": "Cannot find module './roles.js' or its corresponding type declarations.",
+          "path": "operations.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 12,
+            "offset": 396
+          },
+          "code": "typescript.compiler.2307",
+          "invocation_id": "invocation-sundrily-untorn-roger",
+          "message": "Cannot find module './roles.js' or its corresponding type declarations.",
+          "path": "operations.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        },
+        {
+          "attributes": {
+            "length": 6,
+            "offset": 3170
+          },
+          "code": "typescript.compiler.7006",
+          "invocation_id": "invocation-sundrily-untorn-roger",
+          "message": "Parameter 'member' implicitly has an 'any' type.",
+          "path": "operations.ts",
+          "protocol_version": 1,
+          "severity": "error",
+          "type": "diagnostic",
+          "unit_id": ""
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": "lowest_range_supported",
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "rust-program-parser",
+      "language": "rust",
+      "target": "parser.rs",
+      "group": "low",
+      "kind": null,
+      "expected_range": [
+        0,
+        25
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 20,
+      "contribution": 5,
+      "score": 10,
+      "observed_score": 10,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:rust:parser.rs",
+          "state": "partial",
+          "policy_revision": "r42",
+          "estimated": true,
+          "files": [
+            "parser.rs"
+          ],
+          "raw": {
+            "B8": 12,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "internal",
+                  "burden": 1.5,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 0,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "unexpanded_macro",
+                      "unresolved_call_range_0_2:Component.Prefix/_",
+                      "unresolved_call_range_0_2:Err/format!(__string__)",
+                      "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+                      "unresolved_call_range_0_2:Path.new/requested",
+                      "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+                      "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+                      "unresolved_call_range_0_2:candidate.canonicalize/",
+                      "unresolved_call_range_0_2:error.to_string/",
+                      "unresolved_call_range_0_2:fs.metadata/&candidate",
+                      "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+                      "unresolved_call_range_0_2:metadata.is_file/",
+                      "unresolved_call_range_0_2:part.is_empty/",
+                      "unresolved_call_range_0_2:relative.components/",
+                      "unresolved_call_range_0_2:relative.is_absolute/",
+                      "unresolved_call_range_0_2:requested.contains/__string__",
+                      "unresolved_call_range_0_2:requested.ends_with/__string__",
+                      "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+                      "unresolved_call_range_0_2:requested.split/__string__",
+                      "unresolved_call_range_0_2:resolved.starts_with/workspace",
+                      "unresolved_call_range_0_2:workspace.join/relative"
+                    ],
+                    "residual_burden": 0.25,
+                    "responsibilities": {},
+                    "supported_burden": 0.25,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "operation:parser.rs#canonical_source/0:1"
+                      ],
+                      "input_units": 0.5,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "unexpanded_macro",
+                    "unresolved_call_range_0_2:Component.Prefix/_",
+                    "unresolved_call_range_0_2:Err/format!(__string__)",
+                    "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+                    "unresolved_call_range_0_2:Path.new/requested",
+                    "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+                    "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+                    "unresolved_call_range_0_2:candidate.canonicalize/",
+                    "unresolved_call_range_0_2:error.to_string/",
+                    "unresolved_call_range_0_2:fs.metadata/&candidate",
+                    "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+                    "unresolved_call_range_0_2:metadata.is_file/",
+                    "unresolved_call_range_0_2:part.is_empty/",
+                    "unresolved_call_range_0_2:relative.components/",
+                    "unresolved_call_range_0_2:relative.is_absolute/",
+                    "unresolved_call_range_0_2:requested.contains/__string__",
+                    "unresolved_call_range_0_2:requested.ends_with/__string__",
+                    "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+                    "unresolved_call_range_0_2:requested.split/__string__",
+                    "unresolved_call_range_0_2:resolved.starts_with/workspace",
+                    "unresolved_call_range_0_2:workspace.join/relative",
+                    "unsupported_execution_alternatives:?",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:||"
+                  ],
+                  "name": "parser.rs#internal:canonical_source",
+                  "published_penalty": 20,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 1.5
+                },
+                {
+                  "audience": "external",
+                  "burden": 2,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 2,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "call_budget_limit",
+                      "call_limit",
+                      "unexpanded_macro",
+                      "unresolved_call_range_0_2:Component.Prefix/_",
+                      "unresolved_call_range_0_2:Err/error",
+                      "unresolved_call_range_0_2:Err/format!(__string__)",
+                      "unresolved_call_range_0_2:HashSet.with_capacity/paths.len()",
+                      "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+                      "unresolved_call_range_0_2:Ok/syntax",
+                      "unresolved_call_range_0_2:Ok/value",
+                      "unresolved_call_range_0_2:Path.new/requested",
+                      "unresolved_call_range_0_2:Vec.new/",
+                      "unresolved_call_range_0_2:Vec.with_capacity/paths.len()",
+                      "unresolved_call_range_0_2:__string__.to_owned/",
+                      "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+                      "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+                      "unresolved_call_range_0_2:candidate.canonicalize/",
+                      "unresolved_call_range_0_2:error.contains/__string__",
+                      "unresolved_call_range_0_2:error.to_string/",
+                      "unresolved_call_range_0_2:failures.push/crate::model::FileFailure{path:relative,code:__string__.to_owned(),diagnostic:format!(__string__),}",
+                      "unresolved_call_range_0_2:failures.push/crate::model::FileFailure{path:requested.clone(),code:source_failure_code(requested,&error),diagnostic:format!(__string__),}",
+                      "unresolved_call_range_0_2:fs.metadata/&candidate",
+                      "unresolved_call_range_0_2:fs.read_to_string/&absolute",
+                      "unresolved_call_range_0_2:let/absolute,relative",
+                      "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+                      "unresolved_call_range_0_2:metadata.is_file/",
+                      "unresolved_call_range_0_2:part.is_empty/",
+                      "unresolved_call_range_0_2:paths.len/",
+                      "unresolved_call_range_0_2:relative.clone/",
+                      "unresolved_call_range_0_2:relative.components/",
+                      "unresolved_call_range_0_2:relative.is_absolute/",
+                      "unresolved_call_range_0_2:requested.clone/",
+                      "unresolved_call_range_0_2:requested.contains/__string__",
+                      "unresolved_call_range_0_2:requested.ends_with/__string__",
+                      "unresolved_call_range_0_2:requested.is_empty/",
+                      "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+                      "unresolved_call_range_0_2:requested.split/__string__",
+                      "unresolved_call_range_0_2:requested.starts_with/__string__",
+                      "unresolved_call_range_0_2:resolved.starts_with/&workspace",
+                      "unresolved_call_range_0_2:seen.insert/requested",
+                      "unresolved_call_range_0_2:syn.parse_file/&source",
+                      "unresolved_call_range_0_2:valid_files.push/relative.clone()",
+                      "unresolved_call_range_0_2:workspace.canonicalize/",
+                      "unresolved_call_range_0_2:workspace.join/relative"
+                    ],
+                    "residual_burden": 0.75,
+                    "responsibilities": {},
+                    "supported_burden": 0.75,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "operation:parser.rs#parse_program/1:1"
+                      ],
+                      "input_units": 1,
+                      "operation_units": 1,
+                      "representation_units": 0
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "call_budget_limit",
+                    "call_limit",
+                    "unexpanded_macro",
+                    "unresolved_call_range_0_2:Component.Prefix/_",
+                    "unresolved_call_range_0_2:Err/error",
+                    "unresolved_call_range_0_2:Err/format!(__string__)",
+                    "unresolved_call_range_0_2:HashSet.with_capacity/paths.len()",
+                    "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+                    "unresolved_call_range_0_2:Ok/syntax",
+                    "unresolved_call_range_0_2:Ok/value",
+                    "unresolved_call_range_0_2:Path.new/requested",
+                    "unresolved_call_range_0_2:Vec.new/",
+                    "unresolved_call_range_0_2:Vec.with_capacity/paths.len()",
+                    "unresolved_call_range_0_2:__string__.to_owned/",
+                    "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+                    "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+                    "unresolved_call_range_0_2:candidate.canonicalize/",
+                    "unresolved_call_range_0_2:error.contains/__string__",
+                    "unresolved_call_range_0_2:error.to_string/",
+                    "unresolved_call_range_0_2:failures.push/crate::model::FileFailure{path:relative,code:__string__.to_owned(),diagnostic:format!(__string__),}",
+                    "unresolved_call_range_0_2:failures.push/crate::model::FileFailure{path:requested.clone(),code:source_failure_code(requested,&error),diagnostic:format!(__string__),}",
+                    "unresolved_call_range_0_2:fs.metadata/&candidate",
+                    "unresolved_call_range_0_2:fs.read_to_string/&absolute",
+                    "unresolved_call_range_0_2:let/absolute,relative",
+                    "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+                    "unresolved_call_range_0_2:metadata.is_file/",
+                    "unresolved_call_range_0_2:part.is_empty/",
+                    "unresolved_call_range_0_2:paths.len/",
+                    "unresolved_call_range_0_2:relative.clone/",
+                    "unresolved_call_range_0_2:relative.components/",
+                    "unresolved_call_range_0_2:relative.is_absolute/",
+                    "unresolved_call_range_0_2:requested.clone/",
+                    "unresolved_call_range_0_2:requested.contains/__string__",
+                    "unresolved_call_range_0_2:requested.ends_with/__string__",
+                    "unresolved_call_range_0_2:requested.is_empty/",
+                    "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+                    "unresolved_call_range_0_2:requested.split/__string__",
+                    "unresolved_call_range_0_2:requested.starts_with/__string__",
+                    "unresolved_call_range_0_2:resolved.starts_with/&workspace",
+                    "unresolved_call_range_0_2:seen.insert/requested",
+                    "unresolved_call_range_0_2:syn.parse_file/&source",
+                    "unresolved_call_range_0_2:valid_files.push/relative.clone()",
+                    "unresolved_call_range_0_2:workspace.canonicalize/",
+                    "unresolved_call_range_0_2:workspace.join/relative",
+                    "unsupported_execution_alternatives:?",
+                    "unsupported_execution_alternatives:for",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:match",
+                    "unsupported_execution_alternatives:||"
+                  ],
+                  "name": "parser.rs#external:parse_program",
+                  "published_penalty": 13,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 2
+                }
+              ],
+              "burden": 1.5,
+              "categories": {
+                "unknown_call": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "unexpanded_macro",
+                "unresolved_call_range_0_2:Component.Prefix/_",
+                "unresolved_call_range_0_2:Err/format!(__string__)",
+                "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+                "unresolved_call_range_0_2:Path.new/requested",
+                "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+                "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+                "unresolved_call_range_0_2:candidate.canonicalize/",
+                "unresolved_call_range_0_2:error.to_string/",
+                "unresolved_call_range_0_2:fs.metadata/&candidate",
+                "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+                "unresolved_call_range_0_2:metadata.is_file/",
+                "unresolved_call_range_0_2:part.is_empty/",
+                "unresolved_call_range_0_2:relative.components/",
+                "unresolved_call_range_0_2:relative.is_absolute/",
+                "unresolved_call_range_0_2:requested.contains/__string__",
+                "unresolved_call_range_0_2:requested.ends_with/__string__",
+                "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+                "unresolved_call_range_0_2:requested.split/__string__",
+                "unresolved_call_range_0_2:resolved.starts_with/workspace",
+                "unresolved_call_range_0_2:workspace.join/relative",
+                "unsupported_execution_alternatives:?",
+                "unsupported_execution_alternatives:if",
+                "unsupported_execution_alternatives:||"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 20,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 1.5,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "unexpanded_macro",
+                "unresolved_call_range_0_2:Component.Prefix/_",
+                "unresolved_call_range_0_2:Err/format!(__string__)",
+                "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+                "unresolved_call_range_0_2:Path.new/requested",
+                "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+                "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+                "unresolved_call_range_0_2:candidate.canonicalize/",
+                "unresolved_call_range_0_2:error.to_string/",
+                "unresolved_call_range_0_2:fs.metadata/&candidate",
+                "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+                "unresolved_call_range_0_2:metadata.is_file/",
+                "unresolved_call_range_0_2:part.is_empty/",
+                "unresolved_call_range_0_2:relative.components/",
+                "unresolved_call_range_0_2:relative.is_absolute/",
+                "unresolved_call_range_0_2:requested.contains/__string__",
+                "unresolved_call_range_0_2:requested.ends_with/__string__",
+                "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+                "unresolved_call_range_0_2:requested.split/__string__",
+                "unresolved_call_range_0_2:resolved.starts_with/workspace",
+                "unresolved_call_range_0_2:workspace.join/relative"
+              ],
+              "residual_burden": 0.25,
+              "responsibilities": {},
+              "supported_burden": 0.25,
+              "surface": {
+                "constraints": null,
+                "evidence": [
+                  "operation:parser.rs#canonical_source/0:1"
+                ],
+                "input_units": 0.5,
+                "operation_units": 1,
+                "representation_units": 0
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:Component.Prefix/_",
+          "unresolved_call_range_0_2:Err/format!(__string__)",
+          "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+          "unresolved_call_range_0_2:Path.new/requested",
+          "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+          "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+          "unresolved_call_range_0_2:candidate.canonicalize/",
+          "unresolved_call_range_0_2:error.to_string/",
+          "unresolved_call_range_0_2:fs.metadata/&candidate",
+          "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+          "unresolved_call_range_0_2:metadata.is_file/",
+          "unresolved_call_range_0_2:part.is_empty/",
+          "unresolved_call_range_0_2:relative.components/",
+          "unresolved_call_range_0_2:relative.is_absolute/",
+          "unresolved_call_range_0_2:requested.contains/__string__",
+          "unresolved_call_range_0_2:requested.ends_with/__string__",
+          "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+          "unresolved_call_range_0_2:requested.split/__string__",
+          "unresolved_call_range_0_2:resolved.starts_with/workspace",
+          "unresolved_call_range_0_2:workspace.join/relative",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:||"
+        ],
+        [
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:Component.Prefix/_",
+          "unresolved_call_range_0_2:Err/format!(__string__)",
+          "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+          "unresolved_call_range_0_2:Path.new/requested",
+          "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+          "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+          "unresolved_call_range_0_2:candidate.canonicalize/",
+          "unresolved_call_range_0_2:error.to_string/",
+          "unresolved_call_range_0_2:fs.metadata/&candidate",
+          "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+          "unresolved_call_range_0_2:metadata.is_file/",
+          "unresolved_call_range_0_2:part.is_empty/",
+          "unresolved_call_range_0_2:relative.components/",
+          "unresolved_call_range_0_2:relative.is_absolute/",
+          "unresolved_call_range_0_2:requested.contains/__string__",
+          "unresolved_call_range_0_2:requested.ends_with/__string__",
+          "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+          "unresolved_call_range_0_2:requested.split/__string__",
+          "unresolved_call_range_0_2:resolved.starts_with/workspace",
+          "unresolved_call_range_0_2:workspace.join/relative",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:||"
+        ],
+        [
+          "call_budget_limit",
+          "call_limit",
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:Component.Prefix/_",
+          "unresolved_call_range_0_2:Err/error",
+          "unresolved_call_range_0_2:Err/format!(__string__)",
+          "unresolved_call_range_0_2:HashSet.with_capacity/paths.len()",
+          "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+          "unresolved_call_range_0_2:Ok/syntax",
+          "unresolved_call_range_0_2:Ok/value",
+          "unresolved_call_range_0_2:Path.new/requested",
+          "unresolved_call_range_0_2:Vec.new/",
+          "unresolved_call_range_0_2:Vec.with_capacity/paths.len()",
+          "unresolved_call_range_0_2:__string__.to_owned/",
+          "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+          "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+          "unresolved_call_range_0_2:candidate.canonicalize/",
+          "unresolved_call_range_0_2:error.contains/__string__",
+          "unresolved_call_range_0_2:error.to_string/",
+          "unresolved_call_range_0_2:failures.push/crate::model::FileFailure{path:relative,code:__string__.to_owned(),diagnostic:format!(__string__),}",
+          "unresolved_call_range_0_2:failures.push/crate::model::FileFailure{path:requested.clone(),code:source_failure_code(requested,&error),diagnostic:format!(__string__),}",
+          "unresolved_call_range_0_2:fs.metadata/&candidate",
+          "unresolved_call_range_0_2:fs.read_to_string/&absolute",
+          "unresolved_call_range_0_2:let/absolute,relative",
+          "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+          "unresolved_call_range_0_2:metadata.is_file/",
+          "unresolved_call_range_0_2:part.is_empty/",
+          "unresolved_call_range_0_2:paths.len/",
+          "unresolved_call_range_0_2:relative.clone/",
+          "unresolved_call_range_0_2:relative.components/",
+          "unresolved_call_range_0_2:relative.is_absolute/",
+          "unresolved_call_range_0_2:requested.clone/",
+          "unresolved_call_range_0_2:requested.contains/__string__",
+          "unresolved_call_range_0_2:requested.ends_with/__string__",
+          "unresolved_call_range_0_2:requested.is_empty/",
+          "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+          "unresolved_call_range_0_2:requested.split/__string__",
+          "unresolved_call_range_0_2:requested.starts_with/__string__",
+          "unresolved_call_range_0_2:resolved.starts_with/&workspace",
+          "unresolved_call_range_0_2:seen.insert/requested",
+          "unresolved_call_range_0_2:syn.parse_file/&source",
+          "unresolved_call_range_0_2:valid_files.push/relative.clone()",
+          "unresolved_call_range_0_2:workspace.canonicalize/",
+          "unresolved_call_range_0_2:workspace.join/relative",
+          "unsupported_execution_alternatives:?",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:match",
+          "unsupported_execution_alternatives:||"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": null,
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:rust:parser.rs",
+          "symbol": "source:rust:parser.rs",
+          "scope": "file",
+          "value": 20,
+          "location": {
+            "path": "parser.rs",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:rust:parser.rs"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-chestily-obeyable-verlie",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "parser.rs",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "rust-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": null,
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    },
+    {
+      "id": "rust-surface-collector",
+      "language": "rust",
+      "target": "surface.rs",
+      "group": "mixed",
+      "kind": null,
+      "expected_range": [
+        26,
+        64
+      ],
+      "allow_not_applicable": false,
+      "exclude_from_semantic_numeric_coverage": false,
+      "failures": [],
+      "numeric": true,
+      "not_applicable": false,
+      "report_schema_version": 4,
+      "raw_max": 26,
+      "contribution": 6.892558116269,
+      "score": 31.30292729462,
+      "observed_score": 31.30292729462,
+      "rank": 1,
+      "depth_state": "partial",
+      "estimated": true,
+      "semantic_coverage": "unavailable",
+      "boundaries": [
+        {
+          "scope": "file",
+          "id": "source:rust:surface.rs",
+          "state": "partial",
+          "policy_revision": "r42",
+          "estimated": true,
+          "files": [
+            "surface.rs"
+          ],
+          "raw": {
+            "B8": 16,
+            "H": 0,
+            "estimate": {
+              "abstractions": [
+                {
+                  "audience": "internal",
+                  "burden": 2,
+                  "findings": [],
+                  "graded": {
+                    "estimated_hidden_responsibility": 2,
+                    "hidden_responsibility": 0,
+                    "material_limitations": [
+                      "call_budget_limit",
+                      "call_cycle",
+                      "unexpanded_macro",
+                      "unresolved_call_range_0_2:PublicOperation.default/",
+                      "unresolved_call_range_0_2:Some/segment",
+                      "unresolved_call_range_0_2:TypeShape.default/",
+                      "unresolved_call_range_0_2:__string__.to_owned/",
+                      "unresolved_call_range_0_2:function.sig.ident.to_string/",
+                      "unresolved_call_range_0_2:function.span/",
+                      "unresolved_call_range_0_2:item.ident.to_string/",
+                      "unresolved_call_range_0_2:location/path,function.span()",
+                      "unresolved_call_range_0_2:map/shape",
+                      "unresolved_call_range_0_2:map/|child|child.complexity",
+                      "unresolved_call_range_0_2:map/|item|item.ident.to_string()",
+                      "unresolved_call_range_0_2:min/32",
+                      "unresolved_call_range_0_2:operation.parameters.push/shape(&value.ty)",
+                      "unresolved_call_range_0_2:operation.results.push/shape(value)",
+                      "unresolved_call_range_0_2:operations.push/function_operation(function,path)",
+                      "unresolved_call_range_0_2:result.children.extend/value.elems.iter().map(shape)",
+                      "unresolved_call_range_0_2:result.children.iter/",
+                      "unresolved_call_range_0_2:result.children.push/shape(&value.elem)",
+                      "unresolved_call_range_0_2:result.children.push/shape(value)",
+                      "unresolved_call_range_0_2:syn.FnArg.Typed/value",
+                      "unresolved_call_range_0_2:syn.GenericArgument.Type/value",
+                      "unresolved_call_range_0_2:syn.Item.Fn/function",
+                      "unresolved_call_range_0_2:syn.PathArguments.AngleBracketed/arguments",
+                      "unresolved_call_range_0_2:syn.ReturnType.Type/_,value",
+                      "unresolved_call_range_0_2:syn.Type.Array/_",
+                      "unresolved_call_range_0_2:syn.Type.Array/value",
+                      "unresolved_call_range_0_2:syn.Type.Path/value",
+                      "unresolved_call_range_0_2:syn.Type.Reference/_",
+                      "unresolved_call_range_0_2:syn.Type.Reference/value",
+                      "unresolved_call_range_0_2:syn.Type.Slice/_",
+                      "unresolved_call_range_0_2:syn.Type.Slice/value",
+                      "unresolved_call_range_0_2:syn.Type.Tuple/_",
+                      "unresolved_call_range_0_2:syn.Type.Tuple/value",
+                      "unresolved_call_range_0_2:syn.Visibility.Public/_",
+                      "unresolved_call_range_0_2:unwrap_or_else/||__string__.to_owned()",
+                      "unresolved_call_range_0_2:value.elems.iter/",
+                      "unresolved_call_range_0_2:value.path.segments.last/"
+                    ],
+                    "residual_burden": 1.75,
+                    "responsibilities": {},
+                    "supported_burden": 1.75,
+                    "surface": {
+                      "constraints": null,
+                      "evidence": [
+                        "caller-output-buffer:surface.rs#collect/1:exposures",
+                        "caller-output-buffer:surface.rs#collect/1:operations",
+                        "operation:surface.rs#collect/1:1"
+                      ],
+                      "input_units": 1,
+                      "operation_units": 1,
+                      "representation_units": 1
+                    },
+                    "zero_reason": ""
+                  },
+                  "hidden": 0,
+                  "limitations": [
+                    "call_budget_limit",
+                    "call_cycle",
+                    "unexpanded_macro",
+                    "unresolved_call_range_0_2:PublicOperation.default/",
+                    "unresolved_call_range_0_2:Some/segment",
+                    "unresolved_call_range_0_2:TypeShape.default/",
+                    "unresolved_call_range_0_2:__string__.to_owned/",
+                    "unresolved_call_range_0_2:function.sig.ident.to_string/",
+                    "unresolved_call_range_0_2:function.span/",
+                    "unresolved_call_range_0_2:item.ident.to_string/",
+                    "unresolved_call_range_0_2:location/path,function.span()",
+                    "unresolved_call_range_0_2:map/shape",
+                    "unresolved_call_range_0_2:map/|child|child.complexity",
+                    "unresolved_call_range_0_2:map/|item|item.ident.to_string()",
+                    "unresolved_call_range_0_2:min/32",
+                    "unresolved_call_range_0_2:operation.parameters.push/shape(&value.ty)",
+                    "unresolved_call_range_0_2:operation.results.push/shape(value)",
+                    "unresolved_call_range_0_2:operations.push/function_operation(function,path)",
+                    "unresolved_call_range_0_2:result.children.extend/value.elems.iter().map(shape)",
+                    "unresolved_call_range_0_2:result.children.iter/",
+                    "unresolved_call_range_0_2:result.children.push/shape(&value.elem)",
+                    "unresolved_call_range_0_2:result.children.push/shape(value)",
+                    "unresolved_call_range_0_2:syn.FnArg.Typed/value",
+                    "unresolved_call_range_0_2:syn.GenericArgument.Type/value",
+                    "unresolved_call_range_0_2:syn.Item.Fn/function",
+                    "unresolved_call_range_0_2:syn.PathArguments.AngleBracketed/arguments",
+                    "unresolved_call_range_0_2:syn.ReturnType.Type/_,value",
+                    "unresolved_call_range_0_2:syn.Type.Array/_",
+                    "unresolved_call_range_0_2:syn.Type.Array/value",
+                    "unresolved_call_range_0_2:syn.Type.Path/value",
+                    "unresolved_call_range_0_2:syn.Type.Reference/_",
+                    "unresolved_call_range_0_2:syn.Type.Reference/value",
+                    "unresolved_call_range_0_2:syn.Type.Slice/_",
+                    "unresolved_call_range_0_2:syn.Type.Slice/value",
+                    "unresolved_call_range_0_2:syn.Type.Tuple/_",
+                    "unresolved_call_range_0_2:syn.Type.Tuple/value",
+                    "unresolved_call_range_0_2:syn.Visibility.Public/_",
+                    "unresolved_call_range_0_2:unwrap_or_else/||__string__.to_owned()",
+                    "unresolved_call_range_0_2:value.elems.iter/",
+                    "unresolved_call_range_0_2:value.path.segments.last/",
+                    "unsupported_execution_alternatives:for",
+                    "unsupported_execution_alternatives:if",
+                    "unsupported_execution_alternatives:match",
+                    "unsupported_execution_alternatives:||"
+                  ],
+                  "name": "surface.rs#internal:collect",
+                  "published_penalty": 26,
+                  "recognized_hidden": 0,
+                  "uncertain_burden": 2
+                }
+              ],
+              "burden": 2,
+              "categories": {
+                "unknown_call": 1,
+                "unknown_outcome": 1
+              },
+              "descriptive_ratio": 100,
+              "findings": [],
+              "hidden": 0,
+              "known_hidden": 0,
+              "limitations": [
+                "call_budget_limit",
+                "call_cycle",
+                "unexpanded_macro",
+                "unresolved_call_range_0_2:PublicOperation.default/",
+                "unresolved_call_range_0_2:Some/segment",
+                "unresolved_call_range_0_2:TypeShape.default/",
+                "unresolved_call_range_0_2:__string__.to_owned/",
+                "unresolved_call_range_0_2:function.sig.ident.to_string/",
+                "unresolved_call_range_0_2:function.span/",
+                "unresolved_call_range_0_2:item.ident.to_string/",
+                "unresolved_call_range_0_2:location/path,function.span()",
+                "unresolved_call_range_0_2:map/shape",
+                "unresolved_call_range_0_2:map/|child|child.complexity",
+                "unresolved_call_range_0_2:map/|item|item.ident.to_string()",
+                "unresolved_call_range_0_2:min/32",
+                "unresolved_call_range_0_2:operation.parameters.push/shape(&value.ty)",
+                "unresolved_call_range_0_2:operation.results.push/shape(value)",
+                "unresolved_call_range_0_2:operations.push/function_operation(function,path)",
+                "unresolved_call_range_0_2:result.children.extend/value.elems.iter().map(shape)",
+                "unresolved_call_range_0_2:result.children.iter/",
+                "unresolved_call_range_0_2:result.children.push/shape(&value.elem)",
+                "unresolved_call_range_0_2:result.children.push/shape(value)",
+                "unresolved_call_range_0_2:syn.FnArg.Typed/value",
+                "unresolved_call_range_0_2:syn.GenericArgument.Type/value",
+                "unresolved_call_range_0_2:syn.Item.Fn/function",
+                "unresolved_call_range_0_2:syn.PathArguments.AngleBracketed/arguments",
+                "unresolved_call_range_0_2:syn.ReturnType.Type/_,value",
+                "unresolved_call_range_0_2:syn.Type.Array/_",
+                "unresolved_call_range_0_2:syn.Type.Array/value",
+                "unresolved_call_range_0_2:syn.Type.Path/value",
+                "unresolved_call_range_0_2:syn.Type.Reference/_",
+                "unresolved_call_range_0_2:syn.Type.Reference/value",
+                "unresolved_call_range_0_2:syn.Type.Slice/_",
+                "unresolved_call_range_0_2:syn.Type.Slice/value",
+                "unresolved_call_range_0_2:syn.Type.Tuple/_",
+                "unresolved_call_range_0_2:syn.Type.Tuple/value",
+                "unresolved_call_range_0_2:syn.Visibility.Public/_",
+                "unresolved_call_range_0_2:unwrap_or_else/||__string__.to_owned()",
+                "unresolved_call_range_0_2:value.elems.iter/",
+                "unresolved_call_range_0_2:value.path.segments.last/",
+                "unsupported_execution_alternatives:for",
+                "unsupported_execution_alternatives:if",
+                "unsupported_execution_alternatives:match",
+                "unsupported_execution_alternatives:||"
+              ],
+              "model": "graded-caller-responsibility-v1",
+              "penalty_support": "graded-caller-responsibility",
+              "published_penalty": 26,
+              "recognized_hidden": 0,
+              "roles": null,
+              "source_hidden": 0,
+              "uncertain_burden": 2,
+              "uncertainty_policy": "graded-caller-responsibility-v1"
+            },
+            "graded": {
+              "estimated_hidden_responsibility": 2,
+              "hidden_responsibility": 0,
+              "material_limitations": [
+                "call_budget_limit",
+                "call_cycle",
+                "unexpanded_macro",
+                "unresolved_call_range_0_2:PublicOperation.default/",
+                "unresolved_call_range_0_2:Some/segment",
+                "unresolved_call_range_0_2:TypeShape.default/",
+                "unresolved_call_range_0_2:__string__.to_owned/",
+                "unresolved_call_range_0_2:function.sig.ident.to_string/",
+                "unresolved_call_range_0_2:function.span/",
+                "unresolved_call_range_0_2:item.ident.to_string/",
+                "unresolved_call_range_0_2:location/path,function.span()",
+                "unresolved_call_range_0_2:map/shape",
+                "unresolved_call_range_0_2:map/|child|child.complexity",
+                "unresolved_call_range_0_2:map/|item|item.ident.to_string()",
+                "unresolved_call_range_0_2:min/32",
+                "unresolved_call_range_0_2:operation.parameters.push/shape(&value.ty)",
+                "unresolved_call_range_0_2:operation.results.push/shape(value)",
+                "unresolved_call_range_0_2:operations.push/function_operation(function,path)",
+                "unresolved_call_range_0_2:result.children.extend/value.elems.iter().map(shape)",
+                "unresolved_call_range_0_2:result.children.iter/",
+                "unresolved_call_range_0_2:result.children.push/shape(&value.elem)",
+                "unresolved_call_range_0_2:result.children.push/shape(value)",
+                "unresolved_call_range_0_2:syn.FnArg.Typed/value",
+                "unresolved_call_range_0_2:syn.GenericArgument.Type/value",
+                "unresolved_call_range_0_2:syn.Item.Fn/function",
+                "unresolved_call_range_0_2:syn.PathArguments.AngleBracketed/arguments",
+                "unresolved_call_range_0_2:syn.ReturnType.Type/_,value",
+                "unresolved_call_range_0_2:syn.Type.Array/_",
+                "unresolved_call_range_0_2:syn.Type.Array/value",
+                "unresolved_call_range_0_2:syn.Type.Path/value",
+                "unresolved_call_range_0_2:syn.Type.Reference/_",
+                "unresolved_call_range_0_2:syn.Type.Reference/value",
+                "unresolved_call_range_0_2:syn.Type.Slice/_",
+                "unresolved_call_range_0_2:syn.Type.Slice/value",
+                "unresolved_call_range_0_2:syn.Type.Tuple/_",
+                "unresolved_call_range_0_2:syn.Type.Tuple/value",
+                "unresolved_call_range_0_2:syn.Visibility.Public/_",
+                "unresolved_call_range_0_2:unwrap_or_else/||__string__.to_owned()",
+                "unresolved_call_range_0_2:value.elems.iter/",
+                "unresolved_call_range_0_2:value.path.segments.last/"
+              ],
+              "residual_burden": 1.75,
+              "responsibilities": {},
+              "supported_burden": 1.75,
+              "surface": {
+                "constraints": null,
+                "evidence": [
+                  "caller-output-buffer:surface.rs#collect/1:exposures",
+                  "caller-output-buffer:surface.rs#collect/1:operations",
+                  "operation:surface.rs#collect/1:1"
+                ],
+                "input_units": 1,
+                "operation_units": 1,
+                "representation_units": 1
+              },
+              "zero_reason": ""
+            },
+            "responsibility_ratio": 100,
+            "zero_reason": ""
+          }
+        }
+      ],
+      "limitations": [
+        [
+          "call_budget_limit",
+          "call_cycle",
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:PublicOperation.default/",
+          "unresolved_call_range_0_2:Some/segment",
+          "unresolved_call_range_0_2:TypeShape.default/",
+          "unresolved_call_range_0_2:__string__.to_owned/",
+          "unresolved_call_range_0_2:function.sig.ident.to_string/",
+          "unresolved_call_range_0_2:function.span/",
+          "unresolved_call_range_0_2:item.ident.to_string/",
+          "unresolved_call_range_0_2:location/path,function.span()",
+          "unresolved_call_range_0_2:map/shape",
+          "unresolved_call_range_0_2:map/|child|child.complexity",
+          "unresolved_call_range_0_2:map/|item|item.ident.to_string()",
+          "unresolved_call_range_0_2:min/32",
+          "unresolved_call_range_0_2:operation.parameters.push/shape(&value.ty)",
+          "unresolved_call_range_0_2:operation.results.push/shape(value)",
+          "unresolved_call_range_0_2:operations.push/function_operation(function,path)",
+          "unresolved_call_range_0_2:result.children.extend/value.elems.iter().map(shape)",
+          "unresolved_call_range_0_2:result.children.iter/",
+          "unresolved_call_range_0_2:result.children.push/shape(&value.elem)",
+          "unresolved_call_range_0_2:result.children.push/shape(value)",
+          "unresolved_call_range_0_2:syn.FnArg.Typed/value",
+          "unresolved_call_range_0_2:syn.GenericArgument.Type/value",
+          "unresolved_call_range_0_2:syn.Item.Fn/function",
+          "unresolved_call_range_0_2:syn.PathArguments.AngleBracketed/arguments",
+          "unresolved_call_range_0_2:syn.ReturnType.Type/_,value",
+          "unresolved_call_range_0_2:syn.Type.Array/_",
+          "unresolved_call_range_0_2:syn.Type.Array/value",
+          "unresolved_call_range_0_2:syn.Type.Path/value",
+          "unresolved_call_range_0_2:syn.Type.Reference/_",
+          "unresolved_call_range_0_2:syn.Type.Reference/value",
+          "unresolved_call_range_0_2:syn.Type.Slice/_",
+          "unresolved_call_range_0_2:syn.Type.Slice/value",
+          "unresolved_call_range_0_2:syn.Type.Tuple/_",
+          "unresolved_call_range_0_2:syn.Type.Tuple/value",
+          "unresolved_call_range_0_2:syn.Visibility.Public/_",
+          "unresolved_call_range_0_2:unwrap_or_else/||__string__.to_owned()",
+          "unresolved_call_range_0_2:value.elems.iter/",
+          "unresolved_call_range_0_2:value.path.segments.last/",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:match",
+          "unsupported_execution_alternatives:||"
+        ],
+        [
+          "call_budget_limit",
+          "call_cycle",
+          "unexpanded_macro",
+          "unresolved_call_range_0_2:PublicOperation.default/",
+          "unresolved_call_range_0_2:Some/segment",
+          "unresolved_call_range_0_2:TypeShape.default/",
+          "unresolved_call_range_0_2:__string__.to_owned/",
+          "unresolved_call_range_0_2:function.sig.ident.to_string/",
+          "unresolved_call_range_0_2:function.span/",
+          "unresolved_call_range_0_2:item.ident.to_string/",
+          "unresolved_call_range_0_2:location/path,function.span()",
+          "unresolved_call_range_0_2:map/shape",
+          "unresolved_call_range_0_2:map/|child|child.complexity",
+          "unresolved_call_range_0_2:map/|item|item.ident.to_string()",
+          "unresolved_call_range_0_2:min/32",
+          "unresolved_call_range_0_2:operation.parameters.push/shape(&value.ty)",
+          "unresolved_call_range_0_2:operation.results.push/shape(value)",
+          "unresolved_call_range_0_2:operations.push/function_operation(function,path)",
+          "unresolved_call_range_0_2:result.children.extend/value.elems.iter().map(shape)",
+          "unresolved_call_range_0_2:result.children.iter/",
+          "unresolved_call_range_0_2:result.children.push/shape(&value.elem)",
+          "unresolved_call_range_0_2:result.children.push/shape(value)",
+          "unresolved_call_range_0_2:syn.FnArg.Typed/value",
+          "unresolved_call_range_0_2:syn.GenericArgument.Type/value",
+          "unresolved_call_range_0_2:syn.Item.Fn/function",
+          "unresolved_call_range_0_2:syn.PathArguments.AngleBracketed/arguments",
+          "unresolved_call_range_0_2:syn.ReturnType.Type/_,value",
+          "unresolved_call_range_0_2:syn.Type.Array/_",
+          "unresolved_call_range_0_2:syn.Type.Array/value",
+          "unresolved_call_range_0_2:syn.Type.Path/value",
+          "unresolved_call_range_0_2:syn.Type.Reference/_",
+          "unresolved_call_range_0_2:syn.Type.Reference/value",
+          "unresolved_call_range_0_2:syn.Type.Slice/_",
+          "unresolved_call_range_0_2:syn.Type.Slice/value",
+          "unresolved_call_range_0_2:syn.Type.Tuple/_",
+          "unresolved_call_range_0_2:syn.Type.Tuple/value",
+          "unresolved_call_range_0_2:syn.Visibility.Public/_",
+          "unresolved_call_range_0_2:unwrap_or_else/||__string__.to_owned()",
+          "unresolved_call_range_0_2:value.elems.iter/",
+          "unresolved_call_range_0_2:value.path.segments.last/",
+          "unsupported_execution_alternatives:for",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:match",
+          "unsupported_execution_alternatives:||"
+        ],
+        {
+          "severity": "warning",
+          "code": "COVERAGE_UNAVAILABLE",
+          "message": "SHALLOW v4 boundary analysis is incomplete"
+        }
+      ],
+      "zero_reason": null,
+      "zero_basis": null,
+      "support": [
+        {
+          "name": "source:rust:surface.rs",
+          "symbol": "source:rust:surface.rs",
+          "scope": "file",
+          "value": 26,
+          "location": {
+            "path": "surface.rs",
+            "start": {
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "line": 0,
+              "column": 0
+            }
+          },
+          "attributes": {
+            "boundary_id": "source:rust:surface.rs"
+          }
+        }
+      ],
+      "material_uncertainty": true,
+      "score_sort_ok": true,
+      "report_diagnostics": [
+        {
+          "code": "COVERAGE_UNAVAILABLE",
+          "invocation_id": "invocation-alienly-unfuming-eboni",
+          "message": "SHALLOW v4 boundary analysis is incomplete",
+          "path": "surface.rs",
+          "protocol_version": 1,
+          "severity": "warning",
+          "type": "diagnostic",
+          "unit_id": "rust-unit"
+        }
+      ],
+      "analysis_mode": "estimated",
+      "zero_category": null,
+      "precise_complete": false,
+      "semantic_applicable": true,
+      "semantic_numeric": true,
+      "semantic_complete": false,
+      "passed": true,
+      "behavioral_conformance": true,
+      "semantic_conformance": true
+    }
+  ],
+  "failures": [],
+  "manifest_sha256": "c47b969992acffafe442ced4e949ff08c9fc3bb6e9aae708922564db319206e3",
+  "binary_sha256": "f9c00ccfab59485717aca91bce1784c115a08955f33562a6cef8246b293fd0bd",
+  "evaluated_at_utc": "2026-09-18T22:10:00.552640+00:00",
+  "limitations": [
+    "Purposive six-file sample from one repository: two cases each in Go, TypeScript and Rust. No fresh high examples; existing Java high-detection requirements remain unchanged.",
+    "Ranges judge file/module boundaries and caller burden, not overall component quality. Some files depend on out-of-snapshot helpers and third-party AST APIs; incomplete evidence must remain visible.",
+    "Source-only review did not invoke scoring or inspect scored results or sourceestimate implementation. Caller tracing exposed structural.ts lines 875-905, the beginning of legacy moduleShallowness feature aggregation; strict blindness to all historical scorer source is therefore not claimed.",
+    "Prior manifest exclusion inspection accidentally printed embedded synthetic source alongside names/hashes; no expected ranges or scores were printed in that inspection. No prior targets are reused.",
+    "Witnesses are review evidence only, not scored target inputs. Their inclusion does not establish complete compilation or semantic context.",
+    "After first evaluation, failures remain failures and ranges/relations remain frozen. Tuning against this sample consumes its holdout status."
+  ],
+  "relations": [
+    {
+      "checks": [
+        {
+          "lower": "go-userdata-root",
+          "higher": "go-fix-subscription",
+          "min_delta": 5,
+          "delta": 50.0,
+          "passed": true
+        },
+        {
+          "lower": "typescript-public-operations",
+          "higher": "typescript-source-context",
+          "min_delta": 5,
+          "delta": 30.0,
+          "passed": true
+        },
+        {
+          "lower": "rust-program-parser",
+          "higher": "rust-surface-collector",
+          "min_delta": 5,
+          "delta": 6.0,
+          "passed": true
+        }
+      ],
+      "failures": []
+    }
+  ],
+  "positive_detection": {
+    "predeclared_real_high_cases": 0,
+    "high_band_coverage": false,
+    "detected_high": 0,
+    "cases": [],
+    "by_language": {
+      "go": {
+        "predeclared_real_high_cases": 0,
+        "detected_high": 0
+      },
+      "rust": {
+        "predeclared_real_high_cases": 0,
+        "detected_high": 0
+      },
+      "typescript": {
+        "predeclared_real_high_cases": 0,
+        "detected_high": 0
+      }
+    }
+  },
+  "languages": {
+    "go": {
+      "total": 2,
+      "applicable": 2,
+      "numeric": 2,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 2,
+      "semantic_numeric": 2,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 2,
+      "estimated_rate": 1.0,
+      "uncertain": 2,
+      "uncertainty_rate": 1.0,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 2,
+      "behavioral_conformance": 2,
+      "semantic_coverage": {
+        "partial": 2
+      },
+      "all_state_distribution": {
+        "partial": 2
+      },
+      "bands": {
+        "0": 1,
+        "1-25": 0,
+        "26-64": 1,
+        "65-100": 0
+      },
+      "failures": 0
+    },
+    "rust": {
+      "total": 2,
+      "applicable": 2,
+      "numeric": 2,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 2,
+      "semantic_numeric": 2,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 2,
+      "estimated_rate": 1.0,
+      "uncertain": 2,
+      "uncertainty_rate": 1.0,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 2,
+      "behavioral_conformance": 2,
+      "semantic_coverage": {
+        "partial": 2
+      },
+      "all_state_distribution": {
+        "partial": 2
+      },
+      "bands": {
+        "0": 0,
+        "1-25": 1,
+        "26-64": 1,
+        "65-100": 0
+      },
+      "failures": 0
+    },
+    "typescript": {
+      "total": 2,
+      "applicable": 2,
+      "numeric": 2,
+      "not_applicable": 0,
+      "numeric_coverage": 1.0,
+      "semantic_applicable": 2,
+      "semantic_numeric": 2,
+      "semantic_numeric_coverage": 1.0,
+      "excluded_from_semantic_numeric_coverage": 0,
+      "excluded_numeric": 0,
+      "estimated": 2,
+      "estimated_rate": 1.0,
+      "uncertain": 2,
+      "uncertainty_rate": 1.0,
+      "precise_complete": 0,
+      "semantic_complete_rate": 0.0,
+      "semantic_conformance": 2,
+      "behavioral_conformance": 2,
+      "semantic_coverage": {
+        "partial": 2
+      },
+      "all_state_distribution": {
+        "partial": 2
+      },
+      "bands": {
+        "0": 1,
+        "1-25": 0,
+        "26-64": 1,
+        "65-100": 0
+      },
+      "failures": 0
+    }
+  }
+}

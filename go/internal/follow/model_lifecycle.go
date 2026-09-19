@@ -14,7 +14,7 @@ func waitForChange(watcher *sourceWatcher) tea.Cmd {
 }
 
 func startWatcher(watcher *sourceWatcher) tea.Cmd {
-	return func() tea.Msg { return watcherReady{err: watcher.start()} }
+	return func() tea.Msg { return watcherReady{err: watcher.start(), watcher: watcher} }
 }
 
 func analysisCommand(analyzer Analyzer, configuredTargets []string, paths []string, full bool) tea.Cmd {
@@ -30,7 +30,7 @@ func analysisCommand(analyzer Analyzer, configuredTargets []string, paths []stri
 			languages = nil
 		}
 		document, err := analyzer.Analyze(ctx, targets, languages)
-		return analysisResult{document: document, replace: paths, full: full, err: err}
+		return analysisResult{document: document, replace: paths, paths: append([]string(nil), paths...), full: full, err: err}
 	}
 }
 

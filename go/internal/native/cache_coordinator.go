@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	nativeFactVersion     = "2"
+	nativeFactVersion     = "4"
 	nativeProtocolVersion = "1"
 )
 
@@ -31,7 +31,10 @@ type cachePreparation struct {
 	plans          map[string]unitplan.Unit
 }
 
-var errWorkspaceChanged = errors.New("workspace changed while analysis snapshot was running")
+// ErrWorkspaceChanged reports that live workspace inputs changed while an
+// analysis snapshot was being prepared or verified. Callers that watch a
+// workspace can safely retry this outcome without surfacing a failure.
+var ErrWorkspaceChanged = errors.New("workspace changed while analysis snapshot was running")
 
 type persistentAnalysisResult struct {
 	document   report.Document
@@ -44,10 +47,13 @@ type persistentAnalysisResult struct {
 
 func analyzeWithPersistentCache(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options, plan unitplan.Plan, planErr error, planningOptions Options) persistentAnalysisResult {
 	for attempt := 0; attempt < 2; attempt++ {
+		if !options.ignoreMatcher.Unchanged() {
+			return persistentAnalysisResult{handled: true, err: ErrWorkspaceChanged}
+		}
 		attemptPlan, attemptDiscovered, attemptSelected := plan, discovered, selected
 		if attempt > 0 {
 			var err error
-			attemptDiscovered, err = discover(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks)
+			attemptDiscovered, err = discoverPolicy(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore, options.ignoreMatcher)
 			if err != nil {
 				return persistentAnalysisResult{handled: true, err: err}
 			}
@@ -61,13 +67,13 @@ func analyzeWithPersistentCache(analyzer *analysisEngine, parent context.Context
 			}
 		}
 		result := analyzeWithPersistentCacheOnce(analyzer, parent, catalog, attemptDiscovered, attemptSelected, options, attemptPlan, planErr)
-		if errors.Is(result.err, errWorkspaceChanged) && attempt == 0 {
+		if errors.Is(result.err, ErrWorkspaceChanged) && attempt == 0 {
 			continue
 		}
 		result.plan, result.discovered, result.selected = attemptPlan, attemptDiscovered, attemptSelected
 		return result
 	}
-	return persistentAnalysisResult{handled: true, err: errWorkspaceChanged}
+	return persistentAnalysisResult{handled: true, err: ErrWorkspaceChanged}
 }
 
 func analyzeWithPersistentCacheOnce(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options, plan unitplan.Plan, planErr error) persistentAnalysisResult {

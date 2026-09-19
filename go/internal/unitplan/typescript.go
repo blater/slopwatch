@@ -19,7 +19,7 @@ func planTypeScript(context plannerContext, options Options) ([]Unit, []Diagnost
 	return buildTypeScriptPlan(context, options)
 }
 
-func typeScriptSyntaxUnits(context plannerContext, sources []string) []Unit {
+func typeScriptSyntaxUnits(context plannerContext, sources, declarationSources []string) []Unit {
 	packageDirectories := map[string]bool{}
 	for _, file := range context.files {
 		if lastPart(file) == "package.json" {
@@ -27,6 +27,7 @@ func typeScriptSyntaxUnits(context plannerContext, sources []string) []Unit {
 		}
 	}
 	grouped := map[string][]string{}
+	declarations := map[string][]string{}
 	for _, source := range sources {
 		directory, ok := nearestAncestor(pathDirectory(source), packageDirectories)
 		if !ok {
@@ -34,23 +35,36 @@ func typeScriptSyntaxUnits(context plannerContext, sources []string) []Unit {
 		}
 		grouped[directory] = append(grouped[directory], source)
 	}
+	for _, source := range declarationSources {
+		directory, ok := nearestAncestor(pathDirectory(source), packageDirectories)
+		if !ok {
+			directory = "."
+		}
+		declarations[directory] = append(declarations[directory], source)
+	}
 	units := make([]Unit, 0, len(grouped))
 	for directory, owned := range grouped {
 		units = append(units, Unit{
 			ID: "typescript:syntax:" + relativeIDPath(directory), Language: LanguageTypeScript, Mode: ModeSyntax,
-			Capabilities: []Capability{CapabilitySyntax}, Sources: owned,
+			Capabilities: []Capability{CapabilitySyntax}, Sources: owned, ContextSources: declarations[directory],
 		})
 	}
 	return units
 }
 
 func isTypeScriptSource(path string) bool {
+	path = strings.ToLower(path)
 	for _, suffix := range []string{".ts", ".tsx", ".mts", ".cts"} {
 		if strings.HasSuffix(path, suffix) {
 			return true
 		}
 	}
 	return false
+}
+
+func isTypeScriptDeclaration(path string) bool {
+	lower := strings.ToLower(path)
+	return strings.HasSuffix(lower, ".d.ts") || strings.HasSuffix(lower, ".d.mts") || strings.HasSuffix(lower, ".d.cts")
 }
 
 func isTSConfig(path string) bool {

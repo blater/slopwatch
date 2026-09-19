@@ -1,0 +1,1784 @@
+{
+  "schema": "shallow-graded-benchmark-v2",
+  "status": "independently-reviewed-frozen-before-scoring-implementation",
+  "directive": "docs/shallow-p0-delivery-directive.md",
+  "purpose": "Matched self-contained engineering fixtures for bounded SHALLOW ratings; ranges are judgments, not quotas or current-output calibration.",
+  "bands": {
+    "passive": {
+      "expected_range": [
+        0,
+        15
+      ],
+      "meaning": "Separate passive carrier control."
+    },
+    "low": {
+      "expected_range": [
+        0,
+        25
+      ],
+      "meaning": "Cohesive hidden validation/lifecycle/coordination."
+    },
+    "mid": {
+      "expected_range": [
+        30,
+        60
+      ],
+      "meaning": "Intermediate wrapper retains caller-owned protocol or invariant."
+    },
+    "high": {
+      "expected_range": [
+        65,
+        95
+      ],
+      "meaning": "Broad caller-visible lifecycle, invariant, or forwarding burden."
+    }
+  },
+  "families": {
+    "lifecycle": "Driver acquire(config), append(value), finish()->checksum, release() with required acquire\u2192append*\u2192finish\u2192release protocol.",
+    "representation": "Same enabled/limit/value/checksum capability; high exposes coupled representation, mid requires refresh, low encapsulates mutation.",
+    "forwarding": "Same stateful Pipeline stages load\u2192normalize\u2192validate\u2192transform\u2192persist\u2192result.",
+    "control": "Passive controls are separate and never capability-compared."
+  },
+  "runner": {
+    "workspace": "Fresh temporary workspace per case and variant.",
+    "files_field": "files",
+    "analysis_targets_field": "analysis_targets",
+    "packaged_cli": "Run packaged CLI against each isolated workspace; compile all files, analyze only analysis_targets when present.",
+    "compile_commands": {
+      "java": "javac -proc:none -d <temporary-output> <all .java files>",
+      "go": "go test ./...",
+      "typescript": "tsc --strict --noEmit --target ES2022 <all .ts files>",
+      "rust": "rustc --edition=2021 --crate-type=lib --emit=metadata <src/lib.rs>"
+    },
+    "required_outputs": [
+      "finite_numeric_rating",
+      "evidence_completeness",
+      "estimate_status",
+      "failure_visibility"
+    ],
+    "hidden_dependency_policy": "Hidden dependency variants intentionally omit the support file; compilation failure is expected and must be reported as missing semantic evidence, not silently treated as zero."
+  },
+  "pair_policy": {
+    "invariance": "Actual helper extraction, symbol rename, or harmless syntax: tolerance <=3 and no upward jump.",
+    "uncertainty": "Identical target source with the actual dependency support file physically omitted: tolerance <=10 and no upward jump when visibility worsens; missing-dependency compilation is intentionally unsuccessful."
+  },
+  "comparisons": [
+    {
+      "lower": "java_lifecycle_low",
+      "higher": "java_lifecycle_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "java_lifecycle_mid",
+      "higher": "java_lifecycle_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "java_representation_low",
+      "higher": "java_representation_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "java_representation_mid",
+      "higher": "java_representation_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "java_forwarding_low",
+      "higher": "java_forwarding_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "java_forwarding_mid",
+      "higher": "java_forwarding_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "go_lifecycle_low",
+      "higher": "go_lifecycle_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "go_lifecycle_mid",
+      "higher": "go_lifecycle_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "go_representation_low",
+      "higher": "go_representation_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "go_representation_mid",
+      "higher": "go_representation_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "go_forwarding_low",
+      "higher": "go_forwarding_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "go_forwarding_mid",
+      "higher": "go_forwarding_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "typescript_lifecycle_low",
+      "higher": "typescript_lifecycle_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "typescript_lifecycle_mid",
+      "higher": "typescript_lifecycle_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "typescript_representation_low",
+      "higher": "typescript_representation_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "typescript_representation_mid",
+      "higher": "typescript_representation_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "typescript_forwarding_low",
+      "higher": "typescript_forwarding_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "typescript_forwarding_mid",
+      "higher": "typescript_forwarding_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "rust_lifecycle_low",
+      "higher": "rust_lifecycle_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "rust_lifecycle_mid",
+      "higher": "rust_lifecycle_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "rust_representation_low",
+      "higher": "rust_representation_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "rust_representation_mid",
+      "higher": "rust_representation_high",
+      "min_delta": 15
+    },
+    {
+      "lower": "rust_forwarding_low",
+      "higher": "rust_forwarding_mid",
+      "min_delta": 15
+    },
+    {
+      "lower": "rust_forwarding_mid",
+      "higher": "rust_forwarding_high",
+      "min_delta": 15
+    }
+  ],
+  "invariants": [
+    {
+      "baseline": "java_lifecycle_low",
+      "variant": "java_lifecycle_low__helper_extracted",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "java_lifecycle_low",
+      "variant": "java_lifecycle_low__renamed",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "java_lifecycle_low",
+      "variant": "java_lifecycle_low__harmless_syntax",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "java_lifecycle_low",
+      "variant": "java_lifecycle_low__dependency_hidden",
+      "kind": "uncertainty",
+      "tolerance": 10,
+      "no_increase": true
+    },
+    {
+      "baseline": "go_lifecycle_low",
+      "variant": "go_lifecycle_low__helper_extracted",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "go_lifecycle_low",
+      "variant": "go_lifecycle_low__renamed",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "go_lifecycle_low",
+      "variant": "go_lifecycle_low__harmless_syntax",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "go_lifecycle_low",
+      "variant": "go_lifecycle_low__dependency_hidden",
+      "kind": "uncertainty",
+      "tolerance": 10,
+      "no_increase": true
+    },
+    {
+      "baseline": "typescript_lifecycle_low",
+      "variant": "typescript_lifecycle_low__helper_extracted",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "typescript_lifecycle_low",
+      "variant": "typescript_lifecycle_low__renamed",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "typescript_lifecycle_low",
+      "variant": "typescript_lifecycle_low__harmless_syntax",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "typescript_lifecycle_low",
+      "variant": "typescript_lifecycle_low__dependency_hidden",
+      "kind": "uncertainty",
+      "tolerance": 10,
+      "no_increase": true
+    },
+    {
+      "baseline": "rust_lifecycle_low",
+      "variant": "rust_lifecycle_low__helper_extracted",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "rust_lifecycle_low",
+      "variant": "rust_lifecycle_low__renamed",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "rust_lifecycle_low",
+      "variant": "rust_lifecycle_low__harmless_syntax",
+      "kind": "invariance",
+      "tolerance": 3,
+      "no_increase": true
+    },
+    {
+      "baseline": "rust_lifecycle_low",
+      "variant": "rust_lifecycle_low__dependency_hidden",
+      "kind": "uncertainty",
+      "tolerance": 10,
+      "no_increase": true
+    },
+    {
+      "baseline": "java_lifecycle_high",
+      "variant": "java_lifecycle_high__dependency_hidden",
+      "kind": "uncertainty",
+      "tolerance": 10,
+      "no_increase": true
+    },
+    {
+      "baseline": "go_lifecycle_high",
+      "variant": "go_lifecycle_high__dependency_hidden",
+      "kind": "uncertainty",
+      "tolerance": 10,
+      "no_increase": true
+    },
+    {
+      "baseline": "typescript_lifecycle_high",
+      "variant": "typescript_lifecycle_high__dependency_hidden",
+      "kind": "uncertainty",
+      "tolerance": 10,
+      "no_increase": true
+    },
+    {
+      "baseline": "rust_lifecycle_high",
+      "variant": "rust_lifecycle_high__dependency_hidden",
+      "kind": "uncertainty",
+      "tolerance": 10,
+      "no_increase": true
+    }
+  ],
+  "cases": [
+    {
+      "id": "java_lifecycle_low",
+      "language": "java",
+      "family": "lifecycle",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Driver.java",
+          "content": "public final class Driver{boolean a;int s;public void acquire(String c){if(a||c.isEmpty())throw new IllegalStateException();a=true;s=0;}public void append(int v){if(!a)throw new IllegalStateException();s+=v;}public int finish(){if(!a)throw new IllegalStateException();return s;}public void release(){if(!a)throw new IllegalStateException();a=false;}}\n",
+          "sha256": "6dfa878d313345c5be2b3b2ec8f7eeedb618d372c7f15edcf72932a12e585ff7"
+        },
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Driver d=new Driver();public int process(String c,int[] vs){d.acquire(c);try{for(int v:vs)d.append(v);return d.finish();}finally{d.release();}}}",
+          "sha256": "1ce61e6c22fdd8a3f3a29c465ffb2b7973a1c835a394765bea80d175c927b434"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "java_lifecycle_mid",
+      "language": "java",
+      "family": "lifecycle",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Driver.java",
+          "content": "public final class Driver{boolean a;int s;public void acquire(String c){if(a||c.isEmpty())throw new IllegalStateException();a=true;s=0;}public void append(int v){if(!a)throw new IllegalStateException();s+=v;}public int finish(){if(!a)throw new IllegalStateException();return s;}public void release(){if(!a)throw new IllegalStateException();a=false;}}\n",
+          "sha256": "6dfa878d313345c5be2b3b2ec8f7eeedb618d372c7f15edcf72932a12e585ff7"
+        },
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Driver d=new Driver();public void acquire(String c){d.acquire(c);}public int complete(int[] vs){try{for(int v:vs)d.append(v);return d.finish();}finally{d.release();}}}",
+          "sha256": "46c66044ade4bc2c98539ee3c8f2ff7ef66f9ec139247c3c7615b066bf553c05"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "java_lifecycle_high",
+      "language": "java",
+      "family": "lifecycle",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Driver.java",
+          "content": "public final class Driver{boolean a;int s;public void acquire(String c){if(a||c.isEmpty())throw new IllegalStateException();a=true;s=0;}public void append(int v){if(!a)throw new IllegalStateException();s+=v;}public int finish(){if(!a)throw new IllegalStateException();return s;}public void release(){if(!a)throw new IllegalStateException();a=false;}}\n",
+          "sha256": "6dfa878d313345c5be2b3b2ec8f7eeedb618d372c7f15edcf72932a12e585ff7"
+        },
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Driver d=new Driver();public void acquire(String c){d.acquire(c);}public void append(int v){d.append(v);}public int finish(){return d.finish();}public void release(){d.release();}}",
+          "sha256": "436f4403c380eeaca18b8b00ec8a7e4497da6cbef595adb406c97226379656e7"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "java_representation_low",
+      "language": "java",
+      "family": "representation",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private final int limit;private int value,checksum;private boolean enabled;public Example(int l,int v){limit=l;setValue(v);enabled=true;}public void setValue(int v){if(v<0||v>limit)throw new IllegalArgumentException();value=v;checksum=v*31;}public void setEnabled(boolean x){enabled=x;}public int read(){if(!enabled||value<0||value>limit||checksum!=value*31)throw new IllegalStateException();return value;}}",
+          "sha256": "7ab8df0284b02c378c2f554be1454539436047edb155ffd955f3031fd6f8e2bf"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "java_representation_mid",
+      "language": "java",
+      "family": "representation",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private final int limit;public int value;private int checksum;private boolean enabled=true;public Example(int l,int v){limit=l;value=v;refresh();}public void refresh(){if(value<0||value>limit)throw new IllegalArgumentException();checksum=value*31;}public void setEnabled(boolean x){enabled=x;}public int read(){if(!enabled||value<0||value>limit||checksum!=value*31)throw new IllegalStateException();return value;}}",
+          "sha256": "d98ad1c2ad476f369b39977ca42709568174bd1d807eaf287809cd96c2e16170"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "java_representation_high",
+      "language": "java",
+      "family": "representation",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private final int limit;public int value,checksum;public boolean enabled=true;public Example(int l,int v){limit=l;value=v;checksum=v*31;}public int read(){if(!enabled||value<0||value>limit||checksum!=value*31)throw new IllegalStateException();return value;}}",
+          "sha256": "35d0372ef3bca5988149f8e757edad4dde8cc25d7b52d4e3e053d6e163e9da1e"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "java_forwarding_low",
+      "language": "java",
+      "family": "forwarding",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Pipeline.java",
+          "content": "public final class Pipeline{String state=\"\",saved=\"\";public void load(String x){state=x;}public void normalize(){state=state.trim().toLowerCase();}public void validate(){if(state.isEmpty())throw new IllegalArgumentException();}public void transform(){state+=\"!\";}public void persist(){saved=state;}public String result(){return saved;}}\n",
+          "sha256": "d85c7cbc23c77fb57849e24720496dba610695079f09f5b73abeaabb44598bcf"
+        },
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Pipeline p=new Pipeline();public String process(String x){p.load(x);p.normalize();p.validate();p.transform();p.persist();return p.result();}}",
+          "sha256": "59e3a20e5ccad0d8a9060d3c980d608ac6bb07a102b7d5230216962c56e77a5e"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "java_forwarding_mid",
+      "language": "java",
+      "family": "forwarding",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Pipeline.java",
+          "content": "public final class Pipeline{String state=\"\",saved=\"\";public void load(String x){state=x;}public void normalize(){state=state.trim().toLowerCase();}public void validate(){if(state.isEmpty())throw new IllegalArgumentException();}public void transform(){state+=\"!\";}public void persist(){saved=state;}public String result(){return saved;}}\n",
+          "sha256": "d85c7cbc23c77fb57849e24720496dba610695079f09f5b73abeaabb44598bcf"
+        },
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Pipeline p=new Pipeline();public void load(String x){p.load(x);}public void prepare(){p.normalize();p.validate();}public String finish(){p.transform();p.persist();return p.result();}}",
+          "sha256": "2a53df9d5bc8bbdf55fc0435b421fbdecfd2d26cb1a49673754c28f7201cde06"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "java_forwarding_high",
+      "language": "java",
+      "family": "forwarding",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Pipeline.java",
+          "content": "public final class Pipeline{String state=\"\",saved=\"\";public void load(String x){state=x;}public void normalize(){state=state.trim().toLowerCase();}public void validate(){if(state.isEmpty())throw new IllegalArgumentException();}public void transform(){state+=\"!\";}public void persist(){saved=state;}public String result(){return saved;}}\n",
+          "sha256": "d85c7cbc23c77fb57849e24720496dba610695079f09f5b73abeaabb44598bcf"
+        },
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Pipeline p=new Pipeline();public void load(String x){p.load(x);}public void normalize(){p.normalize();}public void validate(){p.validate();}public void transform(){p.transform();}public void persist(){p.persist();}public String result(){return p.result();}}",
+          "sha256": "3f53fccd1cbc51c0f9cf12700a61c1d72c5451a92c592a0fa6012f1420d77392"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "java_control_passive",
+      "language": "java",
+      "family": "control",
+      "kind": "passive",
+      "expected_range": [
+        0,
+        15
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private final int value;public Example(int v){value=v;}public int read(){return value;}}",
+          "sha256": "62113c3ab764ab1bb2bc66502030ae7f5ccd28d6036757f9d4240a01d7e6ca4b"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Passive carrier control; not capability-equivalent to service families."
+    },
+    {
+      "id": "go_lifecycle_low",
+      "language": "go",
+      "family": "lifecycle",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "driver.go",
+          "content": "package fixture\n\ntype Driver struct{a bool;s int}\nfunc(d *Driver) Acquire(c string){if d.a||c==\"\"{panic(\"acquire\")};d.a=true;d.s=0}\nfunc(d *Driver) Append(v int){if !d.a{panic(\"append\")};d.s+=v}\nfunc(d *Driver) Finish()int{if !d.a{panic(\"finish\")};return d.s}\nfunc(d *Driver) Release(){if !d.a{panic(\"release\")};d.a=false}\n",
+          "sha256": "49fc4c17c47046ab8ce8d74fa381d045e2d8a04831ea93ca7c02251f401b4b1d"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{d Driver}\nfunc(e *Example) Process(c string,vs []int)int{e.d.Acquire(c);defer e.d.Release();for _,v:=range vs{e.d.Append(v)};return e.d.Finish()}",
+          "sha256": "ab7037ac8fd9051f128f23fb51aa0441564728064ff89a58876a2c14f1d24214"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "go_lifecycle_mid",
+      "language": "go",
+      "family": "lifecycle",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "driver.go",
+          "content": "package fixture\n\ntype Driver struct{a bool;s int}\nfunc(d *Driver) Acquire(c string){if d.a||c==\"\"{panic(\"acquire\")};d.a=true;d.s=0}\nfunc(d *Driver) Append(v int){if !d.a{panic(\"append\")};d.s+=v}\nfunc(d *Driver) Finish()int{if !d.a{panic(\"finish\")};return d.s}\nfunc(d *Driver) Release(){if !d.a{panic(\"release\")};d.a=false}\n",
+          "sha256": "49fc4c17c47046ab8ce8d74fa381d045e2d8a04831ea93ca7c02251f401b4b1d"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{d Driver}\nfunc(e *Example) Acquire(c string){e.d.Acquire(c)}\nfunc(e *Example) Complete(vs []int)(out int){defer e.d.Release();for _,v:=range vs{e.d.Append(v)};out=e.d.Finish();return}",
+          "sha256": "8120e806d7b309455a52f964ab8e8073efb7809fea6f452708e29432a45ecf35"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "go_lifecycle_high",
+      "language": "go",
+      "family": "lifecycle",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "driver.go",
+          "content": "package fixture\n\ntype Driver struct{a bool;s int}\nfunc(d *Driver) Acquire(c string){if d.a||c==\"\"{panic(\"acquire\")};d.a=true;d.s=0}\nfunc(d *Driver) Append(v int){if !d.a{panic(\"append\")};d.s+=v}\nfunc(d *Driver) Finish()int{if !d.a{panic(\"finish\")};return d.s}\nfunc(d *Driver) Release(){if !d.a{panic(\"release\")};d.a=false}\n",
+          "sha256": "49fc4c17c47046ab8ce8d74fa381d045e2d8a04831ea93ca7c02251f401b4b1d"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{d Driver}\nfunc(e *Example) Acquire(c string){e.d.Acquire(c)}\nfunc(e *Example) Append(v int){e.d.Append(v)}\nfunc(e *Example) Finish()int{return e.d.Finish()}\nfunc(e *Example) Release(){e.d.Release()}",
+          "sha256": "0d00f5ee882e233f34145dc9e8e670e5db856dabd0c9792a3fdfd84ff194f5b4"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "go_representation_low",
+      "language": "go",
+      "family": "representation",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "fixture.go",
+          "content": "package fixture\ntype Example struct{limit,value,checksum int;enabled bool}\nfunc NewExample(l,v int)*Example{e:=&Example{limit:l};e.SetValue(v);e.enabled=true;return e}\nfunc(e *Example) SetValue(v int){if v<0||v>e.limit{panic(\"value\")};e.value=v;e.checksum=v*31}\nfunc(e *Example) SetEnabled(x bool){e.enabled=x}\nfunc(e *Example) Read()int{if !e.enabled||e.value<0||e.value>e.limit||e.checksum!=e.value*31{panic(\"invalid\")};return e.value}",
+          "sha256": "21a972ff034d4c6d323cac236cbc3244ab4de1bf59ab1af79146acd252501c25"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "go_representation_mid",
+      "language": "go",
+      "family": "representation",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "fixture.go",
+          "content": "package fixture\ntype Example struct{limit int;Value,checksum int;enabled bool}\nfunc NewExample(l,v int)*Example{e:=&Example{limit:l,Value:v,enabled:true};e.Refresh();return e}\nfunc(e *Example) Refresh(){if e.Value<0||e.Value>e.limit{panic(\"value\")};e.checksum=e.Value*31}\nfunc(e *Example) SetEnabled(x bool){e.enabled=x}\nfunc(e *Example) Read()int{if !e.enabled||e.Value<0||e.Value>e.limit||e.checksum!=e.Value*31{panic(\"invalid\")};return e.Value}",
+          "sha256": "111fa1df6c6dd7b64bf8ec5d4290fbe4ddf4843e217744445734e9d07fa87314"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "go_representation_high",
+      "language": "go",
+      "family": "representation",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "fixture.go",
+          "content": "package fixture\ntype Example struct{limit int;Value,Checksum int;Enabled bool}\nfunc NewExample(l,v int)Example{return Example{limit:l,Value:v,Checksum:v*31,Enabled:true}}\nfunc(e Example) Read()int{if !e.Enabled||e.Value<0||e.Value>e.limit||e.Checksum!=e.Value*31{panic(\"invalid\")};return e.Value}",
+          "sha256": "1e8f25b9d2014c93826507a0d9ccea883ac6fbb22eb5e9f1302882e19d2aad66"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "go_forwarding_low",
+      "language": "go",
+      "family": "forwarding",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "pipeline.go",
+          "content": "package fixture\nimport \"strings\"\n\ntype Pipeline struct{state,saved string}\nfunc(p *Pipeline)Load(x string){p.state=x};func(p *Pipeline)Normalize(){p.state=strings.ToLower(strings.TrimSpace(p.state))};func(p *Pipeline)Validate(){if p.state==\"\"{panic(\"input\")}};func(p *Pipeline)Transform(){p.state+=\"!\"};func(p *Pipeline)Persist(){p.saved=p.state};func(p *Pipeline)Result()string{return p.saved}\n",
+          "sha256": "71fb36b3eb8355c095ddcbc43742e302ac7ab7b3eab8a1558f49e9c993c63d8e"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{p Pipeline};func(e *Example)Process(x string)string{e.p.Load(x);e.p.Normalize();e.p.Validate();e.p.Transform();e.p.Persist();return e.p.Result()}",
+          "sha256": "b8f5ced44cdad6f24aacfb2144d28d9be503a040a5d92e521c6bb99aa34a3e00"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "go_forwarding_mid",
+      "language": "go",
+      "family": "forwarding",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "pipeline.go",
+          "content": "package fixture\nimport \"strings\"\n\ntype Pipeline struct{state,saved string}\nfunc(p *Pipeline)Load(x string){p.state=x};func(p *Pipeline)Normalize(){p.state=strings.ToLower(strings.TrimSpace(p.state))};func(p *Pipeline)Validate(){if p.state==\"\"{panic(\"input\")}};func(p *Pipeline)Transform(){p.state+=\"!\"};func(p *Pipeline)Persist(){p.saved=p.state};func(p *Pipeline)Result()string{return p.saved}\n",
+          "sha256": "71fb36b3eb8355c095ddcbc43742e302ac7ab7b3eab8a1558f49e9c993c63d8e"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{p Pipeline};func(e *Example)Load(x string){e.p.Load(x)};func(e *Example)Prepare(){e.p.Normalize();e.p.Validate()};func(e *Example)Finish()string{e.p.Transform();e.p.Persist();return e.p.Result()}",
+          "sha256": "80eea4f5d1a9b75a092ee3ffda6875ecd4d64d255c3d53486ab9b358b51eb202"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "go_forwarding_high",
+      "language": "go",
+      "family": "forwarding",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "pipeline.go",
+          "content": "package fixture\nimport \"strings\"\n\ntype Pipeline struct{state,saved string}\nfunc(p *Pipeline)Load(x string){p.state=x};func(p *Pipeline)Normalize(){p.state=strings.ToLower(strings.TrimSpace(p.state))};func(p *Pipeline)Validate(){if p.state==\"\"{panic(\"input\")}};func(p *Pipeline)Transform(){p.state+=\"!\"};func(p *Pipeline)Persist(){p.saved=p.state};func(p *Pipeline)Result()string{return p.saved}\n",
+          "sha256": "71fb36b3eb8355c095ddcbc43742e302ac7ab7b3eab8a1558f49e9c993c63d8e"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{p Pipeline};func(e *Example)Load(x string){e.p.Load(x)};func(e *Example)Normalize(){e.p.Normalize()};func(e *Example)Validate(){e.p.Validate()};func(e *Example)Transform(){e.p.Transform()};func(e *Example)Persist(){e.p.Persist()};func(e *Example)Result()string{return e.p.Result()}",
+          "sha256": "7a8cbba09c08a8c7d87cce821414ce692369f827bbbcee94069f352873368893"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "go_control_passive",
+      "language": "go",
+      "family": "control",
+      "kind": "passive",
+      "expected_range": [
+        0,
+        15
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "fixture.go",
+          "content": "package fixture\ntype Example struct{Value int}\nfunc NewExample(v int)Example{return Example{Value:v}}",
+          "sha256": "e4f34e04ff75f2b4bdc6d9131e5aaf1781f576afc48721bdb74655550fdd5c84"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Passive carrier control; not capability-equivalent to service families."
+    },
+    {
+      "id": "typescript_lifecycle_low",
+      "language": "typescript",
+      "family": "lifecycle",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/driver.ts",
+          "content": "export class Driver{a=false;s=0;acquire(c:string){if(this.a||c.length===0)throw new Error();this.a=true;this.s=0;}append(v:number){if(!this.a)throw new Error();this.s+=v;}finish(){if(!this.a)throw new Error();return this.s;}release(){if(!this.a)throw new Error();this.a=false;}}\n",
+          "sha256": "0092e54f16a6da12ef806bb20a66aa5ccb705894dd00fa28027c1f4ad1dd08ba"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Driver } from \"./driver\";\nexport class Example{private d=new Driver();process(c:string,vs:number[]){this.d.acquire(c);try{for(const v of vs)this.d.append(v);return this.d.finish();}finally{this.d.release();}}}",
+          "sha256": "2cb84030e4facfe0b50fd993b0bebe468cca7ede341627b172a5c558f86d0d1f"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "typescript_lifecycle_mid",
+      "language": "typescript",
+      "family": "lifecycle",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/driver.ts",
+          "content": "export class Driver{a=false;s=0;acquire(c:string){if(this.a||c.length===0)throw new Error();this.a=true;this.s=0;}append(v:number){if(!this.a)throw new Error();this.s+=v;}finish(){if(!this.a)throw new Error();return this.s;}release(){if(!this.a)throw new Error();this.a=false;}}\n",
+          "sha256": "0092e54f16a6da12ef806bb20a66aa5ccb705894dd00fa28027c1f4ad1dd08ba"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Driver } from \"./driver\";\nexport class Example{private d=new Driver();acquire(c:string){this.d.acquire(c)}complete(vs:number[]){try{for(const v of vs)this.d.append(v);return this.d.finish()}finally{this.d.release()}}}",
+          "sha256": "3b9ca85674219fb3da75d5045250c1b1bd3f6bbba35645e299b5daf43ef04fc6"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "typescript_lifecycle_high",
+      "language": "typescript",
+      "family": "lifecycle",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/driver.ts",
+          "content": "export class Driver{a=false;s=0;acquire(c:string){if(this.a||c.length===0)throw new Error();this.a=true;this.s=0;}append(v:number){if(!this.a)throw new Error();this.s+=v;}finish(){if(!this.a)throw new Error();return this.s;}release(){if(!this.a)throw new Error();this.a=false;}}\n",
+          "sha256": "0092e54f16a6da12ef806bb20a66aa5ccb705894dd00fa28027c1f4ad1dd08ba"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Driver } from \"./driver\";\nexport class Example{private d=new Driver();acquire(c:string){this.d.acquire(c)}append(v:number){this.d.append(v)}finish(){return this.d.finish()}release(){this.d.release()}}",
+          "sha256": "78c49fbf9c0db2a413e3f38e4d067fa360bccb0473e39779f58ebe5ed3e9f873"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "typescript_representation_low",
+      "language": "typescript",
+      "family": "representation",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/example.ts",
+          "content": "export class Example{private value=0;private checksum=0;private enabled=false;constructor(private readonly limit:number,v:number){this.setValue(v);this.enabled=true;}setValue(v:number){if(v<0||v>this.limit)throw new Error();this.value=v;this.checksum=v*31;}setEnabled(x:boolean){this.enabled=x}read(){if(!this.enabled||this.value<0||this.value>this.limit||this.checksum!==this.value*31)throw new Error();return this.value;}}",
+          "sha256": "6d2df24fc7550bf34a5d767f1b357a70fae9e0016c749d5c35fc5fcfe3e615b2"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "typescript_representation_mid",
+      "language": "typescript",
+      "family": "representation",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/example.ts",
+          "content": "export class Example{public value:number;private checksum=0;private enabled=true;constructor(private readonly limit:number,v:number){this.value=v;this.refresh();}refresh(){if(this.value<0||this.value>this.limit)throw new Error();this.checksum=this.value*31;}setEnabled(x:boolean){this.enabled=x}read(){if(!this.enabled||this.value<0||this.value>this.limit||this.checksum!==this.value*31)throw new Error();return this.value;}}",
+          "sha256": "9a623b803d8eca5bbbdb22631f624f052a8da7f690524dd7a7f94f8fde18cd6a"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "typescript_representation_high",
+      "language": "typescript",
+      "family": "representation",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/example.ts",
+          "content": "export class Example{constructor(private readonly limit:number,public value:number,public checksum:number=value*31,public enabled=true){}read(){if(!this.enabled||this.value<0||this.value>this.limit||this.checksum!==this.value*31)throw new Error();return this.value;}}",
+          "sha256": "bee9c15537eea24d86e09acfb5c2835b708dff0631c0a0b50cbc9f215e33e724"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "typescript_forwarding_low",
+      "language": "typescript",
+      "family": "forwarding",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/pipeline.ts",
+          "content": "export class Pipeline{state=\"\";saved=\"\";load(x:string){this.state=x}normalize(){this.state=this.state.trim().toLowerCase()}validate(){if(this.state.length===0)throw new Error()}transform(){this.state+=\"!\"}persist(){this.saved=this.state}result(){return this.saved}}\n",
+          "sha256": "a36884f85cc5fe72d5a7c7022d340fd31fce10511111d95435dd30b0e23ffd51"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Pipeline } from \"./pipeline\";\nexport class Example{private p=new Pipeline();process(x:string){this.p.load(x);this.p.normalize();this.p.validate();this.p.transform();this.p.persist();return this.p.result()}}",
+          "sha256": "936a70964c0b0088aec6dfc1f938875ae0200d63fd5cc695606df0eff1893a6c"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "typescript_forwarding_mid",
+      "language": "typescript",
+      "family": "forwarding",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/pipeline.ts",
+          "content": "export class Pipeline{state=\"\";saved=\"\";load(x:string){this.state=x}normalize(){this.state=this.state.trim().toLowerCase()}validate(){if(this.state.length===0)throw new Error()}transform(){this.state+=\"!\"}persist(){this.saved=this.state}result(){return this.saved}}\n",
+          "sha256": "a36884f85cc5fe72d5a7c7022d340fd31fce10511111d95435dd30b0e23ffd51"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Pipeline } from \"./pipeline\";\nexport class Example{private p=new Pipeline();load(x:string){this.p.load(x)}prepare(){this.p.normalize();this.p.validate()}finish(){this.p.transform();this.p.persist();return this.p.result()}}",
+          "sha256": "b1eadc33f0eeecc747b6b47e4d29694eff07016da5f8e3ecbc22113af613e767"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "typescript_forwarding_high",
+      "language": "typescript",
+      "family": "forwarding",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/pipeline.ts",
+          "content": "export class Pipeline{state=\"\";saved=\"\";load(x:string){this.state=x}normalize(){this.state=this.state.trim().toLowerCase()}validate(){if(this.state.length===0)throw new Error()}transform(){this.state+=\"!\"}persist(){this.saved=this.state}result(){return this.saved}}\n",
+          "sha256": "a36884f85cc5fe72d5a7c7022d340fd31fce10511111d95435dd30b0e23ffd51"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Pipeline } from \"./pipeline\";\nexport class Example{private p=new Pipeline();load(x:string){this.p.load(x)}normalize(){this.p.normalize()}validate(){this.p.validate()}transform(){this.p.transform()}persist(){this.p.persist()}result(){return this.p.result()}}",
+          "sha256": "3d55ea47f3a4031514d24dff11ccfd03e1cee7343db4b90a71f108dd05405119"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "typescript_control_passive",
+      "language": "typescript",
+      "family": "control",
+      "kind": "passive",
+      "expected_range": [
+        0,
+        15
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/example.ts",
+          "content": "export class Example{constructor(public readonly value:number){}read(){return this.value;}}",
+          "sha256": "1dcd8e0902c451dcd478f15be60f01f005e94d2c6774fcb0adde79489c10f45d"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Passive carrier control; not capability-equivalent to service families."
+    },
+    {
+      "id": "rust_lifecycle_low",
+      "language": "rust",
+      "family": "lifecycle",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/driver.rs",
+          "content": "pub struct Driver{a:bool,s:i32}\nimpl Driver{pub fn new()->Self{Self{a:false,s:0}}pub fn acquire(&mut self,c:&str){assert!(!self.a&&!c.is_empty());self.a=true;self.s=0}pub fn append(&mut self,v:i32){assert!(self.a);self.s+=v}pub fn finish(&self)->i32{assert!(self.a);self.s}pub fn release(&mut self){assert!(self.a);self.a=false}}\n",
+          "sha256": "52984c790e462dc4ea674a82548d16f8a1f8dac7c95d6f96a5c4b37c186c2794"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod driver;\nuse driver::Driver;\nstruct Release<'a>(&'a mut Driver);impl Drop for Release<'_>{fn drop(&mut self){self.0.release()}}\npub struct Example{d:Driver}impl Example{pub fn new()->Self{Self{d:Driver::new()}}pub fn process(&mut self,c:&str,vs:&[i32])->i32{self.d.acquire(c);let mut guard=Release(&mut self.d);for v in vs{guard.0.append(*v)}let out=guard.0.finish();drop(guard);out}}",
+          "sha256": "5d94d15b2595c1e652fb22e8a0bd528a5864dbd0ee9622536b7e6f383ccbe794"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "rust_lifecycle_mid",
+      "language": "rust",
+      "family": "lifecycle",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/driver.rs",
+          "content": "pub struct Driver{a:bool,s:i32}\nimpl Driver{pub fn new()->Self{Self{a:false,s:0}}pub fn acquire(&mut self,c:&str){assert!(!self.a&&!c.is_empty());self.a=true;self.s=0}pub fn append(&mut self,v:i32){assert!(self.a);self.s+=v}pub fn finish(&self)->i32{assert!(self.a);self.s}pub fn release(&mut self){assert!(self.a);self.a=false}}\n",
+          "sha256": "52984c790e462dc4ea674a82548d16f8a1f8dac7c95d6f96a5c4b37c186c2794"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod driver;\nuse driver::Driver;\nstruct Release<'a>(&'a mut Driver);impl Drop for Release<'_>{fn drop(&mut self){self.0.release()}}\npub struct Example{d:Driver}impl Example{pub fn new()->Self{Self{d:Driver::new()}}pub fn acquire(&mut self,c:&str){self.d.acquire(c)}pub fn complete(&mut self,vs:&[i32])->i32{let mut guard=Release(&mut self.d);for v in vs{guard.0.append(*v)}let out=guard.0.finish();drop(guard);out}}",
+          "sha256": "00a86f8893dc5372720ead070dc661ce77106bbc4c5341d7f93e7ae7ae051d50"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "rust_lifecycle_high",
+      "language": "rust",
+      "family": "lifecycle",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/driver.rs",
+          "content": "pub struct Driver{a:bool,s:i32}\nimpl Driver{pub fn new()->Self{Self{a:false,s:0}}pub fn acquire(&mut self,c:&str){assert!(!self.a&&!c.is_empty());self.a=true;self.s=0}pub fn append(&mut self,v:i32){assert!(self.a);self.s+=v}pub fn finish(&self)->i32{assert!(self.a);self.s}pub fn release(&mut self){assert!(self.a);self.a=false}}\n",
+          "sha256": "52984c790e462dc4ea674a82548d16f8a1f8dac7c95d6f96a5c4b37c186c2794"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod driver;\nuse driver::Driver;\npub struct Example{d:Driver}impl Example{pub fn new()->Self{Self{d:Driver::new()}}pub fn acquire(&mut self,c:&str){self.d.acquire(c)}pub fn append(&mut self,v:i32){self.d.append(v)}pub fn finish(&self)->i32{self.d.finish()}pub fn release(&mut self){self.d.release()}}",
+          "sha256": "bd9db16ab07106c83f6fb9213d04f40e95549e36c7d17f2a1c0db149ece59780"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "rust_representation_low",
+      "language": "rust",
+      "family": "representation",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/lib.rs",
+          "content": "pub struct Example{limit:i32,value:i32,checksum:i32,enabled:bool}impl Example{pub fn new(l:i32,v:i32)->Self{let mut e=Self{limit:l,value:0,checksum:0,enabled:false};e.set_value(v);e.enabled=true;e}pub fn set_value(&mut self,v:i32){assert!(v>=0&&v<=self.limit);self.value=v;self.checksum=v*31}pub fn set_enabled(&mut self,x:bool){self.enabled=x}pub fn read(&self)->i32{assert!(self.enabled&&self.value>=0&&self.value<=self.limit&&self.checksum==self.value*31);self.value}}",
+          "sha256": "05c7e3793c507e0dd097cd44eb54aba2327728de885f69d12a8abf56be1c9397"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "rust_representation_mid",
+      "language": "rust",
+      "family": "representation",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/lib.rs",
+          "content": "pub struct Example{limit:i32,pub value:i32,checksum:i32,enabled:bool}impl Example{pub fn new(l:i32,v:i32)->Self{let mut e=Self{limit:l,value:v,checksum:0,enabled:true};e.refresh();e}pub fn refresh(&mut self){assert!(self.value>=0&&self.value<=self.limit);self.checksum=self.value*31}pub fn set_enabled(&mut self,x:bool){self.enabled=x}pub fn read(&self)->i32{assert!(self.enabled&&self.value>=0&&self.value<=self.limit&&self.checksum==self.value*31);self.value}}",
+          "sha256": "92591e327a8914e43541451fe888a1e52b5268491a7582f5bec66bd763ee64e2"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "rust_representation_high",
+      "language": "rust",
+      "family": "representation",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/lib.rs",
+          "content": "pub struct Example{limit:i32,pub value:i32,pub checksum:i32,pub enabled:bool}impl Example{pub fn new(l:i32,v:i32)->Self{Self{limit:l,value:v,checksum:v*31,enabled:true}}pub fn read(&self)->i32{assert!(self.enabled&&self.value>=0&&self.value<=self.limit&&self.checksum==self.value*31);self.value}}",
+          "sha256": "1509f9c05664e2e9baf2ca68dedf2c59ccea7536d05f693e873ce5e538f0e770"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "rust_forwarding_low",
+      "language": "rust",
+      "family": "forwarding",
+      "kind": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/pipeline.rs",
+          "content": "pub struct Pipeline{pub state:String,pub saved:String}impl Pipeline{pub fn new()->Self{Self{state:String::new(),saved:String::new()}}pub fn load(&mut self,x:&str){self.state=x.to_string()}pub fn normalize(&mut self){self.state=self.state.trim().to_lowercase()}pub fn validate(&self){assert!(!self.state.is_empty())}pub fn transform(&mut self){self.state.push('!')}pub fn persist(&mut self){self.saved=self.state.clone()}pub fn result(&self)->String{self.saved.clone()}}\n",
+          "sha256": "6311904ea427fd357ba5695e2c33aa0e3d5c26549baebf242ea2ef759c92529b"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod pipeline;\nuse pipeline::Pipeline;\npub struct Example{p:Pipeline}impl Example{pub fn new()->Self{Self{p:Pipeline::new()}}pub fn process(&mut self,x:&str)->String{self.p.load(x);self.p.normalize();self.p.validate();self.p.transform();self.p.persist();self.p.result()}}",
+          "sha256": "531dd9ef96cf00f5fd695eedb474de384b635245c6bc2ce2a53d519407ca73c1"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "One cohesive operation hides the responsibility-bearing workflow."
+    },
+    {
+      "id": "rust_forwarding_mid",
+      "language": "rust",
+      "family": "forwarding",
+      "kind": "mid",
+      "expected_range": [
+        30,
+        60
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/pipeline.rs",
+          "content": "pub struct Pipeline{pub state:String,pub saved:String}impl Pipeline{pub fn new()->Self{Self{state:String::new(),saved:String::new()}}pub fn load(&mut self,x:&str){self.state=x.to_string()}pub fn normalize(&mut self){self.state=self.state.trim().to_lowercase()}pub fn validate(&self){assert!(!self.state.is_empty())}pub fn transform(&mut self){self.state.push('!')}pub fn persist(&mut self){self.saved=self.state.clone()}pub fn result(&self)->String{self.saved.clone()}}\n",
+          "sha256": "6311904ea427fd357ba5695e2c33aa0e3d5c26549baebf242ea2ef759c92529b"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod pipeline;\nuse pipeline::Pipeline;\npub struct Example{p:Pipeline}impl Example{pub fn new()->Self{Self{p:Pipeline::new()}}pub fn load(&mut self,x:&str){self.p.load(x)}pub fn prepare(&mut self){self.p.normalize();self.p.validate()}pub fn finish(&mut self)->String{self.p.transform();self.p.persist();self.p.result()}}",
+          "sha256": "2ee85f02a2f681cba46bb2dd0864c0cb4f4ef3bf2b5233fa8af2c56952989b22"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Partial wrapper preserves the same capability while retaining a caller-owned protocol or invariant step."
+    },
+    {
+      "id": "rust_forwarding_high",
+      "language": "rust",
+      "family": "forwarding",
+      "kind": "high",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/pipeline.rs",
+          "content": "pub struct Pipeline{pub state:String,pub saved:String}impl Pipeline{pub fn new()->Self{Self{state:String::new(),saved:String::new()}}pub fn load(&mut self,x:&str){self.state=x.to_string()}pub fn normalize(&mut self){self.state=self.state.trim().to_lowercase()}pub fn validate(&self){assert!(!self.state.is_empty())}pub fn transform(&mut self){self.state.push('!')}pub fn persist(&mut self){self.saved=self.state.clone()}pub fn result(&self)->String{self.saved.clone()}}\n",
+          "sha256": "6311904ea427fd357ba5695e2c33aa0e3d5c26549baebf242ea2ef759c92529b"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod pipeline;\nuse pipeline::Pipeline;\npub struct Example{p:Pipeline}impl Example{pub fn new()->Self{Self{p:Pipeline::new()}}pub fn load(&mut self,x:&str){self.p.load(x)}pub fn normalize(&mut self){self.p.normalize()}pub fn validate(&self){self.p.validate()}pub fn transform(&mut self){self.p.transform()}pub fn persist(&mut self){self.p.persist()}pub fn result(&self)->String{self.p.result()}}",
+          "sha256": "fe188ca6ec4b5c50d7e897c12ad8fcd9b4f22cf606e11f0f17147139fd95c404"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Same capability is exposed as independent lifecycle, invariant, or pipeline stages, leaving broad caller burden visible."
+    },
+    {
+      "id": "rust_control_passive",
+      "language": "rust",
+      "family": "control",
+      "kind": "passive",
+      "expected_range": [
+        0,
+        15
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/lib.rs",
+          "content": "pub struct Example{pub value:i32}impl Example{pub fn new(v:i32)->Self{Self{value:v}}pub fn read(&self)->i32{self.value}}",
+          "sha256": "5af3fafcb10cac09922828fdb18e3e38ecfbd898e0b96f74e75d77e88c5e49e8"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Passive carrier control; not capability-equivalent to service families."
+    },
+    {
+      "id": "java_lifecycle_low__helper_extracted",
+      "language": "java",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "java_lifecycle_low",
+      "variant_kind": "helper_extracted",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Driver.java",
+          "content": "public final class Driver{boolean a;int s;public void acquire(String c){if(a||c.isEmpty())throw new IllegalStateException();a=true;s=0;}public void append(int v){if(!a)throw new IllegalStateException();s+=v;}public int finish(){if(!a)throw new IllegalStateException();return s;}public void release(){if(!a)throw new IllegalStateException();a=false;}}\n",
+          "sha256": "6dfa878d313345c5be2b3b2ec8f7eeedb618d372c7f15edcf72932a12e585ff7"
+        },
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Driver d=new Driver();private void appendAll(int[] vs){for(int v:vs)d.append(v);}public int process(String c,int[] vs){d.acquire(c);try{appendAll(vs);return d.finish();}finally{d.release();}}}",
+          "sha256": "ca606bfad2492bbf8cd84db72f033cf1d2e4930c99375f1a74791e25bb1aafee"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Actual helper_extracted source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "java_lifecycle_low__renamed",
+      "language": "java",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "java_lifecycle_low",
+      "variant_kind": "renamed",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/RenamedExample.java",
+      "files": [
+        {
+          "path": "src/Driver.java",
+          "content": "public final class Driver{boolean a;int s;public void acquire(String c){if(a||c.isEmpty())throw new IllegalStateException();a=true;s=0;}public void append(int v){if(!a)throw new IllegalStateException();s+=v;}public int finish(){if(!a)throw new IllegalStateException();return s;}public void release(){if(!a)throw new IllegalStateException();a=false;}}\n",
+          "sha256": "6dfa878d313345c5be2b3b2ec8f7eeedb618d372c7f15edcf72932a12e585ff7"
+        },
+        {
+          "path": "src/RenamedExample.java",
+          "content": "public final class RenamedExample{private Driver d=new Driver();public int process(String c,int[] vs){d.acquire(c);try{for(int v:vs)d.append(v);return d.finish();}finally{d.release();}}}",
+          "sha256": "54e22bd6b2a29552a5a4d5a76a1ad5e4aa0589bd714613c6bedad6a0bd87b99b"
+        }
+      ],
+      "entrypoint": "RenamedExample",
+      "rationale": "Actual renamed source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "java_lifecycle_low__harmless_syntax",
+      "language": "java",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "java_lifecycle_low",
+      "variant_kind": "harmless_syntax",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Driver.java",
+          "content": "public final class Driver{boolean a;int s;public void acquire(String c){if(a||c.isEmpty())throw new IllegalStateException();a=true;s=0;}public void append(int v){if(!a)throw new IllegalStateException();s+=v;}public int finish(){if(!a)throw new IllegalStateException();return s;}public void release(){if(!a)throw new IllegalStateException();a=false;}}\n",
+          "sha256": "6dfa878d313345c5be2b3b2ec8f7eeedb618d372c7f15edcf72932a12e585ff7"
+        },
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Driver d=new Driver();public int process(String c,int[] vs){d.acquire((c));try{for(int v:vs)d.append(v);return d.finish();}finally{d.release();}}}",
+          "sha256": "b8c1ba031ef67d8540ee3849f4a80443477f9582bda997a2e6db81c8d44999ca"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Actual harmless_syntax source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "java_lifecycle_low__dependency_hidden",
+      "language": "java",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "java_lifecycle_low",
+      "variant_kind": "dependency_hidden",
+      "dependency_visibility": "hidden_from_analyzer_and_workspace",
+      "analysis_targets": [
+        "src/Example.java"
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Driver d=new Driver();public int process(String c,int[] vs){d.acquire(c);try{for(int v:vs)d.append(v);return d.finish();}finally{d.release();}}}",
+          "sha256": "1ce61e6c22fdd8a3f3a29c465ffb2b7973a1c835a394765bea80d175c927b434"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Driver support source is physically omitted; target is byte-identical and unresolved dependency evidence remains visible."
+    },
+    {
+      "id": "go_lifecycle_low__helper_extracted",
+      "language": "go",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "go_lifecycle_low",
+      "variant_kind": "helper_extracted",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "driver.go",
+          "content": "package fixture\n\ntype Driver struct{a bool;s int}\nfunc(d *Driver) Acquire(c string){if d.a||c==\"\"{panic(\"acquire\")};d.a=true;d.s=0}\nfunc(d *Driver) Append(v int){if !d.a{panic(\"append\")};d.s+=v}\nfunc(d *Driver) Finish()int{if !d.a{panic(\"finish\")};return d.s}\nfunc(d *Driver) Release(){if !d.a{panic(\"release\")};d.a=false}\n",
+          "sha256": "49fc4c17c47046ab8ce8d74fa381d045e2d8a04831ea93ca7c02251f401b4b1d"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{d Driver}\nfunc(e *Example)appendAll(vs []int){for _,v:=range vs{e.d.Append(v)}}\nfunc(e *Example) Process(c string,vs []int)int{e.d.Acquire(c);defer e.d.Release();e.appendAll(vs);return e.d.Finish()}",
+          "sha256": "dcbce8502121c7e58571bd67ae16e03f63254b03a34e2d5ec076c1ea582892a3"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Actual helper_extracted source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "go_lifecycle_low__renamed",
+      "language": "go",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "go_lifecycle_low",
+      "variant_kind": "renamed",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "driver.go",
+          "content": "package fixture\n\ntype Driver struct{a bool;s int}\nfunc(d *Driver) Acquire(c string){if d.a||c==\"\"{panic(\"acquire\")};d.a=true;d.s=0}\nfunc(d *Driver) Append(v int){if !d.a{panic(\"append\")};d.s+=v}\nfunc(d *Driver) Finish()int{if !d.a{panic(\"finish\")};return d.s}\nfunc(d *Driver) Release(){if !d.a{panic(\"release\")};d.a=false}\n",
+          "sha256": "49fc4c17c47046ab8ce8d74fa381d045e2d8a04831ea93ca7c02251f401b4b1d"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype RenamedExample struct{d Driver}\nfunc(e *RenamedExample) Process(c string,vs []int)int{e.d.Acquire(c);defer e.d.Release();for _,v:=range vs{e.d.Append(v)};return e.d.Finish()}",
+          "sha256": "12afb0614f2e923124c346fc5cee8d8592aeba8e1fe0476158373c0383f6b2d3"
+        }
+      ],
+      "entrypoint": "RenamedExample",
+      "rationale": "Actual renamed source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "go_lifecycle_low__harmless_syntax",
+      "language": "go",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "go_lifecycle_low",
+      "variant_kind": "harmless_syntax",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "driver.go",
+          "content": "package fixture\n\ntype Driver struct{a bool;s int}\nfunc(d *Driver) Acquire(c string){if d.a||c==\"\"{panic(\"acquire\")};d.a=true;d.s=0}\nfunc(d *Driver) Append(v int){if !d.a{panic(\"append\")};d.s+=v}\nfunc(d *Driver) Finish()int{if !d.a{panic(\"finish\")};return d.s}\nfunc(d *Driver) Release(){if !d.a{panic(\"release\")};d.a=false}\n",
+          "sha256": "49fc4c17c47046ab8ce8d74fa381d045e2d8a04831ea93ca7c02251f401b4b1d"
+        },
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{d Driver}\nfunc(e *Example) Process(c string,vs []int)int{e.d.Acquire((c));defer e.d.Release();for _,v:=range vs{e.d.Append(v)};return e.d.Finish()}",
+          "sha256": "4523d528e4db8f5b5a3943c98dbe0114263ee31a192fcd8438b3c55671dfc7b7"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Actual harmless_syntax source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "go_lifecycle_low__dependency_hidden",
+      "language": "go",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "go_lifecycle_low",
+      "variant_kind": "dependency_hidden",
+      "dependency_visibility": "hidden_from_analyzer_and_workspace",
+      "analysis_targets": [
+        "fixture.go"
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{d Driver}\nfunc(e *Example) Process(c string,vs []int)int{e.d.Acquire(c);defer e.d.Release();for _,v:=range vs{e.d.Append(v)};return e.d.Finish()}",
+          "sha256": "ab7037ac8fd9051f128f23fb51aa0441564728064ff89a58876a2c14f1d24214"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Driver support source is physically omitted; target is byte-identical and unresolved dependency evidence remains visible."
+    },
+    {
+      "id": "typescript_lifecycle_low__helper_extracted",
+      "language": "typescript",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "typescript_lifecycle_low",
+      "variant_kind": "helper_extracted",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/driver.ts",
+          "content": "export class Driver{a=false;s=0;acquire(c:string){if(this.a||c.length===0)throw new Error();this.a=true;this.s=0;}append(v:number){if(!this.a)throw new Error();this.s+=v;}finish(){if(!this.a)throw new Error();return this.s;}release(){if(!this.a)throw new Error();this.a=false;}}\n",
+          "sha256": "0092e54f16a6da12ef806bb20a66aa5ccb705894dd00fa28027c1f4ad1dd08ba"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Driver } from \"./driver\";\nexport class Example{private d=new Driver();private appendAll(vs:number[]){for(const v of vs)this.d.append(v)}process(c:string,vs:number[]){this.d.acquire(c);try{this.appendAll(vs);return this.d.finish();}finally{this.d.release();}}}",
+          "sha256": "176780d4ecd4f575067a859f0f63606346427dba8b992b7b5946d22ef27bf51c"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Actual helper_extracted source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "typescript_lifecycle_low__renamed",
+      "language": "typescript",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "typescript_lifecycle_low",
+      "variant_kind": "renamed",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/driver.ts",
+          "content": "export class Driver{a=false;s=0;acquire(c:string){if(this.a||c.length===0)throw new Error();this.a=true;this.s=0;}append(v:number){if(!this.a)throw new Error();this.s+=v;}finish(){if(!this.a)throw new Error();return this.s;}release(){if(!this.a)throw new Error();this.a=false;}}\n",
+          "sha256": "0092e54f16a6da12ef806bb20a66aa5ccb705894dd00fa28027c1f4ad1dd08ba"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Driver } from \"./driver\";\nexport class RenamedExample{private d=new Driver();process(c:string,vs:number[]){this.d.acquire(c);try{for(const v of vs)this.d.append(v);return this.d.finish();}finally{this.d.release();}}}",
+          "sha256": "7e28dac2053d74b53b3db747b44083815165b3ecf60ea01e1200a2a4be76ce73"
+        }
+      ],
+      "entrypoint": "RenamedExample",
+      "rationale": "Actual renamed source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "typescript_lifecycle_low__harmless_syntax",
+      "language": "typescript",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "typescript_lifecycle_low",
+      "variant_kind": "harmless_syntax",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/driver.ts",
+          "content": "export class Driver{a=false;s=0;acquire(c:string){if(this.a||c.length===0)throw new Error();this.a=true;this.s=0;}append(v:number){if(!this.a)throw new Error();this.s+=v;}finish(){if(!this.a)throw new Error();return this.s;}release(){if(!this.a)throw new Error();this.a=false;}}\n",
+          "sha256": "0092e54f16a6da12ef806bb20a66aa5ccb705894dd00fa28027c1f4ad1dd08ba"
+        },
+        {
+          "path": "src/example.ts",
+          "content": "import { Driver } from \"./driver\";\nexport class Example{private d=new Driver();process(c:string,vs:number[]){this.d.acquire((c));try{for(const v of vs)this.d.append(v);return this.d.finish();}finally{this.d.release();}}}",
+          "sha256": "1c954754a73b3a13d423ad8f91ef1a7ab07bf333e343fd925a879c3996e6ae6c"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Actual harmless_syntax source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "typescript_lifecycle_low__dependency_hidden",
+      "language": "typescript",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "typescript_lifecycle_low",
+      "variant_kind": "dependency_hidden",
+      "dependency_visibility": "hidden_from_analyzer_and_workspace",
+      "analysis_targets": [
+        "src/example.ts"
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/example.ts",
+          "content": "import { Driver } from \"./driver\";\nexport class Example{private d=new Driver();process(c:string,vs:number[]){this.d.acquire(c);try{for(const v of vs)this.d.append(v);return this.d.finish();}finally{this.d.release();}}}",
+          "sha256": "2cb84030e4facfe0b50fd993b0bebe468cca7ede341627b172a5c558f86d0d1f"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Driver support source is physically omitted; target is byte-identical and unresolved dependency evidence remains visible."
+    },
+    {
+      "id": "rust_lifecycle_low__helper_extracted",
+      "language": "rust",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "rust_lifecycle_low",
+      "variant_kind": "helper_extracted",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/driver.rs",
+          "content": "pub struct Driver{a:bool,s:i32}\nimpl Driver{pub fn new()->Self{Self{a:false,s:0}}pub fn acquire(&mut self,c:&str){assert!(!self.a&&!c.is_empty());self.a=true;self.s=0}pub fn append(&mut self,v:i32){assert!(self.a);self.s+=v}pub fn finish(&self)->i32{assert!(self.a);self.s}pub fn release(&mut self){assert!(self.a);self.a=false}}\n",
+          "sha256": "52984c790e462dc4ea674a82548d16f8a1f8dac7c95d6f96a5c4b37c186c2794"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod driver;\nuse driver::Driver;\nfn append_all(d:&mut Driver,vs:&[i32]){for v in vs{d.append(*v)}}\nstruct Release<'a>(&'a mut Driver);impl Drop for Release<'_>{fn drop(&mut self){self.0.release()}}\npub struct Example{d:Driver}impl Example{pub fn new()->Self{Self{d:Driver::new()}}pub fn process(&mut self,c:&str,vs:&[i32])->i32{self.d.acquire(c);let mut guard=Release(&mut self.d);append_all(guard.0,vs);let out=guard.0.finish();drop(guard);out}}",
+          "sha256": "0c8b8dd79a6a4aae8918aa46c2d443e92ee828ae1a47498f9aee702b736dcbc9"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Actual helper_extracted source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "rust_lifecycle_low__renamed",
+      "language": "rust",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "rust_lifecycle_low",
+      "variant_kind": "renamed",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/driver.rs",
+          "content": "pub struct Driver{a:bool,s:i32}\nimpl Driver{pub fn new()->Self{Self{a:false,s:0}}pub fn acquire(&mut self,c:&str){assert!(!self.a&&!c.is_empty());self.a=true;self.s=0}pub fn append(&mut self,v:i32){assert!(self.a);self.s+=v}pub fn finish(&self)->i32{assert!(self.a);self.s}pub fn release(&mut self){assert!(self.a);self.a=false}}\n",
+          "sha256": "52984c790e462dc4ea674a82548d16f8a1f8dac7c95d6f96a5c4b37c186c2794"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod driver;\nuse driver::Driver;\nstruct Release<'a>(&'a mut Driver);impl Drop for Release<'_>{fn drop(&mut self){self.0.release()}}\npub struct RenamedExample{d:Driver}impl RenamedExample{pub fn new()->Self{Self{d:Driver::new()}}pub fn process(&mut self,c:&str,vs:&[i32])->i32{self.d.acquire(c);let mut guard=Release(&mut self.d);for v in vs{guard.0.append(*v)}let out=guard.0.finish();drop(guard);out}}",
+          "sha256": "88cb28e74b9c419d0f385af4d9a3cb30a0d33f5137e1b30a4cc232ea2b5604f9"
+        }
+      ],
+      "entrypoint": "RenamedExample",
+      "rationale": "Actual renamed source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "rust_lifecycle_low__harmless_syntax",
+      "language": "rust",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "rust_lifecycle_low",
+      "variant_kind": "harmless_syntax",
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/driver.rs",
+          "content": "pub struct Driver{a:bool,s:i32}\nimpl Driver{pub fn new()->Self{Self{a:false,s:0}}pub fn acquire(&mut self,c:&str){assert!(!self.a&&!c.is_empty());self.a=true;self.s=0}pub fn append(&mut self,v:i32){assert!(self.a);self.s+=v}pub fn finish(&self)->i32{assert!(self.a);self.s}pub fn release(&mut self){assert!(self.a);self.a=false}}\n",
+          "sha256": "52984c790e462dc4ea674a82548d16f8a1f8dac7c95d6f96a5c4b37c186c2794"
+        },
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod driver;\nuse driver::Driver;\nstruct Release<'a>(&'a mut Driver);impl Drop for Release<'_>{fn drop(&mut self){self.0.release()}}\npub struct Example{d:Driver}impl Example{pub fn new()->Self{Self{d:Driver::new()}}pub fn process(&mut self,c:&str,vs:&[i32])->i32{self.d.acquire((c));let mut guard=Release(&mut self.d);for v in vs{guard.0.append(*v)}let out=guard.0.finish();drop(guard);out}}",
+          "sha256": "afe63c495334984caa655ec06bfcd2df4fb3e0c4ecd80dcb84f07a98079783f2"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Actual harmless_syntax source variant preserves Driver acquire/append/finish/release behavior."
+    },
+    {
+      "id": "rust_lifecycle_low__dependency_hidden",
+      "language": "rust",
+      "family": "lifecycle",
+      "kind": "variant",
+      "variant_of": "rust_lifecycle_low",
+      "variant_kind": "dependency_hidden",
+      "dependency_visibility": "hidden_from_analyzer_and_workspace",
+      "analysis_targets": [
+        "src/lib.rs"
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod driver;\nuse driver::Driver;\nstruct Release<'a>(&'a mut Driver);impl Drop for Release<'_>{fn drop(&mut self){self.0.release()}}\npub struct Example{d:Driver}impl Example{pub fn new()->Self{Self{d:Driver::new()}}pub fn process(&mut self,c:&str,vs:&[i32])->i32{self.d.acquire(c);let mut guard=Release(&mut self.d);for v in vs{guard.0.append(*v)}let out=guard.0.finish();drop(guard);out}}",
+          "sha256": "5d94d15b2595c1e652fb22e8a0bd528a5864dbd0ee9622536b7e6f383ccbe794"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Driver support source is physically omitted; target is byte-identical and unresolved dependency evidence remains visible."
+    },
+    {
+      "id": "java_lifecycle_high__dependency_hidden",
+      "language": "java",
+      "family": "lifecycle",
+      "kind": "variant",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/Example.java",
+      "files": [
+        {
+          "path": "src/Example.java",
+          "content": "public final class Example{private Driver d=new Driver();public void acquire(String c){d.acquire(c);}public void append(int v){d.append(v);}public int finish(){return d.finish();}public void release(){d.release();}}",
+          "sha256": "436f4403c380eeaca18b8b00ec8a7e4497da6cbef595adb406c97226379656e7"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Driver support source is physically omitted; target is byte-identical and unresolved dependency evidence remains visible.",
+      "variant_of": "java_lifecycle_high",
+      "variant_kind": "dependency_hidden",
+      "analysis_targets": [
+        "src/Example.java"
+      ],
+      "dependency_visibility": "hidden_from_analyzer_and_workspace"
+    },
+    {
+      "id": "go_lifecycle_high__dependency_hidden",
+      "language": "go",
+      "family": "lifecycle",
+      "kind": "variant",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "fixture.go",
+      "files": [
+        {
+          "path": "fixture.go",
+          "content": "package fixture\n\ntype Example struct{d Driver}\nfunc(e *Example) Acquire(c string){e.d.Acquire(c)}\nfunc(e *Example) Append(v int){e.d.Append(v)}\nfunc(e *Example) Finish()int{return e.d.Finish()}\nfunc(e *Example) Release(){e.d.Release()}",
+          "sha256": "0d00f5ee882e233f34145dc9e8e670e5db856dabd0c9792a3fdfd84ff194f5b4"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Driver support source is physically omitted; target is byte-identical and unresolved dependency evidence remains visible.",
+      "variant_of": "go_lifecycle_high",
+      "variant_kind": "dependency_hidden",
+      "analysis_targets": [
+        "fixture.go"
+      ],
+      "dependency_visibility": "hidden_from_analyzer_and_workspace"
+    },
+    {
+      "id": "typescript_lifecycle_high__dependency_hidden",
+      "language": "typescript",
+      "family": "lifecycle",
+      "kind": "variant",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/example.ts",
+      "files": [
+        {
+          "path": "src/example.ts",
+          "content": "import { Driver } from \"./driver\";\nexport class Example{private d=new Driver();acquire(c:string){this.d.acquire(c)}append(v:number){this.d.append(v)}finish(){return this.d.finish()}release(){this.d.release()}}",
+          "sha256": "78c49fbf9c0db2a413e3f38e4d067fa360bccb0473e39779f58ebe5ed3e9f873"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Driver support source is physically omitted; target is byte-identical and unresolved dependency evidence remains visible.",
+      "variant_of": "typescript_lifecycle_high",
+      "variant_kind": "dependency_hidden",
+      "analysis_targets": [
+        "src/example.ts"
+      ],
+      "dependency_visibility": "hidden_from_analyzer_and_workspace"
+    },
+    {
+      "id": "rust_lifecycle_high__dependency_hidden",
+      "language": "rust",
+      "family": "lifecycle",
+      "kind": "variant",
+      "expected_range": [
+        65,
+        95
+      ],
+      "path": "src/lib.rs",
+      "files": [
+        {
+          "path": "src/lib.rs",
+          "content": "pub mod driver;\nuse driver::Driver;\npub struct Example{d:Driver}impl Example{pub fn new()->Self{Self{d:Driver::new()}}pub fn acquire(&mut self,c:&str){self.d.acquire(c)}pub fn append(&mut self,v:i32){self.d.append(v)}pub fn finish(&self)->i32{self.d.finish()}pub fn release(&mut self){self.d.release()}}",
+          "sha256": "bd9db16ab07106c83f6fb9213d04f40e95549e36c7d17f2a1c0db149ece59780"
+        }
+      ],
+      "entrypoint": "Example",
+      "rationale": "Driver support source is physically omitted; target is byte-identical and unresolved dependency evidence remains visible.",
+      "variant_of": "rust_lifecycle_high",
+      "variant_kind": "dependency_hidden",
+      "analysis_targets": [
+        "src/lib.rs"
+      ],
+      "dependency_visibility": "hidden_from_analyzer_and_workspace"
+    }
+  ],
+  "independent_review": "graded-independent-review.md"
+}

@@ -50,5 +50,5 @@ func appearanceView(model Model) string {
 		}
 		content = append(content, style.ToggleOption(fmt.Sprintf("[%s]", mark), item.label, index == model.appearanceCursor, false, 34))
 	}
-	return style.Popup(style.Heading("APPEARANCE"), content, "", 38)
+	return style.Popup(style.Heading("THEME"), content, "", 38)
 }

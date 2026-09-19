@@ -49,7 +49,7 @@ func (service *Service) PrepareBaseline(ctx context.Context, request fixanalysis
 	snapshots := make([]fix.TargetSnapshot, len(request.Targets))
 	for index, path := range request.Targets {
 		file := files[path]
-		snapshot, snapshotErr := targetSnapshot(path, before.files[path], file, mapper)
+		snapshot, snapshotErr := targetSnapshot(path, before.files[path], file, document.Depth, mapper)
 		if snapshotErr != nil {
 			return fixanalysis.BaselineSnapshot{}, snapshotErr
 		}

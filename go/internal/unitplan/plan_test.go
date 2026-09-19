@@ -245,7 +245,8 @@ func TestTypeScriptSyntaxCacheUnitsFollowPackageBoundaries(t *testing.T) {
 		"packages/a/src/b.ts":     "export const b = 2;\n",
 		"packages/b/package.json": "{}",
 		"packages/b/src/c.ts":     "export const c = 3;\n",
-		"loose/d.ts":              "export const d = 4;\n",
+		"loose/types.d.ts":        "export interface D { value: number }\n",
+		"loose/main.ts":           "export const d = 4;\n",
 	}), Options{TypeScriptMode: TypeScriptSyntax})
 	if err != nil {
 		t.Fatal(err)
@@ -256,11 +257,35 @@ func TestTypeScriptSyntaxCacheUnitsFollowPackageBoundaries(t *testing.T) {
 	if got := findUnit(t, plan, "typescript:syntax:packages/b").Sources; !reflect.DeepEqual(got, []string{"packages/b/src/c.ts"}) {
 		t.Fatalf("package b sources = %v", got)
 	}
-	if got := findUnit(t, plan, "typescript:syntax:root").Sources; !reflect.DeepEqual(got, []string{"loose/d.ts"}) {
-		t.Fatalf("workspace fallback sources = %v", got)
+	root := findUnit(t, plan, "typescript:syntax:root")
+	if !reflect.DeepEqual(root.Sources, []string{"loose/main.ts"}) || !reflect.DeepEqual(root.ContextSources, []string{"loose/types.d.ts"}) {
+		t.Fatalf("workspace fallback sources = %v context %v", root.Sources, root.ContextSources)
 	}
 	if len(plan.Units) != 3 {
 		t.Fatalf("syntax plan created %d units for three package scopes: %v", len(plan.Units), unitIDs(plan.Units))
+	}
+}
+
+func TestTypeScriptDeclarationOnlyReferenceRemainsContextInput(t *testing.T) {
+	plan, err := PlanWorkspace(fixture(t, map[string]string{
+		"packages/types/tsconfig.json": "{\"files\": [\"src/api.d.ts\"]}",
+		"packages/types/src/api.d.ts":  "export interface Api { value: number }\n",
+		"packages/app/tsconfig.json":   "{\"references\": [{\"path\": \"../types\"}]}",
+		"packages/app/src/app.ts":      "export const app = 1;\n",
+	}), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := findUnit(t, plan, "typescript:typed:packages/app/tsconfig.json")
+	if !reflect.DeepEqual(app.DirectDependencies, []string{"typescript:typed:packages/types/tsconfig.json"}) {
+		t.Fatalf("declaration-only dependency = %v", app.DirectDependencies)
+	}
+	types := findUnit(t, plan, "typescript:typed:packages/types/tsconfig.json")
+	if len(types.Sources) != 0 || !reflect.DeepEqual(types.ContextSources, []string{"packages/types/src/api.d.ts"}) {
+		t.Fatalf("declaration-only context unit = %#v", types)
+	}
+	if !reflect.DeepEqual(types.ConfigInputs, []string{"packages/types/tsconfig.json"}) {
+		t.Fatalf("declaration-only config inputs = %v", types.ConfigInputs)
 	}
 }
 

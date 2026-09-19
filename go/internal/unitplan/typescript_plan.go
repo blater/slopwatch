@@ -1,26 +1,31 @@
 package unitplan
 
 func buildTypeScriptPlan(context plannerContext, options Options) ([]Unit, []Diagnostic) {
-	sources, configs, diagnostics := collectTSWorkspace(context)
+	sources, declarations, configs, diagnostics := collectTSWorkspace(context)
 	if len(sources) == 0 {
 		return nil, diagnostics
 	}
 	if options.TypeScriptMode == TypeScriptSyntax {
-		return typeScriptSyntaxUnits(context, sources), diagnostics
+		return typeScriptSyntaxUnits(context, sources, declarations), diagnostics
 	}
-	units, typedDiagnostics, configDirs := typedTypeScriptUnits(context, sources, configs)
+	units, typedDiagnostics, configDirs := typedTypeScriptUnits(context, sources, declarations, configs)
 	diagnostics = append(diagnostics, typedDiagnostics...)
 	looseSources := looseTypeScriptSources(sources, configDirs)
-	return append(units, typeScriptSyntaxUnits(context, looseSources)...), diagnostics
+	return append(units, typeScriptSyntaxUnits(context, looseSources, looseTypeScriptSources(declarations, configDirs))...), diagnostics
 }
 
-func collectTSWorkspace(context plannerContext) ([]string, map[string]*tsConfig, []Diagnostic) {
+func collectTSWorkspace(context plannerContext) ([]string, []string, map[string]*tsConfig, []Diagnostic) {
 	var sources []string
+	var declarations []string
 	configs := map[string]*tsConfig{}
 	var diagnostics []Diagnostic
 	for _, file := range context.files {
 		if isTypeScriptSource(file) {
-			sources = append(sources, file)
+			if isTypeScriptDeclaration(file) {
+				declarations = append(declarations, file)
+			} else {
+				sources = append(sources, file)
+			}
 		}
 		if !isTSConfig(file) {
 			continue
@@ -33,7 +38,7 @@ func collectTSWorkspace(context plannerContext) ([]string, map[string]*tsConfig,
 		configs[file] = config
 	}
 	normalizeTSProjects(context, configs)
-	return sources, configs, diagnostics
+	return sources, declarations, configs, diagnostics
 }
 
 func normalizeTSProjects(context plannerContext, configs map[string]*tsConfig) {
@@ -49,11 +54,12 @@ func normalizeTSProjects(context plannerContext, configs map[string]*tsConfig) {
 	}
 }
 
-func typedTypeScriptUnits(context plannerContext, sources []string, configs map[string]*tsConfig) ([]Unit, []Diagnostic, map[string]bool) {
+func typedTypeScriptUnits(context plannerContext, sources, declarations []string, configs map[string]*tsConfig) ([]Unit, []Diagnostic, map[string]bool) {
 	unitIDs, projectsByDirectory := typeScriptProjects(configs)
 	ownedByProject := assignTypeScriptSources(sources, projectsByDirectory)
+	declarationsByProject := assignTypeScriptSources(declarations, projectsByDirectory)
 	packageInputs := typeScriptPackageInputsByProject(context, configs)
-	units, diagnostics := buildTypeScriptUnits(context, configs, unitIDs, ownedByProject, packageInputs)
+	units, diagnostics := buildTypeScriptUnits(context, configs, unitIDs, ownedByProject, declarationsByProject, packageInputs)
 	markOverlappingTypeScriptUnits(units)
 	return units, diagnostics, typeScriptProjectDirectories(configs)
 }
@@ -85,27 +91,28 @@ func assignTypeScriptSources(sources []string, projectsByDirectory map[string][]
 	return owned
 }
 
-func buildTypeScriptUnits(context plannerContext, configs map[string]*tsConfig, unitIDs map[string]string, ownedByProject map[string][]string, packageInputs map[string][]string) ([]Unit, []Diagnostic) {
+func buildTypeScriptUnits(context plannerContext, configs map[string]*tsConfig, unitIDs map[string]string, ownedByProject, declarationsByProject map[string][]string, packageInputs map[string][]string) ([]Unit, []Diagnostic) {
 	var units []Unit
 	var diagnostics []Diagnostic
 	for path, config := range configs {
-		if !config.project || len(ownedByProject[path]) == 0 {
+		if !config.project || (len(ownedByProject[path]) == 0 && len(declarationsByProject[path]) == 0) {
 			continue
 		}
 		configInputs, extendDiagnostic := tsConfigInputs(context, config, configs, packageInputs[path])
 		if extendDiagnostic != nil {
 			diagnostics = append(diagnostics, *extendDiagnostic)
 		}
-		units = append(units, typeScriptUnit(unitIDs[path], ownedByProject[path], configInputs, typeScriptDependencies(context, config, unitIDs), config.uncertain || extendDiagnostic != nil))
+		dependencies := typeScriptDependencies(context, config, unitIDs)
+		units = append(units, typeScriptUnit(unitIDs[path], ownedByProject[path], declarationsByProject[path], configInputs, dependencies, config.uncertain || extendDiagnostic != nil))
 	}
 	return units, diagnostics
 }
 
-func typeScriptUnit(id string, sources, configInputs, dependencies []string, conservative bool) Unit {
+func typeScriptUnit(id string, sources, contextSources, configInputs, dependencies []string, conservative bool) Unit {
 	return Unit{
 		ID: id, Language: LanguageTypeScript, Mode: ModeTyped,
 		Capabilities: []Capability{CapabilitySyntax, CapabilityTypes, CapabilityDependencies},
-		Sources:      sources, ConfigInputs: configInputs, DirectDependencies: dependencies,
+		Sources:      sources, ContextSources: contextSources, ConfigInputs: configInputs, DirectDependencies: dependencies,
 		Conservative: conservative,
 	}
 }

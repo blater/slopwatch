@@ -14,7 +14,7 @@ func (state *configSettingsState) handleEditingKey(key tea.KeyMsg, catalog agent
 		return configKeyAction{}
 	case "enter":
 		if err := state.commitText(catalog); err != nil {
-			state.status = err.Error()
+			state.status = "Invalid setting: " + err.Error()
 			return configKeyAction{}
 		}
 		state.editing = false

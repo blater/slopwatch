@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "id": "connected-confirmation-source-holdout-v1",
+  "status": "independently-reviewed-frozen",
+  "purpose": "holdout",
+  "selection_blinded_to_scores": true,
+  "frozen_before_first_evaluation": true,
+  "frozen_at_utc": "2026-09-18T19:01:30.895861+00:00",
+  "selection_method": "Source-only selection from live source and production callers. Expectations fixed without running scoring or inspecting candidate ratings. Prior exposure and coverage gaps are disclosed.",
+  "cases": [
+    {
+      "id": "go-condition-variable",
+      "language": "go",
+      "target": "cond.go",
+      "group": "high",
+      "expected_range": [
+        65,
+        100
+      ],
+      "files": [
+        {
+          "path": "cond.go",
+          "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/sync/cond.go",
+          "snapshot": "snapshots/go-condition-variable/cond.go",
+          "sha256": "1159ffd7688160d8ff85b63a280eccd7ca52defde347cb443b0a3d1d1eb0519a"
+        }
+      ],
+      "origin_revision": "Go 1.27.1 installed source; VERSION timestamp 2026-08-28T16:20:06Z",
+      "source_of_truth": "exact working-tree or installed-source bytes; revision/version is provenance only",
+      "hidden_responsibilities": "Owns runtime waiter notification, atomic unlock/sleep/relock and copy-use detection.",
+      "remaining_caller_burden": "Caller owns the actual predicate, its state changes, the matching Locker, lock/unlock bracketing, repeated predicate tests around Wait, and choosing Signal/Broadcast at the right transitions. A wakeup does not establish the predicate.",
+      "rationale_and_witnesses": "database/sql/closemu.go RLock and Lock hold m.mu and retry atomic state predicates around Wait; RUnlock and Unlock decide when to Broadcast. The implementation hides a valuable waiting primitive but leaves a coupled synchronization protocol outside; high is justified by concrete caller sequencing, not operation count."
+    },
+    {
+      "id": "go-once-initializer",
+      "language": "go",
+      "target": "once.go",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "once.go",
+          "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/sync/once.go",
+          "snapshot": "snapshots/go-once-initializer/once.go",
+          "sha256": "3bc00bab32acd134ddf50c87fdbd1dd70502f224b7684a801a077dfe0a05eb3f"
+        }
+      ],
+      "origin_revision": "Go 1.27.1 installed source; VERSION timestamp 2026-08-28T16:20:06Z",
+      "source_of_truth": "exact working-tree or installed-source bytes; revision/version is provenance only",
+      "hidden_responsibilities": "Serializes competing initialization attempts, publishes completion only after callback finishes, guarantees later callers wait, and releases locking on panic.",
+      "remaining_caller_burden": "Caller supplies one callback and scopes one Once per initialization, avoids copying the Once after use and recursive self-initialization. No explicit locking, completion flag, wake or cleanup protocol is required at the caller.",
+      "rationale_and_witnesses": "net/textproto/reader.go calls commonHeaderOnce.Do(initCommonHeader), then reads commonHeader. Once hides the synchronization and publication duties that make this ordering safe."
+    },
+    {
+      "id": "typescript-finalize-coordinator",
+      "language": "typescript",
+      "target": "finalize-coordinator.ts",
+      "group": "mixed",
+      "expected_range": [
+        26,
+        64
+      ],
+      "files": [
+        {
+          "path": "finalize-coordinator.ts",
+          "origin": "/Users/blater/src/ap/warren/src/runtime/k8s/finalize-coordinator.ts",
+          "snapshot": "snapshots/typescript-finalize-coordinator/finalize-coordinator.ts",
+          "sha256": "c1d2fe9bf85bac8762f9b106d37bc53ab2a2d064bf44d1163dfa30d8fd789c91"
+        }
+      ],
+      "origin_revision": "7315fa5bf6da110755bc5b6d0bebacaf87fe046a",
+      "source_of_truth": "exact working-tree or installed-source bytes; revision/version is provenance only",
+      "hidden_responsibilities": "Generates attempt IDs, stores an intent/promise pair, validates matching attempts, rejects stale and duplicate delivery, and resolves only the first matching result.",
+      "remaining_caller_burden": "Caller must register before waiting, serve intent and submit externally validated results through separate endpoints, race completion against timeout/pod loss, and abort in finally. Replacement leaves an old awaiter to its own timeout.",
+      "rationale_and_witnesses": "runtime/k8s/finalize.ts registers, constructs timeout and pod-probe races, awaits pending.result and aborts in finally; server/handlers/runs/finalize.ts validates the payload and calls peekIntent/submit. This is a substantive correlation abstraction with residual lifecycle obligations: mixed, not high."
+    },
+    {
+      "id": "typescript-recent-log-buffer",
+      "language": "typescript",
+      "target": "logbuf.ts",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "logbuf.ts",
+          "origin": "/Users/blater/src/career-ops/web/src/lib/report/logbuf.ts",
+          "snapshot": "snapshots/typescript-recent-log-buffer/logbuf.ts",
+          "sha256": "4292fe3a336440740896af8c6dffa7d1ee6d5b50bafcaba3fac9c2ffc2070f7c"
+        }
+      ],
+      "origin_revision": "1ea5ee6379a90dfb1bec17b01aa538a624953848",
+      "source_of_truth": "exact working-tree or installed-source bytes; revision/version is provenance only",
+      "hidden_responsibilities": "Installs browser error/rejection/fetch observation once, normalizes and bounds captured strings, evicts oldest entries, preserves original console/fetch calls, and returns a defensive array copy.",
+      "remaining_caller_burden": "Caller imports the module and asks for recentLogs; report.ts applies its own additional redaction. It does not register handlers, cap entries or manage the buffer.",
+      "rationale_and_witnesses": "lib/report/report.ts imports recentLogs and consumes recentLogs().map(scrub) in its report snapshot. The getter is small because event collection and bounding are hidden at module scope; this is executable behavior, not a passive carrier."
+    },
+    {
+      "id": "rust-maybe-uninit",
+      "language": "rust",
+      "target": "maybe_uninit.rs",
+      "group": "high",
+      "expected_range": [
+        65,
+        100
+      ],
+      "files": [
+        {
+          "path": "maybe_uninit.rs",
+          "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/core/src/mem/maybe_uninit.rs",
+          "snapshot": "snapshots/rust-maybe-uninit/maybe_uninit.rs",
+          "sha256": "4189eaa95d41706cd506ef9dfdb81478640a53ccacc4d88f96329ad3a27e90fb"
+        }
+      ],
+      "origin_revision": "Rust 1.98.1 installed rust-src; exact snapshot hashes authoritative",
+      "source_of_truth": "exact working-tree or installed-source bytes; revision/version is provenance only",
+      "hidden_responsibilities": "Provides storage preserving layout without automatic T destruction, writes values and exposes pointers/conversions; slice initialization helpers additionally guard partial initialization on panic.",
+      "remaining_caller_burden": "Caller must prove initialization before assume_init/ref/read/drop, track ownership after reads, avoid double destruction and leaks, obey aliasing and validity requirements, and manage transitions independently. The storage does not maintain an initialized-state flag or own automatic cleanup of T.",
+      "rationale_and_witnesses": "std/sync/once_lock.rs separately tracks completion, writes MaybeUninit only after successful initialization, guards reads with initialized checks, resets completion before assume_init_read in take, and conditionally assume_init_drop in Drop. These are actual duties outside MaybeUninit. Slice helpers deserve real credit but do not remove the core unsafe ownership protocol."
+    },
+    {
+      "id": "rust-once-lock",
+      "language": "rust",
+      "target": "once_lock.rs",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "once_lock.rs",
+          "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/std/src/sync/once_lock.rs",
+          "snapshot": "snapshots/rust-once-lock/once_lock.rs",
+          "sha256": "c93248ec68768ea304464a4638644bd5219685d316a09655115a64b6f5853ca1"
+        }
+      ],
+      "origin_revision": "Rust 1.98.1 installed rust-src; exact snapshot hashes authoritative",
+      "source_of_truth": "exact working-tree or installed-source bytes; revision/version is provenance only",
+      "hidden_responsibilities": "Owns initialized-state checks, synchronized initialization and publication, retries after failed initialization, safe references, take/reset transitions and conditional value destruction.",
+      "remaining_caller_burden": "Caller provides a value or initialization closure, chooses get/wait/get_or_init semantics and avoids recursive initialization. Safe callers do not track MaybeUninit validity or manually destroy a successfully stored value.",
+      "rationale_and_witnesses": "std/io/stdio.rs stdin scopes a static OnceLock and uses get_or_init to construct its shared buffered reader. This one call hides the state proof, initialization synchronization and ownership obligations demonstrated internally against MaybeUninit."
+    }
+  ],
+  "relations": [
+    {
+      "higher": "go-condition-variable",
+      "lower": "go-once-initializer",
+      "minimum_delta": 25,
+      "rationale": "Caller-managed predicate/locking/wakeup protocol is materially shallower than owned one-time initialization synchronization."
+    },
+    {
+      "higher": "rust-maybe-uninit",
+      "lower": "rust-once-lock",
+      "minimum_delta": 25,
+      "rationale": "OnceLock demonstrably owns the validity tracking, publication and conditional destruction that MaybeUninit requires its caller to implement."
+    },
+    {
+      "higher": "typescript-finalize-coordinator",
+      "lower": "typescript-recent-log-buffer",
+      "minimum_delta": 5,
+      "rationale": "External register/wait/timeout/abort and callback correlation obligations exceed a module-owned bounded error buffer read."
+    }
+  ],
+  "limitations": [
+    "Two cases per language: Go high/low, Rust high/low, TypeScript mixed/low. No new TypeScript-high claim. Original source pool did not suffice for balanced high-band coverage; expansion to installed Go/Rust source and local career-ops/ap sources still did not yield a defensible fresh TS high within the bounded review.",
+    "Existing connected-high corpus and its first evaluation remain unchanged. This confirmation corpus cannot erase earlier Go/TypeScript high misses or substitute for their regression criteria.",
+    "Purposive small sample, not random or enterprise representativeness. System primitives are intentionally low-level APIs; high SHALLOW here describes retained caller responsibility, not an assertion that the primitives should be redesigned.",
+    "Selection did not invoke any scorer or inspect candidate scores, grading outputs or sourceestimate implementation. Prior-task exposure: structural.ts lines 875-905, beginning of legacy feature aggregation during caller tracing. The selector was told earlier connected-high Go/TS cases missed high; candidate-specific scores were not supplied.",
+    "MaybeUninit contains meaningful slice-initialization guards and OnceLock contains compiler-internal/unstable syntax. Exact installed source is preserved; unsupported syntax, missing numeric ratings and grading failures must remain visible, with no fixture edits to manufacture a pass.",
+    "Snapshots omit full build workspaces, runtime internals and third-party dependencies. Witness files are not scored inputs; incomplete evidence must be reported honestly.",
+    "After first evaluation all expectations, relations and hashes remain frozen. Tuning against this corpus consumes its confirmation status; retain failures unchanged."
+  ],
+  "witness_snapshots": [
+    {
+      "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/database/sql/closemu.go",
+      "snapshot": "witnesses/go-closemu/closemu.go",
+      "sha256": "512a942b17d30a6ef932592fa3a82d499c084ca195abb4c27a487c3f0e4a23a5",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/textproto/reader.go",
+      "snapshot": "witnesses/go-reader/reader.go",
+      "sha256": "392a875a750d1cf913ce46136b4bf8d7423370403cda806f81b033e0357c8133",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/ap/warren/src/runtime/k8s/finalize.ts",
+      "snapshot": "witnesses/typescript-finalize/finalize.ts",
+      "sha256": "0563d3f54baf8ea32ba11bb7e69c0a6778771b317cec9516293270da9a19657f",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/ap/warren/src/server/handlers/runs/finalize.ts",
+      "snapshot": "witnesses/typescript-finalize-routes/finalize.ts",
+      "sha256": "6851bfb6dc3a33a5fb8795d20d762f429f93d46b8331c4b854a80a7bb56ad744",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/career-ops/web/src/lib/report/report.ts",
+      "snapshot": "witnesses/typescript-report/report.ts",
+      "sha256": "b19d1b2d978c60d27a642f81fafc602f4519b9f2a18c6babf1224e42c3bee7d2",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/std/src/sync/once_lock.rs",
+      "snapshot": "witnesses/rust-once-lock/once_lock.rs",
+      "sha256": "c93248ec68768ea304464a4638644bd5219685d316a09655115a64b6f5853ca1",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/std/src/io/stdio.rs",
+      "snapshot": "witnesses/rust-stdio/stdio.rs",
+      "sha256": "0e2f8b4e87deaa3b9998f92c234167810aaa461ee4eb4c17292f8e0b23e2b52f",
+      "role": "source-review evidence only, not scored analysis input"
+    }
+  ],
+  "excluded_prior_manifests": [
+    "docs/evidence/shallow-v4/graded-benchmark.json",
+    "docs/evidence/shallow-v4/graded-real-benchmark.json",
+    "docs/evidence/shallow-v4/calibration-holdout/manifest.json",
+    "docs/evidence/shallow-v4/structural-fresh-holdout/manifest.json",
+    "docs/evidence/shallow-v4/connected-high-holdout/manifest.json"
+  ]
+}

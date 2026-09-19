@@ -31,7 +31,7 @@ func runPersistentCache(analyzer *analysisEngine, parent context.Context, catalo
 	if !usable || err != nil {
 		return report.Document{}, usable, err
 	}
-	unchanged, err := verifyPersistentCache(analyzer, parent, &state)
+	unchanged, err := verifyPersistentCache(analyzer, parent, &state, options)
 	if err != nil || !unchanged {
 		return report.Document{}, true, err
 	}
@@ -39,6 +39,10 @@ func runPersistentCache(analyzer *analysisEngine, parent context.Context, catalo
 	if !usable || err != nil {
 		return report.Document{}, usable, err
 	}
+	if !options.ignoreMatcher.Unchanged() {
+		return report.Document{}, true, ErrWorkspaceChanged
+	}
+	document.Diagnostics = append(document.Diagnostics, options.ignoreMatcher.Diagnostics()...)
 	return persistPersistentReport(parent, document, discovered, selected, &state)
 }
 
@@ -111,7 +115,7 @@ func runPersistentMisses(parent context.Context, catalog catalogDocument, option
 	snapshotRoot, cleanup, err := state.store.MaterializeWorkspaceSnapshot(parent, state.analyzer.workspace, snapshotFiles)
 	if err != nil {
 		if errors.Is(err, analysiscache.ErrWorkspaceSnapshotChanged) {
-			return true, errWorkspaceChanged
+			return true, ErrWorkspaceChanged
 		}
 		if parent.Err() != nil {
 			return true, parent.Err()
@@ -132,7 +136,10 @@ func runPersistentMisses(parent context.Context, catalog catalogDocument, option
 	return true, nil
 }
 
-func verifyPersistentCache(analyzer *analysisEngine, parent context.Context, state *persistentCacheState) (bool, error) {
+func verifyPersistentCache(analyzer *analysisEngine, parent context.Context, state *persistentCacheState, options Options) (bool, error) {
+	if !options.ignoreMatcher.Unchanged() {
+		return false, ErrWorkspaceChanged
+	}
 	unchanged, err := verifyWorkspaceInputs(analyzer, parent, state.prepared.digests)
 	if err != nil {
 		if parent.Err() != nil {
@@ -141,15 +148,15 @@ func verifyPersistentCache(analyzer *analysisEngine, parent context.Context, sta
 		return true, err
 	}
 	if !unchanged {
-		return false, errWorkspaceChanged
+		return false, ErrWorkspaceChanged
 	}
 	for language, expected := range state.prepared.backendDigests {
-		actual, digestErr := backendDigest(analyzer, language)
+		actual, digestErr := backendDigest(analyzer, language, options)
 		if digestErr != nil {
 			return true, digestErr
 		}
 		if actual != expected {
-			return false, errWorkspaceChanged
+			return false, ErrWorkspaceChanged
 		}
 	}
 	return true, nil

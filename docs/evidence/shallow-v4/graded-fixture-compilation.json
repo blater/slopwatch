@@ -1,0 +1,426 @@
+{
+  "manifest_sha256": "ac9a39a3e761201e3a9f8d8078b9adf7976c2b905c92e33840a38aa784c330df",
+  "results": [
+    {
+      "id": "java_lifecycle_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_lifecycle_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_lifecycle_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_representation_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_representation_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_representation_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_forwarding_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_forwarding_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_forwarding_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_control_passive",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_lifecycle_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_lifecycle_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_lifecycle_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_representation_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_representation_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_representation_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_forwarding_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_forwarding_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_forwarding_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_control_passive",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_lifecycle_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_lifecycle_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_lifecycle_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_representation_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_representation_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_representation_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_forwarding_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_forwarding_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_forwarding_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_control_passive",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_lifecycle_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_lifecycle_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_lifecycle_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_representation_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_representation_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_representation_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_forwarding_low",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_forwarding_mid",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_forwarding_high",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_control_passive",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_lifecycle_low__helper_extracted",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_lifecycle_low__renamed",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_lifecycle_low__harmless_syntax",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_lifecycle_low__dependency_hidden",
+      "expected_compile": false,
+      "exit_code": 1,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_lifecycle_low__helper_extracted",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_lifecycle_low__renamed",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_lifecycle_low__harmless_syntax",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_lifecycle_low__dependency_hidden",
+      "expected_compile": false,
+      "exit_code": 1,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_lifecycle_low__helper_extracted",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_lifecycle_low__renamed",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_lifecycle_low__harmless_syntax",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_lifecycle_low__dependency_hidden",
+      "expected_compile": false,
+      "exit_code": 2,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_lifecycle_low__helper_extracted",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_lifecycle_low__renamed",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_lifecycle_low__harmless_syntax",
+      "expected_compile": true,
+      "exit_code": 0,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_lifecycle_low__dependency_hidden",
+      "expected_compile": false,
+      "exit_code": 1,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "java_lifecycle_high__dependency_hidden",
+      "expected_compile": false,
+      "exit_code": 1,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "go_lifecycle_high__dependency_hidden",
+      "expected_compile": false,
+      "exit_code": 1,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "typescript_lifecycle_high__dependency_hidden",
+      "expected_compile": false,
+      "exit_code": 2,
+      "pass": true,
+      "failure": null
+    },
+    {
+      "id": "rust_lifecycle_high__dependency_hidden",
+      "expected_compile": false,
+      "exit_code": 1,
+      "pass": true,
+      "failure": null
+    }
+  ],
+  "note": "52 complete sources compile; 8 dependency-hidden variants intentionally fail compilation. Final manifest status and per-file hashes added after verification; source contents unchanged."
+}

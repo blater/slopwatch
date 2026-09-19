@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "id": "connected-high-real-source-holdout-v1",
+  "status": "independently-reviewed-frozen",
+  "purpose": "holdout",
+  "selection_blinded_to_scores": true,
+  "frozen_before_first_evaluation": true,
+  "frozen_at_utc": "2026-09-18T18:08:40.429911+00:00",
+  "selection_method": "Independent candidate-source and caller review: one retained-protocol/safety high and one cohesive responsibility-hiding low per Go, TypeScript and Rust. Candidate scores never run/read. Prior scorer-source exposure disclosed.",
+  "cases": [
+    {
+      "id": "go-response-controller",
+      "language": "go",
+      "target": "responsecontroller.go",
+      "group": "high",
+      "expected_range": [
+        65,
+        100
+      ],
+      "files": [
+        {
+          "path": "responsecontroller.go",
+          "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/http/responsecontroller.go",
+          "snapshot": "snapshots/go-response-controller/responsecontroller.go",
+          "sha256": "7276f45a5fed50dad368b75afe916b3e4dc45bca2e23e438f1095b0fdc6f4ad6"
+        }
+      ],
+      "origin_revision": "Go go1.27.1 darwin/arm64, Homebrew Cellar go/1.27.1; VERSION timestamp 2026-08-28T16:20:06Z",
+      "source_of_truth": "Exact unmodified local source bytes. Version/revision is provenance only; SHA-256 is authoritative.",
+      "hidden_responsibilities": "Unwraps writer layers, discovers optional capabilities, normalizes unsupported-operation errors and prefers error-returning Flush. These are real dispatch duties, but it does not own an HTTP exchange or hijacked connection.",
+      "remaining_caller_burden": "Caller owns ServeHTTP lifetime, flush boundaries, deadline timing and error policy, full-duplex activation and I/O sequencing. After hijack, caller owns response framing, buffered flush, bidirectional copy, cancellation and closure.",
+      "rationale_and_witnesses": "Production httputil/reverseproxy.go copyResponse/maxLatencyWriter schedules and stops flush timers; handleUpgradeResponse validates upgrades, calls Hijack, then coordinates cancellation, defer conn.Close, response serialization, buffer flush and two copy directions. responsecontroller_test.go demonstrates sticky deadline semantics and manual read/write/flush sequencing. High follows retained cross-call protocol, not API width; capability discovery does not remove those duties."
+    },
+    {
+      "id": "go-tempfile",
+      "language": "go",
+      "target": "tempfile.go",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "tempfile.go",
+          "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/tempfile.go",
+          "snapshot": "snapshots/go-tempfile/tempfile.go",
+          "sha256": "a337c2a6dc2e4368b2dc0015ea7c0b935b68b14885a0771a6cbe27e588c2cd16"
+        }
+      ],
+      "origin_revision": "Go go1.27.1 darwin/arm64, Homebrew Cellar go/1.27.1; VERSION timestamp 2026-08-28T16:20:06Z",
+      "source_of_truth": "Exact unmodified local source bytes. Version/revision is provenance only; SHA-256 is authoritative.",
+      "hidden_responsibilities": "Owns default directory selection, separator validation, wildcard splitting, random paths, restrictive modes, exclusive creation and bounded collision retries.",
+      "remaining_caller_burden": "Caller supplies directory/pattern, handles errors, uses results and closes/removes successfully created resources. Successful lifetime is not credited as automatic cleanup.",
+      "rationale_and_witnesses": "os/tempfile_test.go TestCreateTempPattern and TestMkdirTemp show one create call followed by caller Close/Remove. Callers do not implement random naming, exclusive creation or retry loops. Compact cohesive creation hides substantive policy despite retained lifetime."
+    },
+    {
+      "id": "typescript-tracker-write-registry",
+      "language": "typescript",
+      "target": "run-registry.ts",
+      "group": "high",
+      "expected_range": [
+        65,
+        100
+      ],
+      "files": [
+        {
+          "path": "run-registry.ts",
+          "origin": "/Users/blater/src/career-ops/web/src/lib/core/run-registry.ts",
+          "snapshot": "snapshots/typescript-tracker-write-registry/run-registry.ts",
+          "sha256": "7df5129cd1e1dc3c702fbb210471f057ad7880eb941bf401d0f3433d4fb6e084"
+        }
+      ],
+      "origin_revision": "career-ops git HEAD 1ea5ee6379a90dfb1bec17b01aa538a624953848; exact working-tree bytes",
+      "source_of_truth": "Exact unmodified local source bytes. Version/revision is provenance only; SHA-256 is authoritative.",
+      "hidden_responsibilities": "Generates monotone tokens, maintains private active-writer accounting, supports idempotent release and computes whether any token remains. It owns bookkeeping, not exclusion of tracker operations or worker lifetime.",
+      "remaining_caller_burden": "Writers decide whether to acquire, retain tokens, release on completion/error/cancel and align release with actual mutation completion. Deleters independently query and refuse work and maintain their own deleting flag. No guarded callback, waiting or automatic cleanup is provided.",
+      "rationale_and_witnesses": "api/run/route.ts acquires before spawn and manually releases in close() and cancel(); api/tracker/delete/route.ts checks isTrackerWriting, returns 409 and maintains deleting with try/finally. Safety-relevant lifecycle sequencing remains spread across actual callers. High is not inferred from method names or a short implementation."
+    },
+    {
+      "id": "typescript-safe-write",
+      "language": "typescript",
+      "target": "safe-write.ts",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "safe-write.ts",
+          "origin": "/Users/blater/src/career-ops/web/src/lib/core/safe-write.ts",
+          "snapshot": "snapshots/typescript-safe-write/safe-write.ts",
+          "sha256": "cd5c58ff0083d14cbd14ffab929c76d99140e300a986acd0bbc68e077f019763"
+        }
+      ],
+      "origin_revision": "career-ops git HEAD 1ea5ee6379a90dfb1bec17b01aa538a624953848; exact working-tree bytes",
+      "source_of_truth": "Exact unmodified local source bytes. Version/revision is provenance only; SHA-256 is authoritative.",
+      "hidden_responsibilities": "Creates parent directories, chooses a unique same-directory temporary path, writes complete content before rename and offers backup-before-publication orchestration.",
+      "remaining_caller_burden": "Caller chooses path/content, validates domain data and handles failures. Backup is best-effort; this does not guarantee fsync durability, temporary-file cleanup or transactional backup success.",
+      "rationale_and_witnesses": "api/cv/route.ts validates payload and calls atomicWriteWithBackup once without orchestrating mkdir/temp names/write/rename or backup ordering. This is cohesive publication responsibility, not a claim every I/O failure is safely repaired."
+    },
+    {
+      "id": "rust-manually-drop",
+      "language": "rust",
+      "target": "manually_drop.rs",
+      "group": "high",
+      "expected_range": [
+        65,
+        100
+      ],
+      "files": [
+        {
+          "path": "manually_drop.rs",
+          "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/core/src/mem/manually_drop.rs",
+          "snapshot": "snapshots/rust-manually-drop/manually_drop.rs",
+          "sha256": "c21100b507893a11ee27b0711be3ac3fe6cc970b96bba55a7d3bae5978209818"
+        }
+      ],
+      "origin_revision": "Rust 1.98.1 Homebrew; rustc commit 48a229ceaefd4985c50990b14116b6d856af0985 dated 2026-09-01; aarch64-apple-darwin",
+      "source_of_truth": "Exact unmodified local source bytes. Version/revision is provenance only; SHA-256 is authoritative.",
+      "hidden_responsibilities": "Suppresses automatic destruction and supplies wrapping, extraction, raw take/drop and value trait forwarding. into_inner consumes the wrapper, but unsafe take/drop do not track whether its contents remain live.",
+      "remaining_caller_burden": "Caller upholds exactly-once destruction, no subsequent use or safe exposure after take/drop, drop ordering and unwind safety, and external live-state invariants. Safety documentation states duties; it does not implement checks or cleanup.",
+      "rationale_and_witnesses": "Production alloc/src/vec/drain.rs keep_rest wraps self in ManuallyDrop, then moves unyielded elements/tail and updates vector length itself before suppressing Drop. ManuallyDrop owns none of that consistency work. coretests/tests/manually_drop.rs verifies suppressed and explicitly requested destruction. High reflects displaced lifecycle/safety duties, not unsafe syntax or documentation volume."
+    },
+    {
+      "id": "rust-vec-drain",
+      "language": "rust",
+      "target": "drain.rs",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "drain.rs",
+          "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/alloc/src/vec/drain.rs",
+          "snapshot": "snapshots/rust-vec-drain/drain.rs",
+          "sha256": "18d89167a973e539da58924d91bea87610812191d587b9e517c062ca62067ad3"
+        }
+      ],
+      "origin_revision": "Rust 1.98.1 Homebrew; rustc commit 48a229ceaefd4985c50990b14116b6d856af0985 dated 2026-09-01; aarch64-apple-darwin",
+      "source_of_truth": "Exact unmodified local source bytes. Version/revision is provenance only; SHA-256 is authoritative.",
+      "hidden_responsibilities": "Owns removal iteration, tail relocation and length restoration on drop; DropGuard restores state when element destruction panics; handles zero-sized elements and keep_rest relocation without double drop.",
+      "remaining_caller_burden": "Caller chooses a drain range at construction, consumes/discards the iterator and optionally keeps remaining items; it does not implement tail repair or unwind cleanup. External range validation in Vec is not credited to this snapshot.",
+      "rationale_and_witnesses": "alloctests/tests/vec.rs test_drain_range checks preserved head/tail without caller repair; test_drain_leak catches a panicking destructor and checks remaining vector/drop count. The low boundary owns substantive lifecycle/invariant duties. It is also a real caller witness for the distinct ManuallyDrop boundary."
+    }
+  ],
+  "relations": [
+    {
+      "lower": "go-tempfile",
+      "higher": "go-response-controller",
+      "minimum_delta": 25
+    },
+    {
+      "lower": "typescript-safe-write",
+      "higher": "typescript-tracker-write-registry",
+      "minimum_delta": 25
+    },
+    {
+      "lower": "rust-vec-drain",
+      "higher": "rust-manually-drop",
+      "minimum_delta": 25
+    }
+  ],
+  "limitations": [
+    "Reviewer previously read current SHALLOW calibration and connected-result flow implementation during independent code reviews. Independence means candidate scores unseen and separation from the implementing agent, not total scorer-source blindness.",
+    "Reading the existing graded-independent-review rubric also exposed historical scores for older cases; none of these six target scores was seen. Prior manifests were used for origin/hash exclusion and schema, not evaluated.",
+    "Purposive mechanism sample, not representative distribution or enterprise capacity evidence. High bands are falsifiable source judgments; useful primitive APIs can intentionally retain obligations, so high does not mean defective software.",
+    "Whole-file snapshots are analyzed individually with dependencies absent. Standard-library internals and Rust unstable/const syntax may be unsupported; retain numeric estimates and honest limitations, not claims of compilation or full semantic context.",
+    "Witnesses are not scored inputs. No synthetic source was authored. Large witnesses were read at the relevant named callers rather than every unrelated operation.",
+    "Cross-case rankings compare responsibility depth, not capability-equivalent transformations. The low is not proposed as a replacement for its language high.",
+    "After first evaluation preserve failures and labels. Implementation tuning using this sample consumes holdout status and requires a new fresh holdout."
+  ],
+  "witness_snapshots": [
+    {
+      "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/http/responsecontroller_test.go",
+      "snapshot": "witnesses/go/responsecontroller_test.go",
+      "sha256": "b186ec9025aa88254ce8b5bdfa092c996181b2b8e721c93587ae1752f19da31b",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/http/httputil/reverseproxy.go",
+      "snapshot": "witnesses/go/reverseproxy.go",
+      "sha256": "89d121257c4b301c7a4d1075e17bd660cf841e0f4b0fa6f967095e71e3555a4c",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/tempfile_test.go",
+      "snapshot": "witnesses/go/tempfile_test.go",
+      "sha256": "37642ed90d0929d173fc08c9d057051b140efc3b7296dcf00cb52418554caabf",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/go/1.27.1/libexec/VERSION",
+      "snapshot": "witnesses/go/VERSION",
+      "sha256": "25eb74b09036e1ad894fb63b86cb0f0ee53342df8d2e2e860da4ff5079607758",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/go/1.27.1/LICENSE",
+      "snapshot": "witnesses/go/LICENSE",
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/career-ops/web/src/app/api/run/route.ts",
+      "snapshot": "witnesses/typescript/run/route.ts",
+      "sha256": "07d8f61dca8ad7cc3ed3695c320ec9955b08f3c799c1369962b60fc3a324efb8",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/career-ops/web/src/app/api/tracker/delete/route.ts",
+      "snapshot": "witnesses/typescript/tracker-delete/route.ts",
+      "sha256": "68eca76c1c9882661f3a53b949f7c6f3204ba4c3de7499878398f9209775ff92",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/career-ops/web/src/app/api/cv/route.ts",
+      "snapshot": "witnesses/typescript/cv/route.ts",
+      "sha256": "13d0463d23f7667c66370838fde4f2b57e35db1557a24cb6f5b818f319108efc",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/career-ops/LICENSE",
+      "snapshot": "witnesses/typescript/LICENSE",
+      "sha256": "51989d2589b2aa87ca6cbb253391bcb476a21cbafdc71eea4410548538510870",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/alloc/src/vec/drain.rs",
+      "snapshot": "witnesses/rust/drain.rs",
+      "sha256": "18d89167a973e539da58924d91bea87610812191d587b9e517c062ca62067ad3",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/alloctests/tests/vec.rs",
+      "snapshot": "witnesses/rust/vec-tests.rs",
+      "sha256": "2a09aa048fa38e4c3f7d6ff2bf54b7922ba7732d1ce15b566161c3263f301dfb",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    },
+    {
+      "origin": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library/coretests/tests/manually_drop.rs",
+      "snapshot": "witnesses/rust/manually-drop-tests.rs",
+      "sha256": "112a822e156a156d20751e121dd212c9ca5b72736fa7598005e79f8c823cbd0c",
+      "role": "source-review evidence/provenance only, not scored analysis input"
+    }
+  ],
+  "excluded_prior_manifests": [
+    "docs/evidence/shallow-v4/graded-benchmark.json",
+    "docs/evidence/shallow-v4/graded-real-benchmark.json",
+    "docs/evidence/shallow-v4/calibration-holdout/manifest.json",
+    "docs/evidence/shallow-v4/structural-fresh-holdout/manifest.json"
+  ]
+}

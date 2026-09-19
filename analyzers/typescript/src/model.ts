@@ -57,7 +57,7 @@ export interface Measurement {
   definition_version: string;
   path: string;
   scope: "file" | "function" | "type" | "expression";
-  value: JsonInteger;
+  value: JsonInteger | null;
   subject: Subject;
   attributes: Record<string, unknown>;
   provenance: {
@@ -92,6 +92,7 @@ export interface SourceEntry {
   relativePath: string;
   sourceFile: ts.SourceFile;
   syntaxErrors: readonly ts.Diagnostic[];
+  isDeclaration: boolean;
 }
 
 export function protocolEnvelope(invocationId: string): {

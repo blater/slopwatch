@@ -62,7 +62,7 @@ func TestHelpTopicsOpenTheirReferencePages(t *testing.T) {
 	model.helpCursor = 1
 	handleHelpKey(&model, "enter")
 	controls := strings.Join(topicLines(helpMainScreen, 100, 0), "\n")
-	for _, description := range []string{"G or End selects the final file", "g or Home selects the first file", "s opens alphabetically ordered settings"} {
+	for _, description := range []string{"G or End selects the final file", "g or Home selects the first file", "s opens Agents, Appearance, and Static Analysis settings"} {
 		if !strings.Contains(controls, description) {
 			t.Errorf("main-screen help does not contain %q", description)
 		}
@@ -111,7 +111,7 @@ func themedSettingsModel() Model {
 func assertSettingsAlphabetical(t *testing.T, model Model) {
 	t.Helper()
 	settings := ansi.Strip(settingsView(model))
-	appearanceAt, columnsAt, weightsAt := strings.Index(settings, "Appearance"), strings.Index(settings, "Columns"), strings.Index(settings, "Weights")
+	appearanceAt, columnsAt, weightsAt := strings.Index(settings, "Agents"), strings.Index(settings, "Appearance"), strings.Index(settings, "Static Analysis")
 	if appearanceAt < 0 || appearanceAt >= columnsAt || columnsAt >= weightsAt {
 		t.Fatalf("settings are not alphabetical: %q", settings)
 	}
@@ -120,6 +120,7 @@ func assertSettingsAlphabetical(t *testing.T, model Model) {
 func selectLightTheme(t *testing.T, model *Model) {
 	t.Helper()
 	model.settingsCursor = settingsIndex("appearance")
+	handleSettingsKey(model, "enter")
 	handleSettingsKey(model, "enter")
 	if !model.appearance || model.settings {
 		t.Fatal("Appearance did not open from Settings")

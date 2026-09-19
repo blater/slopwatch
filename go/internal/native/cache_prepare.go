@@ -30,7 +30,7 @@ func prepareCacheUnits(analyzer *analysisEngine, ctx context.Context, catalog ca
 	if err != nil {
 		return cachePreparation{}, err
 	}
-	analyzerDigests, err := backendDigests(analyzer, byID, relevant)
+	analyzerDigests, err := backendDigests(analyzer, byID, relevant, options)
 	if err != nil {
 		return cachePreparation{}, err
 	}
@@ -90,7 +90,7 @@ func relevantUnitIDs(byID map[string]unitplan.Unit, active []plannedCacheUnit, i
 		if !includeTests {
 			unit.Sources = withoutTestPaths(unit.Sources, language)
 			unit.ContextSources = withoutTestPaths(unit.ContextSources, language)
-			if len(unit.Sources) == 0 {
+			if len(unit.Sources) == 0 && len(unit.ContextSources) == 0 {
 				delete(byID, id)
 				continue
 			}
@@ -121,14 +121,14 @@ func inputPathsForUnits(units map[string]unitplan.Unit, relevant map[string]bool
 	return paths
 }
 
-func backendDigests(analyzer *analysisEngine, units map[string]unitplan.Unit, relevant map[string]bool) (map[string]analysiscache.Digest, error) {
+func backendDigests(analyzer *analysisEngine, units map[string]unitplan.Unit, relevant map[string]bool, options Options) (map[string]analysiscache.Digest, error) {
 	digests := make(map[string]analysiscache.Digest)
 	for id := range relevant {
 		language := string(units[id].Language)
 		if digests[language] != "" {
 			continue
 		}
-		digest, err := backendDigest(analyzer, language)
+		digest, err := backendDigest(analyzer, language, options)
 		if err != nil {
 			return nil, err
 		}

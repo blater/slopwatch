@@ -17,8 +17,9 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	if options.TrendWindow <= 0 {
 		options.TrendWindow = preferenceTrendWindow
 	}
+	options.DisableGitignore = !userPreferences.Files.HonorGitignore
 	watcher, err := newSourceWatcher(
-		options.Workspace, options.Targets, options.IncludeTests, options.FollowSymlinks, options.Languages,
+		options.Workspace, options.Targets, options.IncludeTests, options.FollowSymlinks, options.Languages, options.DisableGitignore,
 	)
 	if err != nil {
 		return nil, err
@@ -41,7 +42,8 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	}
 	model := &Model{
 		analyzer: analyzer, watcher: watcher, options: options,
-		mainView: MainViewFiles,
+		cursorActivity: now,
+		mainView:       MainViewFiles,
 		files: FilesState{
 			Document: document, BaseDocument: document, Rows: rows, Marked: map[string]bool{},
 			SortKey: userPreferences.Table.SortBy, SortReverse: userPreferences.Table.SortDescending,
@@ -58,18 +60,25 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 		theme: style.Theme(userPreferences.Appearance.Theme),
 	}
 	ConfigureTheme(model.theme)
+	if controller, ok := analyzer.(gitignoreController); ok {
+		controller.SetDisableGitignore(options.DisableGitignore)
+	}
+	model.pruneIgnoredRows()
 	if controller, ok := analyzer.(typeScriptTypesController); ok {
 		controller.SetTypeScriptTypes(typeScriptTypesWanted(*model))
 	}
 	rebuildWeightedDocument(model)
-	if len(document.Files) > 0 {
-		model.files.Selected = document.Files[0].Path
+	if len(model.files.Document.Files) > 0 {
+		model.files.Selected = model.files.Document.Files[0].Path
 	}
 	model.fixUpdates = newFixSubscriptionState(model.fixService)
 	return model, nil
 }
 
 func (model *Model) Close() {
+	if model.watchReconfigureCancel != nil {
+		model.watchReconfigureCancel()
+	}
 	model.watcher.close()
 	model.fixUpdates.close()
 }
@@ -80,5 +89,6 @@ func (model *Model) Close() {
 func (model *Model) StartInitialAnalysis() {
 	model.analyzing = true
 	model.initialAnalysis = true
+	model.startupWatcherPending = true
 	model.startupLogoExpired = false
 }

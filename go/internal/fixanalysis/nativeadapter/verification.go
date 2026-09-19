@@ -26,14 +26,22 @@ func requiredMetricsComplete(values map[fix.MetricID]fix.MetricValue, goal fix.S
 	return nil
 }
 
-func verifyFile(baseline fix.TargetSnapshot, file report.File, goal fix.ScoringGoal, requireComplete bool) (fixanalysis.FileResult, error) {
+func verifyFile(baseline fix.TargetSnapshot, file report.File, depths map[string]report.DepthBoundary, goal fix.ScoringGoal, requireComplete bool) (fixanalysis.FileResult, error) {
 	metrics := metricValues(file)
 	complete := freshAndComplete(file)
+	depthEstimate := hasEstimatedDepth(file, depths)
+	if depthEstimate {
+		complete = false
+	}
 	if err := requiredMetricsComplete(metrics, goal); err != nil {
 		complete = false
 	}
 	targetMet := (!requireComplete || complete) && file.Score <= goal.MaximumScore
 	diagnostics := make([]string, 0)
+	if depthEstimate {
+		diagnostics = append(diagnostics, "estimated SHALLOW evidence is ineligible for fixes")
+		targetMet = false
+	}
 	if file.Score > goal.MaximumScore {
 		diagnostics = append(diagnostics, fmt.Sprintf("score %.1f exceeds %.1f", file.Score, goal.MaximumScore))
 	}
@@ -43,6 +51,16 @@ func verifyFile(baseline fix.TargetSnapshot, file report.File, goal fix.ScoringG
 	regressionDiagnostics, regressionsMet := evaluateRegressions(baseline, metrics, goal, focused)
 	targetMet = targetMet && regressionsMet
 	diagnostics = append(diagnostics, regressionDiagnostics...)
+	if len(baseline.DepthInventory) != 0 {
+		candidate, err := depthInventorySnapshot(file, depths)
+		if err != nil {
+			diagnostics = append(diagnostics, err.Error())
+			complete, targetMet = false, false
+		} else if !sameDepthInventory(baseline.DepthInventory, candidate) {
+			diagnostics = append(diagnostics, "v4 boundary inventory changed; rebaseline required")
+			complete, targetMet = false, false
+		}
+	}
 	if !complete {
 		diagnostics = append(diagnostics, "analysis result is incomplete")
 	}
@@ -50,4 +68,32 @@ func verifyFile(baseline fix.TargetSnapshot, file report.File, goal fix.ScoringG
 		Path: baseline.Path, Score: file.Score, Metrics: metrics,
 		Complete: complete, TargetMet: targetMet, Diagnostic: strings.Join(diagnostics, "; "),
 	}, nil
+}
+
+func hasEstimatedDepth(file report.File, depths map[string]report.DepthBoundary) bool {
+	component, ok := file.Components["module_shallowness"]
+	if !ok || component.DepthVersion != "responsibility-burden-v4" {
+		return false
+	}
+	if component.DepthEstimated {
+		return true
+	}
+	for _, id := range component.DepthBoundaryIDs {
+		if depths[id].Estimated {
+			return true
+		}
+	}
+	return false
+}
+
+func sameDepthInventory(left, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for id, fingerprint := range left {
+		if right[id] != fingerprint {
+			return false
+		}
+	}
+	return true
 }

@@ -2,6 +2,7 @@ package native
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ func startupProjectionFixture(t *testing.T) *Analyzer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"."}, Languages: []string{"java"}, ReadCache: true}
+	options := Options{Targets: []string{"."}, Languages: []string{"java"}, ReadCache: true, ShallowProfile: ShallowProfileLegacy}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
 	view, err := analyzer.viewKey(options)
 	if err != nil {
@@ -355,6 +356,25 @@ func TestMissingUnitsUseOneImmutableContextCompleteLanguageBatch(t *testing.T) {
 	}
 }
 
+func TestMissingTypeScriptRequestExcludesDeclarationsButKeepsThemInCacheInputs(t *testing.T) {
+	unit := plannedCacheUnit{
+		plan: unitplan.Unit{
+			ID:             string(unitplan.LanguageTypeScript) + ":typed:app",
+			Language:       unitplan.LanguageTypeScript,
+			Sources:        []string{"src/app.ts"},
+			ContextSources: []string{"src/types.d.ts"},
+		},
+		analysisPaths: []string{"src/app.ts", "src/types.d.ts"},
+	}
+	request := missingLanguageRequest("/workspace", catalogDocument{}, "typescript", []plannedCacheUnit{unit}, Options{}, "invocation", "typescript-unit")
+	if !reflect.DeepEqual(request.Units[0].Paths, []string{"src/app.ts"}) {
+		t.Fatalf("missing TypeScript request paths = %v", request.Units[0].Paths)
+	}
+	if !pathSet(unitInputPaths(unit.plan))["src/types.d.ts"] {
+		t.Fatal("declaration was dropped from cache input paths")
+	}
+}
+
 func assertImmutableBatch(t *testing.T, liveWorkspace string, request analyzerRequest) []string {
 	t.Helper()
 	if len(request.Units) != 1 {
@@ -413,6 +433,35 @@ func TestMutationDuringSnapshotRetriesBeforeCommit(t *testing.T) {
 	}
 }
 
+func TestFinalWorkspaceVerificationTreatsDeletedInputsAsChurn(t *testing.T) {
+	workspace := t.TempDir()
+	writeTestFile(t, workspace, "a.go", "package sample\n")
+	analyzer := &analysisEngine{workspace: workspace}
+	expected := map[string]analysiscache.Digest{"a.go": analysiscache.DigestBytes([]byte("package sample\n"))}
+	if err := os.Remove(filepath.Join(workspace, "a.go")); err != nil {
+		t.Fatal(err)
+	}
+	unchanged, err := verifyWorkspaceInputs(analyzer, context.Background(), expected)
+	if err != nil || unchanged {
+		t.Fatalf("deleted verification input = unchanged:%t err:%v, want churn without error", unchanged, err)
+	}
+}
+
+func TestFinalWorkspaceVerificationPreservesNonChurnErrors(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.Mkdir(filepath.Join(workspace, "a.go"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	analyzer := &analysisEngine{workspace: workspace}
+	_, err := verifyWorkspaceInputs(analyzer, context.Background(), map[string]analysiscache.Digest{"a.go": analysiscache.Digest("")})
+	if err == nil {
+		t.Fatal("directory verification unexpectedly succeeded")
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("directory verification was classified as deletion churn: %v", err)
+	}
+}
+
 func TestTypedNestedOwnershipIsUniqueAndNestedChangeInvalidatesBothFingerprints(t *testing.T) {
 	workspace := t.TempDir()
 	writeTestFile(t, workspace, "tsconfig.json", `{ "compilerOptions": { "strict": true } }`)
@@ -423,7 +472,7 @@ func TestTypedNestedOwnershipIsUniqueAndNestedChangeInvalidatesBothFingerprints(
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Targets: []string{"."}, Languages: []string{"typescript"}, TypeScriptTypes: true}
+	options := Options{Targets: []string{"."}, Languages: []string{"typescript"}, TypeScriptTypes: true, ShallowProfile: ShallowProfileLegacy}
 	analyzer := newCacheTestAnalyzer(t, workspace, options, store, typescriptTestCatalog())
 	plan, err := unitplan.PlanWorkspace(workspace, unitplan.Options{TypeScriptMode: unitplan.TypeScriptTyped})
 	if err != nil {
@@ -659,6 +708,29 @@ func TestDependencyFingerprintsInvalidateTransitivelyAcrossLanguages(t *testing.
 				t.Fatal("transitive change invalidated an unrelated unit")
 			}
 		})
+	}
+}
+
+func TestConservativeCachePreparationRetainsDeclarationOnlyDependencies(t *testing.T) {
+	declarationID := "typescript:typed:types"
+	consumerID := "typescript:typed:app"
+	units := map[string]unitplan.Unit{
+		declarationID: {
+			ID: declarationID, Language: unitplan.LanguageTypeScript,
+			ContextSources: []string{"types/api.d.ts"}, ConfigInputs: []string{"types/tsconfig.json"},
+		},
+		consumerID: {
+			ID: consumerID, Language: unitplan.LanguageTypeScript, Conservative: true,
+			Sources: []string{"app/main.ts"}, DirectDependencies: []string{declarationID},
+		},
+	}
+	active := []plannedCacheUnit{{plan: units[consumerID]}}
+	relevant := relevantUnitIDs(units, active, false)
+	if !relevant[declarationID] {
+		t.Fatal("declaration-only dependency was dropped from conservative cache inputs")
+	}
+	if !pathSet(unitInputPaths(units[declarationID]))["types/api.d.ts"] || !pathSet(unitInputPaths(units[declarationID]))["types/tsconfig.json"] {
+		t.Fatalf("declaration-only cache inputs = %v", unitInputPaths(units[declarationID]))
 	}
 }
 

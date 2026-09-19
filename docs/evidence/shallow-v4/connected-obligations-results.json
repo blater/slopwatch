@@ -1,0 +1,1541 @@
+{
+  "evaluated_at_utc": "2026-09-18T19:15:22.490343+00:00",
+  "policy_revision": "r41",
+  "binary_sha256": "034053a7142b87270027fb78a4a00819795cdbc0543635328c43597b0ba3f6d0",
+  "calibration_identity": "8520be37efdff1342444f70a8b789e537196c35d73134d55d9014dd35b49a2a8",
+  "weights_unchanged": true,
+  "frozen_input_hashes": {
+    "go/internal/sourceestimate/calibration_default.json": "5b03a577e9b9fdbb04dda8be9e9ffd208906c91243f63853c13f90e487368b08",
+    "docs/evidence/shallow-v4/calibration-holdout/manifest.json": "e61d96bc580996507748ba614e8aedd78834cf13736a09eeef8094c04c30ff19",
+    "docs/evidence/shallow-v4/calibration-holdout/manifest.sha256": "ddf71e3975ac683c144966a90cd0f96cc06b7aa5d4fb8ae707a9fe7b342b03f7",
+    "docs/evidence/shallow-v4/calibration-holdout/first-evaluation.json": "57408de7dd884624471ea27dcbcd482d5206d2d3eddfa7c96248f10843b860c8",
+    "docs/evidence/shallow-v4/calibration-holdout/first-evaluation.sha256": "7cd5bf24970df673e0718c6416c9c57c31bddcba4b47df2a7e1186aea260aa69",
+    "docs/evidence/shallow-v4/structural-fresh-holdout/manifest.json": "c47b969992acffafe442ced4e949ff08c9fc3bb6e9aae708922564db319206e3",
+    "docs/evidence/shallow-v4/structural-fresh-holdout/manifest.sha256": "77164795f351c7a1da95e1f9d71b6099c096322bfd7a27bf462fff93e7f5db97",
+    "docs/evidence/shallow-v4/structural-fresh-holdout/first-evaluation.json": "d0cdad9506c891808419c565f4510b2d41e3cec033a38065c55d5d0a3a9a2851",
+    "docs/evidence/shallow-v4/structural-fresh-holdout/first-evaluation.sha256": "e1c2940002ba05ac685be1fc48de6db7e9315f296093dfcf5fac2bd7620fd48d",
+    "docs/evidence/shallow-v4/connected-high-holdout/manifest.json": "cd639be03a2f4089654b25600ab39ddbfa176afeb7ba284d1e18ace9c08fabf0",
+    "docs/evidence/shallow-v4/connected-high-holdout/manifest.sha256": "45fd66d6af95d71c5adfb1162aa4fb55e4eead0e0ebf7c00e8cf2f42ebffb076",
+    "docs/evidence/shallow-v4/connected-high-holdout/first-evaluation.json": "ddec55630bbca455c4ae7438fa3743dd201e374ce8b107fa43be9f636e5a3ba4",
+    "docs/evidence/shallow-v4/connected-high-holdout/first-evaluation.sha256": "03f72ac49f45b599e0bd5f34ea85f1cbce7ad5502ddae890507ba92d00907cd3",
+    "docs/evidence/shallow-v4/connected-confirmation-holdout/manifest.json": "9541af288953ae22692b97873619434c2d5b04ef2ee6f00e25083052f3397147",
+    "docs/evidence/shallow-v4/connected-confirmation-holdout/first-evaluation.json": "1c3b44d7db353ac658e595defa68e020d4e6499ac5efb80a08440c0ac5357ab3"
+  },
+  "checks": {
+    "synthetic": {
+      "cases": 60,
+      "failures": [],
+      "results": [
+        {
+          "id": "java_lifecycle_low",
+          "language": "java",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_lifecycle_mid",
+          "language": "java",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 32,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_lifecycle_high",
+          "language": "java",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 89,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_representation_low",
+          "language": "java",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 17,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_representation_mid",
+          "language": "java",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 39,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_representation_high",
+          "language": "java",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 68,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_forwarding_low",
+          "language": "java",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_forwarding_mid",
+          "language": "java",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 55,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_forwarding_high",
+          "language": "java",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 93,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_control_passive",
+          "language": "java",
+          "group": "passive",
+          "expected_range": [
+            0,
+            15
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": false,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_lifecycle_low",
+          "language": "go",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_lifecycle_mid",
+          "language": "go",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 52,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_lifecycle_high",
+          "language": "go",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 89,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_representation_low",
+          "language": "go",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 10,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_representation_mid",
+          "language": "go",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 32,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_representation_high",
+          "language": "go",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 67,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_forwarding_low",
+          "language": "go",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_forwarding_mid",
+          "language": "go",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 55,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_forwarding_high",
+          "language": "go",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 93,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_control_passive",
+          "language": "go",
+          "group": "passive",
+          "expected_range": [
+            0,
+            15
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_lifecycle_low",
+          "language": "typescript",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_lifecycle_mid",
+          "language": "typescript",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 30,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_lifecycle_high",
+          "language": "typescript",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 89,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_representation_low",
+          "language": "typescript",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 13,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_representation_mid",
+          "language": "typescript",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 35,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_representation_high",
+          "language": "typescript",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 68,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_forwarding_low",
+          "language": "typescript",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_forwarding_mid",
+          "language": "typescript",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 55,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_forwarding_high",
+          "language": "typescript",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 93,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_control_passive",
+          "language": "typescript",
+          "group": "passive",
+          "expected_range": [
+            0,
+            15
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": false,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_lifecycle_low",
+          "language": "rust",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_lifecycle_mid",
+          "language": "rust",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 32,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_lifecycle_high",
+          "language": "rust",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 89,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_representation_low",
+          "language": "rust",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 15,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_representation_mid",
+          "language": "rust",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 35,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_representation_high",
+          "language": "rust",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 68,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_forwarding_low",
+          "language": "rust",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_forwarding_mid",
+          "language": "rust",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            60
+          ],
+          "raw_max": 55,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_forwarding_high",
+          "language": "rust",
+          "group": "high",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 93,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_control_passive",
+          "language": "rust",
+          "group": "passive",
+          "expected_range": [
+            0,
+            15
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": false,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_lifecycle_low__helper_extracted",
+          "language": "java",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_lifecycle_low__renamed",
+          "language": "java",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_lifecycle_low__harmless_syntax",
+          "language": "java",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_lifecycle_low__dependency_hidden",
+          "language": "java",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 2,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_lifecycle_low__helper_extracted",
+          "language": "go",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_lifecycle_low__renamed",
+          "language": "go",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_lifecycle_low__harmless_syntax",
+          "language": "go",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_lifecycle_low__dependency_hidden",
+          "language": "go",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 2,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_lifecycle_low__helper_extracted",
+          "language": "typescript",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_lifecycle_low__renamed",
+          "language": "typescript",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_lifecycle_low__harmless_syntax",
+          "language": "typescript",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_lifecycle_low__dependency_hidden",
+          "language": "typescript",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_lifecycle_low__helper_extracted",
+          "language": "rust",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_lifecycle_low__renamed",
+          "language": "rust",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_lifecycle_low__harmless_syntax",
+          "language": "rust",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_lifecycle_low__dependency_hidden",
+          "language": "rust",
+          "group": "variant",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 3,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java_lifecycle_high__dependency_hidden",
+          "language": "java",
+          "group": "variant",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 89,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go_lifecycle_high__dependency_hidden",
+          "language": "go",
+          "group": "variant",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 89,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript_lifecycle_high__dependency_hidden",
+          "language": "typescript",
+          "group": "variant",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 89,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust_lifecycle_high__dependency_hidden",
+          "language": "rust",
+          "group": "variant",
+          "expected_range": [
+            65,
+            95
+          ],
+          "raw_max": 89,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        }
+      ],
+      "relations": [
+        {
+          "lower": "java_lifecycle_low",
+          "higher": "java_lifecycle_mid",
+          "min_delta": 15,
+          "delta": 29.0,
+          "passed": true
+        },
+        {
+          "lower": "java_lifecycle_mid",
+          "higher": "java_lifecycle_high",
+          "min_delta": 15,
+          "delta": 57.0,
+          "passed": true
+        },
+        {
+          "lower": "java_representation_low",
+          "higher": "java_representation_mid",
+          "min_delta": 15,
+          "delta": 22.0,
+          "passed": true
+        },
+        {
+          "lower": "java_representation_mid",
+          "higher": "java_representation_high",
+          "min_delta": 15,
+          "delta": 29.0,
+          "passed": true
+        },
+        {
+          "lower": "java_forwarding_low",
+          "higher": "java_forwarding_mid",
+          "min_delta": 15,
+          "delta": 55.0,
+          "passed": true
+        },
+        {
+          "lower": "java_forwarding_mid",
+          "higher": "java_forwarding_high",
+          "min_delta": 15,
+          "delta": 38.0,
+          "passed": true
+        },
+        {
+          "lower": "go_lifecycle_low",
+          "higher": "go_lifecycle_mid",
+          "min_delta": 15,
+          "delta": 49.0,
+          "passed": true
+        },
+        {
+          "lower": "go_lifecycle_mid",
+          "higher": "go_lifecycle_high",
+          "min_delta": 15,
+          "delta": 37.0,
+          "passed": true
+        },
+        {
+          "lower": "go_representation_low",
+          "higher": "go_representation_mid",
+          "min_delta": 15,
+          "delta": 22.0,
+          "passed": true
+        },
+        {
+          "lower": "go_representation_mid",
+          "higher": "go_representation_high",
+          "min_delta": 15,
+          "delta": 35.0,
+          "passed": true
+        },
+        {
+          "lower": "go_forwarding_low",
+          "higher": "go_forwarding_mid",
+          "min_delta": 15,
+          "delta": 55.0,
+          "passed": true
+        },
+        {
+          "lower": "go_forwarding_mid",
+          "higher": "go_forwarding_high",
+          "min_delta": 15,
+          "delta": 38.0,
+          "passed": true
+        },
+        {
+          "lower": "typescript_lifecycle_low",
+          "higher": "typescript_lifecycle_mid",
+          "min_delta": 15,
+          "delta": 30.0,
+          "passed": true
+        },
+        {
+          "lower": "typescript_lifecycle_mid",
+          "higher": "typescript_lifecycle_high",
+          "min_delta": 15,
+          "delta": 59.0,
+          "passed": true
+        },
+        {
+          "lower": "typescript_representation_low",
+          "higher": "typescript_representation_mid",
+          "min_delta": 15,
+          "delta": 22.0,
+          "passed": true
+        },
+        {
+          "lower": "typescript_representation_mid",
+          "higher": "typescript_representation_high",
+          "min_delta": 15,
+          "delta": 33.0,
+          "passed": true
+        },
+        {
+          "lower": "typescript_forwarding_low",
+          "higher": "typescript_forwarding_mid",
+          "min_delta": 15,
+          "delta": 55.0,
+          "passed": true
+        },
+        {
+          "lower": "typescript_forwarding_mid",
+          "higher": "typescript_forwarding_high",
+          "min_delta": 15,
+          "delta": 38.0,
+          "passed": true
+        },
+        {
+          "lower": "rust_lifecycle_low",
+          "higher": "rust_lifecycle_mid",
+          "min_delta": 15,
+          "delta": 29.0,
+          "passed": true
+        },
+        {
+          "lower": "rust_lifecycle_mid",
+          "higher": "rust_lifecycle_high",
+          "min_delta": 15,
+          "delta": 57.0,
+          "passed": true
+        },
+        {
+          "lower": "rust_representation_low",
+          "higher": "rust_representation_mid",
+          "min_delta": 15,
+          "delta": 20.0,
+          "passed": true
+        },
+        {
+          "lower": "rust_representation_mid",
+          "higher": "rust_representation_high",
+          "min_delta": 15,
+          "delta": 33.0,
+          "passed": true
+        },
+        {
+          "lower": "rust_forwarding_low",
+          "higher": "rust_forwarding_mid",
+          "min_delta": 15,
+          "delta": 55.0,
+          "passed": true
+        },
+        {
+          "lower": "rust_forwarding_mid",
+          "higher": "rust_forwarding_high",
+          "min_delta": 15,
+          "delta": 38.0,
+          "passed": true
+        },
+        {
+          "baseline": "java_lifecycle_low",
+          "variant": "java_lifecycle_low__helper_extracted",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "java_lifecycle_low",
+          "variant": "java_lifecycle_low__renamed",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "java_lifecycle_low",
+          "variant": "java_lifecycle_low__harmless_syntax",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "java_lifecycle_low",
+          "variant": "java_lifecycle_low__dependency_hidden",
+          "tolerance": 10,
+          "kind": "uncertainty",
+          "no_increase": true,
+          "delta": -1.0,
+          "passed": true
+        },
+        {
+          "baseline": "go_lifecycle_low",
+          "variant": "go_lifecycle_low__helper_extracted",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "go_lifecycle_low",
+          "variant": "go_lifecycle_low__renamed",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "go_lifecycle_low",
+          "variant": "go_lifecycle_low__harmless_syntax",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "go_lifecycle_low",
+          "variant": "go_lifecycle_low__dependency_hidden",
+          "tolerance": 10,
+          "kind": "uncertainty",
+          "no_increase": true,
+          "delta": -1.0,
+          "passed": true
+        },
+        {
+          "baseline": "typescript_lifecycle_low",
+          "variant": "typescript_lifecycle_low__helper_extracted",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "typescript_lifecycle_low",
+          "variant": "typescript_lifecycle_low__renamed",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "typescript_lifecycle_low",
+          "variant": "typescript_lifecycle_low__harmless_syntax",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "typescript_lifecycle_low",
+          "variant": "typescript_lifecycle_low__dependency_hidden",
+          "tolerance": 10,
+          "kind": "uncertainty",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "rust_lifecycle_low",
+          "variant": "rust_lifecycle_low__helper_extracted",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "rust_lifecycle_low",
+          "variant": "rust_lifecycle_low__renamed",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "rust_lifecycle_low",
+          "variant": "rust_lifecycle_low__harmless_syntax",
+          "tolerance": 3,
+          "kind": "invariance",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "rust_lifecycle_low",
+          "variant": "rust_lifecycle_low__dependency_hidden",
+          "tolerance": 10,
+          "kind": "uncertainty",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "java_lifecycle_high",
+          "variant": "java_lifecycle_high__dependency_hidden",
+          "tolerance": 10,
+          "kind": "uncertainty",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "go_lifecycle_high",
+          "variant": "go_lifecycle_high__dependency_hidden",
+          "tolerance": 10,
+          "kind": "uncertainty",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "typescript_lifecycle_high",
+          "variant": "typescript_lifecycle_high__dependency_hidden",
+          "tolerance": 10,
+          "kind": "uncertainty",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        },
+        {
+          "baseline": "rust_lifecycle_high",
+          "variant": "rust_lifecycle_high__dependency_hidden",
+          "tolerance": 10,
+          "kind": "uncertainty",
+          "no_increase": true,
+          "delta": 0.0,
+          "passed": true
+        }
+      ],
+      "raw_report_sha256": "298b5cf0c32aa9828b1b547a31f025050c5b1d37b149198c00793a839f31a5f4"
+    },
+    "real": {
+      "cases": 12,
+      "failures": [],
+      "results": [
+        {
+          "id": "java-result-carrier",
+          "language": "java",
+          "group": "low",
+          "expected_range": [
+            0,
+            15
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": false,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java-codec",
+          "language": "java",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 17,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java-query-pipeline",
+          "language": "java",
+          "group": "mixed",
+          "expected_range": [
+            30,
+            65
+          ],
+          "raw_max": 58,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java-keyed-path",
+          "language": "java",
+          "group": "low",
+          "expected_range": [
+            0,
+            20
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java-query-result-row",
+          "language": "java",
+          "group": "mixed",
+          "expected_range": [
+            15,
+            45
+          ],
+          "raw_max": 36,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go-workspace",
+          "language": "go",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go-publisher-contract",
+          "language": "go",
+          "group": "low",
+          "expected_range": [
+            0,
+            0
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": false,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript-predicates",
+          "language": "typescript",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript-config",
+          "language": "typescript",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 4,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust-location",
+          "language": "rust",
+          "group": "low",
+          "expected_range": [
+            0,
+            20
+          ],
+          "raw_max": 20,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust-expression",
+          "language": "rust",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 5,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "java-derived-reference-validator",
+          "language": "java",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 7,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        }
+      ],
+      "relations": [],
+      "raw_report_sha256": "90494dab6fa35878a09a1134fa835106e142d0c30496a094fea06d5ae0fffaf1"
+    },
+    "observed_cross_language": {
+      "cases": 6,
+      "failures": [],
+      "results": [
+        {
+          "id": "go-userdata-root",
+          "language": "go",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "go-fix-subscription",
+          "language": "go",
+          "group": "mixed",
+          "expected_range": [
+            26,
+            64
+          ],
+          "raw_max": 50,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript-source-context",
+          "language": "typescript",
+          "group": "mixed",
+          "expected_range": [
+            26,
+            64
+          ],
+          "raw_max": 30,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "typescript-public-operations",
+          "language": "typescript",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 0,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust-program-parser",
+          "language": "rust",
+          "group": "low",
+          "expected_range": [
+            0,
+            25
+          ],
+          "raw_max": 20,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        },
+        {
+          "id": "rust-surface-collector",
+          "language": "rust",
+          "group": "mixed",
+          "expected_range": [
+            26,
+            64
+          ],
+          "raw_max": 26,
+          "numeric": true,
+          "estimated": true,
+          "passed": true,
+          "failures": []
+        }
+      ],
+      "relations": [
+        {
+          "checks": [
+            {
+              "lower": "go-userdata-root",
+              "higher": "go-fix-subscription",
+              "min_delta": 5,
+              "delta": 50.0,
+              "passed": true
+            },
+            {
+              "lower": "typescript-public-operations",
+              "higher": "typescript-source-context",
+              "min_delta": 5,
+              "delta": 30.0,
+              "passed": true
+            },
+            {
+              "lower": "rust-program-parser",
+              "higher": "rust-surface-collector",
+              "min_delta": 5,
+              "delta": 6.0,
+              "passed": true
+            }
+          ],
+          "failures": []
+        }
+      ],
+      "raw_report_sha256": "e6ca26856faec44297e0f0623bd992312e453f3b160564d8f6d06559731048d9"
+    }
+  },
+  "package_tests": "sourceestimate, native, report, scoring, follow, fixanalysis/nativeadapter pass",
+  "typescript_tests": {
+    "passed": 36,
+    "skipped": 0,
+    "evaluator": "repository-built structural evaluator; Make target no longer depends on temporary host"
+  },
+  "harness_tests": {
+    "passed": 14
+  },
+  "artifact_sha256": {
+    "connected-holdout-context-after.json": "1ffde9b29025aaf175cc8e47af231a84341c3c0168c7f1467e4c69a1ee345399",
+    "connected-high-context-after.json": "e034df564dcb0c4ce73815cce1dbec6d7298609e54db8aea38c58278cdce2497",
+    "connected-confirmation-context-after.json": "d03484a57ec4289f980055296bee4fd95310ea16c6aecfcd7399171ddba5f423",
+    "connected-model-final.json": "a60aa5ed301ab28e4a92c50ba37545caaf721449fa0661df0b90a2e5546f0f0c",
+    "connected-coverage-after.json": "d74865505312b2194cdaf2889be58db964355a585a9f87b8ce52518ea220556a",
+    "connected-sensitivity-results.json": "b3b78cf0b031adb43268debeffa232991831d14166bf2a6083e3349673466773"
+  },
+  "remaining_gaps": [
+    "Go ResponseController28 and TypeScript registry20 miss retained high bands; Rust Drain50 and new OnceLock69 miss low bands.",
+    "Fresh confirmation supports Go79 and Rust91/92 high examples, not a TypeScript high. Source-exposure and compiler-internal syntax limitations remain disclosed.",
+    "Java isolated and incomplete-witness high expectations remain failed; complete workspace passes all four bands and three rankings.",
+    "Sensitivity observations remain and enterprise30K cold/warm/incremental acceptance is not established."
+  ]
+}

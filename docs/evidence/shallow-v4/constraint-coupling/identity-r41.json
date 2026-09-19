@@ -1,0 +1,8 @@
+{
+  "baseline_policy": "r41",
+  "calibration_sha256": "5b03a577e9b9fdbb04dda8be9e9ffd208906c91243f63853c13f90e487368b08",
+  "binary_sha256": "0dba97b75fa696ae695eb5f5ff87440f8116160eac436d9cbfbeba50803c4ae2",
+  "baseline_commit": "3cedf99e6917c57dafdd831957df7ea41c98e556",
+  "workspace_dirty": true,
+  "note": "Pre-task Go source contents and full raw distribution reports additionally retained under /tmp; repository evidence retains every file score, burden/responsibility summary and source hash."
+}

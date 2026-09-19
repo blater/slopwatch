@@ -19,6 +19,7 @@ import (
 )
 
 type source struct {
+	depthImports   *depthImporter
 	rel            string
 	file           *ast.File
 	imports        map[string]string
@@ -50,12 +51,16 @@ func (Adapter) ParserModes() []string {
 }
 
 // Analyze translates exact Go files into normalized structural facts.
-func (Adapter) Analyze(workspace string, requested []string, _ map[string]any) (*facts.Program, error) {
-	return Analyze(workspace, requested)
+func (Adapter) Analyze(workspace string, requested []string, options map[string]any) (*facts.Program, error) {
+	return analyzeOptions(workspace, requested, options)
 }
 
 // Analyze parses each exact source once and returns a deterministic fact set.
 func Analyze(workspace string, requested []string) (*facts.Program, error) {
+	return analyzeOptions(workspace, requested, nil)
+}
+
+func analyzeOptions(workspace string, requested []string, options map[string]any) (*facts.Program, error) {
 	root, err := filepath.EvalSymlinks(workspace)
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace: %w", err)
@@ -77,11 +82,18 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 	representation := representationExposures(types)
 	sortFunctions(b.functions)
 	sortOperations(b.operations)
-	return &facts.Program{
+	program := &facts.Program{
 		Functions: b.functions, Types: types, PublicOperations: b.operations,
 		Representation: representation, Files: sourcePaths(sources), Failures: failures,
 		Unavailable: syntaxAffectedComponents(sources, failures),
-	}, nil
+	}
+	if options["depth_profile"] == "responsibility-v4" {
+		// Keep v4 type evidence separate from the legacy measurement inputs.
+		depthSources := append([]source(nil), sources...)
+		typeCheckMode(root, depthSources, fset, true)
+		program.Depth = collectDepth(depthSources, failures, fset)
+	}
+	return program, nil
 }
 
 func parseSources(root string, requested []string, fset *token.FileSet) ([]source, []facts.FileFailure, error) {
@@ -89,19 +101,27 @@ func parseSources(root string, requested []string, fset *token.FileSet) ([]sourc
 	failures := make([]facts.FileFailure, 0)
 	seen := make(map[string]struct{}, len(requested))
 	for _, raw := range requested {
+		if _, exists := seen[raw]; exists {
+			return nil, nil, fmt.Errorf("duplicate Go source path: %s", raw)
+		}
+		seen[raw] = struct{}{}
 		rel, absolute, err := canonicalSource(root, raw)
 		if err != nil {
-			return nil, nil, err
+			failures = append(failures, facts.FileFailure{
+				Path: raw, Code: sourceFailureCode(raw, err),
+				Diagnostic: fmt.Sprintf("%s: %s", raw, err),
+			})
+			continue
 		}
-		if _, exists := seen[rel]; exists {
-			return nil, nil, fmt.Errorf("duplicate Go source path: %s", rel)
-		}
-		seen[rel] = struct{}{}
 		parsed, err := parser.ParseFile(fset, absolute, nil, parser.AllErrors)
 		if err != nil {
 			var syntaxErrors scanner.ErrorList
 			if !errors.As(err, &syntaxErrors) || len(syntaxErrors) == 0 {
-				return nil, nil, fmt.Errorf("parse %s: %w", rel, err)
+				failures = append(failures, facts.FileFailure{
+					Path: rel, Code: "SOURCE_READ_ERROR",
+					Diagnostic: fmt.Sprintf("%s: %s", rel, err),
+				})
+				continue
 			}
 			for _, syntaxErr := range syntaxErrors {
 				failures = append(failures, facts.FileFailure{Path: rel, Code: "SYNTAX_ERROR",
@@ -110,10 +130,16 @@ func parseSources(root string, requested []string, fset *token.FileSet) ([]sourc
 			continue
 		}
 		imports := make(map[string]string)
+		importsValid := true
 		for _, spec := range parsed.Imports {
 			path, unquoteErr := strconv.Unquote(spec.Path.Value)
 			if unquoteErr != nil {
-				return nil, nil, fmt.Errorf("parse import in %s: %w", rel, unquoteErr)
+				failures = append(failures, facts.FileFailure{
+					Path: rel, Code: "SOURCE_PARSE_ERROR",
+					Diagnostic: fmt.Sprintf("%s: parse import: %s", rel, unquoteErr),
+				})
+				importsValid = false
+				break
 			}
 			name := filepath.Base(path)
 			if spec.Name != nil {
@@ -121,11 +147,32 @@ func parseSources(root string, requested []string, fset *token.FileSet) ([]sourc
 			}
 			imports[name] = path
 		}
-		sources = append(sources, source{rel: rel, file: parsed, imports: imports})
+		if importsValid {
+			sources = append(sources, source{rel: rel, file: parsed, imports: imports})
+		}
 	}
 	sort.Slice(sources, func(left, right int) bool { return sources[left].rel < sources[right].rel })
 	sort.SliceStable(failures, func(left, right int) bool { return failures[left].Path < failures[right].Path })
 	return sources, failures, nil
+}
+
+// sourceFailureCode keeps rejected inventory entries in the per-file failure
+// channel while retaining a useful distinction for diagnostics consumers.
+func sourceFailureCode(path string, sourceErr error) string {
+	if sourceErr != nil && strings.Contains(sourceErr.Error(), "escapes workspace") {
+		return "SOURCE_PATH_ERROR"
+	}
+	if path == "" || strings.Contains(path, "\\") || filepath.IsAbs(path) {
+		return "SOURCE_PATH_ERROR"
+	}
+	clean := filepath.Clean(filepath.FromSlash(path))
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || filepath.ToSlash(clean) != path {
+		return "SOURCE_PATH_ERROR"
+	}
+	if !strings.HasSuffix(strings.ToLower(path), ".go") {
+		return "UNSUPPORTED_SOURCE"
+	}
+	return "SOURCE_READ_ERROR"
 }
 
 func syntaxAffectedComponents(sources []source, failures []facts.FileFailure) map[string]map[string]string {
@@ -236,6 +283,13 @@ func canonicalSource(workspace, raw string) (string, string, error) {
 	}
 	if !metadata.Mode().IsRegular() {
 		return "", "", fmt.Errorf("Go source is not a regular file: %s", raw)
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", "", fmt.Errorf("resolve Go source %s: %w", raw, err)
+	}
+	if relative, relErr := filepath.Rel(workspace, resolved); relErr != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("Go source escapes workspace: %s", raw)
 	}
 	if !strings.HasSuffix(strings.ToLower(raw), ".go") {
 		return "", "", fmt.Errorf("unsupported Go source extension: %s", raw)

@@ -10,6 +10,7 @@ import (
 )
 
 var knownConfigurationFiles = []string{
+	".gitignore",
 	"go.mod", "go.sum", "go.work", "go.work.sum", "Cargo.toml", "Cargo.lock", "build.rs",
 	"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
 	"gradle.properties", "gradle.lockfile", "package.json", "package-lock.json",
@@ -33,6 +34,9 @@ func configurationInputs(watcher *sourceWatcher) []workspacefs.Input {
 			addKnownConfigurationInputs(directory, add)
 			addDiscoveredConfigurationInputs(watcher.root, directory, add)
 		}
+	}
+	for _, path := range watcher.matcher.AncestorInputs() {
+		add(path)
 	}
 	sort.Slice(inputs, func(i, j int) bool { return inputs[i].Path < inputs[j].Path })
 	return inputs

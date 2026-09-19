@@ -1,0 +1,2564 @@
+[
+  {
+    "corpus": "calibration",
+    "mode": "isolated",
+    "id": "river-bound-access",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unobserved_package_caller_obligations:SqlBoundAccess",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": [
+        "raw_max 0 is outside expected range [65, 100]"
+      ]
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unobserved_package_caller_obligations:SqlBoundAccess",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": [
+        "raw_max 0 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "isolated",
+    "id": "river-descriptor-scan-context",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 22,
+      "representation": 0,
+      "supported_burden": 2,
+      "residual_burden": 2,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unobserved_package_caller_obligations:SqlDescriptorScanContext",
+        "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+        "unresolved_call_range_0_2:boundPredicate.active/",
+        "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+        "unresolved_call_range_0_2:boundPredicate.matched/",
+        "unresolved_call_range_0_2:predicate.evaluate/row",
+        "unresolved_call_range_0_2:predicate.matched/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/"
+      ],
+      "failures": [
+        "raw_max 22 is outside expected range [65, 100]"
+      ]
+    },
+    "after": {
+      "score": 22,
+      "representation": 0,
+      "supported_burden": 2,
+      "residual_burden": 2,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unobserved_package_caller_obligations:SqlDescriptorScanContext",
+        "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+        "unresolved_call_range_0_2:boundPredicate.active/",
+        "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+        "unresolved_call_range_0_2:boundPredicate.matched/",
+        "unresolved_call_range_0_2:predicate.evaluate/row",
+        "unresolved_call_range_0_2:predicate.matched/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/"
+      ],
+      "failures": [
+        "raw_max 22 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "isolated",
+    "id": "nql-hierarchy-row-context",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 16,
+      "representation": 0,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 4,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "cache-consistency": 4
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Node/__empty_string__",
+        "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+        "unresolved_call_range_0_2:parent.addNode/child",
+        "unresolved_call_range_0_2:path.getTerminalNodeName/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 16,
+      "representation": 0,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 4,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "cache-consistency": 4
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Node/__empty_string__",
+        "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+        "unresolved_call_range_0_2:parent.addNode/child",
+        "unresolved_call_range_0_2:path.getTerminalNodeName/"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "isolated",
+    "id": "xmltoaster-sql-row-cursor",
+    "expected_range": [
+      26,
+      64
+    ],
+    "before": {
+      "score": 53,
+      "representation": 4,
+      "supported_burden": 12.25,
+      "residual_burden": 12.25,
+      "responsibility": 3,
+      "estimated_responsibility": 2,
+      "responsibilities": {
+        "resource": 2,
+        "validation": 1
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+        "unresolved_call_range_0_2:Log.warn/__string__,ex",
+        "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+        "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+        "unresolved_call_range_0_2:col.getColumnIndex/",
+        "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+        "unresolved_call_range_0_2:ex.getMessage/",
+        "unresolved_call_range_0_2:metaData.getColumnCount/",
+        "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+        "unresolved_call_range_0_2:metaData.getColumnType/index",
+        "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+        "unresolved_call_range_0_2:resultSet.close/",
+        "unresolved_call_range_0_2:resultSet.getMetaData/",
+        "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+        "unresolved_call_range_0_2:resultSet.getObject/index",
+        "unresolved_call_range_0_2:resultSet.getString/index",
+        "unresolved_call_range_0_2:resultSet.next/",
+        "unresolved_call_range_0_2:row.getColumnValues/",
+        "unresolved_call_range_0_2:statement.close/",
+        "unresolved_call_range_0_2:values/",
+        "unresolved_owned_element_projection"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 53,
+      "representation": 4,
+      "supported_burden": 12.25,
+      "residual_burden": 12.25,
+      "responsibility": 3,
+      "estimated_responsibility": 2,
+      "responsibilities": {
+        "resource": 2,
+        "validation": 1
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+        "unresolved_call_range_0_2:Log.warn/__string__,ex",
+        "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+        "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+        "unresolved_call_range_0_2:col.getColumnIndex/",
+        "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+        "unresolved_call_range_0_2:ex.getMessage/",
+        "unresolved_call_range_0_2:metaData.getColumnCount/",
+        "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+        "unresolved_call_range_0_2:metaData.getColumnType/index",
+        "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+        "unresolved_call_range_0_2:resultSet.close/",
+        "unresolved_call_range_0_2:resultSet.getMetaData/",
+        "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+        "unresolved_call_range_0_2:resultSet.getObject/index",
+        "unresolved_call_range_0_2:resultSet.getString/index",
+        "unresolved_call_range_0_2:resultSet.next/",
+        "unresolved_call_range_0_2:row.getColumnValues/",
+        "unresolved_call_range_0_2:statement.close/",
+        "unresolved_call_range_0_2:values/",
+        "unresolved_owned_element_projection"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "witness_context",
+    "id": "river-bound-access",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unobserved_package_caller_obligations:SqlBoundAccess",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": [
+        "raw_max 0 is outside expected range [65, 100]"
+      ]
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unobserved_package_caller_obligations:SqlBoundAccess",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": [
+        "raw_max 0 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "witness_context",
+    "id": "river-descriptor-scan-context",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 67,
+      "representation": 12,
+      "supported_burden": 14,
+      "residual_burden": 14,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+        "unresolved_call_range_0_2:boundPredicate.active/",
+        "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+        "unresolved_call_range_0_2:boundPredicate.matched/",
+        "unresolved_call_range_0_2:predicate.evaluate/row",
+        "unresolved_call_range_0_2:predicate.matched/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 22,
+      "representation": 0,
+      "supported_burden": 2,
+      "residual_burden": 2,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unobserved_package_caller_obligations:SqlDescriptorScanContext",
+        "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+        "unresolved_call_range_0_2:boundPredicate.active/",
+        "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+        "unresolved_call_range_0_2:boundPredicate.matched/",
+        "unresolved_call_range_0_2:predicate.evaluate/row",
+        "unresolved_call_range_0_2:predicate.matched/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/"
+      ],
+      "failures": [
+        "raw_max 22 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "witness_context",
+    "id": "nql-hierarchy-row-context",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 16,
+      "representation": 0,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 4,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "cache-consistency": 4
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Node/__empty_string__",
+        "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+        "unresolved_call_range_0_2:parent.addNode/child",
+        "unresolved_call_range_0_2:path.getTerminalNodeName/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 16,
+      "representation": 0,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 4,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "cache-consistency": 4
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Node/__empty_string__",
+        "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+        "unresolved_call_range_0_2:parent.addNode/child",
+        "unresolved_call_range_0_2:path.getTerminalNodeName/"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "witness_context",
+    "id": "xmltoaster-sql-row-cursor",
+    "expected_range": [
+      26,
+      64
+    ],
+    "before": {
+      "score": 53,
+      "representation": 4,
+      "supported_burden": 12.25,
+      "residual_burden": 12.25,
+      "responsibility": 3,
+      "estimated_responsibility": 2,
+      "responsibilities": {
+        "resource": 2,
+        "validation": 1
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+        "unresolved_call_range_0_2:Log.warn/__string__,ex",
+        "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+        "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+        "unresolved_call_range_0_2:col.getColumnIndex/",
+        "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+        "unresolved_call_range_0_2:ex.getMessage/",
+        "unresolved_call_range_0_2:metaData.getColumnCount/",
+        "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+        "unresolved_call_range_0_2:metaData.getColumnType/index",
+        "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+        "unresolved_call_range_0_2:resultSet.close/",
+        "unresolved_call_range_0_2:resultSet.getMetaData/",
+        "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+        "unresolved_call_range_0_2:resultSet.getObject/index",
+        "unresolved_call_range_0_2:resultSet.getString/index",
+        "unresolved_call_range_0_2:resultSet.next/",
+        "unresolved_call_range_0_2:row.getColumnValues/",
+        "unresolved_call_range_0_2:statement.close/",
+        "unresolved_call_range_0_2:values/",
+        "unresolved_owned_element_projection"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 53,
+      "representation": 4,
+      "supported_burden": 12.25,
+      "residual_burden": 12.25,
+      "responsibility": 3,
+      "estimated_responsibility": 2,
+      "responsibilities": {
+        "resource": 2,
+        "validation": 1
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+        "unresolved_call_range_0_2:Log.warn/__string__,ex",
+        "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+        "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+        "unresolved_call_range_0_2:col.getColumnIndex/",
+        "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+        "unresolved_call_range_0_2:ex.getMessage/",
+        "unresolved_call_range_0_2:metaData.getColumnCount/",
+        "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+        "unresolved_call_range_0_2:metaData.getColumnType/index",
+        "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+        "unresolved_call_range_0_2:resultSet.close/",
+        "unresolved_call_range_0_2:resultSet.getMetaData/",
+        "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+        "unresolved_call_range_0_2:resultSet.getObject/index",
+        "unresolved_call_range_0_2:resultSet.getString/index",
+        "unresolved_call_range_0_2:resultSet.next/",
+        "unresolved_call_range_0_2:row.getColumnValues/",
+        "unresolved_call_range_0_2:statement.close/",
+        "unresolved_call_range_0_2:values/",
+        "unresolved_owned_element_projection"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "workspace",
+    "id": "river-bound-access",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 86,
+      "representation": 6,
+      "supported_burden": 6,
+      "residual_burden": 6,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unobserved_package_caller_obligations:SqlBoundAccess",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": [
+        "raw_max 0 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "workspace",
+    "id": "river-descriptor-scan-context",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 67,
+      "representation": 12,
+      "supported_burden": 14,
+      "residual_burden": 14,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+        "unresolved_call_range_0_2:boundPredicate.active/",
+        "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+        "unresolved_call_range_0_2:boundPredicate.matched/",
+        "unresolved_call_range_0_2:match.value/",
+        "unresolved_call_range_0_2:predicate.evaluate/row",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 46,
+      "representation": 4,
+      "supported_burden": 6,
+      "residual_burden": 6,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:SqlDescriptorBoundPredicate/predicateEvaluator,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorOrderedRows/shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorScalarAggregate/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSetExecution/temporal,shapeBudget",
+        "unresolved_call_range_0_2:SqlDescriptorSubqueryExecution/owner,shapeBudget,predicateEvaluator.subqueryPlan(),predicateEvaluator.subqueryCache()",
+        "unresolved_call_range_0_2:boundPredicate.active/",
+        "unresolved_call_range_0_2:boundPredicate.evaluate/row",
+        "unresolved_call_range_0_2:boundPredicate.matched/",
+        "unresolved_call_range_0_2:match.value/",
+        "unresolved_call_range_0_2:predicate.evaluate/row",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryCache/",
+        "unresolved_call_range_0_2:predicateEvaluator.subqueryPlan/"
+      ],
+      "failures": [
+        "raw_max 46 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "workspace",
+    "id": "nql-hierarchy-row-context",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 16,
+      "representation": 0,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 4,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "cache-consistency": 4
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Node/__empty_string__",
+        "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+        "unresolved_call_range_0_2:parent.addNode/child",
+        "unresolved_call_range_0_2:path.getTerminalNodeName/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 16,
+      "representation": 0,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 4,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "cache-consistency": 4
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Node/__empty_string__",
+        "unresolved_call_range_0_2:Node/path.getTerminalNodeName()",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(__empty_string__);parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:computeIfAbsent/path,ignored->{Nodechild=newNode(path.getTerminalNodeName());parent.addNode(child);returnchild;}",
+        "unresolved_call_range_0_2:objects.computeIfAbsent/parent,ignored->newHashMap<>()",
+        "unresolved_call_range_0_2:parent.addNode/child",
+        "unresolved_call_range_0_2:path.getTerminalNodeName/"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "calibration",
+    "mode": "workspace",
+    "id": "xmltoaster-sql-row-cursor",
+    "expected_range": [
+      26,
+      64
+    ],
+    "before": {
+      "score": 53,
+      "representation": 4,
+      "supported_burden": 12.25,
+      "residual_burden": 12.25,
+      "responsibility": 3,
+      "estimated_responsibility": 2,
+      "responsibilities": {
+        "resource": 2,
+        "validation": 1
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+        "unresolved_call_range_0_2:Log.warn/__string__,ex",
+        "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+        "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+        "unresolved_call_range_0_2:col.getColumnIndex/",
+        "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+        "unresolved_call_range_0_2:ex.getMessage/",
+        "unresolved_call_range_0_2:metaData.getColumnCount/",
+        "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+        "unresolved_call_range_0_2:metaData.getColumnType/index",
+        "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+        "unresolved_call_range_0_2:resultSet.close/",
+        "unresolved_call_range_0_2:resultSet.getMetaData/",
+        "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+        "unresolved_call_range_0_2:resultSet.getObject/index",
+        "unresolved_call_range_0_2:resultSet.getString/index",
+        "unresolved_call_range_0_2:resultSet.next/",
+        "unresolved_call_range_0_2:row.getColumnValues/",
+        "unresolved_call_range_0_2:statement.close/",
+        "unresolved_call_range_0_2:values/",
+        "unresolved_owned_element_projection"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 53,
+      "representation": 4,
+      "supported_burden": 12.25,
+      "residual_burden": 12.25,
+      "responsibility": 3,
+      "estimated_responsibility": 2,
+      "responsibilities": {
+        "resource": 2,
+        "validation": 1
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:Log.fatal/SQLException.class,__string__+ex.getMessage()",
+        "unresolved_call_range_0_2:Log.warn/__string__,ex",
+        "unresolved_call_range_0_2:QueryColumn/name,columnType(index),index",
+        "unresolved_call_range_0_2:QueryResultRow/newLinkedHashMap<>()",
+        "unresolved_call_range_0_2:col.getColumnIndex/",
+        "unresolved_call_range_0_2:col.setValue/value(col.getColumnIndex())",
+        "unresolved_call_range_0_2:ex.getMessage/",
+        "unresolved_call_range_0_2:metaData.getColumnCount/",
+        "unresolved_call_range_0_2:metaData.getColumnLabel/index",
+        "unresolved_call_range_0_2:metaData.getColumnType/index",
+        "unresolved_call_range_0_2:put/name,newQueryColumn(name,columnType(index),index)",
+        "unresolved_call_range_0_2:resultSet.close/",
+        "unresolved_call_range_0_2:resultSet.getMetaData/",
+        "unresolved_call_range_0_2:resultSet.getObject/col.getColumnIndex()",
+        "unresolved_call_range_0_2:resultSet.getObject/index",
+        "unresolved_call_range_0_2:resultSet.getString/index",
+        "unresolved_call_range_0_2:resultSet.next/",
+        "unresolved_call_range_0_2:row.getColumnValues/",
+        "unresolved_call_range_0_2:statement.close/",
+        "unresolved_call_range_0_2:values/",
+        "unresolved_owned_element_projection"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "isolated",
+    "id": "go-response-controller",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 28,
+      "representation": 0,
+      "supported_burden": 4.25,
+      "residual_burden": 4.25,
+      "responsibility": 5,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 5
+      },
+      "limitations": [
+        "call_cycle",
+        "unresolved_call_range_0_2:FlushError/",
+        "unresolved_call_range_0_2:fmt.Errorf/__string__,ErrNotSupported",
+        "unresolved_call_range_0_2:t.EnableFullDuplex/",
+        "unresolved_call_range_0_2:t.Flush/",
+        "unresolved_call_range_0_2:t.FlushError/",
+        "unresolved_call_range_0_2:t.Hijack/",
+        "unresolved_call_range_0_2:t.SetReadDeadline/deadline",
+        "unresolved_call_range_0_2:t.SetWriteDeadline/deadline",
+        "unresolved_call_range_0_2:t.Unwrap/"
+      ],
+      "failures": [
+        "raw_max 28 is outside expected range [65, 100]"
+      ]
+    },
+    "after": {
+      "score": 28,
+      "representation": 0,
+      "supported_burden": 4.25,
+      "residual_burden": 4.25,
+      "responsibility": 5,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 5
+      },
+      "limitations": [
+        "call_cycle",
+        "unresolved_call_range_0_2:FlushError/",
+        "unresolved_call_range_0_2:fmt.Errorf/__string__,ErrNotSupported",
+        "unresolved_call_range_0_2:t.EnableFullDuplex/",
+        "unresolved_call_range_0_2:t.Flush/",
+        "unresolved_call_range_0_2:t.FlushError/",
+        "unresolved_call_range_0_2:t.Hijack/",
+        "unresolved_call_range_0_2:t.SetReadDeadline/deadline",
+        "unresolved_call_range_0_2:t.SetWriteDeadline/deadline",
+        "unresolved_call_range_0_2:t.Unwrap/"
+      ],
+      "failures": [
+        "raw_max 28 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "isolated",
+    "id": "go-tempfile",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 3,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 3,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 3
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:IsExist/err",
+        "unresolved_call_range_0_2:IsPathSeparator/dir[len(dir)-1]",
+        "unresolved_call_range_0_2:IsPathSeparator/pattern[i]",
+        "unresolved_call_range_0_2:OpenFile/name,O_RDWR|O_CREATE|O_EXCL,0600",
+        "unresolved_call_range_0_2:TempDir/",
+        "unresolved_call_range_0_2:bytealg.LastIndexByteString/pattern,__string__",
+        "unresolved_call_range_0_2:len/dir",
+        "unresolved_call_range_0_2:len/pattern",
+        "unresolved_call_range_0_2:nextRandom/",
+        "unresolved_call_range_0_2:string/PathSeparator"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 3,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 3,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 3
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:IsExist/err",
+        "unresolved_call_range_0_2:IsPathSeparator/dir[len(dir)-1]",
+        "unresolved_call_range_0_2:IsPathSeparator/pattern[i]",
+        "unresolved_call_range_0_2:OpenFile/name,O_RDWR|O_CREATE|O_EXCL,0600",
+        "unresolved_call_range_0_2:TempDir/",
+        "unresolved_call_range_0_2:bytealg.LastIndexByteString/pattern,__string__",
+        "unresolved_call_range_0_2:len/dir",
+        "unresolved_call_range_0_2:len/pattern",
+        "unresolved_call_range_0_2:nextRandom/",
+        "unresolved_call_range_0_2:string/PathSeparator"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "isolated",
+    "id": "typescript-tracker-write-registry",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 1.25,
+      "residual_burden": 1.25,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "state": 2
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:writing.add/token",
+        "unresolved_call_range_0_2:writing.delete/token"
+      ],
+      "failures": [
+        "raw_max 20 is outside expected range [65, 100]"
+      ]
+    },
+    "after": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 1.25,
+      "residual_burden": 1.25,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "state": 2
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:writing.add/token",
+        "unresolved_call_range_0_2:writing.delete/token"
+      ],
+      "failures": [
+        "raw_max 20 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "isolated",
+    "id": "typescript-safe-write",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:fs.mkdirSync/path.dirname(file),{recursive:true}",
+        "unresolved_call_range_0_2:fs.renameSync/tmp,file",
+        "unresolved_call_range_0_2:fs.writeFileSync/tmp,content,__string__",
+        "unresolved_call_range_0_2:path.dirname/file"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:fs.mkdirSync/path.dirname(file),{recursive:true}",
+        "unresolved_call_range_0_2:fs.renameSync/tmp,file",
+        "unresolved_call_range_0_2:fs.writeFileSync/tmp,content,__string__",
+        "unresolved_call_range_0_2:path.dirname/file"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "isolated",
+    "id": "rust-manually-drop",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 83,
+      "representation": 2,
+      "supported_burden": 4.75,
+      "residual_burden": 4.75,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:MaybeDangling.new/value",
+        "unresolved_call_range_0_2:ptr.drop_in_place/slot.value.as_mut()",
+        "unresolved_call_range_0_2:ptr.read/slot.value.as_ref()",
+        "unresolved_call_range_0_2:read/",
+        "unresolved_call_range_0_2:slot.value.as_mut/",
+        "unresolved_call_range_0_2:slot.value.as_ref/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 83,
+      "representation": 2,
+      "supported_burden": 4.75,
+      "residual_burden": 4.75,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:MaybeDangling.new/value",
+        "unresolved_call_range_0_2:ptr.drop_in_place/slot.value.as_mut()",
+        "unresolved_call_range_0_2:ptr.read/slot.value.as_ref()",
+        "unresolved_call_range_0_2:read/",
+        "unresolved_call_range_0_2:slot.value.as_mut/",
+        "unresolved_call_range_0_2:slot.value.as_ref/"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "isolated",
+    "id": "rust-vec-drain",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 50,
+      "representation": 0,
+      "supported_burden": 1,
+      "residual_burden": 1,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "call_cycle",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:ManuallyDrop.new/self",
+        "unresolved_call_range_0_2:add/start",
+        "unresolved_call_range_0_2:add/tail",
+        "unresolved_call_range_0_2:as_ptr/",
+        "unresolved_call_range_0_2:ptr.copy/src,dst,this.tail_len",
+        "unresolved_call_range_0_2:ptr.copy/src,dst,unyielded_len",
+        "unresolved_call_range_0_2:self.iter.as_slice/",
+        "unresolved_call_range_0_2:self.vec.as_ref/",
+        "unresolved_call_range_0_2:source_vec.as_mut_ptr/",
+        "unresolved_call_range_0_2:source_vec.as_ptr/",
+        "unresolved_call_range_0_2:source_vec.len/",
+        "unresolved_call_range_0_2:source_vec.set_len/start+unyielded_len+this.tail_len",
+        "unresolved_call_range_0_2:start_ptr.add/unyielded_len",
+        "unresolved_call_range_0_2:this.iter.as_slice/",
+        "unresolved_call_range_0_2:this.iter.len/",
+        "unresolved_call_range_0_2:this.vec.as_mut/"
+      ],
+      "failures": [
+        "raw_max 50 is outside expected range [0, 25]"
+      ]
+    },
+    "after": {
+      "score": 50,
+      "representation": 0,
+      "supported_burden": 1,
+      "residual_burden": 1,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "call_cycle",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:ManuallyDrop.new/self",
+        "unresolved_call_range_0_2:add/start",
+        "unresolved_call_range_0_2:add/tail",
+        "unresolved_call_range_0_2:as_ptr/",
+        "unresolved_call_range_0_2:ptr.copy/src,dst,this.tail_len",
+        "unresolved_call_range_0_2:ptr.copy/src,dst,unyielded_len",
+        "unresolved_call_range_0_2:self.iter.as_slice/",
+        "unresolved_call_range_0_2:self.vec.as_ref/",
+        "unresolved_call_range_0_2:source_vec.as_mut_ptr/",
+        "unresolved_call_range_0_2:source_vec.as_ptr/",
+        "unresolved_call_range_0_2:source_vec.len/",
+        "unresolved_call_range_0_2:source_vec.set_len/start+unyielded_len+this.tail_len",
+        "unresolved_call_range_0_2:start_ptr.add/unyielded_len",
+        "unresolved_call_range_0_2:this.iter.as_slice/",
+        "unresolved_call_range_0_2:this.iter.len/",
+        "unresolved_call_range_0_2:this.vec.as_mut/"
+      ],
+      "failures": [
+        "raw_max 50 is outside expected range [0, 25]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "witness_context",
+    "id": "go-response-controller",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 28,
+      "representation": 0,
+      "supported_burden": 4.25,
+      "residual_burden": 4.25,
+      "responsibility": 5,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 5
+      },
+      "limitations": [
+        "call_cycle",
+        "unresolved_call_range_0_2:FlushError/",
+        "unresolved_call_range_0_2:fmt.Errorf/__string__,ErrNotSupported",
+        "unresolved_call_range_0_2:t.EnableFullDuplex/",
+        "unresolved_call_range_0_2:t.Flush/",
+        "unresolved_call_range_0_2:t.FlushError/",
+        "unresolved_call_range_0_2:t.Hijack/",
+        "unresolved_call_range_0_2:t.SetReadDeadline/deadline",
+        "unresolved_call_range_0_2:t.SetWriteDeadline/deadline",
+        "unresolved_call_range_0_2:t.Unwrap/"
+      ],
+      "failures": [
+        "raw_max 28 is outside expected range [65, 100]"
+      ]
+    },
+    "after": {
+      "score": 28,
+      "representation": 0,
+      "supported_burden": 4.25,
+      "residual_burden": 4.25,
+      "responsibility": 5,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 5
+      },
+      "limitations": [
+        "call_cycle",
+        "unresolved_call_range_0_2:FlushError/",
+        "unresolved_call_range_0_2:fmt.Errorf/__string__,ErrNotSupported",
+        "unresolved_call_range_0_2:t.EnableFullDuplex/",
+        "unresolved_call_range_0_2:t.Flush/",
+        "unresolved_call_range_0_2:t.FlushError/",
+        "unresolved_call_range_0_2:t.Hijack/",
+        "unresolved_call_range_0_2:t.SetReadDeadline/deadline",
+        "unresolved_call_range_0_2:t.SetWriteDeadline/deadline",
+        "unresolved_call_range_0_2:t.Unwrap/"
+      ],
+      "failures": [
+        "raw_max 28 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "witness_context",
+    "id": "go-tempfile",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 3,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 3,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 3
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:IsExist/err",
+        "unresolved_call_range_0_2:IsPathSeparator/dir[len(dir)-1]",
+        "unresolved_call_range_0_2:IsPathSeparator/pattern[i]",
+        "unresolved_call_range_0_2:OpenFile/name,O_RDWR|O_CREATE|O_EXCL,0600",
+        "unresolved_call_range_0_2:TempDir/",
+        "unresolved_call_range_0_2:bytealg.LastIndexByteString/pattern,__string__",
+        "unresolved_call_range_0_2:len/dir",
+        "unresolved_call_range_0_2:len/pattern",
+        "unresolved_call_range_0_2:nextRandom/",
+        "unresolved_call_range_0_2:string/PathSeparator"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 3,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 3,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 3
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:IsExist/err",
+        "unresolved_call_range_0_2:IsPathSeparator/dir[len(dir)-1]",
+        "unresolved_call_range_0_2:IsPathSeparator/pattern[i]",
+        "unresolved_call_range_0_2:OpenFile/name,O_RDWR|O_CREATE|O_EXCL,0600",
+        "unresolved_call_range_0_2:TempDir/",
+        "unresolved_call_range_0_2:bytealg.LastIndexByteString/pattern,__string__",
+        "unresolved_call_range_0_2:len/dir",
+        "unresolved_call_range_0_2:len/pattern",
+        "unresolved_call_range_0_2:nextRandom/",
+        "unresolved_call_range_0_2:string/PathSeparator"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "witness_context",
+    "id": "typescript-tracker-write-registry",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 1.25,
+      "residual_burden": 1.25,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "state": 2
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:writing.add/token",
+        "unresolved_call_range_0_2:writing.delete/token"
+      ],
+      "failures": [
+        "raw_max 20 is outside expected range [65, 100]"
+      ]
+    },
+    "after": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 1.25,
+      "residual_burden": 1.25,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "state": 2
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:writing.add/token",
+        "unresolved_call_range_0_2:writing.delete/token"
+      ],
+      "failures": [
+        "raw_max 20 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "witness_context",
+    "id": "typescript-safe-write",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:fs.mkdirSync/path.dirname(file),{recursive:true}",
+        "unresolved_call_range_0_2:fs.renameSync/tmp,file",
+        "unresolved_call_range_0_2:fs.writeFileSync/tmp,content,__string__",
+        "unresolved_call_range_0_2:path.dirname/file"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:fs.mkdirSync/path.dirname(file),{recursive:true}",
+        "unresolved_call_range_0_2:fs.renameSync/tmp,file",
+        "unresolved_call_range_0_2:fs.writeFileSync/tmp,content,__string__",
+        "unresolved_call_range_0_2:path.dirname/file"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "witness_context",
+    "id": "rust-manually-drop",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 83,
+      "representation": 2,
+      "supported_burden": 4.75,
+      "residual_burden": 4.75,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:MaybeDangling.new/value",
+        "unresolved_call_range_0_2:ptr.drop_in_place/slot.value.as_mut()",
+        "unresolved_call_range_0_2:ptr.read/slot.value.as_ref()",
+        "unresolved_call_range_0_2:read/",
+        "unresolved_call_range_0_2:slot.value.as_mut/",
+        "unresolved_call_range_0_2:slot.value.as_ref/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 83,
+      "representation": 2,
+      "supported_burden": 4.75,
+      "residual_burden": 4.75,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:MaybeDangling.new/value",
+        "unresolved_call_range_0_2:ptr.drop_in_place/slot.value.as_mut()",
+        "unresolved_call_range_0_2:ptr.read/slot.value.as_ref()",
+        "unresolved_call_range_0_2:read/",
+        "unresolved_call_range_0_2:slot.value.as_mut/",
+        "unresolved_call_range_0_2:slot.value.as_ref/"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-high",
+    "mode": "witness_context",
+    "id": "rust-vec-drain",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 50,
+      "representation": 0,
+      "supported_burden": 1,
+      "residual_burden": 1,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "call_cycle",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:ManuallyDrop.new/self",
+        "unresolved_call_range_0_2:add/start",
+        "unresolved_call_range_0_2:add/tail",
+        "unresolved_call_range_0_2:as_ptr/",
+        "unresolved_call_range_0_2:ptr.copy/src,dst,this.tail_len",
+        "unresolved_call_range_0_2:ptr.copy/src,dst,unyielded_len",
+        "unresolved_call_range_0_2:self.iter.as_slice/",
+        "unresolved_call_range_0_2:self.vec.as_ref/",
+        "unresolved_call_range_0_2:source_vec.as_mut_ptr/",
+        "unresolved_call_range_0_2:source_vec.as_ptr/",
+        "unresolved_call_range_0_2:source_vec.len/",
+        "unresolved_call_range_0_2:source_vec.set_len/start+unyielded_len+this.tail_len",
+        "unresolved_call_range_0_2:start_ptr.add/unyielded_len",
+        "unresolved_call_range_0_2:this.iter.as_slice/",
+        "unresolved_call_range_0_2:this.iter.len/",
+        "unresolved_call_range_0_2:this.vec.as_mut/"
+      ],
+      "failures": [
+        "raw_max 50 is outside expected range [0, 25]"
+      ]
+    },
+    "after": {
+      "score": 50,
+      "representation": 0,
+      "supported_burden": 1,
+      "residual_burden": 1,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "call_cycle",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:ManuallyDrop.new/self",
+        "unresolved_call_range_0_2:add/start",
+        "unresolved_call_range_0_2:add/tail",
+        "unresolved_call_range_0_2:as_ptr/",
+        "unresolved_call_range_0_2:ptr.copy/src,dst,this.tail_len",
+        "unresolved_call_range_0_2:ptr.copy/src,dst,unyielded_len",
+        "unresolved_call_range_0_2:self.iter.as_slice/",
+        "unresolved_call_range_0_2:self.vec.as_ref/",
+        "unresolved_call_range_0_2:source_vec.as_mut_ptr/",
+        "unresolved_call_range_0_2:source_vec.as_ptr/",
+        "unresolved_call_range_0_2:source_vec.len/",
+        "unresolved_call_range_0_2:source_vec.set_len/start+unyielded_len+this.tail_len",
+        "unresolved_call_range_0_2:start_ptr.add/unyielded_len",
+        "unresolved_call_range_0_2:this.iter.as_slice/",
+        "unresolved_call_range_0_2:this.iter.len/",
+        "unresolved_call_range_0_2:this.vec.as_mut/"
+      ],
+      "failures": [
+        "raw_max 50 is outside expected range [0, 25]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "isolated",
+    "id": "go-condition-variable",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 79,
+      "representation": 2,
+      "supported_burden": 3.75,
+      "residual_burden": 3.75,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:c.L.Lock/",
+        "unresolved_call_range_0_2:c.L.Unlock/",
+        "unresolved_call_range_0_2:c.checker.check/",
+        "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 64,
+      "representation": 0,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:c.L.Lock/",
+        "unresolved_call_range_0_2:c.L.Unlock/",
+        "unresolved_call_range_0_2:c.checker.check/",
+        "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+      ],
+      "failures": [
+        "raw_max 64 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "isolated",
+    "id": "go-once-initializer",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:f/",
+        "unresolved_call_range_0_2:o.done.Load/",
+        "unresolved_call_range_0_2:o.done.Store/true",
+        "unresolved_call_range_0_2:o.m.Lock/",
+        "unresolved_call_range_0_2:o.m.Unlock/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:f/",
+        "unresolved_call_range_0_2:o.done.Load/",
+        "unresolved_call_range_0_2:o.done.Store/true",
+        "unresolved_call_range_0_2:o.m.Lock/",
+        "unresolved_call_range_0_2:o.m.Unlock/"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "isolated",
+    "id": "typescript-finalize-coordinator",
+    "expected_range": [
+      26,
+      64
+    ],
+    "before": {
+      "score": 50,
+      "representation": 2,
+      "supported_burden": 7,
+      "residual_burden": 7,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:entry.resolve/result",
+        "unresolved_call_range_0_2:generateId/__string__",
+        "unresolved_call_range_0_2:this.byRun.delete/runId",
+        "unresolved_call_range_0_2:this.byRun.get/runId",
+        "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 50,
+      "representation": 2,
+      "supported_burden": 7,
+      "residual_burden": 7,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:entry.resolve/result",
+        "unresolved_call_range_0_2:generateId/__string__",
+        "unresolved_call_range_0_2:this.byRun.delete/runId",
+        "unresolved_call_range_0_2:this.byRun.get/runId",
+        "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "isolated",
+    "id": "typescript-recent-log-buffer",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+        "unresolved_call_range_0_2:BUF.shift/",
+        "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+        "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+        "unresolved_call_range_0_2:origFetch/...args",
+        "unresolved_call_range_0_2:slice/0,300",
+        "unresolved_call_range_0_2:u.pathname.startsWith/__string__"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+        "unresolved_call_range_0_2:BUF.shift/",
+        "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+        "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+        "unresolved_call_range_0_2:origFetch/...args",
+        "unresolved_call_range_0_2:slice/0,300",
+        "unresolved_call_range_0_2:u.pathname.startsWith/__string__"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "isolated",
+    "id": "rust-maybe-uninit",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 91,
+      "representation": 0,
+      "supported_burden": 10,
+      "residual_burden": 10,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:ManuallyDrop.new/val",
+        "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+        "unresolved_call_range_0_2:read/",
+        "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+        "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+        "unresolved_call_range_0_2:transmute_neo/self",
+        "unresolved_call_range_0_2:u.as_mut_ptr/",
+        "unresolved_call_range_0_2:write_bytes/0u8,1",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 91,
+      "representation": 0,
+      "supported_burden": 10,
+      "residual_burden": 10,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:ManuallyDrop.new/val",
+        "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+        "unresolved_call_range_0_2:read/",
+        "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+        "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+        "unresolved_call_range_0_2:transmute_neo/self",
+        "unresolved_call_range_0_2:u.as_mut_ptr/",
+        "unresolved_call_range_0_2:write_bytes/0u8,1",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "isolated",
+    "id": "rust-once-lock",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 69,
+      "representation": 0,
+      "supported_burden": 11.25,
+      "residual_burden": 11.25,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "representation-transformation": 2
+      },
+      "limitations": [
+        "call_depth_limit",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:Err/(_,value)",
+        "unresolved_call_range_0_2:Err/(res,value)",
+        "unresolved_call_range_0_2:Err/e",
+        "unresolved_call_range_0_2:Err/value",
+        "unresolved_call_range_0_2:MaybeUninit.uninit/",
+        "unresolved_call_range_0_2:Ok/()",
+        "unresolved_call_range_0_2:Ok/_",
+        "unresolved_call_range_0_2:Ok/res",
+        "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+        "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+        "unresolved_call_range_0_2:Ok/val",
+        "unresolved_call_range_0_2:Ok/value",
+        "unresolved_call_range_0_2:Once.new/",
+        "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+        "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+        "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+        "unresolved_call_range_0_2:Some/value",
+        "unresolved_call_range_0_2:T/",
+        "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+        "unresolved_call_range_0_2:assume_init_mut/",
+        "unresolved_call_range_0_2:assume_init_read/",
+        "unresolved_call_range_0_2:assume_init_ref/",
+        "unresolved_call_range_0_2:f/",
+        "unresolved_call_range_0_2:is_none/",
+        "unresolved_call_range_0_2:p.poison/",
+        "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+        "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+        "unresolved_call_range_0_2:self.once.is_completed/",
+        "unresolved_call_range_0_2:self.once.state/",
+        "unresolved_call_range_0_2:self.once.wait_force/",
+        "unresolved_call_range_0_2:self.value.get/",
+        "unresolved_call_range_0_2:self.value.get_mut/",
+        "unresolved_call_range_0_2:slot.get/",
+        "unresolved_call_range_0_2:unwrap/",
+        "unresolved_call_range_0_2:value.take/",
+        "unresolved_call_range_0_2:write/value"
+      ],
+      "failures": [
+        "raw_max 69 is outside expected range [0, 25]"
+      ]
+    },
+    "after": {
+      "score": 69,
+      "representation": 0,
+      "supported_burden": 11.25,
+      "residual_burden": 11.25,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "representation-transformation": 2
+      },
+      "limitations": [
+        "call_depth_limit",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:Err/(_,value)",
+        "unresolved_call_range_0_2:Err/(res,value)",
+        "unresolved_call_range_0_2:Err/e",
+        "unresolved_call_range_0_2:Err/value",
+        "unresolved_call_range_0_2:MaybeUninit.uninit/",
+        "unresolved_call_range_0_2:Ok/()",
+        "unresolved_call_range_0_2:Ok/_",
+        "unresolved_call_range_0_2:Ok/res",
+        "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+        "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+        "unresolved_call_range_0_2:Ok/val",
+        "unresolved_call_range_0_2:Ok/value",
+        "unresolved_call_range_0_2:Once.new/",
+        "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+        "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+        "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+        "unresolved_call_range_0_2:Some/value",
+        "unresolved_call_range_0_2:T/",
+        "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+        "unresolved_call_range_0_2:assume_init_mut/",
+        "unresolved_call_range_0_2:assume_init_read/",
+        "unresolved_call_range_0_2:assume_init_ref/",
+        "unresolved_call_range_0_2:f/",
+        "unresolved_call_range_0_2:is_none/",
+        "unresolved_call_range_0_2:p.poison/",
+        "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+        "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+        "unresolved_call_range_0_2:self.once.is_completed/",
+        "unresolved_call_range_0_2:self.once.state/",
+        "unresolved_call_range_0_2:self.once.wait_force/",
+        "unresolved_call_range_0_2:self.value.get/",
+        "unresolved_call_range_0_2:self.value.get_mut/",
+        "unresolved_call_range_0_2:slot.get/",
+        "unresolved_call_range_0_2:unwrap/",
+        "unresolved_call_range_0_2:value.take/",
+        "unresolved_call_range_0_2:write/value"
+      ],
+      "failures": [
+        "raw_max 69 is outside expected range [0, 25]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "witness_context",
+    "id": "go-condition-variable",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 79,
+      "representation": 2,
+      "supported_burden": 3.75,
+      "residual_burden": 3.75,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:c.L.Lock/",
+        "unresolved_call_range_0_2:c.L.Unlock/",
+        "unresolved_call_range_0_2:c.checker.check/",
+        "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 64,
+      "representation": 0,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:c.L.Lock/",
+        "unresolved_call_range_0_2:c.L.Unlock/",
+        "unresolved_call_range_0_2:c.checker.check/",
+        "unresolved_call_range_0_2:runtime_notifyListAdd/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListNotifyAll/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListNotifyOne/&c.notify",
+        "unresolved_call_range_0_2:runtime_notifyListWait/&c.notify,t"
+      ],
+      "failures": [
+        "raw_max 64 is outside expected range [65, 100]"
+      ]
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "witness_context",
+    "id": "go-once-initializer",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:f/",
+        "unresolved_call_range_0_2:o.done.Load/",
+        "unresolved_call_range_0_2:o.done.Store/true",
+        "unresolved_call_range_0_2:o.m.Lock/",
+        "unresolved_call_range_0_2:o.m.Unlock/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:f/",
+        "unresolved_call_range_0_2:o.done.Load/",
+        "unresolved_call_range_0_2:o.done.Store/true",
+        "unresolved_call_range_0_2:o.m.Lock/",
+        "unresolved_call_range_0_2:o.m.Unlock/"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "witness_context",
+    "id": "typescript-finalize-coordinator",
+    "expected_range": [
+      26,
+      64
+    ],
+    "before": {
+      "score": 50,
+      "representation": 2,
+      "supported_burden": 7,
+      "residual_burden": 7,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:entry.resolve/result",
+        "unresolved_call_range_0_2:generateId/__string__",
+        "unresolved_call_range_0_2:this.byRun.delete/runId",
+        "unresolved_call_range_0_2:this.byRun.get/runId",
+        "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 50,
+      "representation": 2,
+      "supported_burden": 7,
+      "residual_burden": 7,
+      "responsibility": 0,
+      "estimated_responsibility": 3,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:entry.resolve/result",
+        "unresolved_call_range_0_2:generateId/__string__",
+        "unresolved_call_range_0_2:this.byRun.delete/runId",
+        "unresolved_call_range_0_2:this.byRun.get/runId",
+        "unresolved_call_range_0_2:this.byRun.set/runId,{attemptId,intent:fullIntent,resolve,settled:false}"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "witness_context",
+    "id": "typescript-recent-log-buffer",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+        "unresolved_call_range_0_2:BUF.shift/",
+        "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+        "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+        "unresolved_call_range_0_2:origFetch/...args",
+        "unresolved_call_range_0_2:slice/0,300",
+        "unresolved_call_range_0_2:u.pathname.startsWith/__string__"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:BUF.push/__string__.replace(/\\__string__+/g,__string__).slice(0,300)",
+        "unresolved_call_range_0_2:BUF.shift/",
+        "unresolved_call_range_0_2:URL/typeofargs[0]===__string__?args[0]:(args[0]asRequest).url,location.origin",
+        "unresolved_call_range_0_2:__string__.replace//\\__string__+/g,__string__",
+        "unresolved_call_range_0_2:origFetch/...args",
+        "unresolved_call_range_0_2:slice/0,300",
+        "unresolved_call_range_0_2:u.pathname.startsWith/__string__"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "witness_context",
+    "id": "rust-maybe-uninit",
+    "expected_range": [
+      65,
+      100
+    ],
+    "before": {
+      "score": 92,
+      "representation": 0,
+      "supported_burden": 11.25,
+      "residual_burden": 11.25,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:ManuallyDrop.new/val",
+        "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+        "unresolved_call_range_0_2:read/",
+        "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+        "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+        "unresolved_call_range_0_2:transmute_neo/self",
+        "unresolved_call_range_0_2:u.as_mut_ptr/",
+        "unresolved_call_range_0_2:write_bytes/0u8,1",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 92,
+      "representation": 0,
+      "supported_burden": 11.25,
+      "residual_burden": 11.25,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:ManuallyDrop.new/val",
+        "unresolved_call_range_0_2:ptr.drop_in_place/self.as_mut_ptr()",
+        "unresolved_call_range_0_2:read/",
+        "unresolved_call_range_0_2:slice.from_raw_parts/self.as_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>()",
+        "unresolved_call_range_0_2:slice.from_raw_parts_mut/self.as_mut_ptr().cast::<MaybeUninit<u8>>(),super::size_of::<T>(),",
+        "unresolved_call_range_0_2:transmute_neo/self",
+        "unresolved_call_range_0_2:u.as_mut_ptr/",
+        "unresolved_call_range_0_2:write_bytes/0u8,1",
+        "unsupported_outcome_range_0_2"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "connected-confirmation",
+    "mode": "witness_context",
+    "id": "rust-once-lock",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 69,
+      "representation": 0,
+      "supported_burden": 11.25,
+      "residual_burden": 11.25,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "representation-transformation": 2
+      },
+      "limitations": [
+        "call_depth_limit",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:Err/(_,value)",
+        "unresolved_call_range_0_2:Err/(res,value)",
+        "unresolved_call_range_0_2:Err/e",
+        "unresolved_call_range_0_2:Err/value",
+        "unresolved_call_range_0_2:MaybeUninit.uninit/",
+        "unresolved_call_range_0_2:Ok/()",
+        "unresolved_call_range_0_2:Ok/_",
+        "unresolved_call_range_0_2:Ok/res",
+        "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+        "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+        "unresolved_call_range_0_2:Ok/val",
+        "unresolved_call_range_0_2:Ok/value",
+        "unresolved_call_range_0_2:Once.new/",
+        "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+        "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+        "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+        "unresolved_call_range_0_2:Some/value",
+        "unresolved_call_range_0_2:T/",
+        "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+        "unresolved_call_range_0_2:assume_init_mut/",
+        "unresolved_call_range_0_2:assume_init_read/",
+        "unresolved_call_range_0_2:assume_init_ref/",
+        "unresolved_call_range_0_2:f/",
+        "unresolved_call_range_0_2:is_none/",
+        "unresolved_call_range_0_2:p.poison/",
+        "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+        "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+        "unresolved_call_range_0_2:self.once.is_completed/",
+        "unresolved_call_range_0_2:self.once.state/",
+        "unresolved_call_range_0_2:self.once.wait_force/",
+        "unresolved_call_range_0_2:self.value.get/",
+        "unresolved_call_range_0_2:self.value.get_mut/",
+        "unresolved_call_range_0_2:slot.get/",
+        "unresolved_call_range_0_2:unwrap/",
+        "unresolved_call_range_0_2:value.take/",
+        "unresolved_call_range_0_2:write/value"
+      ],
+      "failures": [
+        "raw_max 69 is outside expected range [0, 25]"
+      ]
+    },
+    "after": {
+      "score": 69,
+      "representation": 0,
+      "supported_burden": 11.25,
+      "residual_burden": 11.25,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "representation-transformation": 2
+      },
+      "limitations": [
+        "call_depth_limit",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:Err/(_,value)",
+        "unresolved_call_range_0_2:Err/(res,value)",
+        "unresolved_call_range_0_2:Err/e",
+        "unresolved_call_range_0_2:Err/value",
+        "unresolved_call_range_0_2:MaybeUninit.uninit/",
+        "unresolved_call_range_0_2:Ok/()",
+        "unresolved_call_range_0_2:Ok/_",
+        "unresolved_call_range_0_2:Ok/res",
+        "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked()}",
+        "unresolved_call_range_0_2:Ok/unsafe{self.get_unchecked_mut()}",
+        "unresolved_call_range_0_2:Ok/val",
+        "unresolved_call_range_0_2:Ok/value",
+        "unresolved_call_range_0_2:Once.new/",
+        "unresolved_call_range_0_2:Some/self.value.get_mut().assume_init_read()",
+        "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked()}",
+        "unresolved_call_range_0_2:Some/unsafe{self.get_unchecked_mut()}",
+        "unresolved_call_range_0_2:Some/value",
+        "unresolved_call_range_0_2:T/",
+        "unresolved_call_range_0_2:UnsafeCell.new/MaybeUninit::uninit()",
+        "unresolved_call_range_0_2:assume_init_mut/",
+        "unresolved_call_range_0_2:assume_init_read/",
+        "unresolved_call_range_0_2:assume_init_ref/",
+        "unresolved_call_range_0_2:f/",
+        "unresolved_call_range_0_2:is_none/",
+        "unresolved_call_range_0_2:p.poison/",
+        "unresolved_call_range_0_2:self.once.call_once_force/|p|{matchf(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+        "unresolved_call_range_0_2:self.once.call_once_force/|p|{match||Ok::<T(){Ok(value)=>{unsafe{(&mut*slot.get()).write(value)};}Err(e)=>{res=Err(e);p.poison();}}}",
+        "unresolved_call_range_0_2:self.once.is_completed/",
+        "unresolved_call_range_0_2:self.once.state/",
+        "unresolved_call_range_0_2:self.once.wait_force/",
+        "unresolved_call_range_0_2:self.value.get/",
+        "unresolved_call_range_0_2:self.value.get_mut/",
+        "unresolved_call_range_0_2:slot.get/",
+        "unresolved_call_range_0_2:unwrap/",
+        "unresolved_call_range_0_2:value.take/",
+        "unresolved_call_range_0_2:write/value"
+      ],
+      "failures": [
+        "raw_max 69 is outside expected range [0, 25]"
+      ]
+    }
+  },
+  {
+    "corpus": "structural-fresh",
+    "mode": "isolated",
+    "id": "go-userdata-root",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 2
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:filepath.Clean/base",
+        "unresolved_call_range_0_2:filepath.Clean/home",
+        "unresolved_call_range_0_2:filepath.IsAbs/base",
+        "unresolved_call_range_0_2:filepath.IsAbs/home",
+        "unresolved_call_range_0_2:filepath.Join/filepath.Clean(base),__string__",
+        "unresolved_call_range_0_2:filepath.Join/home,__string__",
+        "unresolved_call_range_0_2:fmt.Errorf/__string__",
+        "unresolved_call_range_0_2:fmt.Errorf/__string__,err",
+        "unresolved_call_range_0_2:os.Getenv/__string__",
+        "unresolved_call_range_0_2:os.UserHomeDir/",
+        "unresolved_call_range_0_2:strings.ContainsRune/base,__string__",
+        "unresolved_call_range_0_2:strings.ContainsRune/home,__string__",
+        "unresolved_call_range_0_2:strings.TrimSpace/base",
+        "unresolved_call_range_0_2:strings.TrimSpace/home"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "validation": 2
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:filepath.Clean/base",
+        "unresolved_call_range_0_2:filepath.Clean/home",
+        "unresolved_call_range_0_2:filepath.IsAbs/base",
+        "unresolved_call_range_0_2:filepath.IsAbs/home",
+        "unresolved_call_range_0_2:filepath.Join/filepath.Clean(base),__string__",
+        "unresolved_call_range_0_2:filepath.Join/home,__string__",
+        "unresolved_call_range_0_2:fmt.Errorf/__string__",
+        "unresolved_call_range_0_2:fmt.Errorf/__string__,err",
+        "unresolved_call_range_0_2:os.Getenv/__string__",
+        "unresolved_call_range_0_2:os.UserHomeDir/",
+        "unresolved_call_range_0_2:strings.ContainsRune/base,__string__",
+        "unresolved_call_range_0_2:strings.ContainsRune/home,__string__",
+        "unresolved_call_range_0_2:strings.TrimSpace/base",
+        "unresolved_call_range_0_2:strings.TrimSpace/home"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "structural-fresh",
+    "mode": "isolated",
+    "id": "go-fix-subscription",
+    "expected_range": [
+      26,
+      64
+    ],
+    "before": {
+      "score": 50,
+      "representation": 0,
+      "supported_burden": 1,
+      "residual_burden": 1,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:close/value.closed",
+        "unresolved_call_range_0_2:ctx.Done/",
+        "unresolved_call_range_0_2:ctx.Err/",
+        "unresolved_call_range_0_2:func/",
+        "unresolved_call_range_0_2:value.manager.notifyMu.Lock/",
+        "unresolved_call_range_0_2:value.manager.notifyMu.Unlock/",
+        "unresolved_call_range_0_2:value.mu.Lock/",
+        "unresolved_call_range_0_2:value.mu.Unlock/",
+        "unresolved_call_range_0_2:value.once.Do/func(){close(value.closed)}"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 50,
+      "representation": 0,
+      "supported_burden": 1,
+      "residual_burden": 1,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unresolved_call_range_0_2:close/value.closed",
+        "unresolved_call_range_0_2:ctx.Done/",
+        "unresolved_call_range_0_2:ctx.Err/",
+        "unresolved_call_range_0_2:func/",
+        "unresolved_call_range_0_2:value.manager.notifyMu.Lock/",
+        "unresolved_call_range_0_2:value.manager.notifyMu.Unlock/",
+        "unresolved_call_range_0_2:value.mu.Lock/",
+        "unresolved_call_range_0_2:value.mu.Unlock/",
+        "unresolved_call_range_0_2:value.once.Do/func(){close(value.closed)}"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "structural-fresh",
+    "mode": "isolated",
+    "id": "typescript-source-context",
+    "expected_range": [
+      26,
+      64
+    ],
+    "before": {
+      "score": 30,
+      "representation": 0,
+      "supported_burden": 6.5,
+      "residual_burden": 6.5,
+      "responsibility": 5,
+      "estimated_responsibility": 2,
+      "responsibilities": {
+        "validation": 5
+      },
+      "limitations": [
+        "call_cycle",
+        "unresolved_call_range_0_2:AnalysisContext/workspace,sources",
+        "unresolved_call_range_0_2:Error/__string__,",
+        "unresolved_call_range_0_2:SUPPORTED_EXTENSIONS.has/extension",
+        "unresolved_call_range_0_2:SourceInventoryError/absolutePath,__string__,",
+        "unresolved_call_range_0_2:a.relativePath.localeCompare/b.relativePath",
+        "unresolved_call_range_0_2:absolutePath.endsWith/__string__",
+        "unresolved_call_range_0_2:context.inventoryIssues.push/...inventoryIssues",
+        "unresolved_call_range_0_2:context.syntaxParseCounts.set/file,count",
+        "unresolved_call_range_0_2:fs.readFileSync/absolutePath,__string__",
+        "unresolved_call_range_0_2:inventoryIssues.push/issue",
+        "unresolved_call_range_0_2:items.map/(item)=>({code:__string__,severity:__string__asconst,message:__string__,})",
+        "unresolved_call_range_0_2:iu.test/absolutePath",
+        "unresolved_call_range_0_2:join/__string__",
+        "unresolved_call_range_0_2:parseCounts.get/absolutePath",
+        "unresolved_call_range_0_2:parseCounts.set/absolutePath,(parseCounts.get(absolutePath)??0)+1",
+        "unresolved_call_range_0_2:path.extname/absolutePath",
+        "unresolved_call_range_0_2:path.isAbsolute/configured",
+        "unresolved_call_range_0_2:path.isAbsolute/relative",
+        "unresolved_call_range_0_2:path.isAbsolute/relativeNative",
+        "unresolved_call_range_0_2:path.isAbsolute/requestedPath",
+        "unresolved_call_range_0_2:path.relative/this.workspace,path.resolve(file)",
+        "unresolved_call_range_0_2:path.relative/workspace,absolutePath",
+        "unresolved_call_range_0_2:path.relative/workspace,error.absolutePath",
+        "unresolved_call_range_0_2:path.resolve/candidate",
+        "unresolved_call_range_0_2:path.resolve/file",
+        "unresolved_call_range_0_2:path.resolve/path.isAbsolute(requestedPath)?requestedPath:path.resolve(workspace,requestedPath),",
+        "unresolved_call_range_0_2:path.resolve/request.workspace",
+        "unresolved_call_range_0_2:path.resolve/this.workspace,configured",
+        "unresolved_call_range_0_2:path.resolve/workspace,requestedPath",
+        "unresolved_call_range_0_2:relative.split/path.sep",
+        "unresolved_call_range_0_2:relative.startsWith/__string__",
+        "unresolved_call_range_0_2:relativeNative.split/path.sep",
+        "unresolved_call_range_0_2:relativeNative.startsWith/__string__",
+        "unresolved_call_range_0_2:resolved.toLowerCase/",
+        "unresolved_call_range_0_2:seen.get/absolutePath",
+        "unresolved_call_range_0_2:seen.set/absolutePath,unit.unit_id",
+        "unresolved_call_range_0_2:sources.push/source",
+        "unresolved_call_range_0_2:sources.sort/(a,b)=>a.relativePath.localeCompare(b.relativePath)",
+        "unresolved_call_range_0_2:toLowerCase/",
+        "unresolved_call_range_0_2:ts.createSourceFile/absolutePath,text,ts.ScriptTarget.Latest,true,scriptKind(absolutePath),"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 30,
+      "representation": 0,
+      "supported_burden": 6.5,
+      "residual_burden": 6.5,
+      "responsibility": 5,
+      "estimated_responsibility": 2,
+      "responsibilities": {
+        "validation": 5
+      },
+      "limitations": [
+        "call_cycle",
+        "unresolved_call_range_0_2:AnalysisContext/workspace,sources",
+        "unresolved_call_range_0_2:Error/__string__,",
+        "unresolved_call_range_0_2:SUPPORTED_EXTENSIONS.has/extension",
+        "unresolved_call_range_0_2:SourceInventoryError/absolutePath,__string__,",
+        "unresolved_call_range_0_2:a.relativePath.localeCompare/b.relativePath",
+        "unresolved_call_range_0_2:absolutePath.endsWith/__string__",
+        "unresolved_call_range_0_2:context.inventoryIssues.push/...inventoryIssues",
+        "unresolved_call_range_0_2:context.syntaxParseCounts.set/file,count",
+        "unresolved_call_range_0_2:fs.readFileSync/absolutePath,__string__",
+        "unresolved_call_range_0_2:inventoryIssues.push/issue",
+        "unresolved_call_range_0_2:items.map/(item)=>({code:__string__,severity:__string__asconst,message:__string__,})",
+        "unresolved_call_range_0_2:iu.test/absolutePath",
+        "unresolved_call_range_0_2:join/__string__",
+        "unresolved_call_range_0_2:parseCounts.get/absolutePath",
+        "unresolved_call_range_0_2:parseCounts.set/absolutePath,(parseCounts.get(absolutePath)??0)+1",
+        "unresolved_call_range_0_2:path.extname/absolutePath",
+        "unresolved_call_range_0_2:path.isAbsolute/configured",
+        "unresolved_call_range_0_2:path.isAbsolute/relative",
+        "unresolved_call_range_0_2:path.isAbsolute/relativeNative",
+        "unresolved_call_range_0_2:path.isAbsolute/requestedPath",
+        "unresolved_call_range_0_2:path.relative/this.workspace,path.resolve(file)",
+        "unresolved_call_range_0_2:path.relative/workspace,absolutePath",
+        "unresolved_call_range_0_2:path.relative/workspace,error.absolutePath",
+        "unresolved_call_range_0_2:path.resolve/candidate",
+        "unresolved_call_range_0_2:path.resolve/file",
+        "unresolved_call_range_0_2:path.resolve/path.isAbsolute(requestedPath)?requestedPath:path.resolve(workspace,requestedPath),",
+        "unresolved_call_range_0_2:path.resolve/request.workspace",
+        "unresolved_call_range_0_2:path.resolve/this.workspace,configured",
+        "unresolved_call_range_0_2:path.resolve/workspace,requestedPath",
+        "unresolved_call_range_0_2:relative.split/path.sep",
+        "unresolved_call_range_0_2:relative.startsWith/__string__",
+        "unresolved_call_range_0_2:relativeNative.split/path.sep",
+        "unresolved_call_range_0_2:relativeNative.startsWith/__string__",
+        "unresolved_call_range_0_2:resolved.toLowerCase/",
+        "unresolved_call_range_0_2:seen.get/absolutePath",
+        "unresolved_call_range_0_2:seen.set/absolutePath,unit.unit_id",
+        "unresolved_call_range_0_2:sources.push/source",
+        "unresolved_call_range_0_2:sources.sort/(a,b)=>a.relativePath.localeCompare(b.relativePath)",
+        "unresolved_call_range_0_2:toLowerCase/",
+        "unresolved_call_range_0_2:ts.createSourceFile/absolutePath,text,ts.ScriptTarget.Latest,true,scriptKind(absolutePath),"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "structural-fresh",
+    "mode": "isolated",
+    "id": "typescript-public-operations",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 9,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "state": 8,
+        "validation": 1
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:hasModifier/member,ts.SyntaxKind.ReadonlyKeyword",
+        "unresolved_call_range_0_2:hasModifier/statement,ts.SyntaxKind.ExportKeyword",
+        "unresolved_call_range_0_2:isContractMember/member",
+        "unresolved_call_range_0_2:isFunctionInitializer/declaration.initializer",
+        "unresolved_call_range_0_2:isOperationMember/member",
+        "unresolved_call_range_0_2:operationFacts/declaration.initializerasFunctionNode",
+        "unresolved_call_range_0_2:operationFacts/member",
+        "unresolved_call_range_0_2:operationFacts/memberasFunctionNode",
+        "unresolved_call_range_0_2:operationFacts/statement",
+        "unresolved_call_range_0_2:publicMember/member",
+        "unresolved_call_range_0_2:statement.members.filter/(member)=>!hasModifier(member,ts.SyntaxKind.ReadonlyKeyword),",
+        "unresolved_call_range_0_2:surface.operations.push/operationFacts(declaration.initializerasFunctionNode),",
+        "unresolved_call_range_0_2:surface.operations.push/operationFacts(member)",
+        "unresolved_call_range_0_2:surface.operations.push/operationFacts(memberasFunctionNode)",
+        "unresolved_call_range_0_2:surface.operations.push/operationFacts(statement)",
+        "unresolved_call_range_0_2:ts.forEachChild/child,visit",
+        "unresolved_call_range_0_2:ts.isClassDeclaration/statement",
+        "unresolved_call_range_0_2:ts.isFunctionDeclaration/statement",
+        "unresolved_call_range_0_2:ts.isFunctionLike/child",
+        "unresolved_call_range_0_2:ts.isGetAccessorDeclaration/member",
+        "unresolved_call_range_0_2:ts.isInterfaceDeclaration/statement",
+        "unresolved_call_range_0_2:ts.isPropertyAccessExpression/child",
+        "unresolved_call_range_0_2:ts.isPropertyDeclaration/member",
+        "unresolved_call_range_0_2:ts.isSetAccessorDeclaration/member",
+        "unresolved_call_range_0_2:ts.isTypeAliasDeclaration/statement",
+        "unresolved_call_range_0_2:ts.isVariableStatement/statement",
+        "unresolved_call_range_0_2:typeComplexity/statement.type",
+        "unresolved_call_range_0_2:visit/member.body"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 0,
+      "representation": 0,
+      "supported_burden": 0,
+      "residual_burden": 0,
+      "responsibility": 9,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "state": 8,
+        "validation": 1
+      },
+      "limitations": [
+        "unresolved_call_range_0_2:hasModifier/member,ts.SyntaxKind.ReadonlyKeyword",
+        "unresolved_call_range_0_2:hasModifier/statement,ts.SyntaxKind.ExportKeyword",
+        "unresolved_call_range_0_2:isContractMember/member",
+        "unresolved_call_range_0_2:isFunctionInitializer/declaration.initializer",
+        "unresolved_call_range_0_2:isOperationMember/member",
+        "unresolved_call_range_0_2:operationFacts/declaration.initializerasFunctionNode",
+        "unresolved_call_range_0_2:operationFacts/member",
+        "unresolved_call_range_0_2:operationFacts/memberasFunctionNode",
+        "unresolved_call_range_0_2:operationFacts/statement",
+        "unresolved_call_range_0_2:publicMember/member",
+        "unresolved_call_range_0_2:statement.members.filter/(member)=>!hasModifier(member,ts.SyntaxKind.ReadonlyKeyword),",
+        "unresolved_call_range_0_2:surface.operations.push/operationFacts(declaration.initializerasFunctionNode),",
+        "unresolved_call_range_0_2:surface.operations.push/operationFacts(member)",
+        "unresolved_call_range_0_2:surface.operations.push/operationFacts(memberasFunctionNode)",
+        "unresolved_call_range_0_2:surface.operations.push/operationFacts(statement)",
+        "unresolved_call_range_0_2:ts.forEachChild/child,visit",
+        "unresolved_call_range_0_2:ts.isClassDeclaration/statement",
+        "unresolved_call_range_0_2:ts.isFunctionDeclaration/statement",
+        "unresolved_call_range_0_2:ts.isFunctionLike/child",
+        "unresolved_call_range_0_2:ts.isGetAccessorDeclaration/member",
+        "unresolved_call_range_0_2:ts.isInterfaceDeclaration/statement",
+        "unresolved_call_range_0_2:ts.isPropertyAccessExpression/child",
+        "unresolved_call_range_0_2:ts.isPropertyDeclaration/member",
+        "unresolved_call_range_0_2:ts.isSetAccessorDeclaration/member",
+        "unresolved_call_range_0_2:ts.isTypeAliasDeclaration/statement",
+        "unresolved_call_range_0_2:ts.isVariableStatement/statement",
+        "unresolved_call_range_0_2:typeComplexity/statement.type",
+        "unresolved_call_range_0_2:visit/member.body"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "structural-fresh",
+    "mode": "isolated",
+    "id": "rust-program-parser",
+    "expected_range": [
+      0,
+      25
+    ],
+    "before": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:Component.Prefix/_",
+        "unresolved_call_range_0_2:Err/format!(__string__)",
+        "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+        "unresolved_call_range_0_2:Path.new/requested",
+        "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+        "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+        "unresolved_call_range_0_2:candidate.canonicalize/",
+        "unresolved_call_range_0_2:error.to_string/",
+        "unresolved_call_range_0_2:fs.metadata/&candidate",
+        "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+        "unresolved_call_range_0_2:metadata.is_file/",
+        "unresolved_call_range_0_2:part.is_empty/",
+        "unresolved_call_range_0_2:relative.components/",
+        "unresolved_call_range_0_2:relative.is_absolute/",
+        "unresolved_call_range_0_2:requested.contains/__string__",
+        "unresolved_call_range_0_2:requested.ends_with/__string__",
+        "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+        "unresolved_call_range_0_2:requested.split/__string__",
+        "unresolved_call_range_0_2:resolved.starts_with/workspace",
+        "unresolved_call_range_0_2:workspace.join/relative"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 20,
+      "representation": 0,
+      "supported_burden": 0.25,
+      "residual_burden": 0.25,
+      "responsibility": 0,
+      "estimated_responsibility": 0,
+      "responsibilities": {},
+      "limitations": [
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:Component.Prefix/_",
+        "unresolved_call_range_0_2:Err/format!(__string__)",
+        "unresolved_call_range_0_2:Ok/(candidate,requested.replace(__string__,__string__))",
+        "unresolved_call_range_0_2:Path.new/requested",
+        "unresolved_call_range_0_2:any/|part|part.is_empty()||part==__string__||part==__string__",
+        "unresolved_call_range_0_2:any/|part|{matches!(part,Component::ParentDir|Component::CurDir|Component::RootDir|Component::Prefix(_))}",
+        "unresolved_call_range_0_2:candidate.canonicalize/",
+        "unresolved_call_range_0_2:error.to_string/",
+        "unresolved_call_range_0_2:fs.metadata/&candidate",
+        "unresolved_call_range_0_2:map_err/|error|error.to_string()",
+        "unresolved_call_range_0_2:metadata.is_file/",
+        "unresolved_call_range_0_2:part.is_empty/",
+        "unresolved_call_range_0_2:relative.components/",
+        "unresolved_call_range_0_2:relative.is_absolute/",
+        "unresolved_call_range_0_2:requested.contains/__string__",
+        "unresolved_call_range_0_2:requested.ends_with/__string__",
+        "unresolved_call_range_0_2:requested.replace/__string__,__string__",
+        "unresolved_call_range_0_2:requested.split/__string__",
+        "unresolved_call_range_0_2:resolved.starts_with/workspace",
+        "unresolved_call_range_0_2:workspace.join/relative"
+      ],
+      "failures": []
+    }
+  },
+  {
+    "corpus": "structural-fresh",
+    "mode": "isolated",
+    "id": "rust-surface-collector",
+    "expected_range": [
+      26,
+      64
+    ],
+    "before": {
+      "score": 26,
+      "representation": 1,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 2,
+      "estimated_responsibility": 0,
+      "responsibilities": {
+        "representation-transformation": 2
+      },
+      "limitations": [
+        "call_budget_limit",
+        "call_cycle",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:PublicOperation.default/",
+        "unresolved_call_range_0_2:Some/segment",
+        "unresolved_call_range_0_2:TypeShape.default/",
+        "unresolved_call_range_0_2:__string__.to_owned/",
+        "unresolved_call_range_0_2:function.sig.ident.to_string/",
+        "unresolved_call_range_0_2:function.span/",
+        "unresolved_call_range_0_2:item.ident.to_string/",
+        "unresolved_call_range_0_2:location/path,function.span()",
+        "unresolved_call_range_0_2:map/shape",
+        "unresolved_call_range_0_2:map/|child|child.complexity",
+        "unresolved_call_range_0_2:map/|item|item.ident.to_string()",
+        "unresolved_call_range_0_2:min/32",
+        "unresolved_call_range_0_2:operation.parameters.push/shape(&value.ty)",
+        "unresolved_call_range_0_2:operation.results.push/shape(value)",
+        "unresolved_call_range_0_2:operations.push/function_operation(function,path)",
+        "unresolved_call_range_0_2:result.children.extend/value.elems.iter().map(shape)",
+        "unresolved_call_range_0_2:result.children.iter/",
+        "unresolved_call_range_0_2:result.children.push/shape(&value.elem)",
+        "unresolved_call_range_0_2:result.children.push/shape(value)",
+        "unresolved_call_range_0_2:syn.FnArg.Typed/value",
+        "unresolved_call_range_0_2:syn.GenericArgument.Type/value",
+        "unresolved_call_range_0_2:syn.Item.Fn/function",
+        "unresolved_call_range_0_2:syn.PathArguments.AngleBracketed/arguments",
+        "unresolved_call_range_0_2:syn.ReturnType.Type/_,value",
+        "unresolved_call_range_0_2:syn.Type.Array/_",
+        "unresolved_call_range_0_2:syn.Type.Array/value",
+        "unresolved_call_range_0_2:syn.Type.Path/value",
+        "unresolved_call_range_0_2:syn.Type.Reference/_",
+        "unresolved_call_range_0_2:syn.Type.Reference/value",
+        "unresolved_call_range_0_2:syn.Type.Slice/_",
+        "unresolved_call_range_0_2:syn.Type.Slice/value",
+        "unresolved_call_range_0_2:syn.Type.Tuple/_",
+        "unresolved_call_range_0_2:syn.Type.Tuple/value",
+        "unresolved_call_range_0_2:syn.Visibility.Public/_",
+        "unresolved_call_range_0_2:unwrap_or_else/||__string__.to_owned()",
+        "unresolved_call_range_0_2:value.elems.iter/",
+        "unresolved_call_range_0_2:value.path.segments.last/"
+      ],
+      "failures": []
+    },
+    "after": {
+      "score": 26,
+      "representation": 1,
+      "supported_burden": 1.75,
+      "residual_burden": 1.75,
+      "responsibility": 0,
+      "estimated_responsibility": 2,
+      "responsibilities": {},
+      "limitations": [
+        "call_budget_limit",
+        "call_cycle",
+        "unexpanded_macro",
+        "unresolved_call_range_0_2:PublicOperation.default/",
+        "unresolved_call_range_0_2:Some/segment",
+        "unresolved_call_range_0_2:TypeShape.default/",
+        "unresolved_call_range_0_2:__string__.to_owned/",
+        "unresolved_call_range_0_2:function.sig.ident.to_string/",
+        "unresolved_call_range_0_2:function.span/",
+        "unresolved_call_range_0_2:item.ident.to_string/",
+        "unresolved_call_range_0_2:location/path,function.span()",
+        "unresolved_call_range_0_2:map/shape",
+        "unresolved_call_range_0_2:map/|child|child.complexity",
+        "unresolved_call_range_0_2:map/|item|item.ident.to_string()",
+        "unresolved_call_range_0_2:min/32",
+        "unresolved_call_range_0_2:operation.parameters.push/shape(&value.ty)",
+        "unresolved_call_range_0_2:operation.results.push/shape(value)",
+        "unresolved_call_range_0_2:operations.push/function_operation(function,path)",
+        "unresolved_call_range_0_2:result.children.extend/value.elems.iter().map(shape)",
+        "unresolved_call_range_0_2:result.children.iter/",
+        "unresolved_call_range_0_2:result.children.push/shape(&value.elem)",
+        "unresolved_call_range_0_2:result.children.push/shape(value)",
+        "unresolved_call_range_0_2:syn.FnArg.Typed/value",
+        "unresolved_call_range_0_2:syn.GenericArgument.Type/value",
+        "unresolved_call_range_0_2:syn.Item.Fn/function",
+        "unresolved_call_range_0_2:syn.PathArguments.AngleBracketed/arguments",
+        "unresolved_call_range_0_2:syn.ReturnType.Type/_,value",
+        "unresolved_call_range_0_2:syn.Type.Array/_",
+        "unresolved_call_range_0_2:syn.Type.Array/value",
+        "unresolved_call_range_0_2:syn.Type.Path/value",
+        "unresolved_call_range_0_2:syn.Type.Reference/_",
+        "unresolved_call_range_0_2:syn.Type.Reference/value",
+        "unresolved_call_range_0_2:syn.Type.Slice/_",
+        "unresolved_call_range_0_2:syn.Type.Slice/value",
+        "unresolved_call_range_0_2:syn.Type.Tuple/_",
+        "unresolved_call_range_0_2:syn.Type.Tuple/value",
+        "unresolved_call_range_0_2:syn.Visibility.Public/_",
+        "unresolved_call_range_0_2:unwrap_or_else/||__string__.to_owned()",
+        "unresolved_call_range_0_2:value.elems.iter/",
+        "unresolved_call_range_0_2:value.path.segments.last/"
+      ],
+      "failures": []
+    }
+  }
+]

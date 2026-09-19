@@ -37,6 +37,9 @@ type TargetSnapshot struct {
 	Metrics     map[MetricID]MetricValue
 	Evidence    []MetricEvidence
 	Complete    bool
+	// DepthInventory freezes caller-visible v4 boundary shape independently of
+	// the numeric score. An empty map preserves legacy contracts.
+	DepthInventory map[string]string
 }
 
 type ScoringContract struct {

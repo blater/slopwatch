@@ -1,6 +1,7 @@
 package follow
 
 import (
+	"errors"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/blater/slopwatch/internal/fix"
@@ -21,14 +22,23 @@ func (model *Model) handleFixCommand(message fixCommandMsg) {
 		markJobCanceling(model.agents.Jobs, message.jobID)
 	}
 	if outcome.setNotice {
-		model.fixNotice = outcome.notice
+		if message.err != nil || !message.receipt.Accepted {
+			model.fixNotice = ""
+			notice := outcome.notice
+			if notice == "" {
+				notice = jobActionLabel(message.action) + " was rejected"
+			}
+			showRuntimeError(model, errors.New(notice))
+		} else {
+			model.fixNotice = outcome.notice
+		}
 	}
 }
 
 func (model *Model) executeSelectedJobAction(jobID fix.JobID, action fix.JobAction, confirmation bool) (tea.Model, tea.Cmd) {
 	command, notice := model.jobActions.execute(model.fixService, jobID, action, confirmation)
 	if notice != "" {
-		model.fixNotice = notice
+		showRuntimeError(model, errors.New(notice))
 	}
 	return model, command
 }

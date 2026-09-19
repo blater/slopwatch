@@ -1,0 +1,322 @@
+{
+  "version": 1,
+  "status": "independently-reviewed-frozen",
+  "ranges_set_before_new_implementation": true,
+  "cases": [
+    {
+      "id": "java-result-carrier",
+      "language": "java",
+      "target": "DirectoryOperationResult.java",
+      "files": [
+        {
+          "path": "DirectoryOperationResult.java",
+          "snapshot": "graded-real/java-result-carrier/DirectoryOperationResult.java",
+          "sha256": "9d009b06b0cf74c4ec50f8e6b9c4437f6e57895344132981a2f5280fde453223",
+          "origin": "/Users/blater/src/river/river-platform/src/main/java/io/riverdb/platform/file/DirectoryOperationResult.java"
+        }
+      ],
+      "expected_range": [
+        0,
+        15
+      ],
+      "rationale": "Small passive result carrier stores file and durability together and resets them coherently; callers still interpret the live file capability and durability status. Its appropriate carrier role supports low, not mandatory zero.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "java-codec",
+      "language": "java",
+      "target": "StoredTableRowCodec.java",
+      "files": [
+        {
+          "path": "StoredTableRowCodec.java",
+          "snapshot": "graded-real/java-codec/StoredTableRowCodec.java",
+          "sha256": "85e04015cf679b7ae41737a54bd2769403da794d2398918061f1361381040f7a",
+          "origin": "/Users/blater/src/river/river-engine/src/main/java/io/riverdb/engine/row/StoredTableRowCodec.java"
+        },
+        {
+          "path": "StoredTableRowAccess.java",
+          "snapshot": "graded-real/java-codec/StoredTableRowAccess.java",
+          "sha256": "d5fc0a3c5a7393d0a1196983414c7d19a98a7c1111c9b33c11272be4d9944214",
+          "origin": "/Users/blater/src/river/river-engine/src/main/java/io/riverdb/engine/row/StoredTableRowAccess.java"
+        },
+        {
+          "path": "StoredTableRowBodyValidator.java",
+          "snapshot": "graded-real/java-codec/StoredTableRowBodyValidator.java",
+          "sha256": "91d46bacd847435cbee114a449c589afaf566f5858ab2d529e6f9e336975bb5d",
+          "origin": "/Users/blater/src/river/river-engine/src/main/java/io/riverdb/engine/row/StoredTableRowBodyValidator.java"
+        },
+        {
+          "path": "StoredTableRowDecoder.java",
+          "snapshot": "graded-real/java-codec/StoredTableRowDecoder.java",
+          "sha256": "fe6d2b1174a5dbb7958c1859a07143b9e2cc7887b429108449b4a4d67f7817fb",
+          "origin": "/Users/blater/src/river/river-engine/src/main/java/io/riverdb/engine/row/StoredTableRowDecoder.java"
+        },
+        {
+          "path": "StoredTableRowEncodeResult.java",
+          "snapshot": "graded-real/java-codec/StoredTableRowEncodeResult.java",
+          "sha256": "bb67879c164bf7de26ff8bd4eaeb3ac756e20ed16f9d94005c18f38ddbeb9f3c",
+          "origin": "/Users/blater/src/river/river-engine/src/main/java/io/riverdb/engine/row/StoredTableRowEncodeResult.java"
+        },
+        {
+          "path": "StoredTableRowEncoder.java",
+          "snapshot": "graded-real/java-codec/StoredTableRowEncoder.java",
+          "sha256": "edf4628893677614ba4069388213fedaf82f7ffd3e93e455010d111c2deec300",
+          "origin": "/Users/blater/src/river/river-engine/src/main/java/io/riverdb/engine/row/StoredTableRowEncoder.java"
+        },
+        {
+          "path": "StoredTableRowPublisher.java",
+          "snapshot": "graded-real/java-codec/StoredTableRowPublisher.java",
+          "sha256": "54d6bc5f3b3e483c76d1a8a7f6928845c22b3e1ad56016d77aba2eda16397c63",
+          "origin": "/Users/blater/src/river/river-engine/src/main/java/io/riverdb/engine/row/StoredTableRowPublisher.java"
+        }
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "rationale": "Cohesive encode/decode interface hides format validation, serialization and status handling through owned source delegates.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "java-query-pipeline",
+      "language": "java",
+      "target": "SqlQuery.java",
+      "files": [
+        {
+          "path": "SqlQuery.java",
+          "snapshot": "graded-real/java-query-pipeline/SqlQuery.java",
+          "sha256": "b636c4d2a5e667a6a576b3f35c46a85cf462763cc44e440712c71c2c1ab319f1",
+          "origin": "/Users/blater/src/river/river-sql/src/main/java/io/riverdb/sql/SqlQuery.java"
+        }
+      ],
+      "expected_range": [
+        30,
+        65
+      ],
+      "rationale": "Mixed boundary: bounded graph coordination, validation and compilation hide real responsibility, while callers retain graph topology, pipeline mode selection and append/promote/compile stage obligations.",
+      "group": "mixed",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "java-keyed-path",
+      "language": "java",
+      "target": "KeyedPath.java",
+      "files": [
+        {
+          "path": "KeyedPath.java",
+          "snapshot": "graded-real/java-keyed-path/KeyedPath.java",
+          "sha256": "b073f087b4b49c8d0115338de9a2006b35e0ef19eaab68ede70206db26e9ed58",
+          "origin": "/Users/blater/src/nql/src/main/java/blater/nql/domain/KeyedPath.java"
+        }
+      ],
+      "expected_range": [
+        0,
+        20
+      ],
+      "rationale": "Compact domain value abstraction enforces identity/placement constraints, copies nonempty source columns and checks explicit-key placement compatibility; no substantial caller protocol.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "java-query-result-row",
+      "language": "java",
+      "target": "QueryResultRow.java",
+      "files": [
+        {
+          "path": "QueryResultRow.java",
+          "snapshot": "graded-real/java-query-result-row/QueryResultRow.java",
+          "sha256": "43ab9bf4f338af96f37241c756e59be6a3a7135fe828ae65fd64287dd26ba627",
+          "origin": "/Users/blater/src/nql/src/main/java/blater/nql/runner/sql/domain/QueryResultRow.java"
+        }
+      ],
+      "expected_range": [
+        15,
+        45
+      ],
+      "rationale": "Live result-row view retains caller fetch-lifetime obligations and exposes its mutable backing map, while hiding SQL null handling, scalar-kind mapping and string formatting.",
+      "group": "mixed",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "go-workspace",
+      "language": "go",
+      "target": "workspace.go",
+      "files": [
+        {
+          "path": "workspace.go",
+          "snapshot": "graded-real/go-workspace/workspace.go",
+          "sha256": "ce3cdd780f25261af0166ddf112e3737c634a777ed600d045406f20078f46d60",
+          "origin": "/Users/blater/src/slopwatch/go/internal/agent/openairesponses/workspace.go"
+        },
+        {
+          "path": "workspace_access.go",
+          "snapshot": "graded-real/go-workspace/workspace_access.go",
+          "sha256": "489148446f26ab1e4b221efeceb3c6ee3431807124913a0b9c2e250fe32254c3",
+          "origin": "/Users/blater/src/slopwatch/go/internal/agent/openairesponses/workspace_access.go"
+        },
+        {
+          "path": "workspace_tools.go",
+          "snapshot": "graded-real/go-workspace/workspace_tools.go",
+          "sha256": "750db02d8d73760595d0c325cb8d59e4330fa0e54db1eb50083242e388a8bf52",
+          "origin": "/Users/blater/src/slopwatch/go/internal/agent/openairesponses/workspace_tools.go"
+        }
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "rationale": "Internal service validates canonical roots, staging privacy and allowed paths, opens handles and cleans up failures; supporting error accessor must not dominate.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "go-publisher-contract",
+      "language": "go",
+      "target": "service.go",
+      "files": [
+        {
+          "path": "service.go",
+          "snapshot": "graded-real/go-publisher-contract/service.go",
+          "sha256": "b36aebeccdb361bfeab0c130d6e2a169b6e8b23ebabac4d190ae6e1a4b7bd61d",
+          "origin": "/Users/blater/src/slopwatch/go/internal/publisher/ghcli/service.go"
+        }
+      ],
+      "expected_range": [
+        0,
+        0
+      ],
+      "rationale": "Declaration-only private service storage contains no callable implementation in this file. Accept zero or proven N/A according to file projection policy; exclude from semantic numeric-coverage claims.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit.",
+      "allow_not_applicable": true,
+      "exclude_from_semantic_numeric_coverage": true
+    },
+    {
+      "id": "typescript-predicates",
+      "language": "typescript",
+      "target": "syntax_helpers.ts",
+      "files": [
+        {
+          "path": "syntax_helpers.ts",
+          "snapshot": "graded-real/typescript-predicates/syntax_helpers.ts",
+          "sha256": "d424bac68666d8323f99b8d3790979c81085fadea03fd76a62093ea4a45d8fbe",
+          "origin": "/Users/blater/src/slopwatch/analyzers/typescript/src/syntax_helpers.ts"
+        }
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "rationale": "Cohesive AST queries combine guards and bounded tree traversal; small predicates are appropriate helpers, not defects for being short.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "typescript-config",
+      "language": "typescript",
+      "target": "typed-context.ts",
+      "files": [
+        {
+          "path": "typed-context.ts",
+          "snapshot": "graded-real/typescript-config/typed-context.ts",
+          "sha256": "c1001a03a6d7ab5e0537ca7f8d1d0d5d25696f914c37616f235cae54be88f365",
+          "origin": "/Users/blater/src/slopwatch/analyzers/typescript/src/typed-context.ts"
+        }
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "rationale": "Typed context construction hides config discovery, workspace isolation, compiler preparation and diagnostic conversion.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "rust-location",
+      "language": "rust",
+      "target": "location.rs",
+      "files": [
+        {
+          "path": "location.rs",
+          "snapshot": "graded-real/rust-location/location.rs",
+          "sha256": "6848c3d5f7449805c2745b077c35914fd5699bfd80f9069c26ec33ad024fc82b",
+          "origin": "/Users/blater/src/slopwatch/analyzers/structural/adapters/rust/src/location.rs"
+        }
+      ],
+      "expected_range": [
+        0,
+        20
+      ],
+      "rationale": "Value conversion from span to serialized location with column normalization; appropriate small supporting adapter.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "rust-expression",
+      "language": "rust",
+      "target": "expression.rs",
+      "files": [
+        {
+          "path": "expression.rs",
+          "snapshot": "graded-real/rust-expression/expression.rs",
+          "sha256": "cc413a9c9f83f7fb2826d0b0f1b914fc75c60ff57b2352f9b077b594a1bef70e",
+          "origin": "/Users/blater/src/slopwatch/analyzers/structural/adapters/rust/src/expression.rs"
+        }
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "rationale": "AST translation hides recursive boolean/group normalization and visitor-based call/closure extraction behind expression conversion and simple-path lookup operations.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an engineering judgment, not semantic-completeness credit."
+    },
+    {
+      "id": "java-derived-reference-validator",
+      "language": "java",
+      "target": "SqlDerivedReferenceValidator.java",
+      "files": [
+        {
+          "path": "SqlDerivedReferenceValidator.java",
+          "snapshot": "graded-real/java-derived-reference-validator/SqlDerivedReferenceValidator.java",
+          "sha256": "be3735bfdf1f65537b00681f918e4d89569611d5d136c82d8093a765c81e1085",
+          "origin": "/Users/blater/src/river/river-sql/src/main/java/io/riverdb/sql/SqlDerivedReferenceValidator.java"
+        },
+        {
+          "path": "SqlDerivedPredicateReferences.java",
+          "snapshot": "graded-real/java-derived-reference-validator/SqlDerivedPredicateReferences.java",
+          "sha256": "7673f8d55fe32455346cdaa30f43746bed666a1ac1e5544633312db68364092e",
+          "origin": "/Users/blater/src/river/river-sql/src/main/java/io/riverdb/sql/SqlDerivedPredicateReferences.java"
+        },
+        {
+          "path": "SqlDerivedColumnResolver.java",
+          "snapshot": "graded-real/java-derived-reference-validator/SqlDerivedColumnResolver.java",
+          "sha256": "a68c78a70a3c9efeab70c5e5a6ee1ced517848ea2c84e1478e1ac651809c8f10",
+          "origin": "/Users/blater/src/river/river-sql/src/main/java/io/riverdb/sql/SqlDerivedColumnResolver.java"
+        }
+      ],
+      "expected_range": [
+        0,
+        25
+      ],
+      "rationale": "One package-visible validation operation hides projection/aggregate reference checks, qualifier and inner-output resolution, predicate traversal, order-name validation and unreachable-computed detection through StatusCode results. Caller retains valid query/block-index and unused-computed policy inputs. Supplied owned predicate and column-resolution helpers establish actual hidden responsibility.",
+      "group": "low",
+      "kind": "real",
+      "context": "Frozen source; third-party and unlisted project dependencies are unavailable, so source estimates may be appropriate. Expected range is an independent engineering judgment before output inspection, not semantic-completeness credit."
+    }
+  ],
+  "independent_review": "graded-independent-review.md"
+}

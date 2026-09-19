@@ -13,6 +13,7 @@ import (
 type FilesState struct {
 	Document             report.Document
 	BaseDocument         report.Document
+	ScoreDistribution    scoreDistribution
 	DisplayFilesCache    []report.File
 	DisplayFilesReady    bool
 	LongestDisplayPath   int

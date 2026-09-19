@@ -14,10 +14,13 @@ import (
 )
 
 type Config struct {
+	DisableGitignore  bool
+	GitignoreDisabled func() (bool, error)
 	InstallationRoot  string
 	Languages         []string
 	IncludeTests      bool
 	TypeScriptTypes   bool
+	ShallowProfile    string
 	FollowSymlinks    bool
 	BaselineReadCache bool
 	Clock             func() time.Time
@@ -26,11 +29,13 @@ type Config struct {
 // AnalyzerOptions is the construction snapshot supplied to Factory. Final
 // verification always receives ReadCache=false regardless of Config.
 type AnalyzerOptions struct {
-	Languages       []string
-	IncludeTests    bool
-	TypeScriptTypes bool
-	FollowSymlinks  bool
-	ReadCache       bool
+	DisableGitignore bool
+	Languages        []string
+	IncludeTests     bool
+	TypeScriptTypes  bool
+	ShallowProfile   string
+	FollowSymlinks   bool
+	ReadCache        bool
 }
 
 type Analyzer interface {
@@ -74,9 +79,19 @@ func NewWithFactory(config Config, factory Factory) (*Service, error) {
 }
 
 func (service *Service) analyze(ctx context.Context, analysisRoot string, targets []string, readCache bool) (report.Document, string, error) {
+	disabled := service.config.DisableGitignore
+	if service.config.GitignoreDisabled != nil {
+		var err error
+		disabled, err = service.config.GitignoreDisabled()
+		if err != nil {
+			return report.Document{}, "", err
+		}
+	}
 	options := AnalyzerOptions{
-		Languages:    append([]string(nil), service.config.Languages...),
-		IncludeTests: service.config.IncludeTests, TypeScriptTypes: service.config.TypeScriptTypes,
+		DisableGitignore: disabled,
+		Languages:        append([]string(nil), service.config.Languages...),
+		IncludeTests:     service.config.IncludeTests, TypeScriptTypes: service.config.TypeScriptTypes,
+		ShallowProfile: service.config.ShallowProfile,
 		FollowSymlinks: service.config.FollowSymlinks, ReadCache: readCache,
 	}
 	analyzer, err := service.factory.New(analysisRoot, service.config.InstallationRoot, options)
@@ -111,8 +126,10 @@ type nativeFactory struct{}
 
 func (nativeFactory) New(workspace, installationRoot string, options AnalyzerOptions) (Analyzer, error) {
 	return native.New(workspace, installationRoot, native.Options{
-		Languages: append([]string(nil), options.Languages...), IncludeTests: options.IncludeTests,
+		DisableGitignore: options.DisableGitignore,
+		Languages:        append([]string(nil), options.Languages...), IncludeTests: options.IncludeTests,
 		TypeScriptTypes: options.TypeScriptTypes, FollowSymlinks: options.FollowSymlinks,
-		ReadCache: options.ReadCache,
+		ShallowProfile: options.ShallowProfile,
+		ReadCache:      options.ReadCache,
 	})
 }

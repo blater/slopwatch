@@ -15,6 +15,15 @@ func (model *Model) handleAgentSettingsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) 
 
 func (model *Model) openSelectedAgentProvider() tea.Cmd {
 	state := &model.configSettings
+	if state.cursor == len(agentProviderChoices) {
+		parent := *state
+		model.configParent = &parent
+		*state = newConfigSettingsState(configConcurrency, parent.generation+1)
+		state.loading = false
+		state.resolved = cloneConfigResolved(parent.resolved)
+		state.working = cloneConfigResolved(parent.working)
+		return nil
+	}
 	if state.cursor < 0 || state.cursor >= len(agentProviderChoices) {
 		return nil
 	}
@@ -39,6 +48,17 @@ func (model *Model) closeConfigSettings() tea.Cmd {
 }
 
 func (model *Model) closeConfigSettingsNow() tea.Cmd {
+	if model.configParent != nil {
+		parent := *model.configParent
+		parent.resolved.Revision = model.configSettings.resolved.Revision
+		parent.working.Revision = model.configSettings.working.Revision
+		parent.working.Concurrency = model.configSettings.working.Concurrency
+		parent.resolved.Concurrency = model.configSettings.resolved.Concurrency
+		parent.generation = model.configSettings.generation + 1
+		model.configSettings = parent
+		model.configParent = nil
+		return model.configSettings.probeProfilesCommand(model.profileProber)
+	}
 	returnToFix := model.configSettings.returnToFix
 	model.configSettings.open = false
 	model.configSettings.editing = false

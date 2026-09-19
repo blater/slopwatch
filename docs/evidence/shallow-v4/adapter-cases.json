@@ -1,0 +1,540 @@
+{
+  "contract_version": "adapter-v1-r6",
+  "source_units": "Each variant is an isolated source unit; Java filename follows public type, Go uses package probe, Rust lib.rs, TypeScript index.ts. No variant concatenation.",
+  "cases": [
+    {
+      "id": "identity",
+      "expected": {
+        "state": "measured",
+        "H": 0,
+        "shallow": 100
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\nfunc Calc(x bool) bool { return x }"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe {private Probe(){} public static boolean calc(boolean x){return x;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub fn calc(x:bool)->bool{x}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export function calc(x:boolean):boolean{return x;}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "primitive_transform",
+      "expected": {
+        "state": "measured",
+        "H": 2,
+        "shallow": 30
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\nfunc Calc(x bool) bool { return !x }"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe {private Probe(){} public static boolean calc(boolean x){return !x;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub fn calc(x:bool)->bool{!x}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export function calc(x:boolean):boolean{return !x;}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pure_reduction",
+      "expected": {
+        "state": "measured",
+        "H": 2,
+        "shallow": 30
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\nfunc Calc(x int) int {total:=0;for i:=0;i<x;i++{total+=i*i};return total}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe {private Probe(){} public static int calc(int x){int total=0;for(int i=0;i<x;i++){total+=i*i;}return total;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub fn calc(x:i32)->i32{let mut total=0i32;let mut i=0i32;while i<x{total=total.wrapping_add(i.wrapping_mul(i));i=i.wrapping_add(1);}total}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export function calc(x:number):number{let total=0;for(let i=0;i<x;i++){total+=i*i;}return total;}"
+            }
+          }
+        }
+      },
+      "notes": "One canonical recurrence and one X; no loop unrolling. Native arithmetic modes remain distinct evidence, with equal category credit."
+    },
+    {
+      "id": "validation",
+      "expected": {
+        "state": "measured",
+        "H": 3,
+        "categories": [
+          "V",
+          "X"
+        ]
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\nimport \"errors\"\nfunc Calc(x int)(int,error){if x<0{return 0,errors.New(\"negative\")};return x+1,nil}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe {private Probe(){} public static int calc(int x){if(x<0)throw new IllegalArgumentException(\"negative\");return x+1;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub fn calc(x:i32)->Result<i32,&'static str>{if x<0{return Err(\"negative\")};Ok(x.wrapping_add(1))}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export function calc(x:number):number{if(x<0)throw new Error(\"negative\");return x+1;}"
+            }
+          }
+        }
+      },
+      "notes": "Compare H and guard/error flow; native Result/error signatures expose different concepts, so full scores need not be equal."
+    },
+    {
+      "id": "validation_bypass",
+      "expected": {
+        "state": "measured",
+        "H": 2,
+        "V": "conditional",
+        "families": 1
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\nimport \"errors\"\nfunc core(x int)int{return x+1}\nfunc Checked(x int)(int,error){if x<0{return 0,errors.New(\"negative\")};return core(x),nil}\nfunc Raw(x int)int{return core(x)}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe {private Probe(){} private static int core(int x){return x+1;} public static int checked(int x){if(x<0)throw new IllegalArgumentException();return core(x);} public static int raw(int x){return core(x);}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "fn core(x:i32)->i32{x.wrapping_add(1)} pub fn checked(x:i32)->Result<i32,&'static str>{if x<0{return Err(\"negative\")};Ok(core(x))} pub fn raw(x:i32)->i32{core(x)}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "function core(x:number){return x+1;} export function checked(x:number){if(x<0)throw new Error();return core(x);} export function raw(x:number){return core(x);}"
+            }
+          }
+        }
+      },
+      "notes": "Standard success/error packing around the same service preserves route family identity; error contract still contributes exposed concepts."
+    },
+    {
+      "id": "shared_state",
+      "expected": {
+        "state": "measured",
+        "H": 2,
+        "C_obligations": 1,
+        "X_obligations": 0
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\ntype Box struct {state int}\nfunc(b *Box) A(x int)int{old:=b.state;b.state=x;return old}\nfunc(b *Box) B(x int)int{old:=b.state;b.state=x;return old}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Box {private int state; public int a(int x){int old=state;state=x;return old;} public int b(int x){int old=state;state=x;return old;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub struct Box{state:i32} impl Box{pub fn new()->Self{Self{state:0}} pub fn a(&mut self,x:i32)->i32{let old=self.state;self.state=x;old} pub fn b(&mut self,x:i32)->i32{let old=self.state;self.state=x;old}}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export class Box {private state=0;a(x:number){const old=this.state;this.state=x;return old;}b(x:number){const old=this.state;this.state=x;return old;}}"
+            }
+          }
+        }
+      },
+      "notes": "Assess Box boundary. Two roots share one state obligation; construction/access burden may differ. Coordination has separate native cases."
+    },
+    {
+      "id": "local_policy",
+      "expected": {
+        "state": "measured",
+        "H": 2,
+        "P": 1
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\nfunc Calc(mode bool,x int)int{if mode{return x+1};return x*2}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe {private Probe(){} public static int calc(boolean mode,int x){return mode?x+1:x*2;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub fn calc(mode:bool,x:i32)->i32{if mode{x.wrapping_add(1)}else{x.wrapping_mul(2)}}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export function calc(mode:boolean,x:number){return mode?x+1:x*2;}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "boolean_data",
+      "expected": {
+        "state": "measured",
+        "H": 2,
+        "P": 0
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\nfunc Encode(value bool)int{if value{return 1};return 0}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe {private Probe(){} public static int encode(boolean value){return value?1:0;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub fn encode(value:bool)->i32{if value{1}else{0}}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export function encode(value:boolean){return value?1:0;}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "default_route",
+      "expected": {
+        "state": "measured",
+        "O": 1,
+        "A": 1,
+        "E": 1,
+        "P": 0,
+        "T": 2,
+        "H": 2,
+        "shallow": 37
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\nfunc core(x int,mode bool)int{if mode{return x+1};return x*2}\nfunc Configured(x int,mode bool)int{return core(x,mode)}\nfunc Default(x int)int{return core(x,false)}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe {private Probe(){} public static int calc(int x,boolean mode){return mode?x+1:x*2;} public static int calc(int x){return calc(x,false);}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "fn core(x:i32,mode:bool)->i32{if mode{x.wrapping_add(1)}else{x.wrapping_mul(2)}} pub fn configured(x:i32,mode:bool)->i32{core(x,mode)} pub fn default(x:i32)->i32{core(x,false)}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "parameter": {
+              "source": "export function calc(x:number,mode:boolean=false){return mode?x+1:x*2;}"
+            },
+            "record": {
+              "source": "export function calc(input:{x:number;mode?:boolean}){const mode=input.mode??false;return mode?input.x+1:input.x*2;}"
+            }
+          }
+        }
+      },
+      "notes": "Default-wrapper, overload and native optional forms normalize to the same exposed slots and route cost. Preserve distinct X recipes as alternatives, each H=2."
+    },
+    {
+      "id": "passive_creation",
+      "expected": {
+        "state": "not_applicable",
+        "X_obligations": 0
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\ntype Pair struct{X int;Y int}\nfunc NewPair(x,y int)Pair{return Pair{X:x,Y:y}}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public record Pair(int x,int y) {}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub struct Pair{pub x:i32,pub y:i32} pub fn create(x:i32,y:i32)->Pair{Pair{x,y}}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export type Pair={x:number;y:number};export function create(x:number,y:number):Pair{return {x,y};}"
+            }
+          }
+        }
+      },
+      "notes": "Assess the passive Pair creation/data boundary, not synthetic equality/display helpers as behavioral services."
+    },
+    {
+      "id": "behavioral_creation",
+      "expected": {
+        "state": "measured",
+        "O": 2,
+        "H": 2,
+        "creation_H": 0
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "literal": {
+              "source": "package probe\ntype Counter struct{}\nfunc(Counter) Plus(x int)int{return x+1}"
+            },
+            "factory": {
+              "source": "package probe\ntype Counter struct{}\nfunc NewCounter()Counter{return Counter{}}\nfunc(Counter) Plus(x int)int{return x+1}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "implicit": {
+              "source": "public class Counter {public int plus(int x){return x+1;}}"
+            },
+            "explicit": {
+              "source": "public class Counter {public Counter(){} public int plus(int x){return x+1;}}"
+            },
+            "factory": {
+              "source": "public class Counter {private Counter(){} public static Counter create(){return new Counter();} public int plus(int x){return x+1;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "literal": {
+              "source": "pub struct Counter{} impl Counter{pub fn plus(&self,x:i32)->i32{x.wrapping_add(1)}}"
+            },
+            "factory": {
+              "source": "pub struct Counter{} impl Counter{pub fn create()->Self{Self{}} pub fn plus(&self,x:i32)->i32{x.wrapping_add(1)}}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "implicit": {
+              "source": "export class Counter{plus(x:number){return x+1;}}"
+            },
+            "explicit": {
+              "source": "export class Counter{constructor(){} plus(x:number){return x+1;}}"
+            },
+            "factory": {
+              "source": "export class Counter{private constructor(){} static create(){return new Counter();} plus(x:number){return x+1;}}"
+            }
+          }
+        }
+      },
+      "notes": "Assess Counter. Multiple access paths to creation do not add O. Factory relocation between namespace/type does not duplicate the creation boundary."
+    },
+    {
+      "id": "owned_alias",
+      "expected": {
+        "state": "measured",
+        "L": 1
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\ntype Store struct{items []int}\nfunc NewStore()*Store{return &Store{items:make([]int,2)}}\nfunc(s *Store) Expose()[]int{return s.items}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Store{private final int[] items=new int[2]; public int[] expose(){return items;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub struct Store{items:[i32;2]} impl Store{pub fn new()->Self{Self{items:[0;2]}} pub fn expose(&mut self)->&mut [i32;2]{&mut self.items}}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "export class Store{private items:number[]=[0,0];expose(){return this.items;}}"
+            }
+          }
+        }
+      },
+      "notes": "Returning mutable backing storage is a known leak, including Rust mutable borrow; native lifetime enforcement does not cancel representation exposure."
+    },
+    {
+      "id": "recursive_path_limit",
+      "expected": {
+        "state": "partial",
+        "reason": "access_path_limit",
+        "shallow": null,
+        "cold_equals_warm": true
+      },
+      "languages": {
+        "go": {
+          "variants": {
+            "main": {
+              "source": "package probe\ntype Node struct{Next *Node;Value int}\nfunc Read(n *Node)int{if n.Next!=nil{return Read(n.Next)};return n.Value}"
+            }
+          }
+        },
+        "java": {
+          "variants": {
+            "main": {
+              "source": "public class Probe{private Probe(){} public static class Node{public Node next;public int value;} public static int read(Node n){return n.next!=null?read(n.next):n.value;}}"
+            }
+          }
+        },
+        "rust": {
+          "variants": {
+            "main": {
+              "source": "pub struct Node<'a>{pub next:Option<&'a Node<'a>>,pub value:i32} pub fn read(n:&Node<'_>)->i32{match n.next{Some(next)=>read(next),None=>n.value}}"
+            }
+          }
+        },
+        "typescript": {
+          "variants": {
+            "main": {
+              "source": "type Node={next?:Node;value:number};export function read(n:Node):number{return n.next?read(n.next):n.value;}"
+            }
+          }
+        }
+      },
+      "notes": "Assess Read/read boundary. The four-step path bound must not become infinite substitution or a warm-cache numeric result."
+    }
+  ]
+}

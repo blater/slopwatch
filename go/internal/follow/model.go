@@ -16,6 +16,7 @@ import (
 )
 
 type Options struct {
+	DisableGitignore     bool
 	Workspace            string
 	Targets              []string
 	Languages            []string
@@ -55,6 +56,8 @@ type changeAnalyzer interface {
 	AnalyzeChanges(context.Context, []string) (report.Document, []string, error)
 }
 
+type gitignoreController interface{ SetDisableGitignore(bool) }
+
 type typeScriptTypesController interface {
 	SetTypeScriptTypes(bool)
 }
@@ -66,16 +69,25 @@ type cacheReadController interface {
 type analysisResult struct {
 	document report.Document
 	replace  []string
-	full     bool
-	err      error
+	// paths are the original requested inputs. They remain available for a
+	// retry when an incremental analysis fails before it can report rows.
+	paths []string
+	full  bool
+	err   error
 }
 
-type watcherReady struct{ err error }
+type analysisRetry struct{}
+
+type watcherReady struct {
+	err     error
+	watcher *sourceWatcher
+}
 
 type animationTick time.Time
 type startupLogoExpired struct{}
 
 type sourceLoaded struct {
+	err        error
 	generation uint64
 	path       string
 	contents   string
@@ -127,63 +139,80 @@ type sourceState struct {
 }
 
 type Model struct {
-	analyzer              Analyzer
-	watcher               *sourceWatcher
-	options               Options
-	mainView              MainView
-	files                 FilesState
-	agents                AgentsState
-	overlays              OverlayStack
-	fixService            FixService
-	fixWorkspace          fix.WorkspaceIdentity
-	fixUpdates            fixSubscriptionState
-	fixGeneration         uint64
-	fixDialog             fixDialogState
-	jobActions            jobActionState
-	jobMonitor            jobMonitorState
-	jobReader             jobReaderState
-	shutdown              shutdownState
-	fixNotice             string
-	targetScorePreference targetScorePreferenceState
-	configStore           ConfigStore
-	configWorkspace       fix.WorkspaceIdentity
-	profileProber         ProfileProber
-	profileCatalog        agent.ProfileCatalog
-	configSettings        configSettingsState
-	repositoryIdentity    string
-	width                 int
-	height                int
-	analyzing             bool
-	queued                map[string]bool
-	status                string
-	initialAnalysis       bool
-	startupLogoExpired    bool
-	animationFrame        int
-	detail                bool
-	detailOffset          int
-	help                  bool
-	helpCursor            int
-	helpTopic             string
-	infoOpen              bool
-	infoKey               string
-	columns               bool
-	columnCursor          int
-	sortOpen              bool
-	settings              bool
-	settingsCursor        int
-	appearance            bool
-	appearanceCursor      int
-	theme                 style.Theme
-	weightsOpen           bool
-	weightCursor          int
-	weightsResetConfirm   bool
-	weights               map[string]float64
-	weightEnabled         map[string]bool
-	weightStep            float64
-	maximumWeight         float64
-	preferencesPath       string
-	preferences           preferences.Document
-	columnsFromSettings   bool
-	pendingFullAnalysis   bool
-	source                sourceState
+	analyzer                Analyzer
+	watcher                 *sourceWatcher
+	watchGeneration         uint64
+	watchReconfigurePending bool
+	watchReconfigureCancel  context.CancelFunc
+	watchNeedsWait          bool
+	watchRetryCount         int
+	startupWatcherPending   bool
+	options                 Options
+	mainView                MainView
+	files                   FilesState
+	agents                  AgentsState
+	overlays                OverlayStack
+	fixService              FixService
+	fixWorkspace            fix.WorkspaceIdentity
+	fixUpdates              fixSubscriptionState
+	fixGeneration           uint64
+	fixDialog               fixDialogState
+	jobActions              jobActionState
+	jobMonitor              jobMonitorState
+	jobReader               jobReaderState
+	shutdown                shutdownState
+	fixNotice               string
+	targetScorePreference   targetScorePreferenceState
+	configStore             ConfigStore
+	configWorkspace         fix.WorkspaceIdentity
+	profileProber           ProfileProber
+	profileCatalog          agent.ProfileCatalog
+	configSettings          configSettingsState
+	repositoryIdentity      string
+	width                   int
+	height                  int
+	analyzing               bool
+	queued                  map[string]bool
+	status                  string
+	runtimeError            string
+	runtimeErrorMessages    []string
+	fixErrorSummary         string
+	runtimeErrorOffset      int
+	initialAnalysis         bool
+	startupLogoExpired      bool
+	animationFrame          int
+	cursorActivity          time.Time
+	detail                  bool
+	detailOffset            int
+	help                    bool
+	helpCursor              int
+	helpTopic               string
+	infoOpen                bool
+	infoKey                 string
+	columns                 bool
+	columnCursor            int
+	sortOpen                bool
+	settings                bool
+	settingsCursor          int
+	settingsGroup           string
+	settingsRootCursor      int
+	filesSettings           bool
+	configParent            *configSettingsState
+	appearance              bool
+	appearanceCursor        int
+	theme                   style.Theme
+	weightsOpen             bool
+	weightCursor            int
+	weightsResetConfirm     bool
+	weights                 map[string]float64
+	weightEnabled           map[string]bool
+	weightStep              float64
+	maximumWeight           float64
+	preferencesPath         string
+	preferences             preferences.Document
+	columnsFromSettings     bool
+	pendingFullAnalysis     bool
+	discardAnalysis         bool
+	analysisRetryPending    bool
+	source                  sourceState
 }

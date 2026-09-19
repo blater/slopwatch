@@ -1,0 +1,14 @@
+{
+  "description": "Analysis context only; frozen holdout labels and first evaluation remain unchanged.",
+  "repositories": {
+    "river": "/Users/blater/src/river",
+    "nql": "/Users/blater/src/nql",
+    "xmltoaster": "/Users/blater/src/xmltoaster/xmltoaster"
+  },
+  "case_repositories": {
+    "river-bound-access": "river",
+    "river-descriptor-scan-context": "river",
+    "nql-hierarchy-row-context": "nql",
+    "xmltoaster-sql-row-cursor": "xmltoaster"
+  }
+}

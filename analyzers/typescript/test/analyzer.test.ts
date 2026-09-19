@@ -440,6 +440,78 @@ test("syntax failure does not discard valid TypeScript peers", () => {
   assert.match(String(syntax?.message), /broken\.ts:\d+:\d+:/u);
 });
 
+test("declaration files remain compiler context but are excluded from scoring", () => {
+  const root = workspace({
+    "src/types.d.ts": "export interface Payload { id: string }\n",
+    "src/service.ts": "import type { Payload } from './types.js'; export function run(value: Payload) { return value.id; }\n",
+  });
+  const records = analyze(
+    request(
+      root,
+      ["src/types.d.ts", "src/service.ts"],
+      [
+        ["cognitive_complexity", "pmd-sonar-v1"],
+        ["unsafe_type_boundary", "typescript-local-sink-v1"],
+      ],
+    ),
+  );
+  assert.equal(records.at(-1)?.status, "success");
+  assert.ok(
+    recordsOf(records, "measurement").every((item) => item.path !== "src/types.d.ts"),
+  );
+  assert.ok(
+    recordsOf(records, "coverage").every((item) => item.path !== "src/types.d.ts"),
+  );
+  const plan = recordsOf(records, "execution_plan")[0];
+  assert.equal(plan?.discovered_source_count, 1);
+});
+
+test("inventory rejection is located and does not discard valid sources", () => {
+  const root = workspace({
+    "src/valid.ts": "export function valid(ok: boolean) { if (ok) {} }\n",
+    "src/unsupported.js": "export const ignored = true;\n",
+  });
+  const records = analyze(
+    request(root, ["src/valid.ts", "src/missing.ts", "src/unsupported.js"], [
+      ["cognitive_complexity", "pmd-sonar-v1"],
+      ["unsafe_type_use", "typescript-local-sink-v1"],
+    ]),
+  );
+  assert.equal(records.at(-1)?.status, "success");
+  const diagnostics = recordsOf(records, "diagnostic").filter(
+    (item) => item.code === "typescript.source_inventory_failed",
+  );
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(
+    diagnostics.map((item) => item.path).sort(),
+    ["src/missing.ts", "src/unsupported.js"],
+  );
+  assert.ok(
+    recordsOf(records, "coverage").some(
+      (item) => item.path === "src/valid.ts" && item.state === "complete",
+    ),
+  );
+  assert.equal(
+    recordsOf(records, "coverage").find(
+      (item) => item.path === "src/valid.ts" && item.component_id === "unsafe_type_use",
+    )?.state,
+    "unavailable",
+  );
+  assert.ok(
+    recordsOf(records, "diagnostic").some(
+      (item) => item.code === "typescript.typed_inventory_incomplete",
+    ),
+  );
+  assert.ok(
+    recordsOf(records, "coverage").every(
+      (item) =>
+        item.path !== "src/valid.ts" ||
+        item.component_id !== "cognitive_complexity" ||
+        item.state === "complete",
+    ),
+  );
+});
+
 test("multiple tsconfig ownership candidates make typed coverage unavailable", () => {
   const root = workspace({
     "a/tsconfig.json": JSON.stringify({ compilerOptions: { strict: true } }),
@@ -466,7 +538,7 @@ test("multiple tsconfig ownership candidates make typed coverage unavailable", (
   );
 });
 
-test("canonical inventory rejects files outside the workspace and duplicate owners", () => {
+test("canonical inventory reports rejected paths and duplicate owners", () => {
   const root = workspace({ "inside.tsx": "export const ok = true;" });
   const outside = workspace({ "outside.ts": "export const no = true;" });
   const records = analyze(
@@ -476,12 +548,12 @@ test("canonical inventory rejects files outside the workspace and duplicate owne
       [["npath_complexity", "pmd-v1"]],
     ),
   );
-  assert.equal(records.at(-1)?.status, "failure");
-  assert.ok(
-    recordsOf(records, "diagnostic").some(
-      (item) => item.code === "typescript.source_inventory_failed",
-    ),
+  assert.equal(records.at(-1)?.status, "success");
+  const rejected = recordsOf(records, "diagnostic").find(
+    (item) => item.code === "typescript.source_inventory_failed",
   );
+  assert.equal(rejected?.path, path.join(outside, "outside.ts"));
+  assert.equal(recordsOf(records, "coverage")[0]?.state, "failed");
 
   const duplicate = analyze({
     ...request(root, ["inside.tsx"], [["npath_complexity", "pmd-v1"]]),

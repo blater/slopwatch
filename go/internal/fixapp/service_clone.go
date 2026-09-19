@@ -41,11 +41,23 @@ func cloneContract(value fix.ScoringContract) fix.ScoringContract {
 	result.Targets = make([]fix.TargetSnapshot, len(value.Targets))
 	for index, target := range value.Targets {
 		result.Targets[index] = target
+		result.Targets[index].DepthInventory = cloneDepthInventory(target.DepthInventory)
 		result.Targets[index].Metrics = make(map[fix.MetricID]fix.MetricValue, len(target.Metrics))
 		for metric, metricValue := range target.Metrics {
 			result.Targets[index].Metrics[metric] = metricValue
 		}
 		result.Targets[index].Evidence = append([]fix.MetricEvidence(nil), target.Evidence...)
+	}
+	return result
+}
+
+func cloneDepthInventory(source map[string]string) map[string]string {
+	if source == nil {
+		return nil
+	}
+	result := make(map[string]string, len(source))
+	for id, fingerprint := range source {
+		result[id] = fingerprint
 	}
 	return result
 }

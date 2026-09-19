@@ -1,0 +1,338 @@
+{
+  "definition_version": "responsibility-burden-v4",
+  "rounding": "nearest-integer-ties-up",
+  "cases": [
+    {
+      "id": "identity",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 1,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1
+        }
+      ],
+      "B4": 7,
+      "H": 1,
+      "expected_shallow": 47
+    },
+    {
+      "id": "pure_transform",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 1,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "X": 1
+        }
+      ],
+      "B4": 7,
+      "H": 3,
+      "expected_shallow": 23
+    },
+    {
+      "id": "validated_transform",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 1,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "V": 1,
+          "X": 1
+        }
+      ],
+      "B4": 7,
+      "H": 4,
+      "expected_shallow": 18
+    },
+    {
+      "id": "synchronized_swap",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 1,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "C": 1,
+          "Y": 1
+        }
+      ],
+      "B4": 7,
+      "H": 5,
+      "expected_shallow": 15
+    },
+    {
+      "id": "swap",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 1,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "C": 1
+        }
+      ],
+      "B4": 7,
+      "H": 3,
+      "expected_shallow": 23
+    },
+    {
+      "id": "synchronized_increment",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 0,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "C": 1,
+          "Y": 1,
+          "X": 1
+        }
+      ],
+      "B4": 6,
+      "H": 7,
+      "expected_shallow": 10
+    },
+    {
+      "id": "noop",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 0,
+        "A": 0,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 0
+        }
+      ],
+      "B4": 4,
+      "H": 0,
+      "expected_shallow": 100
+    },
+    {
+      "id": "managed_resource",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 2,
+        "A": 1,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "R": 1
+        }
+      ],
+      "B4": 9,
+      "H": 3,
+      "expected_shallow": 27
+    },
+    {
+      "id": "caller_managed_resource",
+      "state": "measured",
+      "burden": {
+        "O": 3,
+        "T": 3,
+        "A": 3,
+        "P": 0,
+        "S": 2,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1
+        },
+        {
+          "U": 1
+        },
+        {
+          "U": 1
+        }
+      ],
+      "B4": 29,
+      "H": 3,
+      "expected_shallow": 55
+    },
+    {
+      "id": "leaking_transform",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 1,
+        "P": 0,
+        "S": 0,
+        "L": 1
+      },
+      "families": [
+        {
+          "U": 1,
+          "X": 1
+        }
+      ],
+      "B4": 15,
+      "H": 3,
+      "expected_shallow": 38
+    },
+    {
+      "id": "duplicate_overload",
+      "state": "measured",
+      "burden": {
+        "O": 2,
+        "T": 1,
+        "A": 2,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "X": 1
+        }
+      ],
+      "B4": 12,
+      "H": 3,
+      "expected_shallow": 33
+    },
+    {
+      "id": "extra_same_type_argument",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 2,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "X": 1
+        }
+      ],
+      "B4": 8,
+      "H": 3,
+      "expected_shallow": 25
+    },
+    {
+      "id": "supplied_policy",
+      "state": "measured",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 1,
+        "P": 1,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1,
+          "X": 1
+        }
+      ],
+      "B4": 11,
+      "H": 3,
+      "expected_shallow": 31
+    },
+    {
+      "id": "unknown_essential_call",
+      "state": "partial",
+      "burden": {
+        "O": 1,
+        "T": 1,
+        "A": 1,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [
+        {
+          "U": 1
+        }
+      ],
+      "B4": 7,
+      "H": 1,
+      "expected_shallow": null
+    },
+    {
+      "id": "data_only",
+      "state": "not_applicable",
+      "burden": {
+        "O": 0,
+        "T": 0,
+        "A": 0,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [],
+      "B4": 0,
+      "H": 0,
+      "expected_shallow": null
+    },
+    {
+      "id": "missing_inventory",
+      "state": "unavailable",
+      "burden": {
+        "O": 0,
+        "T": 0,
+        "A": 0,
+        "P": 0,
+        "S": 0,
+        "L": 0
+      },
+      "families": [],
+      "B4": 0,
+      "H": 0,
+      "expected_shallow": null
+    }
+  ]
+}

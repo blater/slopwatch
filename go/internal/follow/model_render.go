@@ -10,7 +10,7 @@ import (
 )
 
 func initModel(model Model) tea.Cmd {
-	commands := []tea.Cmd{tickAnimation(model.analyzing)}
+	commands := []tea.Cmd{tickAnimationFor(model)}
 	if model.fixService != nil {
 		commands = append(commands, initialFixJobsCommand(model.fixService))
 	}
@@ -28,12 +28,8 @@ func hideStartupLogo() tea.Cmd {
 	return tea.Tick(startupLogoDuration, func(time.Time) tea.Msg { return startupLogoExpired{} })
 }
 
-func tickAnimation(analyzing bool) tea.Cmd {
-	interval := time.Second
-	if analyzing {
-		interval = 125 * time.Millisecond
-	}
-	return tea.Tick(interval, func(at time.Time) tea.Msg { return animationTick(at) })
+func tickAnimationFor(model Model) tea.Cmd {
+	return tea.Tick(cursorHighlightTick(model, time.Now()), func(at time.Time) tea.Msg { return animationTick(at) })
 }
 
 func view(model Model) string {
@@ -58,6 +54,7 @@ func resizeSurface(model Model) (string, bool) {
 }
 
 func overlaySurfaceView(model Model, base string) string {
+	base = model.settingsUnderlay(base)
 	if frame, ok := model.overlays.Top(); ok && !frame.compatibility {
 		return model.featureOverlayView(base, frame)
 	}
@@ -101,6 +98,9 @@ func modalView(model Model, base string) string {
 		return model.overlay(base, configSettingsPopup(model.configSettings, model.profileCatalog, model.width, model.height))
 	}
 	if model.settings {
+		if model.filesSettings {
+			return model.overlay(base, filesSettingsView(model))
+		}
 		return model.overlay(base, settingsView(model))
 	}
 	return base

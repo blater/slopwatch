@@ -1,0 +1,2671 @@
+--- before/go/internal/native/analyzer.go
++++ after/go/internal/native/analyzer.go
+@@ -20,7 +20,7 @@
+ const (
+ 	ShallowProfileLegacy           = "legacy-signature-v3"
+ 	ShallowProfileResponsibilityV4 = "responsibility-v4"
+-	ShallowPolicyRevisionV4        = "r41"
++	ShallowPolicyRevisionV4        = "r42"
+ 	ShallowDefinitionV4            = "responsibility-burden-v4"
+ )
+ 
+--- before/go/internal/native/depth_constraint_coupling_test.go
++++ after/go/internal/native/depth_constraint_coupling_test.go
+@@ -0,0 +1,73 @@
++package native
++
++import (
++	"context"
++	"encoding/json"
++	"os"
++	"testing"
++
++	"github.com/blater/slopwatch/internal/scoring"
++	"github.com/blater/slopwatch/internal/sourceestimate"
++)
++
++func TestProtocolMetadataDoesNotManufactureCallerCoupling(t *testing.T) {
++	source, err := os.ReadFile("protocol.go")
++	if err != nil {
++		t.Fatal(err)
++	}
++	result := sourceestimate.Analyze([]sourceestimate.File{{Path: "protocol.go", Language: "go", Source: source}})["protocol.go"]
++	if result.Grade == nil || result.Grade.Surface.RepresentationUnits != 0 {
++		t.Fatalf("derived metadata invented input obligation: %+v", result.Grade)
++	}
++	workspace := t.TempDir()
++	writeTestFile(t, workspace, "go.mod", "module sample\n\ngo 1.24\n")
++	writeTestFile(t, workspace, "protocol.go", string(source))
++	analyzer, err := New(workspace, testInstallationRoot(t), Options{Languages: []string{"go"}})
++	if err != nil {
++		t.Fatal(err)
++	}
++	doc, err := analyzer.Analyze(context.Background(), nil, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	file, ok := fileByPath(doc.Files, "protocol.go")
++	if !ok {
++		t.Fatal("missing protocol source")
++	}
++	metric := scoring.Metric(file, "deep")
++	if !metric.Available || metric.Value < 0 || metric.Value > 100 {
++		t.Fatalf("numeric SHALLOW publication missing: %+v", metric)
++	}
++}
++
++func TestConstraintDetailsSurviveNativeExport(t *testing.T) {
++	source := []byte(`package p;type Example struct{Data []int;Count int};func(e Example)Read()int{return e.Data[e.Count-1]}`)
++	result := sourceestimate.Analyze([]sourceestimate.File{{Path: "example.go", Language: "go", Source: source}})["example.go"]
++	details := sourceGradeDetails(result.Grade)
++	surface := details["surface"].(map[string]any)
++	records, ok := surface["constraints"].([]sourceestimate.ConstraintEvidence)
++	if !ok || len(records) != 1 || len(records[0].Storage) != 2 || records[0].Path != "example.go" || records[0].IndexExpression != "Count-1" {
++		t.Fatalf("constraint provenance dropped: %+v", surface)
++	}
++}
++
++func TestConstraintIndexExpressionJSON(t *testing.T) {
++	for _, expression := range []string{"Count-1", "Count", ""} {
++		encoded, err := json.Marshal(sourceestimate.ConstraintEvidence{IndexExpression: expression})
++		if err != nil {
++			t.Fatal(err)
++		}
++		var decoded map[string]any
++		if err := json.Unmarshal(encoded, &decoded); err != nil {
++			t.Fatal(err)
++		}
++		actual, present := decoded["index_expression"]
++		if expression == "" {
++			if present {
++				t.Fatalf("non-index metadata not omitted: %s", encoded)
++			}
++		} else if actual != expression {
++			t.Fatalf("index expression lost: %s", encoded)
++		}
++	}
++}
+--- before/go/internal/native/source_depth.go
++++ after/go/internal/native/source_depth.go
+@@ -294,6 +294,6 @@
+ 		"residual_burden": grade.ResidualBurden, "supported_burden": grade.SupportedBurden, "hidden_responsibility": grade.Hidden,
+ 		"estimated_hidden_responsibility": grade.EstimatedHidden,
+ 		"responsibilities":                grade.Responsibilities, "material_limitations": grade.MaterialLimitations, "zero_reason": grade.ZeroReason,
+-		"surface": map[string]any{"operation_units": grade.Surface.OperationUnits, "input_units": grade.Surface.InputUnits, "representation_units": grade.Surface.RepresentationUnits, "evidence": grade.Surface.Evidence},
+-	}
+-}
++		"surface": map[string]any{"operation_units": grade.Surface.OperationUnits, "input_units": grade.Surface.InputUnits, "representation_units": grade.Surface.RepresentationUnits, "evidence": grade.Surface.Evidence, "constraints": grade.Surface.Constraints},
++	}
++}
+--- before/go/internal/sourceestimate/connected_obligations_test.go
++++ after/go/internal/sourceestimate/connected_obligations_test.go
+@@ -8,15 +8,22 @@
+ )
+ 
+ func TestConnectedCallerObligations(t *testing.T) {
+-	target := `package p;class State{int left;int right;void reset(){left=0;right=0;}}`
++	// Shared copying into reset-only fields is not a caller constraint.
++	reset := `package p;class State{int left;int right;void reset(){left=0;right=0;}}`
++	target := `package p;class State{int left;int right;void reset(){left=0;right=0;} int read(){if(left!=right)throw new IllegalStateException();return left;}}`
+ 	caller := `package p;class Caller{void publish(State state,int input){state.left=input;state.right=input;}}`
+ 	files := []File{{Path: "State.java", Language: "java", Source: []byte(target)}, {Path: "Caller.java", Language: "java", Source: []byte(caller)}}
++	negative := append([]File(nil), files...)
++	negative[0].Source = []byte(reset)
++	if g := Analyze(negative)["State.java"].Grade; g.Surface.RepresentationUnits != 0 {
++		t.Fatalf("shared copying invented constraint: %+v", g)
++	}
+ 	isolated := Analyze(files[:1])["State.java"].Grade
+ 	full := Analyze(files)["State.java"].Grade
+ 	if isolated == nil || full == nil || isolated.Surface.RepresentationUnits != 0 || full.Surface.RepresentationUnits != 4 {
+ 		t.Fatalf("unconnected reset / proven caller: %+v / %+v", isolated, full)
+ 	}
+-	for name, source := range map[string]string{"unrelated constants": strings.ReplaceAll(strings.ReplaceAll(caller, "left=input", "left=1"), "right=input", "right=2"), "other type": strings.ReplaceAll(caller, "State state", "Other state"), "other package": strings.ReplaceAll(caller, "package p", "package other"), "dead local": `package p;class Caller{void publish(State state,int input){int left=input;int right=input;}}`} {
++	for name, source := range map[string]string{"other type": strings.ReplaceAll(caller, "State state", "Other state"), "other package": strings.ReplaceAll(caller, "package p", "package other"), "dead local": `package p;class Caller{void publish(State state,int input){int left=input;int right=input;}}`} {
+ 		files[1].Source = []byte(source)
+ 		g := Analyze(files)["State.java"].Grade
+ 		if g.Surface.RepresentationUnits != 0 {
+@@ -250,7 +257,7 @@
+ }
+ 
+ func TestConnectedCallerUnusedCallback(t *testing.T) {
+-	target := `package p;class Target{int x;int y;int get(){return x;}}`
++	target := `package p;class Target{int x;int y;int get(){if(x!=y)throw new IllegalStateException();return x;}}`
+ 	for _, tc := range []struct {
+ 		body string
+ 		want float64
+--- before/go/internal/sourceestimate/graded_caller_obligations.go
++++ after/go/internal/sourceestimate/graded_caller_obligations.go
+@@ -8,6 +8,7 @@
+ type gradedCallerObligation struct {
+ 	fields, evidence []string
+ 	sequencing       bool
++	constraints      []gradedConstraint
+ }
+ type gradedCallerType struct {
+ 	unit          int
+@@ -114,6 +115,30 @@
+ // Build once, then share the bounded inbound representation index with every
+ // owner projection. Caller effects never become hidden duties of the callee.
+ func annotateCallerObligations(units []unit) {
++	shadows := map[string]map[string]bool{}
++	for _, u := range units {
++		key := normalizeLanguage(u.file.Language, u.file.Path) + "#" + u.pkg
++		if shadows[key] == nil {
++			shadows[key] = map[string]bool{}
++		}
++		for _, name := range []string{"len", "panic", "Vec"} {
++			if gradedPackageShadow(u, name) {
++				shadows[key][name] = true
++			}
++		}
++
++	}
++	for i := range units {
++		u := &units[i]
++		u.shadowedBuiltins = shadows[normalizeLanguage(u.file.Language, u.file.Path)+"#"+u.pkg]
++	}
++
++	byKey := map[string][]*operation{}
++	for _, u := range units {
++		for _, op := range u.ops {
++			indexOperation(byKey, op)
++		}
++	}
+ 	types := map[string][]gradedCallerType{}
+ 	packageTypes := map[string]map[string]bool{}
+ 	for index, u := range units {
+@@ -170,10 +195,39 @@
+ 		}
+ 		return fieldRef{}, false
+ 	}
++	type consumerRecord struct {
++		constraint gradedConstraint
++		refs       []fieldRef
++		caller     *operation
++		lifecycle  bool
++	}
++	consumers := []consumerRecord{}
++	controlled := map[string]bool{}
+ 	transitions := map[string]map[string]map[string]bool{}
+ 	connected := map[int]map[string]map[string]bool{}
++	established := map[int]map[string]map[string]bool{}
++	for index, u := range units {
++		established[index] = map[string]map[string]bool{}
++		for _, op := range u.ops {
++			if established[index][op.owner] != nil {
++				continue
++			}
++			established[index][op.owner] = map[string]bool{}
++			for _, constraint := range gradedOwnerConstraints(u, op.owner, u.ops) {
++				if constraint.protected {
++					continue
++				}
++				for _, field := range constraint.fields {
++					established[index][op.owner][field] = true
++				}
++			}
++		}
++	}
+ 	witnesses := map[int]map[string]map[string]bool{}
+ 	record := func(ref fieldRef, caller *operation) {
++		if !established[ref.unit][ref.owner][ref.field.name] {
++			return
++		}
+ 		if connected[ref.unit] == nil {
+ 			connected[ref.unit] = map[string]map[string]bool{}
+ 			witnesses[ref.unit] = map[string]map[string]bool{}
+@@ -217,6 +271,46 @@
+ 			for i, t := range op.body {
+ 				if _, ok := bindings[t.text]; ok && i+1 < len(op.body) && op.body[i+1].text == "=" && (i == 0 || op.body[i-1].text != "." || i >= 2 && op.body[i-2].text == "this") {
+ 					delete(bindings, t.text)
++				}
++			}
++			for _, consumer := range gradedConsumerConstraints(op, u, units, byKey, map[string]map[string]bool{}, 0) {
++				grouped := map[string][]fieldRef{}
++				for dep := range consumer.fields {
++					parts := strings.Split(dep, ".")
++					if len(parts) != 2 {
++						continue
++					}
++					typ := bindings[parts[0]]
++					if typ == "" {
++						continue
++					}
++					ref, ok := resolve(u.pkg, typ, parts[1])
++					if !ok || ref.owner == op.owner {
++						continue
++					}
++					key := itoa(ref.unit) + "#" + ref.owner
++					grouped[key] = append(grouped[key], ref)
++				}
++				for _, refs := range grouped {
++					names := []string{}
++					for _, ref := range refs {
++						names = append(names, ref.field.name)
++					}
++					sort.Strings(names)
++					names = uniqueConstraintStrings(names)
++					if len(names) < 2 && !consumer.lifecycle {
++						continue
++					}
++					kind := "resolved-callee-precondition"
++					if consumer.lifecycle {
++						kind = "phase-admission"
++					}
++					source := units[consumer.op.file].file
++					offset := 0
++					if len(consumer.op.body) > 0 {
++						offset = consumer.op.body[0].offset
++					}
++					consumers = append(consumers, consumerRecord{constraint: gradedConstraint{id: refs[0].owner + "#" + kind + "#" + strings.Join(names, ","), kind: kind, fields: names, operation: consumer.op.id, offset: offset, source: &source}, refs: refs, caller: op, lifecycle: consumer.lifecycle})
+ 				}
+ 			}
+ 			refs := map[string]map[string]fieldRef{}
+@@ -292,6 +386,7 @@
+ 					conditions[receiver][name] = true
+ 				}
+ 				if i+1 < len(op.body) && op.body[i+1].text == "=" {
++					controlled[itoa(ref.unit)+"#"+ref.owner+"#"+name] = true
+ 					end := statementEnd(op.body, i+2)
+ 					deps := gradedCallerDependencies(op.body[i+2 : end])
+ 					versioned := map[string]bool{}
+@@ -321,39 +416,58 @@
+ 				}
+ 			}
+ 			for receiver, fields := range refs {
+-				for left, deps := range writes[receiver] {
+-					for right, other := range writes[receiver] {
+-						if left == right {
+-							continue
+-						}
+-						related := false
+-						for dep := range deps {
+-							related = related || other[dep]
+-						}
+-						if related {
+-							record(fields[left], op)
+-							record(fields[right], op)
+-						}
+-					}
+-				}
+-				// A caller that branches on shared mode fields, invokes the retained
+-				// receiver's protocol and publishes a Boolean phase transition owns that
+-				// connected coordination. Constant reset lists alone cannot establish it.
+-				if boolWrites[receiver] && calls[receiver] && len(conditions[receiver]) > 0 {
+-					for name := range conditions[receiver] {
+-						record(fields[name], op)
+-					}
+-					for name := range writes[receiver] {
+-						record(fields[name], op)
+-					}
+-				}
+-			}
+-		}
+-	}
++				for name := range writes[receiver] {
++					record(fields[name], op)
++				}
++			}
++
++		}
++	}
++	accepted := map[int]map[string][]gradedConstraint{}
++	seenConsumers := map[string]bool{}
++	for _, consumer := range consumers {
++		eligible := false
++		for _, ref := range consumer.refs {
++			key := itoa(ref.unit) + "#" + ref.owner + "#" + ref.field.name
++			if !controlled[key] {
++				continue
++			}
++			if consumer.lifecycle {
++				phases := transitions[key]
++				if len(phases["true"]) == 0 || len(phases["false"]) == 0 {
++					continue
++				}
++			}
++			eligible = true
++		}
++		if !eligible {
++			continue
++		}
++		ref := consumer.refs[0]
++		key := itoa(ref.unit) + "#" + consumer.constraint.id
++		if seenConsumers[key] {
++			continue
++		}
++		seenConsumers[key] = true
++		if accepted[ref.unit] == nil {
++			accepted[ref.unit] = map[string][]gradedConstraint{}
++		}
++		accepted[ref.unit][ref.owner] = append(accepted[ref.unit][ref.owner], consumer.constraint)
++		for _, ref := range consumer.refs {
++			if established[ref.unit][ref.owner] == nil {
++				established[ref.unit][ref.owner] = map[string]bool{}
++			}
++			established[ref.unit][ref.owner][ref.field.name] = true
++			if ref.field.mutable && controlled[itoa(ref.unit)+"#"+ref.owner+"#"+ref.field.name] {
++				record(ref, consumer.caller)
++			}
++		}
++	}
++
+ 	for index, owners := range connected {
+ 		units[index].callerObligations = map[string]gradedCallerObligation{}
+ 		for owner, fields := range owners {
+-			entry := gradedCallerObligation{}
++			entry := gradedCallerObligation{constraints: accepted[index][owner]}
+ 			for field := range fields {
+ 				entry.fields = append(entry.fields, field)
+ 				phases := transitions[itoa(index)+"#"+owner+"#"+field]
+--- before/go/internal/sourceestimate/graded_constraint_callers.go
++++ after/go/internal/sourceestimate/graded_constraint_callers.go
+@@ -0,0 +1,217 @@
++package sourceestimate
++
++import (
++	"sort"
++	"strings"
++)
++
++// Project caller-side uses through unambiguous parameter/storage type bindings.
++// This reuses the same constraint recognizer; writes alone never create one.
++// Imports, reassigned receivers and ambiguous type names remain unresolved.
++func annotateConstraintWitnesses(units []unit) {
++	type target struct {
++		index int
++		owner string
++	}
++	registry := map[string][]target{}
++	for i, u := range units {
++		language := normalizeLanguage(u.file.Language, u.file.Path)
++		for _, owner := range gradedDeclaredConstraintOwners(u) {
++			key := language + "#" + u.pkg + "#" + owner
++			registry[key] = append(registry[key], target{i, owner})
++		}
++
++	}
++	byKey := map[string][]*operation{}
++	for _, u := range units {
++		for _, op := range u.ops {
++			indexOperation(byKey, op)
++		}
++	}
++	type phaseWitness struct {
++		target target
++		record gradedConstraint
++	}
++	phases := []phaseWitness{}
++	writes := map[string]map[string]map[string]bool{}
++
++	for _, u := range units {
++		for _, original := range u.ops {
++			eager := *original
++			eager.body = gradedEagerBody(pruneDeadFalseBranches(original.body), original.language)
++			op := &eager
++			bindings := map[string]string{}
++			for name, typ := range op.parameterTypes {
++				bindings[name] = typ
++			}
++			for name, field := range callerDeclaredFields(u, op.owner) {
++				if bindings[name] == "" {
++					bindings[name] = field.typeName
++				}
++			}
++			for receiver, typ := range bindings {
++				typ = strings.TrimSpace(strings.TrimLeft(typ, "*&"))
++				typ = strings.TrimPrefix(typ, "mut")
++				candidates := registry[op.language+"#"+u.pkg+"#"+typ]
++				if len(candidates) != 1 {
++					continue
++				}
++				target := candidates[0]
++				if target.index == op.file && target.owner == op.owner {
++					continue
++				}
++				reassigned := false
++				for i, tok := range op.body {
++					if tok.text == receiver && i+1 < len(op.body) && (op.body[i+1].text == "=" || op.body[i+1].text == ":=") {
++						reassigned = true
++					}
++				}
++				if reassigned {
++					continue
++				}
++				if op.language != "java" {
++					for i := 2; i+2 < len(op.body); i++ {
++						if op.body[i-2].text != receiver || op.body[i-1].text != "." || op.body[i+1].text != "=" || (!gradedExactBooleanAssignment(op.body, i, "true") && !gradedExactBooleanAssignment(op.body, i, "false")) {
++							continue
++						}
++						key := itoa(target.index) + "#" + target.owner + "#" + op.body[i].text
++						if writes[key] == nil {
++							writes[key] = map[string]map[string]bool{}
++						}
++						value := op.body[i+2].text
++						if writes[key][value] == nil {
++							writes[key][value] = map[string]bool{}
++						}
++						writes[key][value][op.id] = true
++					}
++					for _, consumer := range gradedConsumerConstraints(op, u, units, byKey, map[string]map[string]bool{}, 0) {
++						names := []string{}
++						for field := range consumer.fields {
++							prefix := receiver + "."
++							if strings.HasPrefix(field, prefix) {
++								name := strings.TrimPrefix(field, prefix)
++								if _, ok := callerDeclaredFields(units[target.index], target.owner)[name]; ok {
++									names = append(names, name)
++								}
++							}
++						}
++						sort.Strings(names)
++						names = uniqueConstraintStrings(names)
++						if consumer.lifecycle && len(names) != 1 || !consumer.lifecycle && len(names) < 2 {
++							continue
++						}
++						source := units[consumer.op.file].file
++						offset := 0
++						if len(consumer.op.body) > 0 {
++							offset = consumer.op.body[0].offset
++						}
++						kind := "resolved-callee-precondition"
++						if consumer.lifecycle {
++							kind = "phase-admission"
++						}
++						record := gradedConstraint{id: target.owner + "#" + kind + "#" + strings.Join(names, ","), kind: kind, fields: names, operation: consumer.op.id, offset: offset, source: &source}
++						phases = append(phases, phaseWitness{target: target, record: record})
++					}
++
++				}
++				copy := *op
++				copy.owner = target.owner
++				copy.receiverName = receiver
++				copy.constraintReceiver = receiver
++				records := gradedOwnerConstraints(units[target.index], target.owner, []*operation{&copy})
++				if len(records) == 0 {
++					continue
++				}
++				if units[target.index].callerObligations == nil {
++					units[target.index].callerObligations = map[string]gradedCallerObligation{}
++				}
++				entry := units[target.index].callerObligations[target.owner]
++				declared := callerDeclaredFields(units[target.index], target.owner)
++				for _, record := range records {
++					source := u.file
++					record.source = &source
++					// Every participant must refer to this typed receiver in the witness.
++					qualified := true
++					for _, field := range record.fields {
++						found := false
++						for i := 2; i < len(op.body); i++ {
++							found = found || op.body[i].text == field && op.body[i-1].text == "." && op.body[i-2].text == receiver
++						}
++						qualified = qualified && found
++					}
++					if !qualified {
++						continue
++					}
++					for _, field := range record.fields {
++						f := declared[field]
++						if f.mutable && (f.public || f.packageVisible) {
++							entry.fields = append(entry.fields, field)
++						}
++					}
++					entry.constraints = append(entry.constraints, record)
++					entry.evidence = append(entry.evidence, record.evidence(u))
++				}
++				sort.Strings(entry.fields)
++				entry.fields = uniqueConstraintStrings(entry.fields)
++				units[target.index].callerObligations[target.owner] = entry
++			}
++		}
++	}
++	seen := map[string]bool{}
++	for _, phase := range phases {
++		target, record := phase.target, phase.record
++		key := itoa(target.index) + "#" + target.owner + "#" + record.fields[0]
++		states := writes[key]
++		distinct := false
++		for open := range states["true"] {
++			for close := range states["false"] {
++				distinct = distinct || open != close
++			}
++		}
++		if record.kind == "phase-admission" && !distinct || seen[key+record.id] {
++			continue
++		}
++		seen[key+record.id] = true
++		if units[target.index].callerObligations == nil {
++			units[target.index].callerObligations = map[string]gradedCallerObligation{}
++		}
++		entry := units[target.index].callerObligations[target.owner]
++		entry.sequencing = entry.sequencing || record.kind == "phase-admission"
++		entry.fields = append(entry.fields, record.fields...)
++		entry.constraints = append(entry.constraints, record)
++		units[target.index].callerObligations[target.owner] = entry
++	}
++
++}
++func uniqueConstraintStrings(values []string) []string {
++	result := []string{}
++	for _, value := range values {
++		if len(result) == 0 || result[len(result)-1] != value {
++			result = append(result, value)
++		}
++	}
++	return result
++}
++
++// Storage declarations exist independently of methods. An unrelated method
++// cannot create (or erase) the caller's resolved storage identity.
++func gradedDeclaredConstraintOwners(u unit) []string {
++	language := normalizeLanguage(u.file.Language, u.file.Path)
++	seen := map[string]bool{}
++	result := []string{}
++	for i, t := range u.tokens {
++		if i+1 >= len(u.tokens) {
++			continue
++		}
++		if t.text != "class" && t.text != "struct" && t.text != "type" {
++			continue
++		}
++		name := u.tokens[i+1].text
++		if seen[name] || gradedFindSurfaceOwner(u.tokens, language, name) == nil {
++			continue
++		}
++		seen[name] = true
++		result = append(result, name)
++	}
++	return result
++}
+--- before/go/internal/sourceestimate/graded_constraint_consumers.go
++++ after/go/internal/sourceestimate/graded_constraint_consumers.go
+@@ -0,0 +1,174 @@
++package sourceestimate
++
++import "strings"
++
++// Consumer preconditions follow actual parameter bindings through resolved
++// calls. A selection/projection or two calls sharing arguments is not a
++// constraint. Only rejecting relational clauses and phase admission qualify.
++type gradedConsumerConstraint struct {
++	fields    map[string]bool
++	op        *operation
++	lifecycle bool
++}
++
++func gradedConsumerConstraints(op *operation, u unit, units []unit, index map[string][]*operation, bindings map[string]map[string]bool, depth int) []gradedConsumerConstraint {
++	budget := gradedSurfaceTokenLimit
++	return gradedConsumerConstraintsBounded(op, u, units, index, bindings, depth, &budget)
++}
++func gradedConsumerConstraintsBounded(op *operation, u unit, units []unit, index map[string][]*operation, bindings map[string]map[string]bool, depth int, budget *int) []gradedConsumerConstraint {
++	if len(op.body) > *budget {
++		return nil
++	}
++	*budget -= len(op.body)
++
++	if depth > maxCallDepth || bindings["#visited:"+op.id] != nil {
++		return nil
++	}
++	bindings["#visited:"+op.id] = map[string]bool{}
++	copy := *op
++	copy.fieldTypes = cloneStringMap(op.fieldTypes)
++	if copy.fieldTypes == nil {
++		copy.fieldTypes = map[string]string{}
++	}
++	for name, field := range callerDeclaredFields(u, op.owner) {
++		copy.fieldTypes[name] = field.typeName
++	}
++	for name, typ := range op.parameterTypes {
++		copy.fieldTypes[name] = typ
++	}
++	op = &copy
++	body := gradedEagerBody(pruneDeadFalseBranches(op.body), op.language)
++	deps := func(expression []token) map[string]bool {
++		result := map[string]bool{}
++		for value := range gradedCallerDependencies(expression) {
++			if replacement, ok := bindings[value]; ok {
++				for dep := range replacement {
++					result[dep] = true
++				}
++			} else {
++				result[value] = true
++			}
++		}
++		return result
++	}
++	calls := callsIn(body)
++	callsAt := map[int][]call{}
++	for _, c := range calls {
++		callsAt[c.position] = append(callsAt[c.position], c)
++	}
++	result := []gradedConsumerConstraint{}
++	for i, t := range body {
++		if (t.text == "=" || t.text == ":=") && i > 0 && isIdentifier(body[i-1].text) && (i < 2 || body[i-2].text != ".") {
++			if gradedUnconditional(body, i) {
++				bindings[body[i-1].text] = deps(body[i+1 : statementEnd(body, i+1)])
++			} else {
++				bindings[body[i-1].text] = map[string]bool{}
++			}
++		}
++		if t.text == "if" && i+1 < len(body) && gradedUnconditional(body, i) {
++			conditionStart := i + 1
++			close := conditionStart
++			if body[conditionStart].text == "(" {
++				close = matching(body, conditionStart, "(", ")")
++				conditionStart++
++			} else {
++				for close < len(body) && body[close].text != "{" {
++					close++
++				}
++			}
++			if close < 0 || close >= len(body) {
++				continue
++			}
++
++			start := close + 1
++			if start < len(body) && body[start].text == "{" {
++				start++
++			}
++			if start >= len(body) || body[start].text != "return" && body[start].text != "throw" {
++				continue
++			}
++			end := statementEnd(body, start)
++			useful := false
++			for _, c := range calls {
++				useful = useful || c.position > end
++			}
++			if !useful {
++				continue
++			}
++			condition := body[conditionStart:close]
++			// Boolean admission controls execution of subsequent operations. Producer
++			// confirmation later requires both phases on the exact mutable location.
++			if field := gradedBooleanConstraintField(condition); len(field) > 0 {
++				result = append(result, gradedConsumerConstraint{fields: deps(field), op: op, lifecycle: true})
++			}
++			clause := 0
++			for j := 0; j <= len(condition); j++ {
++				if j < len(condition) && condition[j].text != "||" && condition[j].text != "&&" {
++					continue
++				}
++				part := condition[clause:j]
++				comparison := false
++				for _, tok := range part {
++					comparison = comparison || tok.text == "<" || tok.text == ">" || tok.text == "<=" || tok.text == ">=" || tok.text == "==" || tok.text == "!="
++				}
++				fields := deps(part)
++				if comparison && len(fields) >= 2 {
++					result = append(result, gradedConsumerConstraint{fields: fields, op: op})
++				}
++				clause = j + 1
++			}
++		}
++		for _, c := range callsAt[i] {
++			matches := resolveCall(op, c, units, index)
++			if len(matches) != 1 {
++				continue
++			}
++			callee := matches[0]
++			if len(c.actuals) != len(callee.paramNames) {
++				continue
++			}
++			inherited := map[string]map[string]bool{}
++			for key, value := range bindings {
++				if strings.HasPrefix(key, "#visited:") {
++					inherited[key] = value
++				}
++			}
++			for j, name := range callee.paramNames {
++				inherited[name] = deps(c.actuals[j])
++			}
++			result = append(result, gradedConsumerConstraintsBounded(callee, units[callee.file], units, index, inherited, depth+1, budget)...)
++			if len(result) > 128 {
++				return result[:128]
++			}
++		}
++	}
++	return result
++}
++
++// Boolean polarity changes which phase admits work, not whether the caller
++// must coordinate that phase. Both transitions are still required separately.
++func gradedBooleanConstraintField(condition []token) []token {
++	condition = gradedResultUngroup(condition)
++	for len(condition) > 0 && condition[0].text == "!" {
++		condition = gradedResultUngroup(condition[1:])
++	}
++	if len(condition) == 3 && condition[1].text == "." {
++		return condition
++	}
++	for i, t := range condition {
++		if t.text != "==" && t.text != "!=" {
++			continue
++		}
++		left, right := gradedResultUngroup(condition[:i]), gradedResultUngroup(condition[i+1:])
++		if len(right) > 0 && right[0].text == "=" {
++			right = right[1:]
++		}
++		if len(right) == 1 && (right[0].text == "true" || right[0].text == "false") {
++			return gradedBooleanConstraintField(left)
++		}
++		if len(left) == 1 && (left[0].text == "true" || left[0].text == "false") {
++			return gradedBooleanConstraintField(right)
++		}
++	}
++	return nil
++}
+--- before/go/internal/sourceestimate/graded_constraint_review_test.go
++++ after/go/internal/sourceestimate/graded_constraint_review_test.go
+@@ -0,0 +1,290 @@
++package sourceestimate
++
++import (
++	"strings"
++	"testing"
++)
++
++type constraintReviewFixture struct{ lang, path, decl, method, end, receiver, size, closure, caller, irrelevant string }
++
++func constraintReviewFixtures() []constraintReviewFixture {
++	return []constraintReviewFixture{
++		{"java", "Buffer.java", `public class Buffer{public int[] Data=new int[0];public int Count;`, `public int read(){`, `}}`, `this.`, `this.Data.length`, `Runnable ignored=()->{this.Data[this.Count-1]=1;};return 0;`, `class Caller{int read(Buffer b){return b.Data[b.Count-1];}}`, `public int unrelated(){return 1;}`},
++		{"typescript", "Buffer.ts", `export class Buffer{public Data:number[]=[];public Count=0;`, `read():number{`, `}}`, `this.`, `this.Data.length`, `const ignored=()=>{this.Data[this.Count-1]=1;};return 0;`, `import {Buffer} from './Buffer';export function read(b:Buffer){return b.Data[b.Count-1];}`, `unrelated(){return 1;}`},
++		{"go", "buffer.go", `package p;type Buffer struct{Data []int;Count int};`, `func(b *Buffer)Read()int{`, `}`, `b.`, `len(b.Data)`, `ignored:=func(){b.Data[b.Count-1]=1};_=ignored;return 0`, `package p;func Read(b *Buffer)int{return b.Data[b.Count-1]}`, `func(b *Buffer)Unrelated()int{return 1}`},
++		{"rust", "buffer.rs", `pub struct Buffer{pub Data:Vec<i32>,pub Count:usize}impl Buffer{`, `pub fn read(&mut self)->i32{`, `}}`, `self.`, `self.Data.len()`, `let ignored=||{self.Data[self.Count-1]=1;};return 0;`, `use crate::Buffer;pub fn read(b:&Buffer)->i32{b.Data[b.Count-1]}`, `pub fn unrelated(&self)->i32{1}`},
++	}
++}
++func TestConstraintReviewedIndexAndDeferredMatrix(t *testing.T) {
++	for _, tc := range constraintReviewFixtures() {
++		t.Run(tc.lang, func(t *testing.T) {
++			run := func(body string) *GradedEvidence {
++				return structuralResult(tc.lang, tc.path, tc.decl+tc.method+body+tc.end).Grade
++			}
++			index := tc.receiver + "Data[" + tc.receiver + "Count-1]"
++			if g := run(index + "=7;return 0;"); g.Surface.RepresentationUnits != 4 {
++				t.Fatalf("indexed write lost bounds: %+v", g)
++			}
++			if g := run("if(" + tc.size + "==0){return 0;}return " + tc.receiver + "Data[0];"); g.Surface.RepresentationUnits != 0 {
++				t.Fatalf("guarded constant access: %+v", g)
++			}
++			reject := "throw new IllegalStateException();"
++			if tc.lang == "typescript" {
++				reject = "throw new Error();"
++			}
++			if tc.lang == "go" {
++				reject = `panic("invalid")`
++			}
++			if tc.lang == "rust" {
++				reject = `assert!(false);`
++			}
++			if g := run("if(" + tc.receiver + "Count!=" + tc.size + "){" + reject + "}return 0;"); g.Surface.RepresentationUnits != 4 {
++				t.Fatalf("size equality lost actual constraint: %+v", g)
++			}
++			if g := run(tc.closure); g.Surface.RepresentationUnits != 0 {
++				t.Fatalf("deferred closure invented obligation: %+v", g)
++			}
++		})
++	}
++}
++func TestConstraintDataOnlyRegistry(t *testing.T) {
++	for _, tc := range constraintReviewFixtures() {
++		t.Run(tc.lang, func(t *testing.T) {
++			base := tc.decl
++			if tc.lang == "java" || tc.lang == "typescript" {
++				base += "}"
++			}
++			if tc.lang == "rust" {
++				base = strings.TrimSuffix(base, "impl Buffer{")
++			}
++			withMethod := base
++			if tc.lang == "java" || tc.lang == "typescript" {
++				withMethod = strings.TrimSuffix(base, "}") + tc.irrelevant + "}"
++			} else if tc.lang == "rust" {
++				withMethod += "impl Buffer{" + tc.irrelevant + "}"
++			} else {
++				withMethod += tc.irrelevant
++			}
++			for _, source := range []string{base, withMethod} {
++				files := []File{{Path: tc.path, Language: tc.lang, Source: []byte(source)}, {Path: "caller." + strings.Split(tc.path, ".")[1], Language: tc.lang, Source: []byte(tc.caller)}}
++				g := Analyze(files)[tc.path].Grade
++				if g == nil || g.Surface.RepresentationUnits != 4 {
++					t.Fatalf("method-independent storage: %+v source=%s", g, source)
++				}
++			}
++		})
++	}
++}
++
++func TestConstraintReviewedConsumerEqualityMatrix(t *testing.T) {
++	for _, tc := range []struct{ lang, path, storage, caller string }{
++		{"java", "State.java", `public class State{public int Left;public int Right;}`, `class Calls{void set(State s,int x,int y){s.Left=x;s.Right=y;}int read(State s){return check(s.Left,s.Right);}int check(int a,int b){if(a!=b)return -1;return effect(a);}int effect(int a){return a+1;}}`},
++		{"typescript", "State.ts", `export class State{public Left=0;public Right=0;}`, `import {State} from './State';export function read(s:State){return check(s.Left,s.Right);}function check(a:number,b:number){if(a!=b)return -1;return effect(a);}function effect(a:number){return a+1;}`},
++		{"go", "state.go", `package p;type State struct{Left int;Right int}`, `package p;func Read(s *State)int{return check(s.Left,s.Right)};func check(a,b int)int{if a!=b{return -1};return effect(a)};func effect(a int)int{return a+1}`},
++		{"rust", "state.rs", `pub struct State{pub Left:i32,pub Right:i32}`, `use crate::State;pub fn read(s:&State)->i32{return check(s.Left,s.Right);}fn check(a:i32,b:i32)->i32{if a!=b{return -1;}return effect(a);}fn effect(a:i32)->i32{a+1}`},
++	} {
++		t.Run(tc.lang, func(t *testing.T) {
++			files := []File{{Path: tc.path, Language: tc.lang, Source: []byte(tc.storage)}, {Path: "caller." + strings.Split(tc.path, ".")[1], Language: tc.lang, Source: []byte(tc.caller)}}
++			g := Analyze(files)[tc.path].Grade
++			if g == nil || g.Surface.RepresentationUnits != 4 {
++				t.Fatalf("resolved equality precondition missing: %+v", g)
++			}
++			files[1].Source = []byte(strings.ReplaceAll(tc.caller, "a!=b", "a==b"))
++			if g := Analyze(files)[tc.path].Grade; g.Surface.RepresentationUnits != 4 {
++				t.Fatalf("inverse relational precondition missing: %+v", g)
++			}
++		})
++	}
++}
++
++func TestConstraintReviewedOwnerIsolation(t *testing.T) {
++	u := gradedSurfaceUnit("java", "Both.java", `class A{int read(){return 1;}}class B{int[] Data;int Count;}`)
++	u.callerObligations = map[string]gradedCallerObligation{"B": {fields: []string{"Data", "Count"}, constraints: []gradedConstraint{{id: "B#bounds#Count,Data", kind: "index-bounds", fields: []string{"Count", "Data"}}}}}
++	surface := gradedCallerSurface(u, u.ops)
++	if surface.RepresentationUnits != 0 || len(surface.Constraints) != 0 {
++		t.Fatalf("B burden projected onto A: %+v", surface)
++	}
++	surface = gradedCallerSurface(u, nil)
++	if surface.RepresentationUnits != 4 || len(surface.Constraints) != 1 {
++		t.Fatalf("data-owner constraint unavailable: %+v", surface)
++	}
++}
++
++func TestConstraintReviewedMaintenanceExitAndOffset(t *testing.T) {
++	for _, index := range []string{"b.Count-1", "b.Count"} {
++		for _, tail := range []string{"", "b.Count=1000;", "b.Data=nil;", "b=&Buffer{};", "mutate(b);"} {
++			source := `package p;type Buffer struct{Data []int;Count int};func(b *Buffer)Read()int{return b.Data[` + index + `]};func(b *Buffer)Replace(input []int){b.Data=input;b.Count=len(b.Data);` + tail + `}`
++			u := gradedSurfaceUnit("go", "x.go", source)
++			for _, op := range u.ops {
++				if op.name != "Replace" {
++					continue
++				}
++				want := index == "b.Count-1" && tail == ""
++				if gradeConsistentWrites(op, u, op.body) != want {
++					t.Fatalf("maintenance offset=%s tail=%s want=%v", index, tail, want)
++				}
++			}
++		}
++	}
++	for _, reverse := range []bool{false, true} {
++		value := `func(b Buffer)Replace(input []int){b.Data=input;b.Count=len(b.Data);b.Count++;}`
++		pointer := `func(b *Other)Replace(input []int){b.Data=input;b.Count=len(b.Data);}`
++		source := `package p;type Buffer struct{Data []int;Count int};type Other struct{Data []int;Count int};`
++		if reverse {
++			source += pointer + ";" + value
++		} else {
++			source += value + ";" + pointer
++		}
++		u := gradedSurfaceUnit("go", "x.go", source)
++		for _, op := range u.ops {
++			if gradedMutableGoReceiver(op, u) != (op.owner == "Other") {
++				t.Fatalf("receiver identity lost: owner=%s", op.owner)
++			}
++		}
++	}
++	g := structuralResult("go", "x.go", `package p;type Buffer struct{Data []int;Count int};func(b Buffer)Replace(input []int){b.Data=input;b.Count=len(b.Data);b.Count++;}`).Grade
++	for _, category := range []string{"state", "state-consistency", "invariant-transformation", "transform"} {
++		if g.Responsibilities[category] != 0 {
++			t.Fatalf("copy-only command credited %s: %+v", category, g)
++		}
++	}
++	guarded := `package p;type Buffer struct{Data []int;Count int};func(b *Buffer)Read()int{if b.Count<=0 || b.Count>len(b.Data){return 0};b=&Buffer{};return b.Data[b.Count-1]}`
++	if g := structuralResult("go", "x.go", guarded).Grade; g.Surface.RepresentationUnits != 4 {
++		t.Fatalf("replacement retained guard: %+v", g)
++	}
++}
++
++func TestConstraintReviewedLexicalBuiltinShadow(t *testing.T) {
++	base := `package p;type Buffer struct{Data []int;Count int};func(b *Buffer)Read()int{if b.Count<=0 || b.Count>len(b.Data){return 0};return b.Data[b.Count-1]};`
++	local := `func unrelated(){var len=1;_ = len}`
++	for _, extra := range []string{local, strings.ReplaceAll(local, "len", "size")} {
++		g := structuralResult("go", "x.go", base+extra).Grade
++		if g.Surface.RepresentationUnits != 0 {
++			t.Fatalf("unrelated local shadow leaked: %+v", g)
++		}
++	}
++	files := []File{{Path: "x.go", Language: "go", Source: []byte(base)}, {Path: "shadow.go", Language: "go", Source: []byte(`package p;var len=func(x []int)int{return 1000}`)}}
++	if g := Analyze(files)["x.go"].Grade; g.Surface.RepresentationUnits != 4 {
++		t.Fatalf("package shadow ignored: %+v", g)
++	}
++}
++
++func TestConstraintReviewedVariantOutputConnection(t *testing.T) {
++	for _, tc := range []struct{ lang, path, prefix, suffix, connected, disconnected, extracted string }{
++		{"java", "Example.java", `public class Example{public int read(int x){`, `}private int helper(int x){return x*2;}}`, `switch(x){case 0:return x*2;default:return 0;}`, `switch(x){case 0:helper(x);break;default:break;}return helper(x);`, `switch(x){case 0:return helper(x);default:return 0;}`},
++		{"typescript", "example.ts", `export class Example{read(x:number){`, `}private helper(x:number){return x*2;}}`, `switch(x){case 0:return x*2;default:return 0;}`, `switch(x){case 0:this.helper(x);break;default:break;}return this.helper(x);`, `switch(x){case 0:return this.helper(x);default:return 0;}`},
++		{"go", "example.go", `package p;type Example struct{};func(e Example)Read(x int)int{`, `};func(e Example)helper(x int)int{return x*2}`, `switch x{case 0:return x*2;default:return 0}`, `switch x{case 0:e.helper(x);default:};return e.helper(x)`, `switch x{case 0:return e.helper(x);default:return 0}`},
++		{"rust", "example.rs", `pub struct Example{}impl Example{pub fn read(&self,x:i32)->i32{`, `}fn helper(&self,x:i32)->i32{x*2}}`, `match x{0=>x*2,_=>0}`, `match x{0=>{self.helper(x);},_=>{}};self.helper(x)`, `match x{0=>self.helper(x),_=>0}`},
++	} {
++		t.Run(tc.lang, func(t *testing.T) {
++			for _, entry := range []struct {
++				body string
++				want float64
++			}{{tc.connected, 2}, {tc.extracted, 2}, {tc.disconnected, 0}} {
++				g := structuralResult(tc.lang, tc.path, tc.prefix+entry.body+tc.suffix).Grade
++				if g == nil || g.Responsibilities["representation-transformation"] != entry.want {
++					t.Fatalf("branch output %s: %+v", entry.body, g)
++				}
++			}
++		})
++	}
++}
++
++func TestConstraintReviewedAggregateAllowanceMatrix(t *testing.T) {
++	for _, tc := range []struct{ lang, path, prefix, suffix, constructed, copied, declare, overwrite, known string }{
++		{"java", "Example.java", `public class Example{private int total;public Object read(int x,int a,int b,int c){`, `}}`, `new Object[]{External.outer(External.inner(x))}`, `new Object[]{x}`, `Object value=`, `value=`, `this.total=x*2;`},
++		{"typescript", "example.ts", `export class Example{private total=0;read(x:number,a:number,b:number,c:number){`, `}}`, `{value:external.outer(external.inner(x))}`, `{value:x}`, `let value=`, `value=`, `this.total=x*2;`},
++		{"go", "example.go", `package p;type Example struct{total int};func(e *Example)Read(x,a,b,c int)map[string]int{`, `}`, `map[string]int{"value":external.Outer(external.Inner(x))}`, `map[string]int{"value":x}`, `value:=`, `value=`, `e.total=x*2;`},
++		{"rust", "example.rs", `pub struct Output{value:i32}pub struct Example{total:i32}impl Example{pub fn read(&mut self,x:i32,a:i32,b:i32,c:i32)->Output{`, `}}`, `Output{value:external::outer(external::inner(x))}`, `Output{value:x}`, `let mut value=`, `value=`, `self.total=x*2;`},
++	} {
++		t.Run(tc.lang, func(t *testing.T) {
++			run := func(body string) *GradedEvidence {
++				return structuralResult(tc.lang, tc.path, tc.prefix+body+tc.suffix).Grade
++			}
++			positive := run("return " + tc.constructed + ";")
++			if positive == nil || positive.EstimatedHidden != DefaultCalibration().TransformationEnvelope || positive.Responsibilities["validation"] != 0 || positive.Hidden != 0 || positive.Value() != 13 {
++				t.Fatalf("aggregate inferred non-transform duty: %+v", positive)
++			}
++			for _, body := range []string{"return " + tc.copied + ";", tc.declare + tc.constructed + ";return " + tc.copied + ";", tc.declare + tc.constructed + ";" + tc.overwrite + tc.copied + ";return value;"} {
++				g := run(body)
++				if g.EstimatedHidden != 0 || g.Hidden != 0 || (g.Value() < 0 || g.Value() > 100) {
++					t.Fatalf("copy/discard/overwrite gained responsibility: %s %+v", body, g)
++				}
++			}
++			known := run(tc.known + "return " + tc.constructed + ";")
++			if known.Responsibilities["invariant-transformation"] == 0 || known.EstimatedHidden != 0 || known.Responsibilities["validation"] != 0 {
++				t.Fatalf("known transform was not deducted: %+v", known)
++			}
++		})
++	}
++}
++
++func TestConstraintReviewedUnrelatedVariantSinks(t *testing.T) {
++	for _, tc := range []struct{ lang, path, source string }{
++		{"java", "Example.java", `class Example{int[] value;void run(int x,java.util.List<Integer> output){switch(x){case 0:break;default:break;}output.add(helper(x));this.value=new int[]{helper(x)};}int helper(int x){return x*2;}}`},
++		{"typescript", "example.ts", `class Example{value:any;run(x:number,output:number[]){switch(x){case 0:break;default:break;}output.push(this.helper(x));this.value={value:this.helper(x)};}private helper(x:number){return x*2;}}`},
++		{"go", "example.go", `package p;type Output interface{Add(int)};type Example struct{Value map[string]int};func(e *Example)Run(x int,output Output){switch x{case 0:default:};output.Add(helper(x));e.Value=map[string]int{"value":helper(x)}};func helper(x int)int{return x*2}`},
++		{"rust", "example.rs", `struct Value{value:i32}struct Example{value:Value}impl Example{fn run(&mut self,x:i32,output:&mut Vec<i32>){match x{0=>{},_=>{}};output.push(helper(x));self.value=Value{value:helper(x)};}}fn helper(x:i32)->i32{x*2}`},
++	} {
++		u := gradedSurfaceUnit(tc.lang, tc.path, tc.source)
++		for _, op := range u.ops {
++			if !strings.EqualFold(op.name, "run") {
++				continue
++			}
++			if op.owner == "" {
++				op.owner = "Example"
++			}
++			op.outputBuffers = []string{"output"}
++			if gradeTypedAlternatives(op, u, op.body) {
++				t.Fatalf("%s unrelated output sink acquired variant responsibility", tc.lang)
++			}
++		}
++	}
++}
++
++func TestConstraintGoParallelWritesInvalidateProof(t *testing.T) {
++	for _, tail := range []string{"b.Count, other=1000,0;", "other,b.Count=0,1000;", "b,other=replacement,0;", "other,b=0,replacement;", "b.Data,other=nil,0;", "other,b.Data=0,nil;", "other,another=0,1;"} {
++		t.Run(tail, func(t *testing.T) {
++			harmless := tail == "other,another=0,1;"
++			prefix := `package p;type Buffer struct{Data []int;Count int};`
++			guarded := prefix + `func(b *Buffer)Read(other,another int,replacement *Buffer)int{if b.Count<=0 || b.Count>len(b.Data){return 0};` + tail + `return b.Data[b.Count-1]}`
++			g := structuralResult("go", "x.go", guarded).Grade
++			want := float64(4)
++			if harmless {
++				want = 0
++			}
++			if g.Surface.RepresentationUnits != want {
++				t.Fatalf("parallel guard invalidation: %+v", g)
++			}
++			source := prefix + `func(b *Buffer)Read()int{return b.Data[b.Count-1]};func(b *Buffer)Replace(input []int,other,another int,replacement *Buffer){b.Data=input;b.Count=len(b.Data);` + tail + `}`
++			u := gradedSurfaceUnit("go", "x.go", source)
++			for _, op := range u.ops {
++				if op.name == "Replace" && gradeConsistentWrites(op, u, op.body) != harmless {
++					t.Fatalf("parallel maintenance invalidation failed: %s", tail)
++				}
++			}
++		})
++	}
++}
++
++func TestConstraintRustParameterizedMoveClosuresAreDeferred(t *testing.T) {
++	for _, parameter := range []string{"x", "x:i32"} {
++		t.Run(parameter, func(t *testing.T) {
++			owner := `pub struct Buffer{pub Data:Vec<i32>,pub Count:usize}impl Buffer{pub fn read(&mut self)->i32{let ignored=move |` + parameter + `|{let _:i32=x;self.Data[self.Count-1]};return 0;}}`
++			g := structuralResult("rust", "x.rs", owner).Grade
++			if g.Surface.RepresentationUnits != 0 {
++				t.Fatalf("deferred owner constraint: %+v", g)
++			}
++			output := `pub fn collect(output:&mut Vec<i32>){let ignored=move |` + parameter + `|{output.push(x);};}`
++			g = structuralResult("rust", "x.rs", output).Grade
++			if g.Surface.RepresentationUnits != 0 {
++				t.Fatalf("deferred output obligation: %+v", g)
++			}
++			files := []File{{Path: "state.rs", Language: "rust", Source: []byte(`pub struct State{pub active:bool,pub value:i32}`)}, {Path: "calls.rs", Language: "rust", Source: []byte(`use crate::State;pub fn open(s:&mut State){let ignored=move |` + parameter + `|{let _:i32=x;s.active=true;};}pub fn close(s:&mut State){s.active=false;}pub fn next(s:&mut State)->i32{if !s.active{return -1;}s.value+=1;return s.value;}`)}}
++			g = Analyze(files)["state.rs"].Grade
++			if g != nil && g.Surface.RepresentationUnits != 0 {
++				t.Fatalf("deferred phase producer: %+v", g)
++			}
++		})
++	}
++}
+--- before/go/internal/sourceestimate/graded_constraints.go
++++ after/go/internal/sourceestimate/graded_constraints.go
+@@ -0,0 +1,507 @@
++package sourceestimate
++
++import (
++	"fmt"
++	"sort"
++	"strconv"
++	"strings"
++)
++
++// ConstraintEvidence exposes stable storage identities and the bounded proof
++// independently of the score and of human-readable evidence strings.
++type ConstraintEvidence struct {
++	ID                  string   `json:"id"`
++	Kind                string   `json:"kind"`
++	IndexExpression     string   `json:"index_expression,omitempty"`
++	Storage             []string `json:"storage"`
++	CallerControlled    []string `json:"caller_controlled"`
++	Operation           string   `json:"operation"`
++	Path                string   `json:"path"`
++	Offset              int      `json:"offset"`
++	Line                int      `json:"line"`
++	Column              int      `json:"column"`
++	InternallyProtected bool     `json:"internally_protected"`
++	Limitations         []string `json:"limitations"`
++}
++
++func (c gradedConstraint) finding(u unit, controlled []string) ConstraintEvidence {
++	location := u.file
++	if c.source != nil {
++		location = *c.source
++	}
++	line, column := 1, 1
++	for i, b := range location.Source {
++		if i >= c.offset {
++			break
++		}
++		if b == '\n' {
++			line++
++			column = 1
++		} else {
++			column++
++		}
++	}
++	storage := make([]string, 0, len(c.fields))
++	for _, field := range c.fields {
++		storage = append(storage, u.file.Path+"#"+strings.Split(c.id, "#")[0]+"."+field)
++	}
++	return ConstraintEvidence{ID: u.file.Path + "#" + c.id, Kind: c.kind, IndexExpression: c.indexExpression, Storage: storage, CallerControlled: controlled, Operation: c.operation, Path: location.Path, Offset: c.offset, Line: line, Column: column, InternallyProtected: c.protected, Limitations: []string{"unknown external callers", "bounded local control and size-contract proof"}}
++}
++
++// Constraints witness preconditions on exact storage, never field co-occurrence.
++type gradedConstraint struct {
++	id, kind                         string
++	derivedTarget, derivedExpression string
++	indexExpression                  string
++	fields                           []string
++	operation                        string
++	offset                           int
++	protected                        bool
++	source                           *File
++}
++
++func (c gradedConstraint) evidence(u unit) string {
++	if c.source != nil {
++		u.file = *c.source
++	}
++	line, column := 1, 1
++	for i, b := range u.file.Source {
++		if i >= c.offset {
++			break
++		}
++		if b == '\n' {
++			line++
++			column = 1
++		} else {
++			column++
++		}
++	}
++	return fmt.Sprintf("constraint:%s:storage=%s:operation=%s:location=%s:%d:%d:internal-protection=%t:caller-control=declared-or-resolved-write:limitations=unknown-external-callers", c.kind, strings.Join(c.fields, ","), c.operation, u.file.Path, line, column, c.protected)
++}
++func gradedOwnerConstraints(u unit, owner string, roots []*operation) []gradedConstraint {
++	fields := callerDeclaredFields(u, owner)
++	records := map[string]gradedConstraint{}
++	for _, op := range roots {
++		if op.owner == "" {
++			copy := *op
++			copy.owner = gradedInferSurfaceOwner(u.tokens, op.language, op.name)
++			op = &copy
++		}
++		if op.owner != owner {
++			continue
++		}
++		body := gradedEagerBody(pruneDeadFalseBranches(op.body), op.language)
++		// Relational admission predicates constrain their operand storage. Split
++		// Boolean clauses so unrelated mode/metadata fields never join a pair.
++		start := 0
++		for end := 0; end <= len(body); end++ {
++			if end < len(body) && body[end].text != "&&" && body[end].text != "||" && body[end].text != ";" && body[end].text != "{" && body[end].text != "}" {
++				continue
++			}
++			comparison, admission, length, equality := false, false, false, false
++			names := []string{}
++			for j := start; j < end; j++ {
++				if body[j].text == "length" && j >= 2 && body[j-1].text == "." {
++					field, ok := fields[body[j-2].text]
++					length = length || ok && field.alias && gradeOwnedFieldReference(op, u, body, j-2)
++				}
++				if body[j].text == "len" && j+1 < end && body[j+1].text == "(" && gradedBuiltinName(u, op, "len") {
++					length = true
++				}
++				equality = equality || body[j].text == "==" || body[j].text == "!="
++				switch body[j].text {
++				case "==", "!=", "<", ">", "<=", ">=":
++					comparison = true
++				}
++				if body[j].text == "if" || body[j].text == "assert" {
++					admission = true
++				}
++				if _, ok := fields[body[j].text]; ok && gradeOwnedFieldReference(op, u, body, j) {
++					found := false
++					for _, name := range names {
++						found = found || name == body[j].text
++					}
++					if !found {
++						names = append(names, body[j].text)
++					}
++				}
++			}
++			// A continuing Boolean clause inherits its admission predicate.
++			if start > 0 && (body[start-1].text == "&&" || body[start-1].text == "||") {
++				for j := start - 2; j >= 0 && body[j].text != "{" && body[j].text != ";"; j-- {
++					admission = admission || body[j].text == "if" || body[j].text == "assert"
++				}
++			}
++			if (!length || equality) && admission && gradedConstraintRejects(op, u, body, end) && (comparison && len(names) == 2 || len(names) == 1 && gradedConstraintRejects(op, u, body, end)) {
++				sort.Strings(names)
++				id := owner + "#admission#" + strings.Join(names, ",")
++				record := gradedConstraint{id: id, kind: "relational-admission", fields: names, operation: op.id, offset: body[start].offset}
++				for j := start + 1; j < end; j++ {
++					if body[j].text != "!=" && !(body[j].text == "==" && op.language == "rust") {
++						continue
++					}
++					if _, ok := fields[body[j-1].text]; !ok || !gradeOwnedFieldReference(op, u, body, j-1) {
++						continue
++					}
++					last := j + 1
++					for last < end && body[last].text != ")" && body[last].text != "throw" && body[last].text != ";" {
++						last++
++					}
++					right := body[j+1 : last]
++					if len(right) > 0 && right[0].text == "=" {
++						right = right[1:]
++					}
++					if hasTransform(right) {
++						record.derivedTarget = body[j-1].text
++						record.derivedExpression = gradedConstraintExpression(op, u, right)
++					}
++				}
++				records[id] = record
++			}
++			start = end + 1
++		}
++
++		for i := 1; i < len(body); i++ {
++			if body[i].text != "[" {
++				continue
++			}
++			data := i - 1
++			if field, ok := fields[body[data].text]; !ok || !field.alias || (op.language == "go" && strings.HasPrefix(field.typeName, "map[")) || !gradeOwnedFieldReference(op, u, body, data) {
++				continue
++			}
++			end := matching(body, i, "[", "]")
++			if end < 0 {
++				continue
++			}
++			indexFields := false
++			for j := i + 1; j < end; j++ {
++				if _, ok := fields[body[j].text]; ok && gradeOwnedFieldReference(op, u, body, j) {
++					indexFields = true
++				}
++			}
++			if !indexFields {
++				id := owner + "#indexed-alias#" + body[data].text
++				record := gradedConstraint{id: id, kind: "indexed-alias", fields: []string{body[data].text}, operation: op.id, offset: body[i].offset, indexExpression: gradedConstraintExpression(op, u, body[i+1:end])}
++				record.protected = gradedBoundsProtection(op, u, body, i, body[data].text, record.indexExpression, body[i+1:end])
++				if previous, ok := records[id]; ok && !previous.protected {
++					record = previous
++				}
++				records[id] = record
++			}
++			for j := i + 1; j < end; j++ {
++				if _, ok := fields[body[j].text]; !ok || body[j].text == body[data].text || !gradeOwnedFieldReference(op, u, body, j) {
++					continue
++				}
++				names := []string{body[data].text, body[j].text}
++				sort.Strings(names)
++				id := owner + "#bounds#" + strings.Join(names, ",")
++				record := gradedConstraint{id: id, kind: "index-bounds", fields: names, operation: op.id, offset: body[i].offset, indexExpression: gradedConstraintExpression(op, u, body[i+1:end])}
++				record.protected = gradedBoundsProtection(op, u, body, i, body[data].text, body[j].text, body[i+1:end])
++				if previous, ok := records[id]; ok {
++					if !previous.protected {
++						record = previous
++					}
++				}
++				records[id] = record
++			}
++		}
++	}
++	ids := make([]string, 0, len(records))
++	for id := range records {
++		ids = append(ids, id)
++	}
++	sort.Strings(ids)
++	result := make([]gradedConstraint, 0, len(ids))
++	for _, id := range ids {
++		result = append(result, records[id])
++	}
++	return result
++}
++
++func gradedConstraintRejects(op *operation, u unit, body []token, end int) bool {
++	for i := end; i < len(body); i++ {
++		if body[i].text == "throw" || gradedConstraintBuiltinReject(op, u, body, i) {
++			return true
++		}
++		if body[i].text == "}" || body[i].text == ";" {
++			break
++		}
++	}
++	for i := end - 1; i >= 0 && body[i].text != ";" && body[i].text != "{"; i-- {
++		if body[i].text == "throw" || gradedConstraintBuiltinReject(op, u, body, i) {
++			return true
++		}
++	}
++	return false
++}
++
++// Require the actual upper and lower bound, their polarity, and a rejecting
++// branch before the access. Unresolved offset forms remain explicit obligations.
++func gradedBoundsProtection(op *operation, u unit, body []token, access int, data, index string, expression []token) bool {
++	expr := gradedConstraintExpression(op, u, expression)
++	offset := 0
++	if expr == index+"-1" {
++		offset = 1
++	} else if expr != index {
++		return false
++	}
++	lower := map[string]bool{index + "<0": true}
++	upper := index + ">=size(" + data + ")"
++	if offset == 1 {
++		lower = map[string]bool{index + "<=0": true, index + "<1": true}
++		upper = index + ">size(" + data + ")"
++	}
++	for i := 0; i < access; i++ {
++		if body[i].text != "if" || !gradedUnconditional(body, i) {
++			continue
++		}
++		open := i + 1
++		for open < access && body[open].text != "{" {
++			open++
++		}
++		if open >= access {
++			continue
++		}
++		end := matching(body, open, "{", "}")
++		if end < 0 || end >= access || open+1 >= end {
++			continue
++		}
++		// Reject must itself be unconditional, not hidden in a nested branch.
++		first := body[open+1].text
++		if first != "return" && first != "throw" && !(first == "panic" && op.language == "go" && gradedBuiltinName(u, op, "panic")) {
++			continue
++		}
++		cond := gradedResultUngroup(body[i+1 : open])
++		split := -1
++		nesting := 0
++		for j, t := range cond {
++			switch t.text {
++			case "(", "[":
++				nesting++
++			case ")", "]":
++				nesting--
++			}
++			if nesting == 0 && t.text == "||" {
++				if split >= 0 {
++					split = -1
++					break
++				}
++				split = j
++			}
++		}
++		if split < 0 {
++			number, err := strconv.Atoi(expr)
++			condition := gradedConstraintExpression(op, u, cond)
++			constantGuard := err == nil && number >= 0 && (condition == "size("+data+")<="+expr || condition == "size("+data+")<"+strconv.Itoa(number+1) || number == 0 && condition == "size("+data+")==0")
++			if constantGuard && !gradedConstraintChanged(op, u, body, end+1, access, []string{data}) {
++				return true
++			}
++			continue
++		}
++		left, right := gradedConstraintExpression(op, u, cond[:split]), gradedConstraintExpression(op, u, cond[split+1:])
++		if !(lower[left] && right == upper || lower[right] && left == upper) {
++			continue
++		}
++		if !gradedConstraintChanged(op, u, body, end+1, access, []string{data, index}) {
++			return true
++		}
++
++	}
++	return false
++}
++
++func gradedBuiltinName(u unit, op *operation, name string) bool {
++	if u.shadowedBuiltins[name] {
++		return false
++	}
++	if gradedPackageShadow(u, name) {
++		return false
++	}
++
++	for _, candidate := range u.ops {
++		if candidate.name == name {
++			return false
++		}
++	}
++	for _, param := range op.paramNames {
++		if param == name {
++			return false
++		}
++	}
++	for i, t := range op.body {
++		if t.text == name && i+1 < len(op.body) && (op.body[i+1].text == "=" || op.body[i+1].text == ":=") {
++			return false
++		}
++	}
++	return true
++}
++
++// Normalize only resolved owned storage and built-in collection size syntax.
++// No substring match or identifier spelling can establish the guard's logic.
++func gradedConstraintExpression(op *operation, u unit, expression []token) string {
++	expression = gradedResultUngroup(expression)
++	fields := callerDeclaredFields(u, op.owner)
++	result := ""
++	for i := 0; i < len(expression); i++ {
++		if expression[i].text == "len" && op.language == "go" && gradedBuiltinName(u, op, "len") && i+1 < len(expression) && expression[i+1].text == "(" {
++			end := matching(expression, i+1, "(", ")")
++			if end > i {
++				inner := gradedConstraintExpression(op, u, expression[i+2:end])
++				if field, ok := fields[inner]; ok && strings.HasPrefix(field.typeName, "[") {
++					result += "size(" + inner + ")"
++					i = end
++					continue
++				}
++			}
++		}
++		// A field's reference start includes its owned receiver qualification.
++		fieldIndex := i
++		if _, direct := fields[expression[i].text]; !direct && i+2 < len(expression) && expression[i+1].text == "." {
++			fieldIndex = i + 2
++		}
++		field, ok := fields[expression[fieldIndex].text]
++		if ok && gradeOwnedFieldReference(op, u, expression, fieldIndex) {
++			name := expression[fieldIndex].text
++			i = fieldIndex
++			if i+2 < len(expression) && expression[i+1].text == "." && expression[i+2].text == "length" && (op.language == "java" || op.language == "typescript") && field.alias {
++				result += "size(" + name + ")"
++				i += 2
++				continue
++			}
++			if i+4 < len(expression) && expression[i+1].text == "." && expression[i+2].text == "len" && expression[i+3].text == "(" && expression[i+4].text == ")" && op.language == "rust" && gradedBuiltinName(u, op, "Vec") && (field.typeName == "Vec" || strings.HasPrefix(field.typeName, "[")) {
++				result += "size(" + name + ")"
++				i += 4
++				continue
++			}
++			result += name
++			continue
++		}
++		result += expression[i].text
++	}
++	return result
++}
++
++// Include only uniquely resolved same-owner helpers reached from the boundary.
++// Unused private helpers cannot add a caller obligation.
++func gradedConstraintRoots(u unit, owner string, roots []*operation) []*operation {
++	result := append([]*operation(nil), roots...)
++	seen := map[string]bool{}
++	for _, op := range roots {
++		seen[op.id] = true
++	}
++	for at := 0; at < len(result) && at < maxCallDepth*16; at++ {
++		op := result[at]
++		for _, c := range callsIn(gradedEagerBody(pruneDeadFalseBranches(op.body), op.language)) {
++			parts := strings.Split(c.name, ".")
++			if len(parts) > 1 && parts[0] != "this" && parts[0] != "self" && parts[0] != op.receiverName {
++				continue
++			}
++			name := parts[len(parts)-1]
++			var match *operation
++			ambiguous := false
++			for _, candidate := range u.ops {
++				if candidate.owner == "" {
++					copy := *candidate
++					copy.owner = gradedInferSurfaceOwner(u.tokens, candidate.language, candidate.name)
++					candidate = &copy
++				}
++				if candidate.owner == owner && candidate.name == name {
++					if match != nil {
++						ambiguous = true
++					}
++					match = candidate
++				}
++			}
++			if match != nil && !ambiguous && !seen[match.id] {
++				seen[match.id] = true
++				result = append(result, match)
++			}
++		}
++	}
++	return result
++}
++
++func gradedConstraintBuiltinReject(op *operation, u unit, body []token, i int) bool {
++	name := body[i].text
++	if op.language == "go" && name == "panic" && i+1 < len(body) && body[i+1].text == "(" {
++		return gradedBuiltinName(u, op, name)
++	}
++	if op.language == "rust" && name == "assert" && i+1 < len(body) && body[i+1].text == "!" {
++		for j := 0; j+2 < len(u.tokens); j++ {
++			if u.tokens[j].text == "macro_rules" && u.tokens[j+2].text == name {
++				return false
++			}
++		}
++		return true
++	}
++	return false
++}
++
++// Every participating location and the receiver identity must retain its
++// version after a guard/maintenance update. Unknown intervening calls cannot
++// prove preservation.
++func gradedConstraintChanged(op *operation, u unit, body []token, start, end int, fields []string) bool {
++	if start > end {
++		return true
++	}
++	for _, call := range callsIn(body[start:end]) {
++		if !(call.name == "len" && op.language == "go" && gradedBuiltinName(u, op, "len")) {
++			return true
++		}
++	}
++	receiver := op.receiverName
++	if op.constraintReceiver != "" {
++		receiver = op.constraintReceiver
++	}
++	if op.language == "go" {
++		for operator := start; operator < end; operator++ {
++			if body[operator].text != "=" && body[operator].text != ":=" {
++				continue
++			}
++			for _, target := range gradedAssignmentTargets(body, operator) {
++				if target < start {
++					continue
++				}
++				if receiver != "" && body[target].text == receiver && (target == 0 || body[target-1].text != ".") {
++					return true
++				}
++				for _, name := range fields {
++					if body[target].text == name && gradeOwnedFieldReference(op, u, body, target) {
++						return true
++					}
++				}
++			}
++		}
++	}
++	for j := start; j < end; j++ {
++		if receiver != "" && body[j].text == receiver && j+1 < end && (body[j+1].text == "=" || body[j+1].text == ":=") {
++			return true
++		}
++		for _, name := range fields {
++			if body[j].text == name && gradeOwnedFieldReference(op, u, body, j) && gradedStorageWriteAt(body, j) {
++				return true
++			}
++		}
++	}
++	return false
++}
++
++func gradedPackageShadow(u unit, name string) bool {
++	depth := 0
++	for i, t := range u.tokens {
++		if t.text == "{" {
++			depth++
++		}
++		if t.text == "}" {
++			depth--
++		}
++		if depth != 0 || i == 0 || t.text != name {
++			continue
++		}
++		switch u.tokens[i-1].text {
++		case "var", "const", "type", "struct", "class", "fn", "func":
++			return true
++		}
++	}
++	return false
++}
+--- before/go/internal/sourceestimate/graded_constraints_test.go
++++ after/go/internal/sourceestimate/graded_constraints_test.go
+@@ -0,0 +1,233 @@
++package sourceestimate
++
++import (
++	"strings"
++	"testing"
++)
++
++func TestConstraintCouplingMatrix(t *testing.T) {
++	for _, tc := range []struct{ lang, path, prefix, suffix, projection, index, guard, extra, shadow string }{
++		{"java", "Example.java", `public class Example{public int[] data;public int count;public int metadata; public int read(){`, `}}`, `return count*metadata;`, `return data[count-1];`, `if(count<=0 || count>data.length){return 0;}`, `int unused=metadata+1;`, `int count=1;int[] data=new int[1];return data[count-1];`},
++		{"typescript", "example.ts", `export class Example{public data:number[]=[];public count:number=0;public metadata:number=0; read():number{`, `}}`, `return this.count*this.metadata;`, `return this.data[this.count-1];`, `if(this.count<=0 || this.count>this.data.length){return 0;}`, `const unused=this.metadata+1;`, `const count=1;const data=[1];return data[count-1];`},
++		{"go", "example.go", `package p;type Example struct{Data []int;Count int;Metadata int};func(e Example)Read()int{`, `}`, `return e.Count*e.Metadata`, `return e.Data[e.Count-1]`, `if e.Count<=0 || e.Count>len(e.Data){return 0};`, `unused:=e.Metadata+1;_ = unused;`, `count:=1;data:=[]int{1};return data[count-1]`},
++		{"rust", "example.rs", `pub struct Example{pub data:Vec<i32>,pub count:usize,pub metadata:i32}impl Example{pub fn read(&self)->i32{`, `}}`, `return (self.count as i32)*self.metadata;`, `return self.data[self.count-1];`, `if self.count<=0 || self.count>self.data.len(){return 0;}`, `let unused=self.metadata+1;`, `let count=1;let data=vec![1];return data[count-1];`},
++	} {
++		t.Run(tc.lang, func(t *testing.T) {
++			grade := func(body string) *GradedEvidence {
++				return structuralResult(tc.lang, tc.path, tc.prefix+body+tc.suffix).Grade
++			}
++			for name, body := range map[string]string{"arithmetic": tc.projection, "shadow": tc.shadow} {
++				if g := grade(body); g == nil || g.Surface.RepresentationUnits != 0 {
++					t.Fatalf("%s invented constraint: %+v", name, g)
++				}
++			}
++			base, extra, guard := grade(tc.index), grade(tc.extra+tc.index), grade(tc.guard+tc.index)
++			if base.Surface.RepresentationUnits != 4 || extra.Surface.RepresentationUnits != base.Surface.RepresentationUnits {
++				t.Fatalf("exact participants: base=%+v extra=%+v", base, extra)
++			}
++			if guard.Surface.RepresentationUnits != 0 || guard.Value() > base.Value() {
++				t.Fatalf("bounds protection: base=%+v guard=%+v", base, guard)
++			}
++			evidence := strings.Join(base.Surface.Evidence, "\n")
++			if !strings.Contains(evidence, "constraint:index-bounds") || !strings.Contains(evidence, "location="+tc.path+":1:") {
++				t.Fatalf("missing located constraint: %s", evidence)
++			}
++		})
++	}
++}
++
++func TestConstraintProjectionAndMapLookupAreNotBounds(t *testing.T) {
++	for _, tc := range []struct{ language, path, source string }{
++		{"java", "Example.java", `public class Example{public int a,b;public int read(){if(a==b){return a;}return b;}}`},
++		{"typescript", "example.ts", `export class Example{public a:number;public b:number;read(){return {a:this.a,b:this.b};}}`},
++		{"go", "example.go", `package p;type Example struct{Data map[int]int;Key int};func(e Example)Read()int{return e.Data[e.Key]}`},
++		{"go", "write.go", `package p;type Example struct{Data map[int]int;Key int};func(e Example)Write(){e.Data[e.Key]=7}`},
++		{"rust", "example.rs", `pub struct Example{pub a:i32,pub b:i32}impl Example{pub fn read(&self)->i32{if self.a==self.b{return self.a;}return self.b;}}`},
++	} {
++		if g := structuralResult(tc.language, tc.path, tc.source).Grade; g.Surface.RepresentationUnits != 0 {
++			t.Fatalf("%s invented obligation: %+v", tc.language, g)
++		}
++	}
++}
++
++func TestConstraintGuardMustDominateAndMatchStorage(t *testing.T) {
++	prefix := `package p;type Example struct{Data []int;Count int;Other int};func(e Example)Read()int{`
++	for _, guard := range []string{`if e.Other>0{if e.Count<=0 || e.Count>len(e.Data){return 0}};`, `if e.Other<=0 || e.Other>len(e.Data){return 0};`, `if e.Count<=0 || e.Count>len(e.Data){return 0};e.Count=100;`} {
++		g := structuralResult("go", "x.go", prefix+guard+`return e.Data[e.Count-1]}`).Grade
++		if g.Surface.RepresentationUnits < 4 {
++			t.Fatalf("unproven protection: %+v", g)
++		}
++	}
++}
++
++func TestConstraintCallerDoesNotBorrowOwnFields(t *testing.T) {
++	files := []File{{Path: "Target.java", Language: "java", Source: []byte(`package p;class Target{int[] data;int count;void reset(){count=0;}}`)}, {Path: "Caller.java", Language: "java", Source: []byte(`package p;class Caller{int[] data;int count;int read(Target target){int ignored=target.count;int[] other=target.data;return this.data[this.count-1];}}`)}}
++	if g := Analyze(files)["Target.java"].Grade; g.Surface.RepresentationUnits != 0 {
++		t.Fatalf("caller-owned storage became target constraint: %+v", g)
++	}
++	files[1].Source = []byte(`package p;class Caller{int read(Target target){return target.data[target.count-1];}}`)
++	if g := Analyze(files)["Target.java"].Grade; g.Surface.RepresentationUnits != 4 {
++		t.Fatalf("actual caller constraint missing: %+v", g)
++	}
++}
++
++func TestConstraintConsumersRequireActualPreconditions(t *testing.T) {
++	state := File{Path: "State.java", Language: "java", Source: []byte(`package p;class State{int lower;int upper;boolean active;void reset(){lower=0;upper=0;}}`)}
++	producer := File{Path: "Producer.java", Language: "java", Source: []byte(`package p;class Producer{void open(State s){s.lower=1;s.upper=3;s.active=true;}void close(State s){s.active=false;}}`)}
++	driver := File{Path: "Driver.java", Language: "java", Source: []byte(`package p;class Driver{int range(int a,int b){if(b<=a)return -1;return effect(a,b);}int effect(int a,int b){return a+b;}}`)}
++	for _, tc := range []struct {
++		body string
++		want float64
++	}{
++		{`boolean pick=s.active?true:false;return d.effect(s.lower,s.upper);`, 0},
++		{`if(s.active){return d.effect(s.lower,s.upper);}return 0;`, 0},
++		{`return d.range(s.lower,s.upper);`, 4},
++		{`if(!s.active)return -1;return d.effect(s.lower,s.upper);`, 4},
++	} {
++		caller := File{Path: "Caller.java", Language: "java", Source: []byte(`package p;class Caller{Driver d;int read(State s){` + tc.body + `}}`)}
++		g := Analyze([]File{state, producer, driver, caller})["State.java"].Grade
++		if g.Surface.RepresentationUnits != tc.want {
++			t.Fatalf("consumer %s: %+v", tc.body, g)
++		}
++	}
++}
++
++func TestConstraintAggregationRenameAndHelpers(t *testing.T) {
++	for _, tc := range []struct{ lang, path, source, aggregate string }{
++		{"java", "Example.java", `public class Example{public int[] data;public int count;public int meta;public int read(){return last();}private int last(){return data[count-1];}}`, `public class Example{public int width;public int height;public int metadata;public Object read(){return java.util.Map.of("width",width,"height",height,"area",width*height,"metadata",metadata);}}`},
++		{"typescript", "example.ts", `export class Example{public data:number[]=[];public count=0;public meta=0;read(){return this.last();}private last(){return this.data[this.count-1];}}`, `export class Example{public width=0;public height=0;public metadata=0;read(){return {width:this.width,height:this.height,area:this.width*this.height,metadata:this.metadata};}}`},
++		{"go", "example.go", `package p;type Example struct{Data []int;Count int;Meta int};func(e Example)Read()int{return e.last()};func(e Example)last()int{return e.Data[e.Count-1]}`, `package p;type Example struct{Width int;Height int;Metadata int};func(e Example)Read()map[string]int{return map[string]int{"width":e.Width,"height":e.Height,"area":e.Width*e.Height,"metadata":e.Metadata}}`},
++		{"rust", "example.rs", `pub struct Example{pub data:Vec<i32>,pub count:usize,pub meta:i32}impl Example{pub fn read(&self)->i32{self.last()}fn last(&self)->i32{self.data[self.count-1]}}`, `pub struct Example{pub width:i32,pub height:i32,pub metadata:i32}impl Example{pub fn read(&self)->(i32,i32,i32,i32){(self.width,self.height,self.width*self.height,self.metadata)}}`},
++	} {
++		t.Run(tc.lang, func(t *testing.T) {
++			g := structuralResult(tc.lang, tc.path, tc.source).Grade
++			renamed := strings.NewReplacer("data", "items", "count", "used", "Data", "Items", "Count", "Used", "last", "tail").Replace(tc.source)
++			r := structuralResult(tc.lang, tc.path, renamed).Grade
++			if g.Surface.RepresentationUnits != 4 || r.Surface.RepresentationUnits != 4 {
++				t.Fatalf("helper/rename invariance: %+v / %+v", g, r)
++			}
++			a := structuralResult(tc.lang, tc.path, tc.aggregate).Grade
++			if a.Surface.RepresentationUnits != 0 {
++				t.Fatalf("aggregate invented obligation: %+v", a)
++			}
++		})
++	}
++}
++
++func TestConstraintPhasePolarityAcrossLanguages(t *testing.T) {
++	for _, tc := range []struct{ lang, path, target, caller, field string }{
++		{"java", "State.java", `package p;class State{boolean active;void reset(){active=false;}}`, `package p;class Calls{void open(State s){s.active=true;}void close(State s){s.active=false;}int next(State s){if(CONDITION)return -1;return effect();}int effect(){return 1;}}`, "s.active"},
++		{"typescript", "State.ts", `export class State{public active=false;reset(){this.active=false;}}`, `import {State} from './State';export function open(s:State){s.active=true;}export function close(s:State){s.active=false;}export function next(s:State){if(CONDITION)return -1;return effect();}function effect(){return 1;}`, "s.active"},
++		{"go", "state.go", `package p;type State struct{Active bool};func(s *State)Reset(){s.Active=false}`, `package p;func Open(s *State){s.Active=true};func Close(s *State){s.Active=false};func Next(s *State)int{if CONDITION{return -1};return effect()};func effect()int{return 1}`, "s.Active"},
++		{"rust", "state.rs", `pub struct State{pub active:bool}impl State{pub fn reset(&mut self){self.active=false;}}`, `use crate::State;pub fn open(s:&mut State){s.active=true;}pub fn close(s:&mut State){s.active=false;}pub fn next(s:&State)->i32{if CONDITION{return -1;}return effect();}fn effect()->i32{1}`, "s.active"},
++	} {
++		t.Run(tc.lang, func(t *testing.T) {
++			for _, condition := range []string{"!" + tc.field, tc.field + "==false", tc.field + "!=true", tc.field, tc.field + "==true"} {
++				files := []File{{Path: tc.path, Language: tc.lang, Source: []byte(tc.target)}, {Path: "caller." + strings.Split(tc.path, ".")[1], Language: tc.lang, Source: []byte(strings.ReplaceAll(tc.caller, "CONDITION", condition))}}
++				g := Analyze(files)[tc.path].Grade
++				if g == nil || g.Surface.RepresentationUnits != 4 {
++					t.Fatalf("phase %s: %+v", condition, g)
++				}
++			}
++			closure := "Runnable ignored=()->{" + tc.field + "=true;}"
++			switch tc.lang {
++			case "typescript":
++				closure = "const ignored=()=>{" + tc.field + "=true;}"
++			case "go":
++				closure = "ignored:=func(){" + tc.field + "=true};_=ignored"
++			case "rust":
++				closure = "let ignored=||{" + tc.field + "=true;}"
++			}
++			base := strings.ReplaceAll(tc.caller, "CONDITION", "!"+tc.field)
++			for _, caller := range []string{
++				strings.Replace(base, tc.field+"=true", tc.field+"=true&&false", 1),
++				strings.Replace(base, tc.field+"=false", tc.field+"=false||true", 1),
++				strings.Replace(base, tc.field+"=true", "if(false){"+tc.field+"=true;}", 1),
++				strings.Replace(base, tc.field+"=true", closure, 1),
++			} {
++				files := []File{{Path: tc.path, Language: tc.lang, Source: []byte(tc.target)}, {Path: "caller." + strings.Split(tc.path, ".")[1], Language: tc.lang, Source: []byte(caller)}}
++				if g := Analyze(files)[tc.path].Grade; g.Surface.RepresentationUnits != 0 {
++					t.Fatalf("unconfirmed/deferred phase: %+v caller=%s", g, caller)
++				}
++			}
++
++		})
++	}
++}
++
++func TestConstraintMaintenanceRequiresMatchingDerivation(t *testing.T) {
++	for _, tc := range []struct{ lang, path, source, valid, invalid string }{
++		{"java", "Example.java", `public class Example{public int[] data;public int count;public int last(){return data[count-1];}public void replace(int[] input){BODY}}`, `data=input;count=data.length;`, `data=input;count=1000;`},
++		{"typescript", "example.ts", `export class Example{public data:number[]=[];public count=0;last(){return this.data[this.count-1];}replace(input:number[]){BODY}}`, `this.data=input;this.count=this.data.length;`, `this.data=input;this.count=1000;`},
++		{"go", "example.go", `package p;type Example struct{Data []int;Count int};func(e *Example)Last()int{return e.Data[e.Count-1]};func(e *Example)replace(input []int){BODY}`, `e.Data=input;e.Count=len(e.Data);`, `e.Data=input;e.Count=len(input)+1000;`},
++		{"rust", "example.rs", `pub struct Example{pub data:Vec<i32>,pub count:usize}impl Example{pub fn last(&self)->i32{self.data[self.count-1]}pub fn replace(&mut self,input:Vec<i32>){BODY}}`, `self.data=input;self.count=self.data.len();`, `self.data=input;self.count=1000;`},
++	} {
++		for _, entry := range []struct {
++			body string
++			want bool
++		}{{tc.valid, true}, {tc.invalid, false}} {
++			source := strings.ReplaceAll(tc.source, "BODY", entry.body)
++			u := gradedSurfaceUnit(tc.lang, tc.path, source)
++			for _, op := range u.ops {
++				if op.owner == "" {
++					op.owner = "Example"
++				}
++				if strings.EqualFold(op.name, "replace") && gradeConsistentWrites(op, u, op.body) != entry.want {
++					t.Fatalf("%s coherent derivation=%v source=%s", tc.lang, entry.want, source)
++				}
++			}
++		}
++	}
++	source := `package p;type Example struct{Data []int;Count int};func(e Example)Last()int{return e.Data[e.Count-1]};func(e Example)replace(input []int){e.Data=input;e.Count=len(e.Data);}`
++	u := gradedSurfaceUnit("go", "example.go", source)
++	for _, op := range u.ops {
++		if op.name == "replace" && gradeConsistentWrites(op, u, op.body) {
++			t.Fatal("Go value receiver acquired owner maintenance")
++		}
++	}
++}
++
++func TestConstraintEvidenceSourcePositions(t *testing.T) {
++	source := "package p\n// brackets [ ] in comment must not shift evidence\ntype Example struct {\n Data []int\n Count int\n}\nfunc(e Example)Read()int{ return e.Data[e.Count-1] }\n"
++	g := structuralResult("go", "example.go", source).Grade
++	if len(g.Surface.Constraints) != 1 {
++		t.Fatalf("missing constraints: %+v", g)
++	}
++	record := g.Surface.Constraints[0]
++	if record.Line != 7 || record.Offset != strings.Index(source, "[e.Count") || len(record.Storage) != 2 || len(record.CallerControlled) != 2 {
++		t.Fatalf("incorrect exact source location/storage: %+v", record)
++	}
++}
++
++func TestConstraintProtectionAdversaries(t *testing.T) {
++	prefix := `package p;type Example struct{Data []int;Count int;Other bool};func(e *Example)Read()int{`
++	for _, guard := range []string{
++		`if e.Other || (e.Count<=0 && e.Count>len(e.Data)){return 0};`,
++		`if e.Count<=0 || e.Count>len(e.Data){if e.Other{return 0}};`,
++		`if e.Count<=0 || e.Count>len(e.Data){return 0};e.change();`,
++	} {
++		g := structuralResult("go", "x.go", prefix+guard+`return e.Data[e.Count-1]}`).Grade
++		if g.Surface.RepresentationUnits < 4 {
++			t.Fatalf("unsafe protection accepted: %+v", g)
++		}
++	}
++	for _, source := range []string{
++		prefix + `if e.Count<=0 || e.Count>len(e.Data){return 0};return e.Data[e.Count-1]};var len=func(x []int)int{return 1000}`,
++		`package p;type Example struct{Data []int;Count int};func(e *Example)Read()int{if e.Count<=0 || e.Count>len(e.Data){return 0};return e.Data[e.Count-1]};func len(x []int)int{return 1000}`,
++	} {
++		g := structuralResult("go", "x.go", source).Grade
++		if g.Surface.RepresentationUnits < 4 {
++			t.Fatalf("shadowed size contract accepted: %+v", g)
++		}
++	}
++	for _, methods := range []string{
++		`func(e Example)Unsafe()int{return e.Data[e.Count-1]};func(e Example)Safe()int{if e.Count<=0 || e.Count>len(e.Data){return 0};return e.Data[e.Count-1]}`,
++		`func(e Example)Safe()int{if e.Count<=0 || e.Count>len(e.Data){return 0};return e.Data[e.Count-1]};func(e Example)Unsafe()int{return e.Data[e.Count-1]}`,
++	} {
++		u := gradedSurfaceUnit("go", "x.go", `package p;type Example struct{Data []int;Count int};`+methods)
++		surface := gradedCallerSurface(u, u.ops)
++		if len(surface.Constraints) != 1 || surface.Constraints[0].InternallyProtected || !strings.Contains(surface.Constraints[0].Operation, "Unsafe") {
++			t.Fatalf("wrong unsafe witness retained: %+v", surface)
++		}
++	}
++}
+--- before/go/internal/sourceestimate/graded_evidence.go
++++ after/go/internal/sourceestimate/graded_evidence.go
+@@ -183,7 +183,7 @@
+ 					g.Responsibilities["state-consistency"] = p.StateConsistency
+ 				}
+ 			}
+-			if gradeTypedAlternatives(body) && dispatchFor(op) == "" {
++			if gradeTypedAlternatives(op, units[op.file], body) && dispatchFor(op) == "" {
+ 				g.Responsibilities["representation-transformation"] = p.RepresentationTransformation
+ 			}
+ 			if op.language == "rust" && gradeAssertion(body) {
+@@ -382,13 +382,145 @@
+ 	return false
+ }
+ 
+-func gradeTypedAlternatives(body []token) bool {
+-	branch, projection := false, false
+-	for _, tok := range body {
+-		branch = branch || tok.text == "switch" || tok.text == "match"
+-		projection = projection || tok.text == "case" || tok.text == "=>"
+-	}
+-	return branch && projection && len(callsIn(body)) > 0
++func gradeTypedAlternatives(op *operation, u unit, body []token) bool {
++	body = gradedEagerBody(pruneDeadFalseBranches(body), op.language)
++	ranges := [][2]int{}
++	for i, t := range body {
++		if t.text != "switch" && t.text != "match" {
++			continue
++		}
++		open := i + 1
++		for open < len(body) && body[open].text != "{" {
++			open++
++		}
++		if open >= len(body) {
++			continue
++		}
++		close := matching(body, open, "{", "}")
++		if close < 0 {
++			continue
++		}
++		ranges = append(ranges, [2]int{open, close})
++	}
++	inside := func(index int) bool {
++		for _, span := range ranges {
++			if index > span[0] && index < span[1] {
++				return true
++			}
++		}
++		return false
++	}
++	if len(ranges) == 0 {
++		return false
++	}
++
++	// Rust's final match is itself the returned expression.
++	if op.language == "rust" && op.returnType != "" && op.returnType != "()" && len(body) > 0 && body[len(body)-1].text == "}" {
++		for _, statement := range gradedResultStatements(body) {
++			if len(statement) == 0 || statement[0].text != "match" {
++				continue
++			}
++			open := 0
++			for open < len(statement) && statement[open].text != "{" {
++				open++
++			}
++			if open < len(statement) && statement[len(statement)-1].offset == body[len(body)-1].offset && gradedRustReturnedMatchCalls(statement[open+1:len(statement)-1]) {
++				return true
++			}
++		}
++	}
++	for _, c := range callsIn(body) {
++		if !inside(c.position) {
++			continue
++		}
++		for _, buffer := range op.outputBuffers {
++			if strings.HasPrefix(c.name, buffer+".") {
++				for _, argument := range c.actuals {
++					if len(callsIn(argument)) > 0 {
++						return true
++					}
++				}
++			}
++		}
++	}
++	// A branch's call is useful only when its result reaches a returned
++	// expression. Calls/calculations in discarded branch locals do not qualify.
++	for i, tok := range body {
++		if !inside(i) {
++			continue
++		}
++		if tok.text == "return" {
++			end := statementEnd(body, i+1)
++			if len(callsIn(body[i+1:end])) > 0 || hasTransform(body[i+1:end]) {
++				return true
++			}
++		}
++		if tok.text == "=" && i > 0 && gradeOwnedFieldReference(op, u, body, i-1) {
++			end := statementEnd(body, i+1)
++			for j := i + 1; j < end; j++ {
++				if body[j].text == "{" && matching(body, j, "{", "}") >= 0 {
++					return true
++				}
++			}
++		}
++	}
++	return false
++}
++
++func gradedRustReturnedMatchCalls(arms []token) bool {
++	for i, t := range arms {
++		if t.text != "=>" {
++			continue
++		}
++		start, end := i+1, i+1
++		if start >= len(arms) {
++			continue
++		}
++		if arms[start].text == "{" {
++			close := matching(arms, start, "{", "}")
++			if close < 0 {
++				continue
++			}
++			statements := gradedResultStatements(arms[start+1 : close])
++			for j, statement := range statements {
++				if len(statement) == 0 {
++					continue
++				}
++				if statement[0].text == "return" {
++					if len(callsIn(statement[1:])) > 0 || hasTransform(statement[1:]) {
++						return true
++					}
++				} else if j == len(statements)-1 && arms[close-1].text != ";" && !gradedResultControl(statement[0].text) {
++					assignment := false
++					for _, tok := range statement {
++						assignment = assignment || tok.text == "=" || tok.text == ":="
++					}
++					if !assignment && (len(callsIn(statement)) > 0 || hasTransform(statement)) {
++						return true
++					}
++				}
++			}
++			continue
++		}
++		depth := 0
++		for end < len(arms) {
++			v := arms[end].text
++			if depth == 0 && v == "," {
++				break
++			}
++			switch v {
++			case "(", "[", "{":
++				depth++
++			case ")", "]", "}":
++				depth--
++			}
++			end++
++		}
++		if len(callsIn(arms[start:end])) > 0 || hasTransform(arms[start:end]) {
++			return true
++		}
++	}
++	return false
+ }
+ 
+ func gradeAssertion(body []token) bool {
+@@ -512,50 +644,95 @@
+ }
+ 
+ func gradeConsistentWrites(op *operation, u unit, body []token) bool {
+-	fields := callerDeclaredFields(u, op.owner)
+-	dependencies := map[string]map[string]bool{}
+-	for i, tok := range body {
+-		if tok.text != "=" || i == 0 {
+-			continue
+-		}
+-		target := body[i-1].text
+-		if _, exists := fields[target]; !exists || !gradeOwnedFieldReference(op, u, body, i-1) {
+-			continue
+-		}
+-		end := i + 1
+-		for end < len(body) && body[end].text != ";" && body[end].text != "}" {
+-			end++
+-		}
+-		if dependencies[target] == nil {
+-			dependencies[target] = map[string]bool{}
+-		}
+-		for _, token := range body[i+1 : end] {
+-			if isIdentifier(token.text) && token.text != "self" && token.text != "this" {
+-				dependencies[target][token.text] = true
+-			}
+-		}
+-	}
+-	for target, left := range dependencies {
+-		for other, right := range dependencies {
+-			if target == other {
+-				continue
+-			}
+-			if left[other] || right[target] {
+-				return true
+-			}
+-			for value := range left {
+-				if right[value] {
+-					return true
+-				}
+-			}
+-		}
+-	}
++	if op.language == "go" && !gradedMutableGoReceiver(op, u) {
++		return false
++	}
++	for _, constraint := range gradedOwnerConstraints(u, op.owner, u.ops) {
++		if constraint.derivedTarget != "" {
++			stored := map[string]string{}
++			for i, t := range body {
++				if t.text != "=" || i == 0 || !gradeOwnedFieldReference(op, u, body, i-1) || !gradedUnconditional(body, i) {
++					continue
++				}
++				rhs := gradedConstraintExpression(op, u, body[i+1:statementEnd(body, i+1)])
++				if body[i-1].text == constraint.derivedTarget {
++					expectedTokens, _, _ := lex([]byte(constraint.derivedExpression))
++					expected := ""
++					connected := false
++					for _, token := range expectedTokens {
++						if replacement, ok := stored[token.text]; ok {
++							expected += replacement
++							connected = true
++						} else {
++							expected += token.text
++						}
++					}
++					if connected && rhs == expected && !gradedConstraintChanged(op, u, body, statementEnd(body, i+1), len(body), constraint.fields) {
++						return true
++					}
++				}
++				stored[body[i-1].text] = rhs
++			}
++		}
++
++		if constraint.kind != "index-bounds" || len(constraint.fields) != 2 {
++			continue
++		}
++		for _, target := range constraint.fields {
++			for _, data := range constraint.fields {
++				if data == target || constraint.indexExpression != target+"-1" {
++					continue
++				}
++				writtenData := false
++				for i, t := range body {
++					if t.text != "=" || i == 0 || !gradeOwnedFieldReference(op, u, body, i-1) || !gradedUnconditional(body, i) {
++						continue
++					}
++					if body[i-1].text == data {
++						writtenData = true
++					}
++					if body[i-1].text == target && writtenData && gradedConstraintExpression(op, u, body[i+1:statementEnd(body, i+1)]) == "size("+data+")" && !gradedConstraintChanged(op, u, body, statementEnd(body, i+1), len(body), constraint.fields) {
++						return true
++					}
++				}
++			}
++		}
++	}
++	return false
++}
++func gradedMutableGoReceiver(op *operation, u unit) bool {
++	if op.language != "go" {
++		return true
++	}
++	for i, t := range u.tokens {
++		if t.text != "func" || i+1 >= len(u.tokens) || u.tokens[i+1].text != "(" {
++			continue
++		}
++		close := matching(u.tokens, i+1, "(", ")")
++		if close < 0 || close+1 >= len(u.tokens) || u.tokens[close+1].text != op.name {
++			continue
++		}
++		receiver := u.tokens[i+2 : close]
++		ownerMatches := false
++		pointer := false
++		for _, token := range receiver {
++			ownerMatches = ownerMatches || token.text == op.owner
++			pointer = pointer || token.text == "*"
++		}
++		if ownerMatches {
++			return pointer
++		}
++	}
++
+ 	return false
+ }
+ 
+ func gradeOwnedFieldReference(op *operation, u unit, body []token, index int) bool {
+ 	if index < 0 || index >= len(body) {
+ 		return false
++	}
++	if op.constraintReceiver != "" {
++		return index >= 2 && body[index-1].text == "." && body[index-2].text == op.constraintReceiver && (index < 4 || body[index-3].text != "." || body[index-4].text == "this")
+ 	}
+ 	name := body[index].text
+ 	// Callers have already checked their single field inventory. Do not parse
+@@ -591,6 +768,9 @@
+ 			continue
+ 		}
+ 		previous := body[i-1].text
++		if previous == "]" && i >= 3 && body[i-2].text == "[" {
++			previous = body[i-3].text
++		}
+ 		if previous == "let" || previous == "var" || previous == "const" {
+ 			return false
+ 		}
+--- before/go/internal/sourceestimate/graded_output_obligations.go
++++ after/go/internal/sourceestimate/graded_output_obligations.go
+@@ -193,7 +193,19 @@
+ 				}
+ 			}
+ 		}
+-		if t == "|" && i > 0 && (body[i-1].text == "=" || body[i-1].text == "(" || body[i-1].text == ",") {
++		if language == "rust" && t == "||" && i > 0 && (body[i-1].text == "=" || body[i-1].text == "(" || body[i-1].text == "," || body[i-1].text == "move") {
++			start := i + 1
++			end := statementEnd(body, start)
++			if start < len(body) && body[start].text == "{" {
++				end = matching(body, start, "{", "}") + 1
++			}
++			if end > start {
++				result = append(result, token{text: "null", offset: body[i].offset, line: body[i].line})
++				i = end - 1
++				continue
++			}
++		}
++		if t == "|" && i > 0 && (body[i-1].text == "=" || body[i-1].text == "(" || body[i-1].text == "," || language == "rust" && body[i-1].text == "move") {
+ 			params := i + 1
+ 			for params < len(body) && body[params].text != "|" {
+ 				params++
+--- before/go/internal/sourceestimate/graded_result_flow.go
++++ after/go/internal/sourceestimate/graded_result_flow.go
+@@ -10,23 +10,24 @@
+ 	// Predicate results can support possible validation, but do not establish
+ 	// a second result-transformation category for that same admission test.
+ 	predicate bool
++	aggregate bool
+ }
+ 
+ func (f gradedResultFlow) merge(other gradedResultFlow) gradedResultFlow {
+-	return gradedResultFlow{input: f.input || other.input, unknown: f.unknown || other.unknown, composed: f.composed || other.composed}
++	return gradedResultFlow{input: f.input || other.input, unknown: f.unknown || other.unknown, composed: f.composed || other.composed, aggregate: f.aggregate || other.aggregate}
+ }
+ 
+ // gradeConnectedResult follows straight-line local values to a final returned
+ // expression. Branch bodies and closures are not traversed. The expression
+ // budget and depth bound apply to the whole operation, including nested calls.
+-func gradeConnectedResult(op *operation, units []unit, byKey map[string][]*operation) (connected, predicateOnly bool) {
++func gradeConnectedResult(op *operation, units []unit, byKey map[string][]*operation) (connected, predicateOnly, representationOnly bool) {
+ 	locals := map[string]gradedResultFlow{}
+ 	for _, name := range op.paramNames {
+ 		locals[name] = gradedResultFlow{input: true}
+ 	}
+ 	budget := maxTokensPerFile
+ 	flow := gradedOperationResult(op, locals, units, byKey, &budget, 0)
+-	return flow.unknown && flow.composed, flow.predicate
++	return flow.unknown && flow.composed, flow.predicate, flow.aggregate
+ }
+ 
+ func gradedOperationResult(op *operation, locals map[string]gradedResultFlow, units []unit, byKey map[string][]*operation, budget *int, depth int) gradedResultFlow {
+@@ -147,6 +148,46 @@
+ 		return gradedResultFlow{}
+ 	}
+ 	*budget -= len(expression)
++	// Constructed records/maps keep the dependence of their value slots.
++	// Pure copied input slots have no unknown/transform duty of their own.
++	for open, tok := range expression {
++		if tok.text != "{" {
++			continue
++		}
++		for _, prefix := range expression[:open] {
++			if gradedResultControl(prefix.text) || prefix.text == "func" || prefix.text == "function" || prefix.text == "unsafe" {
++				return gradedResultFlow{}
++			}
++		}
++		if open > 0 && (expression[open-1].text == "=>" || expression[open-1].text == "->") {
++			return gradedResultFlow{}
++		}
++		close := matching(expression, open, "{", "}")
++		if close != len(expression)-1 {
++			return gradedResultFlow{}
++		}
++		var aggregate gradedResultFlow
++		for _, slot := range splitArguments(expression[open+1 : close]) {
++			value := slot
++			nesting := 0
++			for j, t := range slot {
++				if t.text == "(" || t.text == "[" || t.text == "{" {
++					nesting++
++				}
++				if t.text == ")" || t.text == "]" || t.text == "}" {
++					nesting--
++				}
++				if t.text == ":" && nesting == 0 {
++					value = slot[j+1:]
++					break
++				}
++			}
++			aggregate = aggregate.merge(gradedResultExpression(op, value, locals, units, byKey, budget, depth+1))
++		}
++		aggregate.aggregate = true
++		// Aggregation alone is copying; only an inner connected transform composes.
++		return aggregate
++	}
+ 	for index, tok := range expression {
+ 		// The shared lexer keeps JavaScript strict comparisons as a
+ 		// two-character comparison followed by its final equals token.
+--- before/go/internal/sourceestimate/graded_storage.go
++++ after/go/internal/sourceestimate/graded_storage.go
+@@ -28,6 +28,9 @@
+ 		}
+ 		_, declared := fields[body[target].text]
+ 		owned := declared && gradeOwnedFieldReference(op, u, body, target)
++		if owned && op.language == "go" && !gradedMutableGoReceiver(op, u) {
++			continue
++		}
+ 		member := target >= 2 && body[target-1].text == "."
+ 		if !owned && !member {
+ 			continue
+@@ -197,3 +200,77 @@
+ 	}
+ 	return isIdentifier(previous) && previous != "return" && previous != "throw" && previous != "yield" && previous != "else"
+ }
++
++// Return the storage references on the left of an assignment, walking every
++// comma-separated target without mistaking RHS commas or index operands for
++// additional targets. Locations remain relative to the original token slice.
++func gradedAssignmentTargets(body []token, operator int) []int {
++	targets := []int{}
++	for end := operator - 1; end >= 0; {
++		target, start := end, end
++		if body[end].text == "]" {
++			depth := 1
++			open := end - 1
++			for open >= 0 {
++				if body[open].text == "]" {
++					depth++
++				}
++				if body[open].text == "[" {
++					depth--
++					if depth == 0 {
++						break
++					}
++				}
++				open--
++			}
++			if open < 1 {
++				break
++			}
++			target = open - 1
++			start = gradedStorageReferenceStart(body, target)
++		} else if body[end].text == ")" {
++			depth := 1
++			open := end - 1
++			for open >= 0 {
++				if body[open].text == ")" {
++					depth++
++				}
++				if body[open].text == "(" {
++					depth--
++					if depth == 0 {
++						break
++					}
++				}
++				open--
++			}
++			if open < 0 {
++				break
++			}
++			target = open + 1
++			if target < end && body[target].text == "*" {
++				target++
++			}
++			if target+1 != end {
++				break
++			}
++			start = open
++		} else {
++			if !isIdentifier(body[target].text) {
++				break
++			}
++			start = gradedStorageReferenceStart(body, target)
++		}
++		if start < 0 || !isIdentifier(body[target].text) {
++			break
++		}
++		if start > 0 && body[start-1].text == "*" {
++			start--
++		}
++		targets = append(targets, target)
++		if start == 0 || body[start-1].text != "," {
++			break
++		}
++		end = start - 2
++	}
++	return targets
++}
+--- before/go/internal/sourceestimate/graded_surface.go
++++ after/go/internal/sourceestimate/graded_surface.go
+@@ -3,7 +3,6 @@
+ import (
+ 	"sort"
+ 	"strconv"
+-	"strings"
+ 	"unicode"
+ )
+ 
+@@ -16,6 +15,7 @@
+ 	InputUnits          float64
+ 	RepresentationUnits float64
+ 	Evidence            []string
++	Constraints         []ConstraintEvidence
+ }
+ 
+ const gradedSurfaceTokenLimit = 20000
+@@ -40,7 +40,7 @@
+ func gradedCallerSurface(u unit, roots []*operation, workspace ...[]unit) CallerSurface {
+ 	p := u.gradingProfile()
+ 	result := CallerSurface{}
+-	if len(u.tokens) == 0 || len(roots) == 0 {
++	if len(u.tokens) == 0 {
+ 		return result
+ 	}
+ 	limit := len(u.tokens)
+@@ -64,6 +64,13 @@
+ 			}
+ 		}
+ 		groups[owner] = append(groups[owner], root)
++	}
++	for owner, obligation := range u.callerObligations {
++		if len(roots) == 0 && len(obligation.constraints) > 0 {
++			if _, ok := groups[owner]; !ok {
++				groups[owner] = nil
++			}
++		}
+ 	}
+ 	owners := make([]string, 0, len(groups))
+ 	for owner := range groups {
+@@ -106,35 +113,53 @@
+ 			result.InputUnits += p.Input * float64(constructorMax)
+ 			result.Evidence = append(result.Evidence, "constructor-inputs:"+owner+":"+formatSurfaceUnits(p.Input*float64(constructorMax)))
+ 		}
+-		if owner == "" || allConstructors {
++		if owner == "" || allConstructors && len(u.callerObligations[owner].constraints) == 0 {
+ 			continue
+ 		}
+ 		declaration := gradedFindSurfaceOwner(tokens, normalizeLanguage(u.file.Language, u.file.Path), owner)
+ 		if declaration == nil {
+ 			continue
+ 		}
+-		representation, evidence := gradedRepresentationSurface(tokens, declaration, group, p)
+-		result.RepresentationUnits += representation
+-		result.Evidence = append(result.Evidence, evidence...)
++		records := gradedOwnerConstraints(u, owner, gradedConstraintRoots(u, owner, group))
+ 		if obligation, ok := u.callerObligations[owner]; ok {
+-			for _, name := range obligation.fields {
+-				// Each connected storage location contributes once, including
+-				// fields already represented by the local exposed contract.
+-				covered := false
+-				for _, item := range evidence {
+-					if strings.HasPrefix(item, "representation:coupled-fields:") && strings.Contains(","+strings.Split(item, ":")[2]+",", ","+name+",") {
+-						covered = true
++			records = append(records, obligation.constraints...)
++			if obligation.sequencing {
++				for _, constraint := range obligation.constraints {
++					if constraint.kind == "phase-admission" {
++						result.RepresentationUnits += p.Sequencing
++						break
+ 					}
+ 				}
+-				if !covered {
+-					result.RepresentationUnits += p.CoupledField
+-				}
+-			}
+-			if obligation.sequencing {
+-				result.RepresentationUnits += p.Sequencing
+ 			}
+ 			result.Evidence = append(result.Evidence, obligation.evidence...)
+ 		}
++		charged := map[string]bool{}
++		for _, record := range records {
++			result.Evidence = append(result.Evidence, record.evidence(u))
++			controlledFields := []string{}
++			for _, name := range record.fields {
++				field := declaration.fields[name]
++				controlled := field.public && field.mutable
++				if obligation, ok := u.callerObligations[owner]; ok {
++					for _, observed := range obligation.fields {
++						controlled = controlled || observed == name
++					}
++				}
++				if controlled {
++					controlledFields = append(controlledFields, name)
++				}
++				if !record.protected && controlled && !charged[name] {
++					charged[name] = true
++					if record.kind == "indexed-alias" {
++						result.RepresentationUnits += p.MutableAlias
++					} else {
++						result.RepresentationUnits += p.CoupledField
++					}
++				}
++			}
++			result.Constraints = append(result.Constraints, record.finding(u, controlledFields))
++		}
++
+ 	}
+ 	sort.Strings(result.Evidence)
+ 	return result
+@@ -443,26 +468,31 @@
+ 		// parse one semicolon-delimited field declaration at a time.
+ 		for i := open + 1; i < close; {
+ 			end := i
+-			for end < close && tokens[end].text != ";" {
++			for end < close && tokens[end].text != ";" && (tokens[end].line == 0 || tokens[end].line == tokens[i].line) {
+ 				end++
+ 			}
+ 			segment := tokens[i:end]
+-			typeIndex := -1
+-			for j := len(segment) - 1; j >= 0; j-- {
+-				if isIdentifier(segment[j].text) {
+-					typeIndex = j
++			// Names precede the entire type, including slice/map prefixes.
++			names := []string{}
++			typeIndex := 0
++			for typeIndex < len(segment) && isIdentifier(segment[typeIndex].text) {
++				names = append(names, segment[typeIndex].text)
++				typeIndex++
++				if typeIndex >= len(segment) || segment[typeIndex].text != "," {
+ 					break
+ 				}
+-			}
+-			if typeIndex > 0 {
+-				for j := 0; j < typeIndex; j++ {
+-					if !isIdentifier(segment[j].text) {
+-						continue
+-					}
+-					fields[segment[j].text] = gradedSurfaceField{name: segment[j].text, typeName: segment[typeIndex].text, public: unicode.IsUpper(rune(segment[j].text[0])), mutable: true, alias: gradedAliasType(segment[typeIndex:])}
+-				}
+-			}
+-			i = end + 1
++				typeIndex++
++			}
++			if typeIndex < len(segment) {
++				for _, name := range names {
++					fields[name] = gradedSurfaceField{name: name, typeName: joinTokens(segment[typeIndex:]), public: unicode.IsUpper(rune(name[0])), mutable: true, alias: gradedAliasType(segment[typeIndex:])}
++				}
++			}
++
++			i = end
++			if i < close && tokens[i].text == ";" {
++				i++
++			}
+ 		}
+ 		return fields
+ 	}
+@@ -765,80 +795,6 @@
+ 	return false
+ }
+ 
+-func gradedRepresentationSurface(tokens []token, owner *gradedSurfaceOwner, roots []*operation, p CalibrationProfile) (float64, []string) {
+-	if len(owner.fields) == 0 {
+-		return 0, nil
+-	}
+-	refs := map[string]bool{}
+-	aliasRefs := map[string]bool{}
+-	for _, op := range roots {
+-		for _, field := range op.body {
+-			if item, ok := owner.fields[field.text]; ok {
+-				refs[field.text] = true
+-				if item.alias {
+-					aliasRefs[field.text] = true
+-				}
+-			}
+-		}
+-	}
+-	publicRefs := 0
+-	for name := range refs {
+-		if owner.fields[name].public && owner.fields[name].mutable {
+-			publicRefs++
+-		}
+-	}
+-	if publicRefs == 0 {
+-		return 0, nil
+-	}
+-	related := len(refs) >= 2 && gradedRootsRelateFields(roots, refs)
+-	units := 0.0
+-	evidence := []string{}
+-	if related {
+-		units = p.CoupledField * float64(publicRefs)
+-		names := make([]string, 0, publicRefs)
+-		for name := range refs {
+-			if owner.fields[name].public && owner.fields[name].mutable {
+-				names = append(names, name)
+-			}
+-		}
+-		sort.Strings(names)
+-		evidence = append(evidence, "representation:coupled-fields:"+strings.Join(names, ",")+":"+formatSurfaceUnits(units))
+-	}
+-	for name := range aliasRefs {
+-		if !related {
+-			units += p.MutableAlias
+-			evidence = append(evidence, "representation:mutable-alias:"+name+":"+formatSurfaceUnits(p.MutableAlias))
+-		}
+-	}
+-	return units, evidence
+-}
+-
+-func gradedRootsRelateFields(roots []*operation, refs map[string]bool) bool {
+-	for _, op := range roots {
+-		start := 0
+-		for end := 0; end <= len(op.body); end++ {
+-			if end < len(op.body) && op.body[end].text != ";" {
+-				continue
+-			}
+-			seen := map[string]bool{}
+-			operator := false
+-			for _, item := range op.body[start:end] {
+-				if refs[item.text] {
+-					seen[item.text] = true
+-				}
+-				if isOperator(item.text) || item.text == "&&" || item.text == "||" {
+-					operator = true
+-				}
+-			}
+-			if len(seen) >= 2 && operator {
+-				return true
+-			}
+-			start = end + 1
+-		}
+-	}
+-	return false
+-}
+-
+ func gradedSegmentContains(segment []token, name string) bool {
+ 	for _, t := range segment {
+ 		if t.text == name {
+--- before/go/internal/sourceestimate/graded_uncertainty.go
++++ after/go/internal/sourceestimate/graded_uncertainty.go
+@@ -271,7 +271,12 @@
+ 	allowance := 0.0
+ 	for _, root := range roots {
+ 		for _, op := range gradeOwnedOperations(root, units, byKey) {
+-			if connected, predicateOnly := gradeConnectedResult(op, units, byKey); connected {
++			if connected, predicateOnly, representationOnly := gradeConnectedResult(op, units, byKey); connected {
++				if representationOnly {
++					transformation := known["transform"] + known["representation-transformation"] + known["invariant-transformation"]
++					allowance = math.Max(allowance, math.Max(0, p.TransformationEnvelope-transformation))
++					continue
++				}
+ 				if !predicateOnly {
+ 					return gradeResultDutyEnvelopeWithCalibration(known, p)
+ 				}
+--- before/go/internal/sourceestimate/sourceestimate.go
++++ after/go/internal/sourceestimate/sourceestimate.go
+@@ -55,9 +55,13 @@
+ 	Hidden           float64
+ }
+ 
+-type token struct{ text, kind, literal string }
++type token struct {
++	text, kind, literal string
++	offset, line        int
++}
+ 
+ type operation struct {
++	constraintReceiver             string
+ 	findings                       []Finding
+ 	id, name, owner, language, pkg string
+ 	receiverName, returnType       string
+@@ -80,6 +84,7 @@
+ }
+ 
+ type unit struct {
++	shadowedBuiltins  map[string]bool
+ 	calibration       CalibrationProfile
+ 	index             int
+ 	file              File
+@@ -337,6 +342,7 @@
+ 	annotateGoUnusedInputs(units)
+ 	annotateSourceSurfaceInputs(units, byKey)
+ 	annotateCallerObligations(units)
++	annotateConstraintWitnesses(units)
+ 	annotateOutputObligations(units, byKey)
+ 	goMethods := indexGoMethods(units)
+ 	goGraph := goCallGraph(units, byKey)
+@@ -431,6 +437,11 @@
+ 		}
+ 		r.Dependencies = append(r.Dependencies, state.dependencies...)
+ 		r.Limitations = append(r.Limitations, state.limitations...)
++	}
++	for _, obligation := range u.callerObligations {
++		if len(obligation.fields) > 0 && len(obligation.constraints) > 0 {
++			r.Applicable = true
++		}
+ 	}
+ 	if !r.Applicable && (unresolvedSurface(u.tokens) || u.file.Language == "java" && javaUninventoriedInitializer(u.tokens)) {
+ 		r.Applicable = true
+@@ -2018,6 +2029,7 @@
+ 	valid := true
+ 	for i := 0; i < len(source); {
+ 		if len(out) >= maxTokensPerFile {
++			locateTokens(out, source)
+ 			return out, true, valid
+ 		}
+ 		c := source[i]
+@@ -2058,7 +2070,7 @@
+ 				j++
+ 			}
+ 			if j >= len(source) || source[j] != '\'' {
+-				out = append(out, token{text: "'", kind: "lifetime"})
++				out = append(out, token{text: "'", kind: "lifetime", offset: i})
+ 				i++
+ 				continue
+ 			}
+@@ -2087,7 +2099,7 @@
+ 			if i-start == 2 {
+ 				kind = "__empty_string__"
+ 			}
+-			out = append(out, token{text: kind, kind: "string", literal: string(source[start:minInt(i, len(source))])})
++			out = append(out, token{text: kind, kind: "string", literal: string(source[start:minInt(i, len(source))]), offset: start})
+ 			continue
+ 		}
+ 		if unicode.IsLetter(rune(c)) || c == '_' || c == '$' {
+@@ -2096,7 +2108,7 @@
+ 			for i < len(source) && (unicode.IsLetter(rune(source[i])) || unicode.IsDigit(rune(source[i])) || source[i] == '_' || source[i] == '$') {
+ 				i++
+ 			}
+-			out = append(out, token{text: string(source[start:i]), kind: "identifier"})
++			out = append(out, token{text: string(source[start:i]), kind: "identifier", offset: start})
+ 			if len(out) > maxTokensPerFile {
+ 				limited = true
+ 			}
+@@ -2108,23 +2120,37 @@
+ 			for i < len(source) && (unicode.IsDigit(rune(source[i])) || source[i] == '.' && i+1 < len(source) && unicode.IsDigit(rune(source[i+1]))) {
+ 				i++
+ 			}
+-			out = append(out, token{text: string(source[start:i]), kind: "number"})
++			out = append(out, token{text: string(source[start:i]), kind: "number", offset: start})
+ 			continue
+ 		}
+ 		if i+1 < len(source) {
+ 			two := string(source[i : i+2])
+ 			switch two {
+ 			case "==", "!=", "<=", ">=", "=>", "++", "--", "+=", "-=", "*=", "/=", "%=", ":=", "&&", "||", "::", "->", "<<", ">>":
+-				out = append(out, token{text: two})
++				out = append(out, token{text: two, offset: i})
+ 				i += 2
+ 				continue
+ 			}
+ 		}
+-		out = append(out, token{text: string(c)})
++		out = append(out, token{text: string(c), offset: i})
+ 		i++
+ 	}
++	locateTokens(out, source)
+ 	return out, limited, valid
+ }
++func locateTokens(tokens []token, source []byte) {
++	at, line := 0, 1
++	for i := range tokens {
++		for at < tokens[i].offset && at < len(source) {
++			if source[at] == '\n' {
++				line++
++			}
++			at++
++		}
++		tokens[i].line = line
++	}
++}
++
+ func matching(tokens []token, start int, open, close string) int {
+ 	depth := 0
+ 	for i := start; i < len(tokens); i++ {

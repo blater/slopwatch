@@ -6,9 +6,20 @@ import (
 )
 
 func scoreInputsFromArtifact(artifact analysiscache.UnitArtifact, owned []string, requireCoverage bool) (scoreInputs, bool) {
+	for _, diagnostic := range artifact.Report.Diagnostics {
+		if transientAnalyzerDiagnostic(diagnostic) {
+			return newScoreInputs(), false
+		}
+	}
 	inputs := newScoreInputs()
 	inputs.diagnostics = append(inputs.diagnostics, artifact.Report.Diagnostics...)
 	inputs.plans = append(inputs.plans, artifact.Report.ExecutionPlans...)
+	for id, boundary := range artifact.Report.Depth {
+		// Compact boundaries loaded from older artifacts before they enter the
+		// score graph. This preserves typed metadata and proof fields while
+		// avoiding another full report payload per cached boundary.
+		inputs.depth[id] = report.CompactDepthBoundary(boundary)
+	}
 	for _, file := range artifact.Report.Files {
 		addArtifactFile(&inputs, file)
 	}
@@ -20,6 +31,10 @@ func addArtifactFile(inputs *scoreInputs, file report.File) {
 	inputs.languages[file.Path] = file.Language
 	inputs.coverage[file.Path] = cloneCoverage(file.Coverage)
 	for componentID, component := range file.Components {
+		if component.DepthVersion == "responsibility-burden-v4" {
+			inputs.depthStates[file.Path] = mergeDepthState(inputs.depthStates[file.Path], component.DepthState)
+			continue
+		}
 		for _, evidence := range component.Evidence {
 			path := evidence.Location.Path
 			if path == "" {
@@ -67,6 +82,22 @@ func filterScoreInputs(inputs scoreInputs, allowed map[string]bool) scoreInputs 
 	}
 	result.diagnostics = append(result.diagnostics, inputs.diagnostics...)
 	result.plans = append(result.plans, inputs.plans...)
+	for id, boundary := range inputs.depth {
+		boundary.Files = intersectPaths(boundary.Files, allowed)
+		if len(boundary.Files) > 0 {
+			result.depth[id] = boundary
+		}
+	}
+	for path, state := range inputs.depthStates {
+		if allowed[path] {
+			result.depthStates[path] = state
+		}
+	}
+	for id, boundary := range result.depth {
+		for _, path := range boundary.Files {
+			result.depthByPath[path] = appendUnique(result.depthByPath[path], id)
+		}
+	}
 	return result
 }
 
@@ -85,4 +116,15 @@ func cloneCoverage(source map[string]string) map[string]string {
 		result[key] = value
 	}
 	return result
+}
+
+// Terminal failures can describe transient adapter/helper failures even when
+// individual paths carry failed coverage. Retry them without requiring a source edit.
+func transientAnalyzerDiagnostic(diagnostic map[string]any) bool {
+	switch diagnostic["code"] {
+	case "native.analyzer_failed", "native.terminal_failure":
+		return true
+	default:
+		return false
+	}
 }

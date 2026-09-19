@@ -69,11 +69,18 @@ func metric(file report.File, key string) (float64, bool, float64) {
 // without coverage metadata are legacy/in-memory fixtures and retain their
 // component availability semantics.
 func metricFailed(file report.File, key string) bool {
-	if len(file.Coverage) == 0 {
-		return false
+	if key == "deep" {
+		if component, ok := file.Components["module_shallowness"]; ok && component.DepthVersion == "responsibility-burden-v4" {
+			state := scoring.Metric(file, key).State
+			value := scoring.Metric(file, key)
+			return !value.Available && state != "not_applicable"
+		}
 	}
 	if key == "score" {
-		return !file.Complete
+		return !scoring.ScoreAvailable(file)
+	}
+	if len(file.Coverage) == 0 {
+		return false
 	}
 	definition, known := scoring.MetricDefinitionByID(scoring.MetricID(key))
 	if !known {
@@ -234,4 +241,18 @@ func truncateLeft(value string, width int) string {
 		runes = runes[1:]
 	}
 	return "…" + string(runes)
+}
+
+// Incomplete semantic evidence is not a failed file analysis. Numeric estimates
+// and incidental compiler diagnostics do not warrant a warning marker.
+func fileAnalysisFailed(file report.File) bool {
+	if file.Freshness == report.FreshnessStaleError {
+		return true
+	}
+	for _, state := range file.Coverage {
+		if state == "failed" {
+			return true
+		}
+	}
+	return false
 }

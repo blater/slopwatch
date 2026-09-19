@@ -25,7 +25,8 @@ const (
 	parallelMinPaths      = 512
 	parallelBatchPathGoal = 512
 	parallelBatchLimit    = 2
-	javaResponseSchema    = 3
+	javaResponseSchema    = 5
+	javaRequestSchema     = 3
 )
 
 // Adapter invokes the bundled Java parser without annotation processing or project execution.
@@ -77,21 +78,46 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 		jar = defaultHelperJar()
 	}
 	includeTests, _ := options["include_tests"].(bool)
-	program, err := analyzePaths(paths, func(batch []string) (*facts.Program, error) {
-		return analyzeBatch(java, jar, workspace, batch, includeTests)
-	})
+	program, err := analyzeProfile(java, jar, workspace, paths, includeTests, options)
 	if err != nil {
 		return nil, err
 	}
 	if err := program.LinkTypeMethods(); err != nil {
 		return nil, fmt.Errorf("link Java method facts: %w", err)
 	}
+	markRejectedSourceAvailability(program)
 	return program, nil
 }
 
+func markRejectedSourceAvailability(program *facts.Program) {
+	if len(program.Failures) == 0 {
+		return
+	}
+	const reason = "source failures in this package prevent trustworthy cross-file type evidence"
+	if program.Unavailable == nil {
+		program.Unavailable = make(map[string]map[string]string)
+	}
+	for _, path := range program.Files {
+		components := program.Unavailable[path]
+		if components == nil {
+			components = make(map[string]string, 3)
+			program.Unavailable[path] = components
+		}
+		for _, component := range []string{"cyclomatic_class_complexity", "god_class", "coupling_between_objects"} {
+			if _, exists := components[component]; !exists {
+				components[component] = reason
+			}
+		}
+	}
+}
+
 func analyzeBatch(java, jar, workspace string, paths []string, includeTests bool) (*facts.Program, error) {
+	return analyzeBatchProfile(java, jar, workspace, paths, includeTests, false)
+}
+
+func analyzeBatchProfile(java, jar, workspace string, paths []string, includeTests, depth bool) (*facts.Program, error) {
 	var input bytes.Buffer
-	if err := writeRequest(&input, workspace, paths, includeTests); err != nil {
+	if err := writeRequestProfile(&input, workspace, paths, includeTests, depth); err != nil {
 		return nil, fmt.Errorf("encode Java fact request: %w", err)
 	}
 	command := javaCommand(java, jar)
@@ -240,11 +266,15 @@ func mergePrograms(programs []*facts.Program) *facts.Program {
 }
 
 func writeRequest(writer io.Writer, workspace string, paths []string, includeTests bool) error {
+	return writeRequestProfile(writer, workspace, paths, includeTests, false)
+}
+
+func writeRequestProfile(writer io.Writer, workspace string, paths []string, includeTests, depth bool) error {
 	data := bufio.NewWriter(writer)
 	if err := binary.Write(data, binary.BigEndian, requestMagic); err != nil {
 		return err
 	}
-	if err := binary.Write(data, binary.BigEndian, uint32(facts.SchemaVersion)); err != nil {
+	if err := binary.Write(data, binary.BigEndian, uint32(javaRequestSchema)); err != nil {
 		return err
 	}
 	if includeTests {
@@ -252,6 +282,9 @@ func writeRequest(writer io.Writer, workspace string, paths []string, includeTes
 			return err
 		}
 	} else if err := data.WriteByte(0); err != nil {
+		return err
+	}
+	if err := binary.Write(data, binary.BigEndian, depth); err != nil {
 		return err
 	}
 	if err := writeString(data, workspace); err != nil {
@@ -333,6 +366,9 @@ func readProgram(data *bufio.Reader) (*facts.Program, error) {
 		if program.Failures[index].Diagnostic, err = readString(data); err != nil {
 			return nil, err
 		}
+	}
+	if program.Depth, err = readDepth(data); err != nil {
+		return nil, err
 	}
 	return program, nil
 }

@@ -1,0 +1,928 @@
+{
+  "file": {
+    "axes": {
+      "structural_core": 15.437314206252,
+      "structural_language": 0
+    },
+    "complete": false,
+    "components": {
+      "cognitive_complexity": {
+        "contribution": 0,
+        "deduplicated_observations": 1,
+        "evidence": [
+          {
+            "name": "protocolRecord.attachMetadata",
+            "symbol": "protocolRecord.attachMetadata",
+            "routine": "protocolRecord.attachMetadata",
+            "scope": "function",
+            "value": 5,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 71,
+                "column": 1
+              },
+              "end": {
+                "line": 97,
+                "column": 2
+              }
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "cognitive_complexity/pmd-sonar-v1"
+            }
+          }
+        ],
+        "observations": 1,
+        "observed_contribution": 0,
+        "subjects": [
+          {
+            "contribution": 0,
+            "subject": "protocolRecord.attachMetadata@71:1-97:2",
+            "value": 5
+          }
+        ],
+        "waivers": []
+      },
+      "coupling_between_objects": {
+        "contribution": 0,
+        "deduplicated_observations": 6,
+        "evidence": [
+          {
+            "name": "requestedComponent",
+            "symbol": "requestedComponent",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 3,
+                "column": 6
+              },
+              "end": {
+                "line": 6,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "coupling_between_objects/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolUnit",
+            "symbol": "protocolUnit",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 8,
+                "column": 6
+              },
+              "end": {
+                "line": 13,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "coupling_between_objects/pmd-v1"
+            }
+          },
+          {
+            "name": "analyzerRequest",
+            "symbol": "analyzerRequest",
+            "scope": "type",
+            "value": 2,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 15,
+                "column": 6
+              },
+              "end": {
+                "line": 24,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "coupling_between_objects/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolRecord",
+            "symbol": "protocolRecord",
+            "scope": "type",
+            "value": 1,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 26,
+                "column": 6
+              },
+              "end": {
+                "line": 51,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "coupling_between_objects/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolSubject",
+            "symbol": "protocolSubject",
+            "scope": "type",
+            "value": 1,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 53,
+                "column": 6
+              },
+              "end": {
+                "line": 63,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "coupling_between_objects/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolPosition",
+            "symbol": "protocolPosition",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 65,
+                "column": 6
+              },
+              "end": {
+                "line": 69,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "coupling_between_objects/pmd-v1"
+            }
+          }
+        ],
+        "observations": 6,
+        "observed_contribution": 0,
+        "subjects": [
+          {
+            "contribution": 0,
+            "subject": "requestedComponent@3:6-6:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolUnit@8:6-13:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "analyzerRequest@15:6-24:2",
+            "value": 2
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolRecord@26:6-51:2",
+            "value": 1
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolSubject@53:6-63:2",
+            "value": 1
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolPosition@65:6-69:2",
+            "value": 0
+          }
+        ],
+        "waivers": []
+      },
+      "cyclomatic_class_complexity": {
+        "contribution": 0,
+        "deduplicated_observations": 6,
+        "evidence": [
+          {
+            "name": "requestedComponent",
+            "symbol": "requestedComponent",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 3,
+                "column": 6
+              },
+              "end": {
+                "line": 6,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "cyclomatic_class_complexity/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolUnit",
+            "symbol": "protocolUnit",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 8,
+                "column": 6
+              },
+              "end": {
+                "line": 13,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "cyclomatic_class_complexity/pmd-v1"
+            }
+          },
+          {
+            "name": "analyzerRequest",
+            "symbol": "analyzerRequest",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 15,
+                "column": 6
+              },
+              "end": {
+                "line": 24,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "cyclomatic_class_complexity/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolRecord",
+            "symbol": "protocolRecord",
+            "scope": "type",
+            "value": 5,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 26,
+                "column": 6
+              },
+              "end": {
+                "line": 51,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "cyclomatic_class_complexity/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolSubject",
+            "symbol": "protocolSubject",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 53,
+                "column": 6
+              },
+              "end": {
+                "line": 63,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "cyclomatic_class_complexity/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolPosition",
+            "symbol": "protocolPosition",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 65,
+                "column": 6
+              },
+              "end": {
+                "line": 69,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "kind": "struct"
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "cyclomatic_class_complexity/pmd-v1"
+            }
+          }
+        ],
+        "observations": 6,
+        "observed_contribution": 0,
+        "subjects": [
+          {
+            "contribution": 0,
+            "subject": "requestedComponent@3:6-6:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolUnit@8:6-13:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "analyzerRequest@15:6-24:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolRecord@26:6-51:2",
+            "value": 5
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolSubject@53:6-63:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolPosition@65:6-69:2",
+            "value": 0
+          }
+        ],
+        "waivers": []
+      },
+      "cyclomatic_method_complexity": {
+        "contribution": 0,
+        "deduplicated_observations": 1,
+        "evidence": [
+          {
+            "name": "protocolRecord.attachMetadata",
+            "symbol": "protocolRecord.attachMetadata",
+            "routine": "protocolRecord.attachMetadata",
+            "scope": "function",
+            "value": 5,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 71,
+                "column": 1
+              },
+              "end": {
+                "line": 97,
+                "column": 2
+              }
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "cyclomatic_method_complexity/pmd-v1"
+            }
+          }
+        ],
+        "observations": 1,
+        "observed_contribution": 0,
+        "subjects": [
+          {
+            "contribution": 0,
+            "subject": "protocolRecord.attachMetadata@71:1-97:2",
+            "value": 5
+          }
+        ],
+        "waivers": []
+      },
+      "deeply_nested_if": {
+        "contribution": 0,
+        "deduplicated_observations": 0,
+        "observations": 0,
+        "observed_contribution": 0,
+        "subjects": [],
+        "waivers": []
+      },
+      "god_class": {
+        "contribution": 0,
+        "deduplicated_observations": 6,
+        "evidence": [
+          {
+            "name": "requestedComponent",
+            "symbol": "requestedComponent",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 3,
+                "column": 6
+              },
+              "end": {
+                "line": 6,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "atfd": 0,
+              "kind": "struct",
+              "tcc": 0,
+              "wmc": 0
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "god_class/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolUnit",
+            "symbol": "protocolUnit",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 8,
+                "column": 6
+              },
+              "end": {
+                "line": 13,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "atfd": 0,
+              "kind": "struct",
+              "tcc": 0,
+              "wmc": 0
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "god_class/pmd-v1"
+            }
+          },
+          {
+            "name": "analyzerRequest",
+            "symbol": "analyzerRequest",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 15,
+                "column": 6
+              },
+              "end": {
+                "line": 24,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "atfd": 0,
+              "kind": "struct",
+              "tcc": 0,
+              "wmc": 0
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "god_class/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolRecord",
+            "symbol": "protocolRecord",
+            "scope": "type",
+            "value": 5,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 26,
+                "column": 6
+              },
+              "end": {
+                "line": 51,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "atfd": 0,
+              "kind": "struct",
+              "tcc": 0,
+              "wmc": 5
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "god_class/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolSubject",
+            "symbol": "protocolSubject",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 53,
+                "column": 6
+              },
+              "end": {
+                "line": 63,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "atfd": 0,
+              "kind": "struct",
+              "tcc": 0,
+              "wmc": 0
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "god_class/pmd-v1"
+            }
+          },
+          {
+            "name": "protocolPosition",
+            "symbol": "protocolPosition",
+            "scope": "type",
+            "value": 0,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 65,
+                "column": 6
+              },
+              "end": {
+                "line": 69,
+                "column": 2
+              }
+            },
+            "attributes": {
+              "atfd": 0,
+              "kind": "struct",
+              "tcc": 0,
+              "wmc": 0
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "god_class/pmd-v1"
+            }
+          }
+        ],
+        "observations": 6,
+        "observed_contribution": 0,
+        "subjects": [
+          {
+            "contribution": 0,
+            "subject": "requestedComponent@3:6-6:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolUnit@8:6-13:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "analyzerRequest@15:6-24:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolRecord@26:6-51:2",
+            "value": 5
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolSubject@53:6-63:2",
+            "value": 0
+          },
+          {
+            "contribution": 0,
+            "subject": "protocolPosition@65:6-69:2",
+            "value": 0
+          }
+        ],
+        "waivers": []
+      },
+      "module_shallowness": {
+        "contribution": 15.437314206252,
+        "deduplicated_observations": 1,
+        "evidence": [
+          {
+            "name": "source:go:go/internal/native/protocol.go",
+            "symbol": "source:go:go/internal/native/protocol.go",
+            "scope": "file",
+            "value": 85,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 0,
+                "column": 0
+              },
+              "end": {
+                "line": 0,
+                "column": 0
+              }
+            },
+            "attributes": {
+              "boundary_id": "source:go:go/internal/native/protocol.go"
+            }
+          }
+        ],
+        "observations": 1,
+        "observed_contribution": 15.437314206252,
+        "subjects": [
+          {
+            "contribution": 15.437314206252,
+            "subject": "source:go:go/internal/native/protocol.go",
+            "value": 85
+          }
+        ],
+        "waivers": [],
+        "depth_scope": "file",
+        "depth_state": "partial",
+        "depth_estimated": true,
+        "depth_version": "responsibility-burden-v4",
+        "depth_boundary_ids": [
+          "source:go:go/internal/native/protocol.go"
+        ],
+        "raw_max": 85
+      },
+      "npath_complexity": {
+        "contribution": 0,
+        "deduplicated_observations": 1,
+        "evidence": [
+          {
+            "name": "protocolRecord.attachMetadata",
+            "symbol": "protocolRecord.attachMetadata",
+            "routine": "protocolRecord.attachMetadata",
+            "scope": "function",
+            "value": 6,
+            "location": {
+              "path": "go/internal/native/protocol.go",
+              "start": {
+                "line": 71,
+                "column": 1
+              },
+              "end": {
+                "line": 97,
+                "column": 2
+              }
+            },
+            "provenance": {
+              "analyzer": "slopslap-structural",
+              "analyzer_version": "0.1.0",
+              "rule": "npath_complexity/pmd-v1"
+            }
+          }
+        ],
+        "observations": 1,
+        "observed_contribution": 0,
+        "subjects": [
+          {
+            "contribution": 0,
+            "subject": "protocolRecord.attachMetadata@71:1-97:2",
+            "value": 6
+          }
+        ],
+        "waivers": []
+      }
+    },
+    "coverage": {
+      "cognitive_complexity": "complete",
+      "coupling_between_objects": "complete",
+      "cyclomatic_class_complexity": "complete",
+      "cyclomatic_method_complexity": "complete",
+      "deeply_nested_if": "complete",
+      "god_class": "complete",
+      "module_shallowness": "unavailable",
+      "npath_complexity": "complete"
+    },
+    "language": "go",
+    "observed_axes": {
+      "structural_core": 15.437314206252,
+      "structural_language": 0
+    },
+    "observed_score": 15.437314206252,
+    "path": "go/internal/native/protocol.go",
+    "rank": 281,
+    "score": 15.437314206252,
+    "valid_zero_score": false
+  },
+  "depth": {
+    "scope": "file",
+    "id": "source:go:go/internal/native/protocol.go",
+    "boundary": {
+      "artifact": "go/internal/native/protocol.go",
+      "audience": "source",
+      "symbol": "go/internal/native/protocol.go",
+      "view": "file"
+    },
+    "state": "partial",
+    "policy_revision": "r41",
+    "estimated": true,
+    "shallow": 85,
+    "reasons": [
+      {
+        "code": "missing_boundary_flow"
+      },
+      {
+        "code": "unavailable_go_types"
+      },
+      {
+        "code": "unresolved_or_absent_public_surface"
+      }
+    ],
+    "precise_reasons": [
+      {
+        "code": "missing_boundary_flow"
+      },
+      {
+        "code": "unavailable_go_types"
+      },
+      {
+        "code": "unresolved_or_absent_public_surface"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "source:go:go/internal/native/protocol.go/source-estimate",
+        "kind": "source-responsibility-v1",
+        "status": "estimated"
+      }
+    ],
+    "files": [
+      "go/internal/native/protocol.go"
+    ],
+    "raw": {
+      "B8": 8,
+      "H": 0,
+      "estimate": {
+        "abstractions": [
+          {
+            "audience": "local-unresolved",
+            "burden": 1,
+            "findings": [],
+            "graded": {
+              "estimated_hidden_responsibility": 0,
+              "hidden_responsibility": 2,
+              "material_limitations": [
+                "unresolved_call_range_0_2:len/record.Attributes"
+              ],
+              "residual_burden": 28,
+              "responsibilities": {
+                "representation-transformation": 2
+              },
+              "supported_burden": 28,
+              "surface": {
+                "evidence": [
+                  "operation:go/internal/native/protocol.go#attachMetadata/0:1",
+                  "representation:coupled-fields:Attributes,Code,DiscoveredSourceCount,Invocation,Kernels,Message,ParsedSourceCount,ParserModes,Path,Raw,Severity,Type,UnitID,Version:28"
+                ],
+                "input_units": 0,
+                "operation_units": 1,
+                "representation_units": 28
+              },
+              "zero_reason": ""
+            },
+            "hidden": 0,
+            "limitations": [
+              "unresolved_call_range_0_2:len/record.Attributes",
+              "unsupported_execution_alternatives:if",
+              "unsupported_execution_alternatives:switch"
+            ],
+            "name": "protocolRecord.attachMetadata",
+            "published_penalty": 85,
+            "recognized_hidden": 0,
+            "uncertain_burden": 1
+          }
+        ],
+        "burden": 1,
+        "categories": {
+          "unknown_call": 1
+        },
+        "descriptive_ratio": 100,
+        "findings": [],
+        "hidden": 0,
+        "known_hidden": 0,
+        "limitations": [
+          "unresolved_call_range_0_2:len/record.Attributes",
+          "unsupported_execution_alternatives:if",
+          "unsupported_execution_alternatives:switch"
+        ],
+        "model": "graded-caller-responsibility-v1",
+        "penalty_support": "graded-caller-responsibility",
+        "published_penalty": 85,
+        "recognized_hidden": 0,
+        "roles": null,
+        "source_hidden": 0,
+        "uncertain_burden": 1,
+        "uncertainty_policy": "graded-caller-responsibility-v1"
+      },
+      "graded": {
+        "estimated_hidden_responsibility": 0,
+        "hidden_responsibility": 2,
+        "material_limitations": [
+          "unresolved_call_range_0_2:len/record.Attributes"
+        ],
+        "residual_burden": 28,
+        "responsibilities": {
+          "representation-transformation": 2
+        },
+        "supported_burden": 28,
+        "surface": {
+          "evidence": [
+            "operation:go/internal/native/protocol.go#attachMetadata/0:1",
+            "representation:coupled-fields:Attributes,Code,DiscoveredSourceCount,Invocation,Kernels,Message,ParsedSourceCount,ParserModes,Path,Raw,Severity,Type,UnitID,Version:28"
+          ],
+          "input_units": 0,
+          "operation_units": 1,
+          "representation_units": 28
+        },
+        "zero_reason": ""
+      },
+      "responsibility_ratio": 100,
+      "zero_reason": ""
+    }
+  },
+  "policy_revision": "r41"
+}

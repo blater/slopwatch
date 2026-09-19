@@ -1,0 +1,18 @@
+{
+  "repositories": {
+    "go": "/opt/homebrew/Cellar/go/1.27.1/libexec/src",
+    "typescript": "/Users/blater/src/career-ops",
+    "rust": "/opt/homebrew/Cellar/rust/1.98.1/lib/rustlib/src/rust/library"
+  },
+  "case_repositories": {
+    "go-response-controller": "go",
+    "go-tempfile": "go",
+    "typescript-tracker-write-registry": "typescript",
+    "typescript-safe-write": "typescript",
+    "rust-manually-drop": "rust",
+    "rust-vec-drain": "rust"
+  },
+  "limitations": [
+    "Standard library roots are installed source distributions, not Git workspaces. Frozen witness evaluation preserves their source layout; full live standard-library analysis is not implied."
+  ]
+}

@@ -27,7 +27,7 @@ func TestFixKeyWithoutServiceExplainsUnavailable(t *testing.T) {
 		}}
 	updated, command := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	result := updated.(*Model)
-	if command != nil || !strings.Contains(result.status, "Fix unavailable") || result.overlays.Len() != 0 {
+	if command != nil || !strings.Contains(result.runtimeError, "Fix unavailable") || result.overlays.Len() != 1 {
 		t.Fatalf("nil service behavior: status=%q overlays=%d command=%v", result.status, result.overlays.Len(), command)
 	}
 }

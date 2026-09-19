@@ -10,6 +10,8 @@ pub struct Request {
     pub workspace: String,
     pub source_paths: Vec<String>,
     pub include_tests: bool,
+    #[serde(default)]
+    pub depth: bool,
 }
 
 #[derive(Serialize)]
@@ -133,6 +135,14 @@ pub struct Program {
     pub files: Vec<String>,
     pub unavailable: BTreeMap<String, BTreeMap<String, String>>,
     pub failures: Vec<FileFailure>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depth: Option<DepthFacts>,
+}
+
+#[derive(Default, Serialize)]
+pub struct DepthFacts {
+    pub boundaries: Vec<serde_json::Value>,
+    pub flows: Vec<serde_json::Value>,
 }
 
 #[derive(Default, Serialize)]

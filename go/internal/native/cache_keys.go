@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/blater/slopwatch/internal/analysiscache"
+	"github.com/blater/slopwatch/internal/sourceestimate"
 	"github.com/blater/slopwatch/internal/unitplan"
 )
 
@@ -53,6 +54,12 @@ func unitKeyInput(unit unitplan.Unit, dependencies []analysiscache.DependencyFin
 	for index, component := range components {
 		definitions[index] = analysiscache.ComponentDefinition{ID: component.ID, Version: component.Version}
 	}
+	toolchain := map[string]string{"go_runtime": runtime.Version(), "goos": runtime.GOOS, "goarch": runtime.GOARCH}
+	if shallowProfile(options) == ShallowProfileResponsibilityV4 {
+		toolchain["shallow_profile"] = ShallowProfileResponsibilityV4
+		toolchain["shallow_policy_revision"] = ShallowPolicyRevisionV4
+		toolchain["shallow_calibration"] = sourceestimate.DefaultCalibrationIdentity()
+	}
 	return analysiscache.UnitKeyInput{
 		UnitID: unit.ID, Language: string(unit.Language), Sources: sources,
 		Configuration: configuration, Dependencies: dependencies,
@@ -60,7 +67,7 @@ func unitKeyInput(unit unitplan.Unit, dependencies []analysiscache.DependencyFin
 		ProtocolVersion: nativeProtocolVersion, CatalogVersion: string(catalogDigest),
 		Components: definitions, ParserMode: string(unit.Mode), TypeAnalysisMode: typeMode,
 		IncludeTests: unitOutputIncludesTests(unit),
-		Toolchain:    map[string]string{"go_runtime": runtime.Version(), "goos": runtime.GOOS, "goarch": runtime.GOARCH},
+		Toolchain:    toolchain,
 	}
 }
 
@@ -90,10 +97,14 @@ func componentsForLanguage(catalog catalogDocument, language string) []requested
 	return result
 }
 
-func backendDigest(analyzer *analysisEngine, language string) (analysiscache.Digest, error) {
+func backendDigest(analyzer *analysisEngine, language string, options Options) (analysiscache.Digest, error) {
 	paths := []string{analyzerExecutable(analyzer.root, language)}
 	structural := filepath.Join(analyzer.root, "analyzers", "structural")
 	switch language {
+	case "typescript":
+		if shallowProfile(options) == ShallowProfileResponsibilityV4 {
+			paths = append(paths, analyzerExecutable(analyzer.root, "go"))
+		}
 	case "java":
 		paths = append(paths, filepath.Join(structural, "slopslap-structural-java.jar"), filepath.Join(structural, "java-runtime", "bin", "java"))
 	case "rust":

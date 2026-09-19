@@ -71,6 +71,9 @@ func (m *watchManager) watch(path string) error {
 }
 
 func (m *watchManager) addTree(root string) error {
+	if m.ignoreDir != nil && m.ignoreDir(root, filepath.Base(root)) {
+		return nil
+	}
 	return m.addDirectoryTree(root, map[string]bool{})
 }
 

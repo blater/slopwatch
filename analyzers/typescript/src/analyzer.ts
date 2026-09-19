@@ -6,6 +6,8 @@ import {
   TYPED_COMPONENTS,
 } from "./catalog.js";
 import { AnalysisContext } from "./context.js";
+import type { TypedContext } from "./context.js";
+import { analyzeDepth } from "./depth.js";
 import { analyzeStructural } from "./structural.js";
 import { analyzeTypeSafety } from "./type-safety.js";
 import {
@@ -32,6 +34,7 @@ function responseDiagnostic(
     message: diagnostic.message,
     unit_id: diagnostic.unit_id ?? null,
     path: diagnostic.path ?? null,
+    ...(diagnostic.attributes === undefined ? {} : { attributes: diagnostic.attributes }),
   };
 }
 
@@ -122,6 +125,15 @@ function validateComponent(
   const definition = COMPONENT_BY_ID.get(component.component_id);
   if (definition === undefined)
     throw new Error(`unsupported component ${component.component_id}`);
+  if (
+    component.component_id === "module_shallowness" &&
+    component.definition_version === "responsibility-burden-v4"
+  ) {
+    if (requested.has(component.component_id))
+      throw new Error(`duplicate component ${component.component_id}`);
+    requested.add(component.component_id);
+    return;
+  }
   if (definition.definition_version !== component.definition_version) {
     throw new Error(
       `unsupported definition ${component.component_id}/${component.definition_version}; expected ${definition.definition_version}`,
@@ -152,6 +164,12 @@ function validateOptions(request: Partial<AnalyzerRequest>): void {
     mode !== "off"
   ) {
     throw new Error("options.typescript_types must be auto, require, or off");
+  }
+  if (
+    request.options?.depth_evaluator_path !== undefined &&
+    typeof request.options.depth_evaluator_path !== "string"
+  ) {
+    throw new Error("options.depth_evaluator_path must be a string");
   }
 }
 
@@ -209,6 +227,11 @@ interface AnalysisBuffers {
   records: ResponseRecord[];
 }
 
+interface TypedAnalysisResult {
+	unavailableReason: string | undefined;
+	context?: TypedContext;
+}
+
 function analyzeSyntaxSources(
   context: AnalysisContext,
   invocationId: string,
@@ -216,6 +239,7 @@ function analyzeSyntaxSources(
   buffers: AnalysisBuffers,
 ): void {
   for (const entry of context.sources) {
+    if (entry.isDeclaration) continue;
     if (entry.syntaxErrors.length > 0) {
       for (const item of syntaxDiagnostic(entry))
         buffers.records.push(responseDiagnostic(invocationId, item));
@@ -254,22 +278,63 @@ function analyzeTypedSources(
   requestedTyped: ReadonlySet<string>,
   typeMode: TypeMode,
   buffers: AnalysisBuffers,
-): string | undefined {
-  const typedResult = context.createTypedContext(request, typeMode);
+  forceContextWhenOff = false,
+): TypedAnalysisResult {
+  if (context.inventoryIssues.length > 0) {
+    const reason =
+      "typed analysis is unavailable because the requested source inventory is incomplete";
+    buffers.records.push(
+      responseDiagnostic(invocationId, {
+        code: "typescript.typed_inventory_incomplete",
+        severity: "error",
+        message: reason,
+        attributes: {
+          rejected_paths: context.inventoryIssues.map((item) => item.path),
+        },
+      }),
+    );
+    markTypedAnalysisUnavailable(
+      request,
+      context,
+      invocationId,
+      requestedTyped,
+      typeMode,
+      buffers,
+      reason,
+    );
+    return { unavailableReason: reason };
+  }
+  const typedResult = context.createTypedContext(
+    request,
+    forceContextWhenOff && typeMode === "off" ? "auto" : typeMode,
+  );
   for (const item of typedResult.diagnostics)
     buffers.records.push(responseDiagnostic(invocationId, item));
   const unavailableReason = typedResult.unavailableReason;
   if (typedResult.context !== undefined) {
-	analyzeAvailableTypedSources(
-		context,
-		typedResult.context,
-		requestedTyped,
-		buffers,
-	);
-	return unavailableReason;
+    if (typeMode !== "off") {
+      analyzeAvailableTypedSources(
+        context,
+        typedResult.context,
+        requestedTyped,
+        buffers,
+      );
+    }
+    if (typeMode === "off" && requestedTyped.size > 0) {
+      markTypedAnalysisUnavailable(
+        request,
+        context,
+        invocationId,
+        requestedTyped,
+        typeMode,
+        buffers,
+        "typescript_types is off",
+      );
+    }
+    return { unavailableReason, context: typedResult.context };
   }
-	markTypedAnalysisUnavailable(request, context, invocationId, requestedTyped, typeMode, buffers, unavailableReason);
-	return unavailableReason;
+  markTypedAnalysisUnavailable(request, context, invocationId, requestedTyped, typeMode, buffers, unavailableReason);
+  return { unavailableReason };
 }
 
 function analyzeAvailableTypedSources(
@@ -279,6 +344,7 @@ function analyzeAvailableTypedSources(
 	buffers: AnalysisBuffers,
 ): void {
 	for (const entry of context.sources) {
+		if (entry.isDeclaration) continue;
 		if (entry.syntaxErrors.length > 0) {
 			addTypedCoverage(entry, requestedTyped, buffers, "failed", "syntax errors prevent trustworthy typed analysis");
 			continue;
@@ -318,12 +384,15 @@ function markTypedAnalysisUnavailable(
 ): void {
   const reason = unavailableReason ?? "typed analysis is unavailable";
   const hasSyntaxUsableSource = context.sources.some(
-    (entry) => entry.syntaxErrors.length === 0,
+    (entry) => !entry.isDeclaration && entry.syntaxErrors.length === 0,
   );
-  if ((typeMode === "require" && hasSyntaxUsableSource) || typeMode === "off") {
+  if (
+    (typeMode === "require" && hasSyntaxUsableSource) ||
+    (typeMode === "off" && requestedTyped.size > 0)
+  ) {
     for (const unit of request.units) buffers.failedUnits.add(unit.unit_id);
   }
-  if (typeMode === "off") {
+  if (typeMode === "off" && requestedTyped.size > 0) {
     buffers.records.push(
       responseDiagnostic(invocationId, {
         code: "typescript.typed_components_requested_while_off",
@@ -334,6 +403,7 @@ function markTypedAnalysisUnavailable(
     );
   }
   for (const entry of context.sources) {
+	if (entry.isDeclaration) continue;
 	if (entry.syntaxErrors.length > 0) {
 	  addTypedCoverage(entry, requestedTyped, buffers, "failed", "syntax errors prevent trustworthy typed analysis");
 	} else {
@@ -350,6 +420,7 @@ function finishAnalysis(
   requestedTyped: ReadonlySet<string>,
   typeMode: TypeMode,
   typedUnavailableReason: string | undefined,
+  requestedDepth: boolean,
   buffers: AnalysisBuffers,
 ): ResponseRecord[] {
   // Sources and each analyzer's findings are already produced deterministically.
@@ -359,11 +430,11 @@ function finishAnalysis(
   for (const item of buffers.coverage)
     buffers.records.push(responseCoverage(invocationId, item));
   const modes = ["typescript-syntax"];
-  if (requestedTyped.size > 0 && typeMode !== "off")
+  if (requestedDepth || (requestedTyped.size > 0 && typeMode !== "off"))
     modes.push("typescript-compiler");
   for (const unit of request.units) {
     const unitSources = context.sources.filter(
-      (item) => item.unitId === unit.unit_id,
+      (item) => item.unitId === unit.unit_id && !item.isDeclaration,
     );
     buffers.records.push({
       type: "execution_plan",
@@ -462,6 +533,16 @@ export function analyze(input: unknown): ResponseRecord[] {
   const requestedTyped = new Set(
     [...requested].filter((item) => TYPED_COMPONENTS.has(item)),
   );
+  const requestedDepth = request.components.some(
+    (item) =>
+      item.component_id === "module_shallowness" &&
+      item.definition_version === "responsibility-burden-v4",
+  );
+  const requestedSyntax = new Set(
+    [...requestedStructural].filter(
+      (item) => !requestedDepth || item !== "module_shallowness",
+    ),
+  );
   const measurements: Measurement[] = [];
   const coverage: Coverage[] = [];
   const failedUnits = new Set<string>();
@@ -483,19 +564,51 @@ export function analyze(input: unknown): ResponseRecord[] {
     failedUnits,
     records,
   };
-  analyzeSyntaxSources(context, invocationId, requestedStructural, buffers);
+  for (const issue of context.inventoryIssues) {
+    const diagnostic: Diagnostic = {
+      unit_id: issue.unitId,
+      path: issue.path,
+      code: "typescript.source_inventory_failed",
+      severity: "error",
+      message: issue.message,
+    };
+    records.push(responseDiagnostic(invocationId, diagnostic));
+    for (const component of requested) {
+      buffers.coverage.push({
+        unit_id: issue.unitId,
+        path: issue.path,
+        component_id: component,
+        definition_version:
+          COMPONENT_BY_ID.get(component)?.definition_version ?? "unknown",
+        state: "failed",
+        reason: issue.message,
+      });
+    }
+  }
+  analyzeSyntaxSources(context, invocationId, requestedSyntax, buffers);
 
   const typeMode: TypeMode = request.options?.typescript_types ?? "auto";
   let typedUnavailableReason: string | undefined;
-  if (requestedTyped.size > 0) {
-    typedUnavailableReason = analyzeTypedSources(
+  let typedContext: TypedContext | undefined;
+  if (requestedTyped.size > 0 || requestedDepth) {
+    const typedResult = analyzeTypedSources(
       request,
       context,
       invocationId,
       requestedTyped,
       typeMode,
       buffers,
+      requestedDepth,
     );
+    typedUnavailableReason = typedResult.unavailableReason;
+    typedContext = typedResult.context;
+  }
+  if (requestedDepth) {
+    const depth = analyzeDepth(request, context, typedContext);
+    for (const item of depth.diagnostics)
+      records.push(responseDiagnostic(invocationId, item));
+    buffers.measurements.push(...depth.measurements);
+    buffers.coverage.push(...depth.coverage);
   }
 
   return finishAnalysis(
@@ -506,6 +619,7 @@ export function analyze(input: unknown): ResponseRecord[] {
     requestedTyped,
     typeMode,
     typedUnavailableReason,
+    requestedDepth,
     buffers,
   );
 }

@@ -66,7 +66,7 @@ func TestFeatureSettingsLoadAsynchronouslyAndOwnKeyboard(t *testing.T) {
 	store := &settingsConfigStore{resolved: settingsResolved()}
 	model := &Model{
 		width: 80, height: 24, mainView: MainViewFiles, settings: true,
-		settingsCursor: settingsIndex("delivery"), configStore: store,
+		settingsGroup: "agents", settingsCursor: 2, configStore: store,
 		configWorkspace: fix.WorkspaceIdentity{Repository: "repo", RepositoryRoot: "/repo"},
 	}
 	updated, command := handleSettingsKey(model, "enter")
@@ -856,8 +856,8 @@ func (*repairableChoiceProfileServices) Probe(_ context.Context, profile agent.P
 func TestFeatureSettingsRenderAllSectionsAtResponsiveSizes(t *testing.T) {
 	t.Parallel()
 	sections := map[configSettingsKind]string{
-		configAgents: "AGENTS", configFix: "FIX DEFAULTS", configConcurrency: "CONCURRENCY & RETENTION",
-		configDelivery: "GIT & PULL REQUESTS",
+		configAgents: "AGENT SETUP", configFix: "FIX SETTINGS", configConcurrency: "CONCURRENCY & RETENTION",
+		configDelivery: "GIT SETTINGS",
 	}
 	for _, size := range [][2]int{{40, 10}, {72, 16}, {120, 30}} {
 		for kind, heading := range sections {

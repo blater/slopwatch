@@ -96,6 +96,7 @@ func WorkspaceKey(path string) (Key, error) {
 // ViewOptions contains the scope that determines which rows belong in a
 // workspace display. Presentation-only settings are intentionally absent.
 type ViewOptions struct {
+	GitignorePolicy string   `json:"gitignore_policy"`
 	Targets         []string `json:"targets"`
 	Languages       []string `json:"languages"`
 	IncludeTests    bool     `json:"include_tests"`

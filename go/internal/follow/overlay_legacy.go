@@ -16,6 +16,9 @@ type legacyOverlayInput struct {
 	appearance          bool
 	config              bool
 	settings            bool
+	settingsGroup       bool
+	filesSettings       bool
+	configParent        bool
 	info                bool
 	find                bool
 	findSource          bool
@@ -42,6 +45,15 @@ func (stack *OverlayStack) reconcileLegacy(input legacyOverlayInput) {
 		caller = OverlayCaller{MainView: input.mainView, Overlay: kind, Selected: input.selected}
 	}
 
+	if input.settingsGroup {
+		appendFrame(OverlaySettings)
+		if !input.settings || input.filesSettings {
+			appendFrame(OverlaySettings)
+		}
+	}
+	if input.configParent {
+		appendFrame(OverlayConfigSettings)
+	}
 	switch {
 	case input.detail:
 		appendFrame(OverlayDetail)
@@ -97,6 +109,9 @@ func (model *Model) reconcileLegacyOverlayStack() {
 		appearance:          model.appearance,
 		config:              model.configSettings.open,
 		settings:            model.settings,
+		settingsGroup:       model.settingsGroup != "",
+		filesSettings:       model.filesSettings,
+		configParent:        model.configParent != nil,
 		info:                model.infoOpen,
 		find:                model.source.findOpen,
 		findSource:          model.source.findSource,

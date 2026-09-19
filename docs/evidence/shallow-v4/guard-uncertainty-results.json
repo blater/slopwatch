@@ -1,0 +1,786 @@
+{
+  "synthetic": {
+    "cases": 60,
+    "failures": [],
+    "rating_changes": [],
+    "languages": {
+      "go": {
+        "total": 15,
+        "applicable": 15,
+        "numeric": 15,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 15,
+        "semantic_numeric": 15,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 15,
+        "estimated_rate": 1.0,
+        "uncertain": 14,
+        "uncertainty_rate": 0.9333333333333333,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 15,
+        "behavioral_conformance": 15,
+        "semantic_coverage": {
+          "partial": 15
+        },
+        "all_state_distribution": {
+          "partial": 15
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 6,
+          "26-64": 3,
+          "65-100": 4
+        },
+        "failures": 0
+      },
+      "java": {
+        "total": 15,
+        "applicable": 15,
+        "numeric": 15,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 15,
+        "semantic_numeric": 15,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 14,
+        "estimated_rate": 0.9333333333333333,
+        "uncertain": 14,
+        "uncertainty_rate": 0.9333333333333333,
+        "precise_complete": 1,
+        "semantic_complete_rate": 0.06666666666666667,
+        "semantic_conformance": 15,
+        "behavioral_conformance": 15,
+        "semantic_coverage": {
+          "partial": 14,
+          "measured": 1
+        },
+        "all_state_distribution": {
+          "partial": 14,
+          "measured": 1
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 6,
+          "26-64": 3,
+          "65-100": 4
+        },
+        "failures": 0
+      },
+      "rust": {
+        "total": 15,
+        "applicable": 15,
+        "numeric": 15,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 15,
+        "semantic_numeric": 15,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 14,
+        "estimated_rate": 0.9333333333333333,
+        "uncertain": 14,
+        "uncertainty_rate": 0.9333333333333333,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 15,
+        "behavioral_conformance": 15,
+        "semantic_coverage": {
+          "partial": 14,
+          "measured": 1
+        },
+        "all_state_distribution": {
+          "partial": 14,
+          "measured": 1
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 6,
+          "26-64": 3,
+          "65-100": 4
+        },
+        "failures": 0
+      },
+      "typescript": {
+        "total": 15,
+        "applicable": 15,
+        "numeric": 15,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 15,
+        "semantic_numeric": 15,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 14,
+        "estimated_rate": 0.9333333333333333,
+        "uncertain": 14,
+        "uncertainty_rate": 0.9333333333333333,
+        "precise_complete": 1,
+        "semantic_complete_rate": 0.06666666666666667,
+        "semantic_conformance": 15,
+        "behavioral_conformance": 15,
+        "semantic_coverage": {
+          "partial": 14,
+          "measured": 1
+        },
+        "all_state_distribution": {
+          "partial": 14,
+          "measured": 1
+        },
+        "bands": {
+          "0": 7,
+          "1-25": 1,
+          "26-64": 3,
+          "65-100": 4
+        },
+        "failures": 0
+      }
+    },
+    "ratings": {
+      "java_lifecycle_low": 2,
+      "java_lifecycle_mid": 32,
+      "java_lifecycle_high": 89,
+      "java_representation_low": 17,
+      "java_representation_mid": 39,
+      "java_representation_high": 68,
+      "java_forwarding_low": 0,
+      "java_forwarding_mid": 55,
+      "java_forwarding_high": 93,
+      "java_control_passive": 0,
+      "go_lifecycle_low": 2,
+      "go_lifecycle_mid": 52,
+      "go_lifecycle_high": 89,
+      "go_representation_low": 10,
+      "go_representation_mid": 32,
+      "go_representation_high": 67,
+      "go_forwarding_low": 0,
+      "go_forwarding_mid": 55,
+      "go_forwarding_high": 93,
+      "go_control_passive": 0,
+      "typescript_lifecycle_low": 0,
+      "typescript_lifecycle_mid": 30,
+      "typescript_lifecycle_high": 89,
+      "typescript_representation_low": 13,
+      "typescript_representation_mid": 35,
+      "typescript_representation_high": 68,
+      "typescript_forwarding_low": 0,
+      "typescript_forwarding_mid": 55,
+      "typescript_forwarding_high": 93,
+      "typescript_control_passive": 0,
+      "rust_lifecycle_low": 3,
+      "rust_lifecycle_mid": 32,
+      "rust_lifecycle_high": 90,
+      "rust_representation_low": 15,
+      "rust_representation_mid": 35,
+      "rust_representation_high": 68,
+      "rust_forwarding_low": 0,
+      "rust_forwarding_mid": 55,
+      "rust_forwarding_high": 94,
+      "rust_control_passive": 0,
+      "java_lifecycle_low__helper_extracted": 2,
+      "java_lifecycle_low__renamed": 2,
+      "java_lifecycle_low__harmless_syntax": 2,
+      "java_lifecycle_low__dependency_hidden": 2,
+      "go_lifecycle_low__helper_extracted": 2,
+      "go_lifecycle_low__renamed": 2,
+      "go_lifecycle_low__harmless_syntax": 2,
+      "go_lifecycle_low__dependency_hidden": 2,
+      "typescript_lifecycle_low__helper_extracted": 0,
+      "typescript_lifecycle_low__renamed": 0,
+      "typescript_lifecycle_low__harmless_syntax": 0,
+      "typescript_lifecycle_low__dependency_hidden": 0,
+      "rust_lifecycle_low__helper_extracted": 3,
+      "rust_lifecycle_low__renamed": 3,
+      "rust_lifecycle_low__harmless_syntax": 3,
+      "rust_lifecycle_low__dependency_hidden": 2,
+      "java_lifecycle_high__dependency_hidden": 89,
+      "go_lifecycle_high__dependency_hidden": 89,
+      "typescript_lifecycle_high__dependency_hidden": 89,
+      "rust_lifecycle_high__dependency_hidden": 90
+    }
+  },
+  "real": {
+    "cases": 12,
+    "failures": [],
+    "rating_changes": [],
+    "languages": {
+      "go": {
+        "total": 2,
+        "applicable": 2,
+        "numeric": 2,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 1,
+        "semantic_numeric": 1,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 1,
+        "excluded_numeric": 1,
+        "estimated": 1,
+        "estimated_rate": 1.0,
+        "uncertain": 1,
+        "uncertainty_rate": 1.0,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 1,
+        "behavioral_conformance": 2,
+        "semantic_coverage": {
+          "partial": 1
+        },
+        "all_state_distribution": {
+          "partial": 1,
+          "measured": 1
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 0,
+          "26-64": 0,
+          "65-100": 0
+        },
+        "failures": 0
+      },
+      "java": {
+        "total": 6,
+        "applicable": 6,
+        "numeric": 6,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 6,
+        "semantic_numeric": 6,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 5,
+        "estimated_rate": 0.8333333333333334,
+        "uncertain": 5,
+        "uncertainty_rate": 0.8333333333333334,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 6,
+        "behavioral_conformance": 6,
+        "semantic_coverage": {
+          "measured": 1,
+          "partial": 5
+        },
+        "all_state_distribution": {
+          "measured": 1,
+          "partial": 5
+        },
+        "bands": {
+          "0": 2,
+          "1-25": 2,
+          "26-64": 2,
+          "65-100": 0
+        },
+        "failures": 0
+      },
+      "rust": {
+        "total": 2,
+        "applicable": 2,
+        "numeric": 2,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 2,
+        "semantic_numeric": 2,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 2,
+        "estimated_rate": 1.0,
+        "uncertain": 2,
+        "uncertainty_rate": 1.0,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 2,
+        "behavioral_conformance": 2,
+        "semantic_coverage": {
+          "partial": 2
+        },
+        "all_state_distribution": {
+          "partial": 2
+        },
+        "bands": {
+          "0": 0,
+          "1-25": 2,
+          "26-64": 0,
+          "65-100": 0
+        },
+        "failures": 0
+      },
+      "typescript": {
+        "total": 2,
+        "applicable": 2,
+        "numeric": 2,
+        "not_applicable": 0,
+        "numeric_coverage": 1.0,
+        "semantic_applicable": 2,
+        "semantic_numeric": 2,
+        "semantic_numeric_coverage": 1.0,
+        "excluded_from_semantic_numeric_coverage": 0,
+        "excluded_numeric": 0,
+        "estimated": 2,
+        "estimated_rate": 1.0,
+        "uncertain": 2,
+        "uncertainty_rate": 1.0,
+        "precise_complete": 0,
+        "semantic_complete_rate": 0.0,
+        "semantic_conformance": 2,
+        "behavioral_conformance": 2,
+        "semantic_coverage": {
+          "partial": 2
+        },
+        "all_state_distribution": {
+          "partial": 2
+        },
+        "bands": {
+          "0": 1,
+          "1-25": 1,
+          "26-64": 0,
+          "65-100": 0
+        },
+        "failures": 0
+      }
+    },
+    "ratings": {
+      "java-result-carrier": 0,
+      "java-codec": 17,
+      "java-query-pipeline": 63,
+      "java-keyed-path": 0,
+      "java-query-result-row": 36,
+      "go-workspace": 0,
+      "go-publisher-contract": 0,
+      "typescript-predicates": 0,
+      "typescript-config": 7,
+      "rust-location": 20,
+      "rust-expression": 5,
+      "java-derived-reference-validator": 7
+    }
+  },
+  "before": [
+    {
+      "language": "java",
+      "variant": "bare",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:External.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:Example.java#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "java",
+      "variant": "guarded",
+      "shallow": 20,
+      "score": 5,
+      "graded": {
+        "estimated_hidden_responsibility": 0,
+        "hidden_responsibility": 1,
+        "material_limitations": [
+          "unresolved_call_range_0_2:External.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {
+          "validation": 1
+        },
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:Example.java#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "typescript",
+      "variant": "bare",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:example.ts#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "typescript",
+      "variant": "guarded",
+      "shallow": 20,
+      "score": 5,
+      "graded": {
+        "estimated_hidden_responsibility": 0,
+        "hidden_responsibility": 1,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {
+          "validation": 1
+        },
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:example.ts#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "go",
+      "variant": "bare",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.Convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:example.go#Convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "go",
+      "variant": "guarded",
+      "shallow": 20,
+      "score": 5,
+      "graded": {
+        "estimated_hidden_responsibility": 0,
+        "hidden_responsibility": 1,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.Convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {
+          "validation": 1
+        },
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:example.go#Convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "rust",
+      "variant": "bare",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:lib.rs#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "rust",
+      "variant": "guarded",
+      "shallow": 43,
+      "score": 10.521683299074,
+      "graded": {
+        "estimated_hidden_responsibility": 0,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:lib.rs#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    }
+  ],
+  "after": [
+    {
+      "language": "java",
+      "variant": "bare",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:External.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:Example.java#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "java",
+      "variant": "guarded",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 2,
+        "hidden_responsibility": 1,
+        "material_limitations": [
+          "unresolved_call_range_0_2:External.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {
+          "validation": 1
+        },
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:Example.java#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "typescript",
+      "variant": "bare",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:example.ts#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "typescript",
+      "variant": "guarded",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 2,
+        "hidden_responsibility": 1,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {
+          "validation": 1
+        },
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:example.ts#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "go",
+      "variant": "bare",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.Convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:example.go#Convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "go",
+      "variant": "guarded",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 2,
+        "hidden_responsibility": 1,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.Convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {
+          "validation": 1
+        },
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:example.go#Convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "rust",
+      "variant": "bare",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:lib.rs#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    },
+    {
+      "language": "rust",
+      "variant": "guarded",
+      "shallow": 10,
+      "score": 0,
+      "graded": {
+        "estimated_hidden_responsibility": 3,
+        "hidden_responsibility": 0,
+        "material_limitations": [
+          "unresolved_call_range_0_2:external.convert/x,a,b,c"
+        ],
+        "residual_burden": 0.75,
+        "responsibilities": {},
+        "supported_burden": 0.75,
+        "surface": {
+          "evidence": [
+            "operation:lib.rs#convert/0:1"
+          ],
+          "input_units": 1,
+          "operation_units": 1,
+          "representation_units": 0
+        },
+        "zero_reason": ""
+      }
+    }
+  ],
+  "binary_sha256": "d49489874774ae1e807dd0872adab24db17320bd470839a9d210f26fde6a8cee",
+  "frozen_manifests": {
+    "docs/evidence/shallow-v4/graded-benchmark.json": "ac9a39a3e761201e3a9f8d8078b9adf7976c2b905c92e33840a38aa784c330df",
+    "docs/evidence/shallow-v4/graded-real-benchmark.json": "45f80f6954ae9c08bc094ee82bd59302430c7bb25627f10187ce0601ec926a4d"
+  }
+}

@@ -2,6 +2,8 @@ package follow
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -170,7 +172,7 @@ func (model *Model) openFixForSelected() tea.Cmd {
 		Workspace: model.options.Workspace, RepositoryRoot: model.fixWorkspace.RepositoryRoot,
 	})
 	if err != nil {
-		model.status = "Fix unavailable for this row: " + err.Error()
+		showRuntimeError(model, fmt.Errorf("Fix unavailable for this row: %w", err))
 		return nil
 	}
 	path := targets[0]
@@ -185,10 +187,11 @@ func (model *Model) openFixForSelected() tea.Cmd {
 		}
 	}
 	if model.fixService == nil {
-		model.status = "Fix unavailable: configure an agent service in Settings"
+		reason := "Fix unavailable: configure an agent service in Settings"
 		if model.options.FixUnavailableReason != "" {
-			model.status = "Fix unavailable: " + model.options.FixUnavailableReason
+			reason = "Fix unavailable: " + model.options.FixUnavailableReason
 		}
+		showRuntimeError(model, errors.New(reason))
 		return nil
 	}
 	model.fixGeneration++
@@ -263,7 +266,7 @@ type fixDialogChoice struct {
 func (model *Model) handleFixTargetPreferenceSaved(message fixTargetPreferenceSavedMsg) tea.Cmd {
 	outcome := model.targetScorePreference.complete(message, model.fixDialog.input.Preferences, model.configStore, model.configWorkspace)
 	if message.err != nil {
-		model.fixNotice = "Target score preference was not saved: " + cleanAgentText(message.err.Error())
+		showRuntimeError(model, fmt.Errorf("Target score preference was not saved: %w", message.err))
 	} else {
 		model.fixDialog.input.Preferences = outcome.preferences
 	}
@@ -339,6 +342,8 @@ func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 		return model.fixUpdateError(message.err)
 	}
 	model.fixNotice = model.fixUpdates.clearError(model.fixNotice)
+	model.fixErrorSummary = ""
+	showJobErrors(model, message.jobs)
 	previousMonitorUpdate, previousLogUpdate := model.openFixSurfaceUpdates()
 	model.agents.setPresentations(message.jobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	monitorCommand, logCommand := model.refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpdate)
@@ -347,7 +352,11 @@ func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 
 func (model *Model) fixUpdateError(err error) tea.Cmd {
 	var retry tea.Cmd
-	model.fixNotice, retry = model.fixUpdates.markUnavailable(err)
+	_, retry = model.fixUpdates.markUnavailable(err)
+	if model.fixErrorSummary != err.Error() {
+		model.fixErrorSummary = err.Error()
+		showRuntimeError(model, fmt.Errorf("Fix updates unavailable: %w", err))
+	}
 	return retry
 }
 
@@ -378,6 +387,9 @@ func (model *Model) handleShutdownKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	outcome := model.shutdown.handleKey(key, model.fixService)
 	if outcome.close {
 		model.overlays.Pop()
+		// Errors received while shutdown confirmation was on top are retained
+		// until the confirmation closes, then become the next modal.
+		showStoredRuntimeError(model)
 	}
 	return model, outcome.command
 }
@@ -394,7 +406,7 @@ func (model *Model) openCancelConfirmation() {
 func (model *Model) activateJobAction(jobID fix.JobID, choices ...fix.JobAction) (tea.Model, tea.Cmd) {
 	job, ok := jobByID(model.agents.Jobs, jobID)
 	if !ok {
-		model.fixNotice = "Selected job is no longer available"
+		showRuntimeError(model, errors.New("Selected job is no longer available"))
 		return model, nil
 	}
 	action := fix.JobAction("")
@@ -405,7 +417,7 @@ func (model *Model) activateJobAction(jobID fix.JobID, choices ...fix.JobAction)
 		}
 	}
 	if action == "" {
-		model.fixNotice = jobActionLabel(choices[0]) + " is unavailable for this job"
+		showRuntimeError(model, errors.New(jobActionLabel(choices[0])+" is unavailable for this job"))
 		return model, nil
 	}
 	if jobActionRequiresConfirmation(action) {

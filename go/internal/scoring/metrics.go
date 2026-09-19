@@ -75,6 +75,9 @@ type MetricValue struct {
 	Value        float64
 	Available    bool
 	Contribution float64
+	// State is populated for nullable SHALLOW v4 values. Empty retains the
+	// legacy metric shape; not_applicable is distinct from a measured zero.
+	State string
 }
 
 // Metric evaluates a stable dashboard metric key for one file.
@@ -90,6 +93,16 @@ func Metric(file report.File, key string) MetricValue {
 	component, exists := file.Components[definition.ComponentID]
 	if !exists {
 		return MetricValue{}
+	}
+	if definition.ID == MetricShallowness && component.DepthVersion == "responsibility-burden-v4" {
+		state := component.DepthState
+		if state != "not_applicable" && component.RawMaximum != nil {
+			return MetricValue{Value: *component.RawMaximum, Available: true, Contribution: component.Contribution, State: state}
+		}
+		if state == "" || state == "measured" {
+			state = "unavailable"
+		}
+		return MetricValue{Contribution: component.Contribution, State: state}
 	}
 	value := component.Contribution
 	switch definition.Aggregation {

@@ -24,6 +24,9 @@ func filterPlannedUnits(units []unitplan.Unit, discovered map[string][]string, s
 			continue
 		}
 		effective := unit
+		if language == "typescript" {
+			effective.Sources = withoutTypeScriptDeclarations(effective.Sources)
+		}
 		if !includeTests {
 			effective.Sources = withoutTestPaths(effective.Sources, language)
 			effective.ContextSources = withoutTestPaths(effective.ContextSources, language)
@@ -43,6 +46,16 @@ func filterPlannedUnits(units []unitplan.Unit, discovered map[string][]string, s
 		}
 		candidate.owned = owned
 		result = append(result, candidate)
+	}
+	return result
+}
+
+func withoutTypeScriptDeclarations(paths []string) []string {
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if !isTypeScriptDeclaration(path) {
+			result = append(result, path)
+		}
 	}
 	return result
 }

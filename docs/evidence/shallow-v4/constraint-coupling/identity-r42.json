@@ -1,0 +1,97 @@
+{
+  "policy": "r42",
+  "captured_at_utc": "2026-09-18T22:10:31.874091+00:00",
+  "binary_sha256": "f9c00ccfab59485717aca91bce1784c115a08955f33562a6cef8246b293fd0bd",
+  "watch_binary_sha256": "a98e7473639fb8c66558a2f925e0ee8a8a75ca98e119ee560a7ceaee214a024a",
+  "calibration_sha256": "5b03a577e9b9fdbb04dda8be9e9ffd208906c91243f63853c13f90e487368b08",
+  "calibration_unchanged": true,
+  "retained_evidence_checked": 143,
+  "retained_evidence_changed": [],
+  "task_changes": [
+    {
+      "path": "go/internal/native/analyzer.go",
+      "before_sha256": "b959779d611adc3e4da3e7b51eb0f43332de4d705ea5f1156f1f1c6453958748",
+      "after_sha256": "8bc13be7c13b99398579f83b629f44ce95adac39122d49c021053580bb0a47b7"
+    },
+    {
+      "path": "go/internal/native/depth_constraint_coupling_test.go",
+      "before_sha256": null,
+      "after_sha256": "390d2892ced1aecd60bd10fe83d89b36ab87bd1a78ab51f6d2b34ebc8fd082be"
+    },
+    {
+      "path": "go/internal/native/source_depth.go",
+      "before_sha256": "8e3186ff6b8938aa2ba9dc67640349eb89cbf96f087e37974660912734c0c838",
+      "after_sha256": "7172c0b270f91ce5775e74d6b44c4969690142ba5b83dfaee8430e0ee0649c16"
+    },
+    {
+      "path": "go/internal/sourceestimate/connected_obligations_test.go",
+      "before_sha256": "d982771fa309220a39c7947011efb2fa3b4183b93e243c0a9cfc8db8b47313b3",
+      "after_sha256": "c415e8c51faea4a3e3237e48b87a0ee06a9b3af9a63f6d50afcc14832ddfb9bb"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_caller_obligations.go",
+      "before_sha256": "f668661e3a9be4f154bd34f05f96ef4cffa35458563860263f2b768ae3334ed3",
+      "after_sha256": "d9d10b29071964ebbd01371da5c05670dc582675a06b9e1cd83f7a669823f661"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_constraint_callers.go",
+      "before_sha256": null,
+      "after_sha256": "538e33e412fc93215d2316ddcb510b15ce8a1d2fbf94f119a5afc647d68bd862"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_constraint_consumers.go",
+      "before_sha256": null,
+      "after_sha256": "b346c6c2b9fc07810b0a637602ab297c9c8a608d8f19522e2c7029d0d1b2c425"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_constraint_review_test.go",
+      "before_sha256": null,
+      "after_sha256": "6e8a0537d2808c32de4f7a0498d78b6eddac3df47a6829db72519cf9343dba5c"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_constraints.go",
+      "before_sha256": null,
+      "after_sha256": "833ccfb819e9b000a223c9c4ff1570a7abae60dab7d1202bd2456435fdc62f5e"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_constraints_test.go",
+      "before_sha256": null,
+      "after_sha256": "5efaa879880b542f4b7bc195d0892258b0b0b01838b7693fff2a42aad13cc799"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_evidence.go",
+      "before_sha256": "e02ebde222f2e6e9e7a0b862bee48712c8c23618d469620f3d46f7c88fb7b32c",
+      "after_sha256": "e5769afa4fa48f334d510cd77743ea7dbc49cfdb3e6549d3cfcd4f3a5434cf80"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_output_obligations.go",
+      "before_sha256": "4832dc7e74e8f268ad465ae8d5c9b67c9ff3e45c8f5a03d48054b1fc32f7bd90",
+      "after_sha256": "52b99240f7458cb3fe2211cdeeac48c237c542981dbd225e29c1a03b0c5d0e63"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_result_flow.go",
+      "before_sha256": "804d3b9e5add0b931d43208adc1a6a15353b29ad89dd44544ea1fbb99a7e807f",
+      "after_sha256": "8381d882e331f6e879dd2459642f9fd46d77cd168911cb1ade91df7030ef7221"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_storage.go",
+      "before_sha256": "efe14df417e18edd68c42bf6b07c4d91905c5b12d5788f9d050c8f012872a8e5",
+      "after_sha256": "6669e30f5aa6d4f87b82ba1dab3a2bebbff6cb0dac3204e1032f397d2ed88307"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_surface.go",
+      "before_sha256": "686ca0d0bc74c66ebc38fc0b4da20238baf62ae2a9501e0a52dd66ea88b8c8bd",
+      "after_sha256": "dfed995c67b6a3b1aceca803262c54b3fe61276686abca890dec8c6c21a956e5"
+    },
+    {
+      "path": "go/internal/sourceestimate/graded_uncertainty.go",
+      "before_sha256": "10df780134fc195a47b3758b3676336b60f9e60b25af45d2d4e249b2dc4982f2",
+      "after_sha256": "fa8714429755eb62c1d86a8046bd3e776a1dccd6b5496c92ca56832ac43214f9"
+    },
+    {
+      "path": "go/internal/sourceestimate/sourceestimate.go",
+      "before_sha256": "cef94df02ca2535a3d6293be3054c80ad7e4b6449dd0cb024517614c2ed41ac3",
+      "after_sha256": "8380d17ab23f5a2ebd7b9f729851528d1b5948cbf2f911a4afcac5eb358d6148"
+    }
+  ]
+}

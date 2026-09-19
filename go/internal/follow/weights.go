@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/blater/slopwatch/internal/style"
 )
@@ -46,7 +47,7 @@ func isWeightEnabled(model Model, id string) bool {
 	return scoring.NewPolicy(model.weights, model.weightEnabled).Enabled(id)
 }
 
-func rebuildWeightedDocument(model *Model) {
+func projectWeightedDocument(model *Model) {
 	if len(model.files.BaseDocument.Files) == 0 && len(model.files.Document.Files) > 0 {
 		model.files.BaseDocument = model.files.Document
 	}
@@ -57,6 +58,15 @@ func rebuildWeightedDocument(model *Model) {
 	model.files.Document = document
 	model.files.refreshFreshnessStatus()
 	model.files.refreshDisplayFiles(model.options.Limit)
+}
+
+func projectWeightedFiles(model Model, files []report.File) []report.File {
+	return scoring.ProjectFiles(files, scoring.NewPolicy(model.weights, model.weightEnabled))
+}
+
+func rebuildWeightedDocument(model *Model) {
+	projectWeightedDocument(model)
+	model.files.rebuildScoreDistribution()
 }
 
 func defaultWeight(id string) float64 {
@@ -132,11 +142,20 @@ type settingsItem struct {
 var settingsItems = []settingsItem{
 	{key: "agents", label: "Agents"},
 	{key: "appearance", label: "Appearance"},
-	{key: "columns", label: "Columns"},
-	{key: "concurrency", label: "Concurrency"},
-	{key: "fix", label: "Fix defaults"},
-	{key: "delivery", label: "Git & pull requests"},
-	{key: "weights", label: "Weights"},
+	{key: "analysis", label: "Static Analysis"},
+}
+
+var settingsGroups = map[string][]settingsItem{
+	"agents":     {{key: "agent-setup", label: "Agent Setup"}, {key: "fix", label: "Fix Settings"}, {key: "delivery", label: "Git Settings"}},
+	"appearance": {{key: "theme", label: "Theme"}, {key: "columns", label: "Columns"}},
+	"analysis":   {{key: "files", label: "Files"}, {key: "weights", label: "Weights"}},
+}
+
+func (model Model) currentSettingsItems() []settingsItem {
+	if model.settingsGroup != "" {
+		return settingsGroups[model.settingsGroup]
+	}
+	return settingsItems
 }
 
 func settingsIndex(key string) int {
@@ -149,23 +168,49 @@ func settingsIndex(key string) int {
 }
 
 func handleSettingsKey(model *Model, name string) (tea.Model, tea.Cmd) {
+	if model.filesSettings {
+		if isToggleKey(name) {
+			return model, model.toggleGitignore()
+		}
+		if name == "esc" || name == "escape" || name == "q" {
+			model.filesSettings = false
+		}
+		return model, nil
+	}
 	switch name {
 	case "esc", "escape", "q", "s":
-		model.settings = false
+		if model.filesSettings {
+			model.filesSettings = false
+		} else if model.settingsGroup != "" {
+			model.settingsGroup = ""
+			model.settingsCursor = model.settingsRootCursor
+		} else {
+			model.settings = false
+		}
 	case "up", "k":
 		model.settingsCursor = max(0, model.settingsCursor-1)
 	case "down", "j":
-		model.settingsCursor = min(len(settingsItems)-1, model.settingsCursor+1)
+		model.settingsCursor = min(len(model.currentSettingsItems())-1, model.settingsCursor+1)
 	case "enter":
-		return model, openSetting(model, settingsItems[model.settingsCursor].key)
+		return model, openSetting(model, model.currentSettingsItems()[model.settingsCursor].key)
 	}
 	return model, nil
 }
 
 func openSetting(model *Model, key string) tea.Cmd {
+	if _, group := settingsGroups[key]; group {
+		model.settingsGroup = key
+		model.settingsRootCursor = settingsIndex(key)
+		model.settingsCursor = 0
+		model.settings = true
+		return nil
+	}
 	model.settings = false
 	switch key {
-	case "appearance":
+	case "files":
+		model.settings = true
+		model.filesSettings = true
+	case "theme":
 		model.appearance = true
 		model.appearanceCursor = 0
 		if model.theme == style.ThemeLight {
@@ -178,7 +223,9 @@ func openSetting(model *Model, key string) tea.Cmd {
 		model.weightsOpen = true
 		model.weightCursor = 0
 		model.weightsResetConfirm = false
-	case "agents", "fix", "concurrency", "delivery":
+	case "agent-setup":
+		return model.openConfigSettings(configAgents)
+	case "fix", "concurrency", "delivery":
 		return model.openConfigSettings(configSettingsKind(key))
 	}
 	return nil
@@ -270,12 +317,17 @@ func (model *Model) adjustWeight(delta float64) {
 }
 
 func settingsView(model Model) string {
-	content := make([]string, 0, len(settingsItems))
-	for index, item := range settingsItems {
+	items := model.currentSettingsItems()
+	content := make([]string, 0, len(items))
+	for index, item := range items {
 		content = append(content, style.ModalOption(item.label, index == model.settingsCursor, 34))
 	}
 	content = scrollModalLines(content, model.settingsCursor, model.modalBodyHeight())
-	return style.Popup(style.Heading("SETTINGS"), content, "", 38)
+	title := "SETTINGS"
+	if model.settingsGroup != "" {
+		title = settingsItems[settingsIndex(model.settingsGroup)].label
+	}
+	return style.Popup(style.Heading(title), content, "", 38)
 }
 
 func weightsView(model Model) string {

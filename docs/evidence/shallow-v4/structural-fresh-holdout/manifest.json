@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "id": "structural-fresh-real-source-holdout-v1",
+  "status": "independently-reviewed-frozen",
+  "purpose": "holdout",
+  "selection_blinded_to_scores": true,
+  "frozen_before_first_evaluation": true,
+  "frozen_at_utc": "2026-09-18T17:09:51.403800+00:00",
+  "selection_method": "Independent source/caller review using P0 directive and holdout rubric. No score execution or results inspection. Prior manifests used to exclude origins/hashes. Bounded historical scorer-source exposure is disclosed in limitations.",
+  "cases": [
+    {
+      "id": "go-userdata-root",
+      "language": "go",
+      "target": "paths.go",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "paths.go",
+          "origin": "/Users/blater/src/slopwatch/go/internal/userdata/paths.go",
+          "snapshot": "snapshots/go-userdata-root/paths.go",
+          "sha256": "444cc24dad7812d4968db436a13ac6e92a56a7eb058b89268a628c239719fc27"
+        }
+      ],
+      "origin_revision": "3cedf99e6917c57dafdd831957df7ea41c98e556",
+      "source_of_truth": "exact working-tree bytes; revision is provenance only",
+      "hidden_responsibilities": "Resolves home and platform policy, validates absolute usable paths, normalizes paths and applies the Linux XDG fallback behind one parameterless operation.",
+      "remaining_caller_burden": "Caller handles an error, chooses a child directory and creates it; Root deliberately does not own creation.",
+      "rationale_and_witnesses": "analysiscache/store.go DefaultRoot calls Root then joins analysis; NewStore separately creates and protects the cache. The boundary hides platform and environment policy, not filesystem lifecycle."
+    },
+    {
+      "id": "go-fix-subscription",
+      "language": "go",
+      "target": "subscription.go",
+      "group": "mixed",
+      "expected_range": [
+        26,
+        64
+      ],
+      "files": [
+        {
+          "path": "subscription.go",
+          "origin": "/Users/blater/src/slopwatch/go/internal/fixapp/subscription.go",
+          "snapshot": "snapshots/go-fix-subscription/subscription.go",
+          "sha256": "4de576d6fc498ad339009ac1ed73d1f323ba810684ba4e94c342cff2626a4604"
+        }
+      ],
+      "origin_revision": "3cedf99e6917c57dafdd831957df7ea41c98e556",
+      "source_of_truth": "exact working-tree bytes; revision is provenance only",
+      "hidden_responsibilities": "Synchronizes notification capture, advances the captured channel after a notification, handles cancellation/closure and makes Close idempotent.",
+      "remaining_caller_burden": "Caller owns subscribe/wait/read snapshot/rearm/close ordering and recovery after errors. Notification does not deliver a snapshot atomically.",
+      "rationale_and_witnesses": "follow/fix_subscription.go wait calls Wait then service.Jobs; next rearms, close closes, retry closes/resubscribes and refreshes. Useful synchronization is hidden, but observable refresh and recovery phases remain outside."
+    },
+    {
+      "id": "typescript-source-context",
+      "language": "typescript",
+      "target": "context.ts",
+      "group": "mixed",
+      "expected_range": [
+        26,
+        64
+      ],
+      "files": [
+        {
+          "path": "context.ts",
+          "origin": "/Users/blater/src/slopwatch/analyzers/typescript/src/context.ts",
+          "snapshot": "snapshots/typescript-source-context/context.ts",
+          "sha256": "8534138e6b7c7fd30c9697dce0cefe5f629273573fc3bd42b326e03a358fa78f"
+        }
+      ],
+      "origin_revision": "3cedf99e6917c57dafdd831957df7ea41c98e556",
+      "source_of_truth": "exact working-tree bytes; revision is provenance only",
+      "hidden_responsibilities": "Validates source containment and language, deduplicates ownership, loads and parses sources, records inventory failures and sorts sources; delegates typed program creation.",
+      "remaining_caller_burden": "Callers separately create syntax and typed contexts, reconcile inventory failures, inspect typed availability and diagnostics, and update exposed mutable parse-count/program-created bookkeeping through typed-context.ts.",
+      "rationale_and_witnesses": "analyzer.ts creates AnalysisContext and checks inventoryIssues before createTypedContext; typed-context.ts writes owner.typedParseCounts and owner.typedProgramCreated. This is an operational context with useful admission duties but split phases and shared bookkeeping, not merely a passive result."
+    },
+    {
+      "id": "typescript-public-operations",
+      "language": "typescript",
+      "target": "operations.ts",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "operations.ts",
+          "origin": "/Users/blater/src/slopwatch/analyzers/typescript/src/operations.ts",
+          "snapshot": "snapshots/typescript-public-operations/operations.ts",
+          "sha256": "53bdf6430a0a355766e3947ab78eecec978415527c599dcd2e33da34553e7093"
+        }
+      ],
+      "origin_revision": "3cedf99e6917c57dafdd831957df7ea41c98e556",
+      "source_of_truth": "exact working-tree bytes; revision is provenance only",
+      "hidden_responsibilities": "Walks exported declarations, dispatches classes/interfaces/variables, filters public members, recognizes accessor representation and accumulates coherent public-surface facts.",
+      "remaining_caller_burden": "Caller supplies a parsed SourceFile and consumes the returned aggregate; helper functions and accumulator updates are private. Reexported role classification is separate.",
+      "rationale_and_witnesses": "structural.ts moduleShallowness calls publicOperations(entry.sourceFile) once and consumes its result. The returned mutable result has no required repair operation or coupled caller-maintained invariant; its shape alone is not burden."
+    },
+    {
+      "id": "rust-program-parser",
+      "language": "rust",
+      "target": "parser.rs",
+      "group": "low",
+      "expected_range": [
+        0,
+        25
+      ],
+      "files": [
+        {
+          "path": "parser.rs",
+          "origin": "/Users/blater/src/slopwatch/analyzers/structural/adapters/rust/src/parser.rs",
+          "snapshot": "snapshots/rust-program-parser/parser.rs",
+          "sha256": "23f0e6a512036156e81dec1173cc5ac640988489529772d1d080931ba45bf23d"
+        }
+      ],
+      "origin_revision": "3cedf99e6917c57dafdd831957df7ea41c98e556",
+      "source_of_truth": "exact working-tree bytes; revision is provenance only",
+      "hidden_responsibilities": "Canonicalizes workspace and source paths, blocks escapes, deduplicates requests, reads/parses inputs, retains per-file failures, orchestrates cross-file declarations and functions, normalizes and sorts results.",
+      "remaining_caller_burden": "Caller supplies workspace, source paths and include-tests/depth policy, handles outer error and per-file failure metadata. Caller does not manage file handles or coordinate declaration/function passes.",
+      "rationale_and_witnesses": "main.rs response invokes parse_program once and wraps its Result. Useful file admission, failure partitioning and ordered analysis orchestration are hidden by the entry point. Size and branching are not the reason for the low expectation."
+    },
+    {
+      "id": "rust-surface-collector",
+      "language": "rust",
+      "target": "surface.rs",
+      "group": "mixed",
+      "expected_range": [
+        26,
+        64
+      ],
+      "files": [
+        {
+          "path": "surface.rs",
+          "origin": "/Users/blater/src/slopwatch/analyzers/structural/adapters/rust/src/surface.rs",
+          "snapshot": "snapshots/rust-surface-collector/surface.rs",
+          "sha256": "de91bc60a8c15c89abb3d11167ef5e45be7b3dbb0df4c48f5de816a49ddd0eb4"
+        }
+      ],
+      "origin_revision": "3cedf99e6917c57dafdd831957df7ea41c98e556",
+      "source_of_truth": "exact working-tree bytes; revision is provenance only",
+      "hidden_responsibilities": "Traverses declarations and nested inline modules, extracts public function/method/trait signatures, recursively constructs type shapes, and records public representation fields.",
+      "remaining_caller_burden": "Caller parses syntax, supplies matching path, owns and passes two mutable output vectors, coordinates accumulation over files and sorts public operations afterward. Collect appends without resetting or normalizing caller state.",
+      "rationale_and_witnesses": "parser.rs invokes surface::collect with program.public_operations and program.representation during its file loop, then sorts public_operations. Extraction is substantive; residual two-output accumulation and normalization coordination justify mixed rather than high."
+    }
+  ],
+  "relations": [
+    {
+      "higher": "go-fix-subscription",
+      "lower": "go-userdata-root",
+      "minimum_delta": 5,
+      "rationale": "The notification caller retains wait/read/rearm/close and recovery phases; root resolution hides its platform policy in one call."
+    },
+    {
+      "higher": "typescript-source-context",
+      "lower": "typescript-public-operations",
+      "minimum_delta": 5,
+      "rationale": "The context exposes split creation phases and mutable bookkeeping; the collector owns traversal and aggregate construction."
+    },
+    {
+      "higher": "rust-surface-collector",
+      "lower": "rust-program-parser",
+      "minimum_delta": 5,
+      "rationale": "The collector requires caller-owned output accumulation and normalization; parse_program owns those passes and source admission."
+    }
+  ],
+  "limitations": [
+    "Purposive six-file sample from one repository: two cases each in Go, TypeScript and Rust. No fresh high examples; existing Java high-detection requirements remain unchanged.",
+    "Ranges judge file/module boundaries and caller burden, not overall component quality. Some files depend on out-of-snapshot helpers and third-party AST APIs; incomplete evidence must remain visible.",
+    "Source-only review did not invoke scoring or inspect scored results or sourceestimate implementation. Caller tracing exposed structural.ts lines 875-905, the beginning of legacy moduleShallowness feature aggregation; strict blindness to all historical scorer source is therefore not claimed.",
+    "Prior manifest exclusion inspection accidentally printed embedded synthetic source alongside names/hashes; no expected ranges or scores were printed in that inspection. No prior targets are reused.",
+    "Witnesses are review evidence only, not scored target inputs. Their inclusion does not establish complete compilation or semantic context.",
+    "After first evaluation, failures remain failures and ranges/relations remain frozen. Tuning against this sample consumes its holdout status."
+  ],
+  "witness_snapshots": [
+    {
+      "origin": "/Users/blater/src/slopwatch/go/internal/analysiscache/store.go",
+      "snapshot": "witnesses/go/internal/analysiscache/store.go",
+      "sha256": "0e206e8418248ed5a30f0c51d636a09dea09e758a01c714f11da32daec068acb",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/slopwatch/go/internal/follow/fix_subscription.go",
+      "snapshot": "witnesses/go/internal/follow/fix_subscription.go",
+      "sha256": "373af794995f76486f2e52865dab044b605e06f177a1a8221ede87c6d1535bc1",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/slopwatch/go/internal/fixapp/service_transport.go",
+      "snapshot": "witnesses/go/internal/fixapp/service_transport.go",
+      "sha256": "3611f1bdb2281300d03397ef30d0b357d591c77ba7e9aa8ca660d1881911b0fb",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/slopwatch/analyzers/typescript/src/analyzer.ts",
+      "snapshot": "witnesses/analyzers/typescript/src/analyzer.ts",
+      "sha256": "9ded3ceefeed2ef92f071e6c97c9b06e50ab35e0c5c4e5a38a4236dc017d4b5e",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/slopwatch/analyzers/typescript/src/typed-context.ts",
+      "snapshot": "witnesses/analyzers/typescript/src/typed-context.ts",
+      "sha256": "c1001a03a6d7ab5e0537ca7f8d1d0d5d25696f914c37616f235cae54be88f365",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/slopwatch/analyzers/typescript/src/structural.ts",
+      "snapshot": "witnesses/analyzers/typescript/src/structural.ts",
+      "sha256": "5e02bb3862f3689042d75ff66e2c881c495f4c3474baacbfd6d6c3eb7df23498",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/slopwatch/analyzers/structural/adapters/rust/src/main.rs",
+      "snapshot": "witnesses/analyzers/structural/adapters/rust/src/main.rs",
+      "sha256": "0600039d930080e12e4901bbf9f3c5074c060cd45c05fa1e1d57512ece91d16a",
+      "role": "source-review evidence only, not scored analysis input"
+    },
+    {
+      "origin": "/Users/blater/src/slopwatch/analyzers/structural/adapters/rust/src/parser.rs",
+      "snapshot": "witnesses/analyzers/structural/adapters/rust/src/parser.rs",
+      "sha256": "23f0e6a512036156e81dec1173cc5ac640988489529772d1d080931ba45bf23d",
+      "role": "source-review evidence only, not scored analysis input"
+    }
+  ],
+  "excluded_prior_manifests": [
+    "docs/evidence/shallow-v4/graded-benchmark.json",
+    "docs/evidence/shallow-v4/graded-real-benchmark.json",
+    "docs/evidence/shallow-v4/calibration-holdout/manifest.json"
+  ]
+}

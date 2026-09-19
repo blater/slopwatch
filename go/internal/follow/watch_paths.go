@@ -28,6 +28,9 @@ func inScope(watcher *sourceWatcher, absolute string) bool {
 }
 
 func excluded(watcher *sourceWatcher, relative string) bool {
+	if watcher.matcher.Ignored(filepath.Join(watcher.root, relative), false) {
+		return true
+	}
 	parts := strings.Split(filepath.ToSlash(relative), "/")
 	for _, part := range parts[:max(0, len(parts)-1)] {
 		lower := strings.ToLower(part)

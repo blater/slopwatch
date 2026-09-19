@@ -34,8 +34,11 @@ same thing) from stdin and writes NDJSON to stdout. The accepted request is:
 }
 ```
 
-Only exact `.ts`, `.tsx`, `.mts`, and `.cts` production files are accepted;
-declaration files and paths outside the canonical workspace are rejected.
+Only exact `.ts`, `.tsx`, `.mts`, and `.cts` production files are scored.
+`.d.ts`, `.d.mts`, and `.d.cts` files remain available as compiler context but
+do not produce measurements or coverage. Unsupported, unreadable, and
+out-of-workspace paths produce located per-source diagnostics and failed
+coverage while other sources continue.
 Discovery and ownership planning belong to the language provider, not this
 analyzer. A source may have only one unit owner in an invocation.
 

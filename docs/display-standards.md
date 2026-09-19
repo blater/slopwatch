@@ -42,9 +42,12 @@ They do not define layouts or controls for other interfaces.
 ## Settings
 
 - Settings is the entry point for user-adjustable dashboard options.
-- The initial Settings items are Weights and Columns.
+- Settings contains Agents, Appearance, and Static Analysis.
+- Agents contains Agent Setup (including Concurrency), Fix Settings, and Git Settings.
+- Appearance contains Theme and Columns. Static Analysis contains Files and Weights.
 - Settings items use the standard selected-row background treatment.
-- Opening Columns from Settings must return to Settings when Columns closes.
+- Opening a leaf overlays its group and returns to that group and cursor on close.
+- Files contains Honor gitignore, checked by default.
 
 ## Text wrapping
 

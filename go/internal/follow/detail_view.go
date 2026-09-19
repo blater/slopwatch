@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/scoring"
 	"github.com/blater/slopwatch/internal/style"
 )
 
@@ -72,7 +73,7 @@ type detailLine struct {
 
 func detailContent(model Model, file report.File, width int) []string {
 	logical := detailHeaderLines(file)
-	logical = append(logical, detailMetricLines(file)...)
+	logical = append(logical, detailMetricLines(model.files.Document, file)...)
 	logical = append(logical, detailDiagnosticLines(model, file)...)
 	logical = append(logical, detailComponentLines(file)...)
 	return renderDetailLines(logical, width)
@@ -105,7 +106,7 @@ func detailHeaderLines(file report.File) []detailLine {
 	return logical
 }
 
-func detailMetricLines(file report.File) []detailLine {
+func detailMetricLines(document report.Document, file report.File) []detailLine {
 	logical := []detailLine{}
 	labels := []struct{ id, label string }{
 		{"cognitive_complexity", "Cognitive complexity"},
@@ -125,12 +126,19 @@ func detailMetricLines(file report.File) []detailLine {
 			logical = append(logical, detailLine{fmt.Sprintf("%-24s unavailable", item.label), style.TextMuted, false})
 			continue
 		}
-		maximum := maxSubjectValue(component)
 		if item.id == "god_class" {
 			logical = append(logical, detailLine{fmt.Sprintf("%-24s %.1f across %d types", item.label, component.Contribution, component.Observations), style.TextMuted, false})
 		} else if item.id == "module_shallowness" {
-			logical = append(logical, detailLine{fmt.Sprintf("%-24s %s/100 penalty", item.label, report.DisplayNumber(maximum)), style.TextMuted, false})
+			value := scoring.Metric(file, "deep")
+			if value.State == "not_applicable" {
+				logical = append(logical, detailLine{fmt.Sprintf("%-24s N/A", item.label), style.TextMuted, false})
+			} else if !value.Available {
+				logical = append(logical, detailLine{fmt.Sprintf("%-24s X", item.label), style.AccentCritical, true})
+			} else {
+				logical = append(logical, detailLine{fmt.Sprintf("%-24s %s/100 penalty", item.label, report.DisplayNumber(value.Value)), style.TextMuted, false})
+			}
 		} else {
+			maximum := maxSubjectValue(component)
 			unit := "routines"
 			if item.id == "cyclomatic_class_complexity" {
 				unit = "types"
@@ -138,6 +146,7 @@ func detailMetricLines(file report.File) []detailLine {
 			logical = append(logical, detailLine{fmt.Sprintf("%-24s maximum %s across %d %s", item.label, report.DisplayNumber(maximum), component.Observations, unit), style.TextMuted, false})
 		}
 	}
+	logical = append(logical, depthDetailLines(document, file)...)
 	logical = append(logical, detailLine{"", style.TextPrimary, false}, detailLine{"COMPONENTS", style.AccentPositive, true})
 	return logical
 }
@@ -154,8 +163,16 @@ func detailDiagnosticLines(model Model, file report.File) []detailLine {
 }
 
 func fileDiagnosticText(document report.Document, file report.File) []string {
+	if !fileAnalysisFailed(file) {
+		return nil
+	}
 	lines := make([]string, 0)
 	for _, diagnostic := range document.Diagnostics {
+		severity, _ := diagnostic["severity"].(string)
+		attributes, _ := diagnostic["attributes"].(map[string]any)
+		if severity != "" && severity != "error" || attributes["log_only"] == true {
+			continue
+		}
 		path, _ := diagnostic["path"].(string)
 		if path != file.Path {
 			continue
@@ -215,6 +232,14 @@ func detailComponentLines(file report.File) []detailLine {
 	for _, id := range componentIDs {
 		component := file.Components[id]
 		if coverageFailed(file.Coverage[id]) {
+			logical = append(logical, detailLine{fmt.Sprintf("%s  X", id), style.AccentCritical, true})
+			continue
+		}
+		if id == "module_shallowness" && component.DepthVersion == "responsibility-burden-v4" && component.DepthState == "not_applicable" {
+			logical = append(logical, detailLine{fmt.Sprintf("%s  N/A", id), style.TextMuted, true})
+			continue
+		}
+		if id == "module_shallowness" && component.DepthVersion == "responsibility-burden-v4" && scoring.Metric(file, "deep").State != "measured" {
 			logical = append(logical, detailLine{fmt.Sprintf("%s  X", id), style.AccentCritical, true})
 			continue
 		}

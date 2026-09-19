@@ -1,0 +1,61 @@
+[
+  {
+    "name": "slopwatch",
+    "cwd": "/Users/blater/src/slopwatch",
+    "command": [
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--format",
+      "json",
+      "."
+    ],
+    "exit": 0
+  },
+  {
+    "name": "xmltoaster",
+    "cwd": "/Users/blater/src/xmltoaster",
+    "command": [
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--format",
+      "json",
+      "."
+    ],
+    "exit": 0
+  },
+  {
+    "name": "river",
+    "cwd": "/Users/blater/src/river",
+    "command": [
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--format",
+      "json",
+      "."
+    ],
+    "exit": 0
+  },
+  {
+    "name": "typescript",
+    "cwd": "/Users/blater/src/career-ops",
+    "command": [
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--format",
+      "json",
+      "--languages",
+      "typescript",
+      "."
+    ],
+    "exit": 0
+  },
+  {
+    "name": "rust",
+    "cwd": "/Users/blater/src/cargo-coupling",
+    "command": [
+      "/Users/blater/src/slopwatch/build/slopmark",
+      "--format",
+      "json",
+      "--languages",
+      "rust",
+      "."
+    ],
+    "exit": 0
+  }
+]

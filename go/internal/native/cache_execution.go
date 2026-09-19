@@ -64,17 +64,23 @@ func runMissingLanguage(analyzer *analysisEngine, ctx context.Context, workspace
 	}
 	combinedID := language + "-unit"
 	request := missingLanguageRequest(workspace, catalog, language, units, options, invocation, combinedID)
+	typeMode := "off"
+	if options.TypeScriptTypes {
+		typeMode = "auto"
+	}
+	request.Options = analyzerRequestOptions(analyzer, options, language, typeMode)
 	runner := analyzer.runUnits
 	if runner == nil {
 		runner = runAnalyzerUnits
 	}
 	inputs, err := runner(ctx, analyzerExecutable(analyzer.root, language), request)
-	if err != nil {
-		return nil, fmt.Errorf("%s analyzer failed: %w", language, err)
-	}
 	combined, exists := inputs[combinedID]
-	if !exists {
-		return nil, fmt.Errorf("%s analyzer omitted combined batch %s", language, combinedID)
+	if err == nil && !exists {
+		err = fmt.Errorf("%s analyzer omitted combined batch %s", language, combinedID)
+	}
+	combined, err = recoverAnalyzerInputs(ctx, request, combined, err)
+	if err != nil {
+		return nil, err
 	}
 	partitioned := partitionCombinedUnitInputs(combined, units)
 	for _, unit := range units {
@@ -89,7 +95,8 @@ func missingLanguageRequest(workspace string, catalog catalogDocument, language 
 	combinedPaths := make(map[string]bool)
 	for _, unit := range units {
 		for _, path := range unit.analysisPaths {
-			if sourceLanguages[strings.ToLower(filepath.Ext(path))] == language {
+			if sourceLanguages[strings.ToLower(filepath.Ext(path))] == language &&
+				!(language == "typescript" && isTypeScriptDeclaration(path)) {
 				combinedPaths[path] = true
 			}
 		}

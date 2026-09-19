@@ -1,0 +1,39 @@
+ok  	github.com/blater/slopwatch/cmd/slopslap-go	0.315s
+?   	github.com/blater/slopwatch/cmd/slopwatch	[no test files]
+ok  	github.com/blater/slopwatch/internal/agent	(cached)
+ok  	github.com/blater/slopwatch/internal/agent/codexcli	(cached)
+ok  	github.com/blater/slopwatch/internal/agent/openairesponses	(cached)
+--- FAIL: TestProjectionArtifactRoundTrip (0.01s)
+    store_test.go:545: LoadProjection() mismatch:
+         got analysiscache.DisplayProjection{ViewKey:"21a3230e03772a58aff1b3709a9e232850916337e1fba95c434076b6668c6e08", GeneratedAt:time.Date(1970, time.January, 1, 0, 2, 3, 0, time.UTC), Files:[]analysiscache.DisplayFile{analysiscache.DisplayFile{Axes:map[string]float64{"complexity":2}, Complete:true, Components:map[string]analysiscache.DisplayComponent{"complexity":analysiscache.DisplayComponent{Axis:"complexity", Contribution:2, DeduplicatedObservations:1, Observations:1, ObservedContribution:2, Subjects:[]report.SubjectContribution{report.SubjectContribution{Contribution:2, Subject:"f", Value:2}}, DepthState:"", DepthEstimated:false, DepthVersion:"", DepthBoundaryIDs:[]string(nil), RawMaximum:(*float64)(nil)}}, Coverage:map[string]string{"complexity":"observed"}, Language:"go", ObservedAxes:map[string]float64{"complexity":2}, ObservedScore:2, Passed:(*bool)(0x3027e49a60c0), Path:"pkg/a.go", Rank:1, Score:2, ValidZero:false, Freshness:"current", FreshnessNote:""}}, SchemaVersion:1, ProfileSetHash:"", ScoreProfile:"", PolicyRevision:"", Depth:map[string]report.DepthBoundary(nil)}
+        want analysiscache.DisplayProjection{ViewKey:"21a3230e03772a58aff1b3709a9e232850916337e1fba95c434076b6668c6e08", GeneratedAt:time.Date(1970, time.January, 1, 0, 2, 3, 0, time.UTC), Files:[]analysiscache.DisplayFile{analysiscache.DisplayFile{Axes:map[string]float64{"complexity":2}, Complete:true, Components:map[string]analysiscache.DisplayComponent{"complexity":analysiscache.DisplayComponent{Axis:"complexity", Contribution:2, DeduplicatedObservations:1, Observations:1, ObservedContribution:2, Subjects:[]report.SubjectContribution{report.SubjectContribution{Contribution:2, Subject:"f", Value:2}}, DepthState:"", DepthEstimated:false, DepthVersion:"", DepthBoundaryIDs:[]string(nil), RawMaximum:(*float64)(nil)}}, Coverage:map[string]string{"complexity":"observed"}, Language:"go", ObservedAxes:map[string]float64{"complexity":2}, ObservedScore:2, Passed:(*bool)(0x3027e49a6001), Path:"pkg/a.go", Rank:1, Score:2, ValidZero:false, Freshness:"current", FreshnessNote:""}}, SchemaVersion:1, ProfileSetHash:"", ScoreProfile:"", PolicyRevision:"", Depth:map[string]report.DepthBoundary{}}
+FAIL
+FAIL	github.com/blater/slopwatch/internal/analysiscache	1.092s
+ok  	github.com/blater/slopwatch/internal/appconfig	(cached)
+ok  	github.com/blater/slopwatch/internal/appconfig/preferencesadapter	1.285s
+ok  	github.com/blater/slopwatch/internal/candidate	3.846s
+ok  	github.com/blater/slopwatch/internal/delivery	2.388s
+ok  	github.com/blater/slopwatch/internal/fix	(cached)
+?   	github.com/blater/slopwatch/internal/fixanalysis	[no test files]
+ok  	github.com/blater/slopwatch/internal/fixanalysis/nativeadapter	(cached)
+ok  	github.com/blater/slopwatch/internal/fixapp	3.697s
+ok  	github.com/blater/slopwatch/internal/fixprompt	(cached)
+ok  	github.com/blater/slopwatch/internal/follow	3.048s
+ok  	github.com/blater/slopwatch/internal/gitmanifest	(cached)
+ok  	github.com/blater/slopwatch/internal/isolation	(cached)
+ok  	github.com/blater/slopwatch/internal/jobstore	(cached)
+ok  	github.com/blater/slopwatch/internal/naming	(cached)
+ok  	github.com/blater/slopwatch/internal/native	(cached)
+ok  	github.com/blater/slopwatch/internal/preferences	(cached)
+?   	github.com/blater/slopwatch/internal/publisher	[no test files]
+ok  	github.com/blater/slopwatch/internal/publisher/ghcli	(cached)
+ok  	github.com/blater/slopwatch/internal/report	(cached)
+ok  	github.com/blater/slopwatch/internal/scoring	(cached)
+ok  	github.com/blater/slopwatch/internal/sourceestimate	(cached)
+ok  	github.com/blater/slopwatch/internal/sourceignore	(cached)
+ok  	github.com/blater/slopwatch/internal/sourcepath	(cached)
+?   	github.com/blater/slopwatch/internal/style	[no test files]
+ok  	github.com/blater/slopwatch/internal/unitplan	(cached)
+ok  	github.com/blater/slopwatch/internal/userdata	(cached)
+ok  	github.com/blater/slopwatch/internal/workspace	1.648s
+FAIL

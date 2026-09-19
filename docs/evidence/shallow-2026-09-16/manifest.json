@@ -1,0 +1,25 @@
+{
+  "captured_date": "2026-09-16",
+  "kind": "observed legacy output; not corrected expectations",
+  "invocation": [
+    "slopmark",
+    "-format",
+    "json",
+    "-limit",
+    "0",
+    "."
+  ],
+  "working_directory": "materialized sources root",
+  "source_count": 20,
+  "source_checkout": "4861224b0367039c328b1da51df6f7e3d1977331",
+  "source_checkout_note": "Working tree contained unrelated changes; this report was produced by the separately installed binary.",
+  "installed_package": "Homebrew slopwatch/0.1.18",
+  "binary_path": "/opt/homebrew/Cellar/slopwatch/0.1.18/bin/slopmark",
+  "binary_sha256": "41a8b2d64a0ba1a4e2f893c7e7523e118f9e0ba894622129c42022dfb0c3dd27",
+  "provenance_note": "Binary identity recorded during this session after the original scan; not an attestation recorded at initial scan time.",
+  "archive_sha256": {
+    "sources.json": "4942d4ab2d062d0ac8fa568871cb9e7c38d811f77d87f852d0daa8a61942ff4d",
+    "baseline.json": "b05541f11e1217ee577ba5bf87d2473c1539a8eb43a92d4b2c3b103ee7f587f0",
+    "baseline-summary.json": "278e67a1006186309c199805b1be903735b4032666d1b3f0f57387d27ee39751"
+  }
+}

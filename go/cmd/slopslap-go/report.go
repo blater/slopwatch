@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/scoring"
 )
 
 func renderTable(document report.Document, compact, includePass bool) string {
@@ -86,7 +87,7 @@ func renderDiagnostics(document report.Document) string {
 }
 
 func scoreDisplay(file report.File) string {
-	if !file.Complete {
+	if !scoring.ScoreAvailable(file) {
 		return "X"
 	}
 	return report.DisplayNumber(file.Score)
@@ -125,14 +126,21 @@ func cyclomatic(file report.File) string {
 }
 
 func depth(file report.File) string {
-	if componentUnavailable(file, "module_shallowness") {
+	value := scoring.Metric(file, "deep")
+	if value.State == "not_applicable" {
+		return "N/A"
+	}
+	if value.State != "" && !value.Available {
 		return "X"
 	}
-	value, ok := report.Max(file, "module_shallowness")
-	if !ok {
+	if componentUnavailable(file, "module_shallowness") && !value.Available {
+		return "X"
+	}
+	if !value.Available {
 		return "-"
 	}
-	return report.DisplayNumber(value)
+	text := report.DisplayNumber(value.Value)
+	return text
 }
 
 func contribution(file report.File, id string) string {

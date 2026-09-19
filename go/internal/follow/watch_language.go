@@ -11,6 +11,8 @@ import (
 func configurationLanguage(relative string) (string, bool) {
 	name := strings.ToLower(filepath.Base(relative))
 	switch name {
+	case ".gitignore":
+		return "", true
 	case "go.mod", "go.sum", "go.work", "go.work.sum":
 		return "go", true
 	case "cargo.toml", "cargo.lock", "build.rs":

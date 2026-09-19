@@ -1,0 +1,409 @@
+{
+  "contract_version": "flow-v1-r6",
+  "comparison": "Expected canonical slices are mandatory subgraphs; extra language-specific failure edges/provenance are retained and validated separately.",
+  "cases": [
+    {
+      "id": "primitive_negation",
+      "sources": {
+        "java": "public class Probe { private Probe(){} public static boolean invert(boolean x){ return !x; } }",
+        "go": "package probe\nfunc Invert(x bool) bool { return !x }",
+        "rust": "pub fn invert(x: bool) -> bool { !x }",
+        "typescript": "export function invert(x:boolean):boolean { return !x; }"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "primitive",
+          "operator": "not",
+          "operands": [
+            "formal:0"
+          ],
+          "result": "v1"
+        },
+        {
+          "op": "return",
+          "operands": [
+            "v1"
+          ]
+        }
+      ],
+      "expected_facts": {
+        "obligations": [
+          "X:outcome:not(bool:formal0)"
+        ],
+        "roots": [],
+        "outcome_relevant": true
+      },
+      "negative_control": {
+        "replace_return_with": "formal:0",
+        "expected_obligations": []
+      }
+    },
+    {
+      "id": "validation_before_transform",
+      "sources": {
+        "java": "public class Probe { private Probe(){} public static int calc(int x){ if(x<0) throw new IllegalArgumentException(); return x+1; } }",
+        "go": "package probe\nimport \"errors\"\nfunc Calc(x int)(int,error){ if x<0 {return 0,errors.New(\"negative\")}; return x+1,nil }",
+        "rust": "pub fn calc(x: i32)->Result<i32,&'static str>{ if x<0 {return Err(\"negative\")}; Ok(x.wrapping_add(1)) }",
+        "typescript": "export function calc(x:number){ if(x<0) throw new Error(\"negative\"); return x+1; }"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "branch",
+          "condition": "lt(formal:0,0)",
+          "true": "error_exit",
+          "false": "normal_compute"
+        },
+        {
+          "op": "primitive",
+          "block": "normal_compute",
+          "operator": "add",
+          "operands": [
+            "formal:0",
+            "1"
+          ]
+        },
+        {
+          "op": "return",
+          "block": "normal_compute"
+        }
+      ],
+      "expected_facts": {
+        "obligations": [
+          "V:formal0:negative",
+          "X:outcome:add(formal0,1)"
+        ],
+        "error_path_is_not_empty_normal_alternative": true
+      },
+      "notes": "Compare guard placement, bindings and category identities. Preserve language arithmetic mode (Rust wrapping_add) and native error-exit tags; do not assert equal full signature costs for inequivalent error contracts. Primitive wrapping arithmetic is lowered as a typed primitive, not an unknown user call."
+    },
+    {
+      "id": "same_validation_bypass",
+      "sources": {
+        "typescript": "function core(x:number){return x+1;} export function checked(x:number){if(x<0)throw new Error();return core(x);} export function raw(x:number){return core(x);}"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "call",
+          "target": "core",
+          "binding": {
+            "formal:0": "public:checked:0"
+          }
+        },
+        {
+          "op": "call",
+          "target": "core",
+          "binding": {
+            "formal:0": "public:raw:0"
+          }
+        }
+      ],
+      "expected_facts": {
+        "families": 1,
+        "alternatives": [
+          [
+            "V:input",
+            "X:core-outcome"
+          ],
+          [
+            "X:core-outcome"
+          ]
+        ],
+        "guaranteed_categories": [
+          "X"
+        ],
+        "H": 2
+      }
+    },
+    {
+      "id": "shared_state_public_roots",
+      "sources": {
+        "java": "public class Box { private int state; public synchronized int a(int x){int old=state;state=x;return old;} public synchronized int b(int x){int old=state;state=x;return old;} }"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "lock",
+          "root": "receiver:Box"
+        },
+        {
+          "op": "field_read",
+          "root": "receiver:Box.state"
+        },
+        {
+          "op": "field_write",
+          "root": "receiver:Box.state",
+          "value": "formal:0"
+        },
+        {
+          "op": "unlock",
+          "root": "receiver:Box",
+          "on": "normal_and_throw"
+        }
+      ],
+      "expected_facts": {
+        "shared_obligation_ids": [
+          "C:Box.state",
+          "Y:Box.state:receiver-monitor"
+        ],
+        "distinct_public_noncreation_families": 2,
+        "boundary_H": 4,
+        "X": false
+      }
+    },
+    {
+      "id": "conditional_vs_receiver_dispatch",
+      "sources": {
+        "typescript_conditional": "let state=0; function swap(x:number){let old=state;state=x;return old;} function transform(x:number){return x+1;} export function run(mode:boolean,x:number){return mode?swap(x):transform(x);}",
+        "typescript_receiver": "let state=0; const a={run:(x:number)=>{let old=state;state=x;return old;}}; const b={run:(x:number)=>x+1}; export function run(mode:boolean,x:number){const target=mode?a:b;return target.run(x);}"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "select_target",
+          "targets": [
+            "swap",
+            "transform"
+          ]
+        },
+        {
+          "op": "phi",
+          "alternatives": [
+            "state_behavior",
+            "transform_behavior"
+          ]
+        }
+      ],
+      "expected_facts": {
+        "alternatives": [
+          [
+            "C:state"
+          ],
+          [
+            "X:outcome"
+          ]
+        ],
+        "H": 2,
+        "guaranteed_categories": [],
+        "P": 1
+      }
+    },
+    {
+      "id": "creation_equivalence",
+      "sources": {
+        "java_explicit": "public class Counter { public Counter(){} public int plus(int x){return x+1;} }",
+        "java_implicit": "public class Counter { public int plus(int x){return x+1;} }",
+        "java_factory": "public class Counter { private Counter(){} public static Counter create(){return new Counter();} public int plus(int x){return x+1;} }"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "allocate",
+          "type": "Counter",
+          "credit": 0
+        },
+        {
+          "op": "bind",
+          "creation_family": "create:Counter",
+          "required_slots": []
+        }
+      ],
+      "expected_facts": {
+        "O": 2,
+        "creation_H": 0,
+        "X": [
+          "plus-outcome"
+        ],
+        "creation_routes_equivalent": true
+      }
+    },
+    {
+      "id": "passive_record_creation",
+      "sources": {
+        "go": "package probe\ntype Pair struct { X int; Y int }; func NewPair(x,y int) Pair{return Pair{X:x,Y:y}}",
+        "typescript": "export type Pair={x:number;y:number}; export function create(x:number,y:number):Pair{return {x,y};}"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "pack",
+          "fields": {
+            "x": "formal:0",
+            "y": "formal:1"
+          },
+          "credit": 0
+        }
+      ],
+      "expected_facts": {
+        "creation_state": "not_applicable",
+        "X": false,
+        "outcome_relevance_only": true
+      }
+    },
+    {
+      "id": "optional_packaging_and_default_route",
+      "sources": {
+        "typescript_parameter": "export function encode(payload:string,mode:boolean=false){return mode?payload+\"!\":payload+\"?\";}",
+        "typescript_record": "export function encode(input:{payload:string;mode?:boolean}){const mode=input.mode??false;return mode?input.payload+\"!\":input.payload+\"?\";}",
+        "java_overloads": "public class Codec {private Codec(){} public static String encode(String payload,boolean mode){return mode?payload+\"!\":payload+\"?\";} public static String encode(String payload){return encode(payload,false);} }"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "bind",
+          "slots": [
+            "payload",
+            "mode"
+          ],
+          "required": [
+            "payload"
+          ],
+          "optional": [
+            "mode"
+          ]
+        },
+        {
+          "op": "branch",
+          "condition": "mode",
+          "normal_recipes": [
+            "concat(payload,!)",
+            "concat(payload,?)"
+          ]
+        }
+      ],
+      "expected_facts": {
+        "O": 1,
+        "A": 1,
+        "E": 1,
+        "P": 0,
+        "T_concepts": [
+          "text",
+          "boolean"
+        ],
+        "families": 1,
+        "X": true
+      }
+    },
+    {
+      "id": "local_policy_vs_data",
+      "sources": {
+        "typescript_policy": "export function calc(mode:boolean,x:number){return mode?x+1:x*2;}",
+        "typescript_data": "export function encode(value:boolean){return value?1:0;}"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "branch",
+          "selector": "public_boolean",
+          "policy_requires_independent_payload": true
+        }
+      ],
+      "expected_facts": {
+        "policy_case_P": 1,
+        "data_case_P": 0,
+        "both_X": true
+      }
+    },
+    {
+      "id": "owned_resource_all_exits",
+      "sources": {
+        "java": "import java.io.*; public class Probe {private Probe(){} public static int read(String p)throws IOException{try(FileInputStream f=new FileInputStream(p)){return f.read(new byte[8]);}}}",
+        "go": "package probe\nimport \"os\"\nfunc Read(p string)(int,error){f,e:=os.Open(p);if e!=nil{return 0,e};defer f.Close();return f.Read(make([]byte,8))}",
+        "rust": "use std::io::Read; pub fn read(p:&str)->std::io::Result<usize>{let mut f=std::fs::File::open(p)?;let mut b=Vec::new();f.read_to_end(&mut b)}",
+        "typescript": "import {open} from \"node:fs/promises\"; export async function read(p:string){const f=await open(p,\"r\");try{const b=new Uint8Array(8);return await f.read(b,0,8,0);}finally{await f.close();}}"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "acquire",
+          "result": "resource:file",
+          "error_exit": "no_cleanup_due"
+        },
+        {
+          "op": "use_resource",
+          "root": "resource:file",
+          "can_fail": true
+        },
+        {
+          "op": "cleanup_attempt",
+          "root": "resource:file",
+          "on": "every_exit_after_successful_acquisition"
+        }
+      ],
+      "expected_facts": {
+        "R": true,
+        "ownership": "owned_until_cleanup",
+        "cleanup_success_not_guaranteed": true
+      },
+      "negative_control": {
+        "typescript_source": "import {open} from \"node:fs/promises\"; export async function read(p:string){const f=await open(p,\"r\");try{return await f.read(new Uint8Array(8),0,8,0);}finally{f.close();}}",
+        "R": false,
+        "reason": "unawaited_cleanup"
+      }
+    },
+    {
+      "id": "owned_alias_escape",
+      "sources": {
+        "typescript": "export class Store {private items:number[]=[]; expose(){return this.items;} copy(){return this.items.slice();}}"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "field_read",
+          "root": "receiver:Store.items"
+        },
+        {
+          "op": "escape",
+          "root": "receiver:Store.items",
+          "through": "expose.return"
+        }
+      ],
+      "expected_facts": {
+        "L": 1,
+        "expose_return_alias": "receiver:Store.items",
+        "copy_does_not_cancel_other_route_leak": true
+      },
+      "notes": "The unlisted Array.slice overload remains unknown unless source/registry is extended; that unknown cannot erase the known expose() leak. Fixture tests partial state plus supported L, not a guessed numeric score."
+    },
+    {
+      "id": "recursive_access_widening",
+      "sources": {
+        "typescript": "type Node={next?:Node;value:number}; export function read(n:Node):number{return n.next?read(n.next):n.value;}"
+      },
+      "expected_flow_slice": [
+        {
+          "op": "call",
+          "target": "read",
+          "binding": "formal0.next"
+        },
+        {
+          "op": "unknown",
+          "dimension": "alias",
+          "after_path_steps": 4
+        }
+      ],
+      "expected_facts": {
+        "state": "partial",
+        "reason": "access_path_limit",
+        "cold_equals_warm": true,
+        "call_strings_created": 0
+      }
+    },
+    {
+      "id": "pure_computation_resolution_limit",
+      "sources": {
+        "typescript_simple": "export function calc(x:number):number { return x+1; }",
+        "typescript_substantial": "export function calc(x:number):number { let total=0; for(let i=0;i<x;i++){ total += i*i; } return total; }"
+      },
+      "expected_facts": {
+        "each": {
+          "transformation_obligations": 1,
+          "H": 2,
+          "burden": {
+            "O": 1,
+            "T": 1,
+            "A": 1,
+            "E": 0,
+            "P": 0,
+            "S": 0,
+            "L": 0
+          },
+          "shallow": 30
+        },
+        "same_score": true
+      },
+      "reason": "Accepted bounded-recognizer resolution limit. Loop count and arithmetic operator count supply no extra credit."
+    }
+  ]
+}

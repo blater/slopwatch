@@ -23,8 +23,36 @@ func partitionCombinedUnitInputs(combined scoreInputs, units []plannedCacheUnit)
 			result[owner] = inputs
 		}
 	}
+	for id, boundary := range combined.depth {
+		for owner, files := range depthFilesByOwner(boundary.Files, owners) {
+			inputs := result[owner]
+			boundary.Files = files
+			inputs.depth[id] = boundary
+			for _, path := range files {
+				inputs.depthByPath[path] = appendUnique(inputs.depthByPath[path], id)
+			}
+			result[owner] = inputs
+		}
+	}
+	for path, state := range combined.depthStates {
+		if owner := owners[path]; owner != "" {
+			inputs := result[owner]
+			inputs.depthStates[path] = mergeDepthState(inputs.depthStates[path], state)
+			result[owner] = inputs
+		}
+	}
 	partitionDiagnostics(result, owners, combined.diagnostics, units)
 	partitionPlans(result, combined.plans, units)
+	return result
+}
+
+func depthFilesByOwner(files []string, owners map[string]string) map[string][]string {
+	result := map[string][]string{}
+	for _, path := range files {
+		if owner := owners[path]; owner != "" {
+			result[owner] = appendUnique(result[owner], path)
+		}
+	}
 	return result
 }
 
