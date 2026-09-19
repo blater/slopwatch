@@ -177,7 +177,7 @@ func rustUnits(files []File) []unit {
 		}
 		tokens, limited, lexicallyValid := lex(file.Source)
 		pkg := packageName(file.Language, tokens)
-		u := unit{index: index, file: file, tokens: tokens, pkg: pkg, limited: limited, lexicallyValid: lexicallyValid}
+		u := unit{inventory: &unitInventory{}, index: index, file: file, tokens: tokens, pkg: pkg, limited: limited, lexicallyValid: lexicallyValid}
 		u.ops = findOperations(file, index, tokens, pkg)
 		units = append(units, u)
 	}

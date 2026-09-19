@@ -25,6 +25,7 @@ func gradedConsumerConstraintsBounded(op *operation, u unit, units []unit, index
 		return nil
 	}
 	bindings["#visited:"+op.id] = map[string]bool{}
+	body := normalizedEagerBody(op)
 	copy := *op
 	copy.fieldTypes = cloneStringMap(op.fieldTypes)
 	if copy.fieldTypes == nil {
@@ -37,7 +38,6 @@ func gradedConsumerConstraintsBounded(op *operation, u unit, units []unit, index
 		copy.fieldTypes[name] = typ
 	}
 	op = &copy
-	body := gradedEagerBody(pruneDeadFalseBranches(op.body), op.language)
 	deps := func(expression []token) map[string]bool {
 		result := map[string]bool{}
 		for value := range gradedCallerDependencies(expression) {

@@ -12,7 +12,7 @@ func gradeOwnedOperations(root *operation, units []unit, byKey map[string][]*ope
 		}
 		seen[op.id] = true
 		result = append(result, op)
-		for _, c := range callsIn(pruneDeadFalseBranches(op.body)) {
+		for _, c := range callsIn(normalizedPrunedBody(op)) {
 			matches := resolveCall(op, c, units, byKey)
 			if len(matches) == 1 && matches[0].owner == root.owner && !matches[0].exposed {
 				visit(matches[0], depth+1)

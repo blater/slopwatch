@@ -17,7 +17,7 @@ func gradedCallerOutputBuffers(op *operation, units []unit, index map[string][]*
 	}
 	op.outputAssessed = true
 	u := units[op.file]
-	body := gradedEagerBody(pruneDeadFalseBranches(op.body), op.language)
+	body := normalizedEagerBody(op)
 	for i, t := range body {
 		if t.text == "return" && gradedUnconditional(body, i) {
 			body = body[:statementEnd(body, i)]

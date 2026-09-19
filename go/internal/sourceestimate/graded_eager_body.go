@@ -2,36 +2,55 @@ package sourceestimate
 
 // Callable definitions are not eager effects. Remove only their bounded body,
 // preserving subsequent statements and mutations before/after unrelated lambdas.
+// The result is read-only; unchanged input is returned as a capped shared view.
 func gradedEagerBody(body []token, language string) []token {
-	result := []token{}
+	var result []token
+	copyPrefix := func(end int) {
+		if result == nil {
+			result = make([]token, end, len(body))
+			copy(result, body[:end])
+		}
+	}
 	for i := 0; i < len(body); i++ {
 		t := body[i].text
 		if end, ok := gradedEagerCallableEnd(body, i, t); ok {
+			copyPrefix(i)
 			i = end
 			continue
 		}
 		if language == "rust" {
 			if end, ok := gradedEagerRustClosureEnd(body, i, t); ok {
+				copyPrefix(i)
 				result = append(result, token{text: "null", offset: body[i].offset, line: body[i].line})
 				i = end - 1
 				continue
 			}
 		}
 		if end, ok := gradedEagerPipeClosureEnd(body, i, language, t); ok {
+			copyPrefix(i)
 			result = append(result, token{text: "null"})
 			i = end - 1
 			continue
 		}
 		if language != "rust" {
 			if end, ok := gradedEagerArrowEnd(body, i, t); ok {
+				copyPrefix(i)
 				result = append(result, token{text: "null"})
 				i = end - 1
 				continue
 			}
 		}
-		result = append(result, body[i])
+		if result != nil {
+			result = append(result, body[i])
+		}
 	}
-	return result
+	if result == nil {
+		if body == nil {
+			return []token{}
+		}
+		return body[:len(body):len(body)]
+	}
+	return result[:len(result):len(result)]
 }
 
 func gradedEagerCallableEnd(body []token, i int, text string) (int, bool) {

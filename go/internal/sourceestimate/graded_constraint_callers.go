@@ -38,7 +38,7 @@ func annotateConstraintWitnesses(units []unit) {
 	for _, u := range units {
 		for _, original := range u.ops {
 			eager := *original
-			eager.body = gradedEagerBody(pruneDeadFalseBranches(original.body), original.language)
+			eager.body = normalizedEagerBody(original)
 			op := &eager
 			bindings := map[string]string{}
 			for name, typ := range op.parameterTypes {

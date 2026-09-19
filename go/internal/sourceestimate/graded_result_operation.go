@@ -5,7 +5,7 @@ func gradedOperationResult(op *operation, locals map[string]gradedResultFlow, un
 		return gradedResultFlow{}
 	}
 	*budget -= len(op.body)
-	body := pruneDeadFalseBranches(op.body)
+	body := normalizedPrunedBody(op)
 	statements := gradedResultStatements(body)
 	for index, statement := range statements {
 		if len(statement) == 0 {

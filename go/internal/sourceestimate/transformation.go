@@ -60,7 +60,7 @@ func (s *transformationState) operation(op *operation, bindings map[string]*tran
 		}
 	}
 
-	body := pruneDeadFalseBranches(op.body)
+	body := normalizedPrunedBody(op)
 	returnIndex := -1
 	for index, item := range body {
 		if item.text == "return" {

@@ -1,0 +1,27 @@
+File: after.test
+Type: cpu
+Time: 2026-09-19 11:04:56 BST
+Duration: 4.74s, Total samples = 2s (42.16%)
+Showing nodes accounting for 0.64s, 32.00% of 2s total
+Showing top 20 nodes out of 339
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      1.17s 58.50%  github.com/blater/slopwatch/internal/native.runMissingLanguage
+         0     0%     0%      1.17s 58.50%  github.com/blater/slopwatch/internal/native.runMissingUnits.func1
+         0     0%     0%      1.10s 55.00%  github.com/blater/slopwatch/internal/native.recoverAnalyzerInputs
+         0     0%     0%      1.10s 55.00%  github.com/blater/slopwatch/internal/native.withSourceDepthEstimates
+         0     0%     0%      1.08s 54.00%  github.com/blater/slopwatch/internal/sourceestimate.AnalyzeWithAttribution (inline)
+         0     0%     0%      1.08s 54.00%  github.com/blater/slopwatch/internal/sourceestimate.analyzeWithAttribution
+         0     0%     0%      0.69s 34.50%  github.com/blater/slopwatch/internal/sourceestimate.annotateCallerObligations
+         0     0%     0%      0.69s 34.50%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanJava
+         0     0%     0%      0.69s 34.50%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerScanOperation
+         0     0%     0%      0.62s 31.00%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerCollectConsumers
+         0     0%     0%      0.62s 31.00%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraints (inline)
+         0     0%     0%      0.62s 31.00%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraintsBounded
+     0.01s   0.5%   0.5%      0.55s 27.50%  github.com/blater/slopwatch/internal/sourceestimate.gradedUnconditional
+     0.24s 12.00% 12.50%      0.53s 26.50%  github.com/blater/slopwatch/internal/sourceestimate.gradedUnconditionalExit
+     0.11s  5.50% 18.00%      0.53s 26.50%  github.com/blater/slopwatch/internal/sourceestimate.gradedUnconditionalExits
+         0     0% 18.00%      0.47s 23.50%  runtime.systemstack
+         0     0% 18.00%      0.35s 17.50%  runtime.mallocgc
+         0     0% 18.00%      0.32s 16.00%  runtime.(*mheap).alloc.func1
+         0     0% 18.00%      0.32s 16.00%  runtime.(*mheap).allocSpan
+     0.28s 14.00% 32.00%      0.28s 14.00%  runtime.madvise

@@ -20,7 +20,7 @@ func (a *gradedEvidenceAssessment) dispatchFor(op *operation) string {
 	if key, assessed := a.dispatches[op.id]; assessed {
 		return key
 	}
-	key, _ := gradedCapabilityDispatch(op, pruneDeadFalseBranches(op.body))
+	key, _ := gradedCapabilityDispatch(op, normalizedPrunedBody(op))
 	a.dispatches[op.id] = key
 	return key
 }

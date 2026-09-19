@@ -60,6 +60,7 @@ type token struct {
 }
 
 type operation struct {
+	normalized                     operationBodies
 	constraintReceiver             string
 	findings                       []Finding
 	id, name, owner, language, pkg string
@@ -83,6 +84,7 @@ type operation struct {
 }
 
 type unit struct {
+	inventory         *unitInventory
 	shadowedBuiltins  map[string]bool
 	calibration       CalibrationProfile
 	index             int
@@ -141,7 +143,7 @@ func analyzeWithAttribution(files []File, includeGoPackage bool, profiles ...Cal
 		if normalizeLanguage(file.Language, file.Path) == "go" {
 			pkg = filepath.ToSlash(filepath.Dir(file.Path)) + "@" + pkg
 		}
-		units[i] = unit{calibration: profile, index: i, file: file, tokens: tokens, pkg: pkg, limited: limited, lexicallyValid: lexicallyValid}
+		units[i] = unit{inventory: &unitInventory{}, calibration: profile, index: i, file: file, tokens: tokens, pkg: pkg, limited: limited, lexicallyValid: lexicallyValid}
 		units[i].ops = findOperations(file, i, tokens, units[i].pkg)
 		hasExternal := false
 		for _, op := range units[i].ops {

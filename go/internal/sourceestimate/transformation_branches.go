@@ -15,27 +15,33 @@ func straightLinePrefix(body []token) bool {
 
 // pruneDeadFalseBranches removes only syntactically explicit always-false if
 // branches. It does not attempt general constant folding, so an uncertain
-// condition still makes the caller incomplete.
+// condition still makes the caller incomplete. The result is read-only and may
+// share the input backing array; capped capacity makes appends safe.
 func pruneDeadFalseBranches(body []token) []token {
 	if len(body) == 0 {
-		return body
+		return body[:0:0]
 	}
-	result := make([]token, 0, len(body))
+	var result []token
 	for index := 0; index < len(body); {
-		if body[index].text != "if" {
-			result = append(result, body[index])
-			index++
-			continue
+		if body[index].text == "if" {
+			if end, ok := deadFalseBranchEnd(body, index); ok {
+				if result == nil {
+					result = make([]token, index, len(body))
+					copy(result, body[:index])
+				}
+				index = end
+				continue
+			}
 		}
-		end, ok := deadFalseBranchEnd(body, index)
-		if !ok {
+		if result != nil {
 			result = append(result, body[index])
-			index++
-			continue
 		}
-		index = end
+		index++
 	}
-	return result
+	if result == nil {
+		return body[:len(body):len(body)]
+	}
+	return result[:len(result):len(result)]
 }
 
 func deadFalseBranchEnd(body []token, start int) (int, bool) {

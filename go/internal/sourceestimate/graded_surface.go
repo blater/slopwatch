@@ -32,8 +32,23 @@ type gradedSurfaceOwner struct {
 
 // callerDeclaredFields exposes the bounded owner inventory to the graded
 // evidence pass. The returned map is scoped to this unit and owner; it never
-// performs a workspace-wide declaration scan.
+// performs a workspace-wide declaration scan. Consumers must not mutate it.
 func callerDeclaredFields(u unit, owner string) map[string]gradedSurfaceField {
+	if u.inventory == nil {
+		return uncachedCallerDeclaredFields(u, owner)
+	}
+	if fields, ok := u.inventory.fields[owner]; ok {
+		return fields
+	}
+	fields := uncachedCallerDeclaredFields(u, owner)
+	if u.inventory.fields == nil {
+		u.inventory.fields = make(map[string]map[string]gradedSurfaceField)
+	}
+	u.inventory.fields[owner] = fields
+	return fields
+}
+
+func uncachedCallerDeclaredFields(u unit, owner string) map[string]gradedSurfaceField {
 	limit := len(u.tokens)
 	if limit > gradedSurfaceTokenLimit {
 		limit = gradedSurfaceTokenLimit

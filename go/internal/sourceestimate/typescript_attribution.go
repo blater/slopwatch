@@ -12,7 +12,7 @@ func AnalyzeTypeScriptFiles(files []File) map[string]Result {
 		}
 		tokens, limited, valid := lex(file.Source)
 		pkg := packageName(file.Language, tokens)
-		item := unit{index: index, file: file, tokens: tokens, pkg: pkg, limited: limited, lexicallyValid: valid}
+		item := unit{inventory: &unitInventory{}, index: index, file: file, tokens: tokens, pkg: pkg, limited: limited, lexicallyValid: valid}
 		item.ops = findOperations(file, index, tokens, pkg)
 		units = append(units, item)
 	}

@@ -14,7 +14,7 @@ func gradedCleanupMode(ops []*operation, units []unit, byKey map[string][]*opera
 			continue
 		}
 		u := units[op.file]
-		body := pruneDeadFalseBranches(op.body)
+		body := normalizedPrunedBody(op)
 		if gradedFinallyCleanup(op, u, units, body, byKey, acquisition) || gradedDeferCleanup(op, u, units, body, byKey, acquisition) || gradedRustRAIICleanup(op, u, body, units, byKey, acquisition) {
 			return true
 		}

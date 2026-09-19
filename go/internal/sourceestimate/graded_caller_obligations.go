@@ -31,7 +31,7 @@ func annotateCallerObligations(units []unit) {
 				continue
 			}
 			established[index][op.owner] = map[string]bool{}
-			for _, constraint := range gradedOwnerConstraints(u, op.owner, u.ops) {
+			for _, constraint := range gradedFullOwnerConstraints(u, op.owner) {
 				if constraint.protected {
 					continue
 				}

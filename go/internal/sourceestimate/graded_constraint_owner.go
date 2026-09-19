@@ -14,7 +14,7 @@ func gradedOwnerConstraints(u unit, owner string, roots []*operation) []gradedCo
 		if op.owner != owner {
 			continue
 		}
-		body := gradedEagerBody(pruneDeadFalseBranches(op.body), op.language)
+		body := normalizedEagerBody(op)
 		gradedOwnerRelational(records, u, owner, fields, op, body)
 		gradedOwnerIndexed(records, u, owner, fields, op, body)
 	}

@@ -6,7 +6,7 @@ import (
 )
 
 func gradedEvidenceOperationResponsibilities(a *gradedEvidenceAssessment, state *gradedEvidenceRootState, calls map[string]map[string]bool, op *operation, units []unit, byKey map[string][]*operation, storageSnapshots map[string]bool) {
-	body := pruneDeadFalseBranches(op.body)
+	body := normalizedPrunedBody(op)
 	if n := gradedCachedFactories(op, units[op.file], units, byKey); n > 0 {
 		state.connectedFactories[op.id] = n
 	}

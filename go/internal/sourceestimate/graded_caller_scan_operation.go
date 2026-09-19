@@ -5,7 +5,7 @@ func gradedCallerScanOperation(u unit, op0 *operation, units []unit, byKey map[s
 	op := op0
 
 	copy := *op
-	copy.body = gradedEagerBody(pruneDeadFalseBranches(op.body), op.language)
+	copy.body = normalizedEagerBody(op)
 	op = &copy
 
 	for i, t := range op.body {

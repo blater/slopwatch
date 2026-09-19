@@ -55,6 +55,11 @@ func gradedCallerPrepare(units []unit) (map[string][]*operation, map[string][]gr
 	}
 	for index := range units {
 		units[index].packageTypes = packageTypes[units[index].pkg]
+		// Context and attributed operations are now final for the owner pass.
+		// Replace the cache so earlier value copies cannot poison this context.
+		if units[index].inventory != nil {
+			units[index].inventory = &unitInventory{fields: units[index].inventory.fields}
+		}
 	}
 	return byKey, types
 }

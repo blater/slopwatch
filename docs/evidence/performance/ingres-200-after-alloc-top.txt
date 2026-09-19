@@ -1,0 +1,27 @@
+File: after.test
+Type: alloc_space
+Time: 2026-09-19 11:05:01 BST
+Showing nodes accounting for 495.09MB, 80.40% of 615.80MB total
+Dropped 171 nodes (cum <= 3.08MB)
+Showing top 20 nodes out of 145
+      flat  flat%   sum%        cum   cum%
+   83.77MB 13.60% 13.60%   129.31MB 21.00%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraintsBounded
+   77.27MB 12.55% 26.15%    78.77MB 12.79%  github.com/blater/slopwatch/internal/sourceestimate.lex
+   73.64MB 11.96% 38.11%   105.14MB 17.07%  github.com/blater/slopwatch/internal/sourceestimate.callsIn
+   43.73MB  7.10% 45.21%    43.73MB  7.10%  slices.Grow[go.shape.[]uint8,go.shape.uint8] (inline)
+   37.84MB  6.14% 51.36%    37.84MB  6.14%  github.com/blater/slopwatch/internal/sourceestimate.substituteBody
+   33.35MB  5.42% 56.77%    33.35MB  5.42%  os.readFileContents
+   23.41MB  3.80% 60.57%    23.41MB  3.80%  bytes.Clone
+   14.37MB  2.33% 62.91%    14.37MB  2.33%  internal/bytealg.MakeNoZero
+   11.12MB  1.81% 64.71%    11.62MB  1.89%  github.com/blater/slopwatch/internal/native.(*scoreInputs).add
+      11MB  1.79% 66.50%       15MB  2.44%  github.com/blater/slopwatch/internal/sourceestimate.qualifiedCallName
+      10MB  1.62% 68.12%       10MB  1.62%  strings.(*Builder).WriteString (inline)
+    9.81MB  1.59% 69.72%     9.81MB  1.59%  io.ReadAll
+    9.50MB  1.54% 71.26%    35.12MB  5.70%  github.com/blater/slopwatch/internal/native.decodeProtocolStream
+       9MB  1.46% 72.72%        9MB  1.46%  github.com/blater/slopwatch/internal/sourceestimate.gradedCallerDependencies
+       9MB  1.46% 74.18%        9MB  1.46%  reflect.unsafe_New
+    8.50MB  1.38% 75.56%     8.50MB  1.38%  github.com/blater/slopwatch/internal/sourceestimate.splitArguments (inline)
+    8.13MB  1.32% 76.88%     8.13MB  1.32%  github.com/blater/slopwatch/internal/sourceestimate.markStringParams
+    7.63MB  1.24% 78.12%    56.87MB  9.23%  encoding/json/v2.makeStructArshaler.func2
+       7MB  1.14% 79.26%    15.50MB  2.52%  github.com/blater/slopwatch/internal/sourceestimate.gradedConsumerConstraintsBounded.func1
+       7MB  1.14% 80.40%        7MB  1.14%  github.com/blater/slopwatch/internal/sourceestimate.scopedOperationKey (inline)

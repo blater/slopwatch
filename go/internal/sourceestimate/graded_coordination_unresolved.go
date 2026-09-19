@@ -14,7 +14,7 @@ func gradedUnresolvedCleanup(roots []*operation, units []unit, byKey map[string]
 }
 
 func gradedUnresolvedOperation(op *operation, units []unit, byKey map[string][]*operation) bool {
-	body := pruneDeadFalseBranches(op.body)
+	body := normalizedPrunedBody(op)
 	for i := range body {
 		start, end, protectedStart, protectedEnd := gradedUnresolvedRegion(body, i)
 		if start < 0 || end <= start || protectedStart < 0 {

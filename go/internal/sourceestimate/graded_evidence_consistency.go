@@ -4,7 +4,7 @@ func gradeConsistentWrites(op *operation, u unit, body []token) bool {
 	if op.language == "go" && !gradedMutableGoReceiver(op, u) {
 		return false
 	}
-	for _, constraint := range gradedOwnerConstraints(u, op.owner, u.ops) {
+	for _, constraint := range gradedFullOwnerConstraints(u, op.owner) {
 		if constraint.derivedTarget != "" {
 			stored := map[string]string{}
 			for i, t := range body {

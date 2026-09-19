@@ -11,7 +11,7 @@ func gradeTransparentCall(op *operation) (call, bool) {
 	if gradedSurfaceConstructor(op) {
 		return call{}, false
 	}
-	body := pruneDeadFalseBranches(op.body)
+	body := normalizedPrunedBody(op)
 	calls := callsIn(body)
 	if len(calls) != 1 {
 		return call{}, false
@@ -96,7 +96,7 @@ func gradeUnresolvedReturnedDuty(roots []*operation, units []unit, byKey map[str
 			// admission of inputs to that protocol. Missing its implementation
 			// must not erase that possible validation duty.
 			if known["coordination"] > 0 && known["validation"] < p.ValidationEnvelope {
-				for _, candidate := range callsIn(pruneDeadFalseBranches(op.body)) {
+				for _, candidate := range callsIn(normalizedPrunedBody(op)) {
 					dot := strings.LastIndexByte(candidate.name, '.')
 					if dot >= 0 && len(candidate.actuals) > 0 && gradeOwnedReceiver(op, units[op.file], candidate.name[:dot]) && len(resolveCall(op, candidate, units, byKey)) == 0 {
 						allowance = p.ValidationEnvelope - known["validation"]

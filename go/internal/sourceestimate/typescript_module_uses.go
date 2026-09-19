@@ -26,7 +26,12 @@ func typeScriptModuleUses(op *operation, storage map[string]string, units []unit
 	seen[op.id] = true
 	*visits++
 	defer delete(seen, op.id)
-	body := gradedEagerBody(pruneDeadFalseBranches(op.body), "typescript")
+	var body []token
+	if op.language == "typescript" {
+		body = normalizedEagerBody(op)
+	} else {
+		body = gradedEagerBody(normalizedPrunedBody(op), "typescript")
+	}
 	for i, t := range body {
 		if t.text == "return" && gradedUnconditional(body, i) {
 			body = body[:statementEnd(body, i)]

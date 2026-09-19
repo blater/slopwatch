@@ -14,7 +14,7 @@ func gradedPossibleOwnedProjection(roots []*operation, u unit) bool {
 		return false
 	}
 	for _, op := range roots {
-		body := pruneDeadFalseBranches(op.body)
+		body := normalizedPrunedBody(op)
 		for i, t := range body {
 			if t.text != "for" || i+1 >= len(body) || body[i+1].text != "(" {
 				continue

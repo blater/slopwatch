@@ -9,7 +9,7 @@ func gradeUnresolvedResultCall(op *operation) (call, bool) {
 	if gradedSurfaceConstructor(op) {
 		return call{}, false
 	}
-	body := pruneDeadFalseBranches(op.body)
+	body := normalizedPrunedBody(op)
 	calls := callsIn(body)
 	if len(calls) == 0 {
 		return call{}, false
