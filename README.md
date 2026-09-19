@@ -12,7 +12,7 @@ Agents get _slopmark_ (packaged with this) which performs fast static analysis o
 
 For humans there's _slopwatch_ - like [btop](https://github.com/aristocratos/btop) but for code design smells. It is a TUI on top of slopmark which tracks and displays static analysis metrics and shows you code health at a glance - if its red its not good.
 
-Slopwatch analyzes design and abstraction smells in Rust, Go, Typescript, and Java (please vote on what other languages you'd like to see), giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
+Slopwatch analyzes design and abstraction smells in Rust, Go, Typescript, and Java, giving the code a weighted score based on coupling, cohesion, module depth, and cognitive complexity.
 For new projects I give agents a specific slopmark target they cannot breach and give a measure/rework loop until the slopmark score passes. For mature projects they get a target of no regression combined with a limit for new code.
 
 ## Quick Install 
