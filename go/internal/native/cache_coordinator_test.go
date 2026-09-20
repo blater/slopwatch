@@ -46,6 +46,12 @@ func startupProjectionFixture(t *testing.T) *Analyzer {
 		{Path: "kept.java", Language: "java", Complete: true, Score: 12},
 		{Path: "deleted.java", Language: "java", Complete: true, Score: 34},
 	}}
+	schema, hash, profile, policy, err := reportIdentity(activeCatalog(goTestCatalog(), options))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale.SchemaVersion, stale.ProfileSetHash, stale.ScoreProfile, stale.PolicyRevision = schema, hash, profile, policy
+	stale.ScorePolicyRevision = StructuralScoringPolicyRevision
 	projection := analysiscache.ProjectionFromReport(view, stale, analysiscache.FreshnessCurrent)
 	ref, err := store.PutProjection(view, projection)
 	if err != nil {

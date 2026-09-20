@@ -2,6 +2,7 @@ package scoring
 
 import (
 	"math"
+	"sort"
 
 	"github.com/blater/slopwatch/internal/report"
 )
@@ -66,6 +67,14 @@ func (policy Policy) WeightFactor(id string) float64 {
 // files or components.
 func ProjectDocument(original report.Document, policy Policy) report.Document {
 	document := original
+	document.Summary = make(map[string]any, len(original.Summary))
+	for key, value := range original.Summary {
+		document.Summary[key] = value
+	}
+	// Like File.Passed, aggregate outcomes belong to native threshold
+	// evaluation. Do not publish the previous policy's result after reweighting.
+	delete(document.Summary, "passed")
+	delete(document.Summary, "failed_files")
 	document.Files = ProjectFiles(original.Files, policy)
 	document.SortAndRank()
 	return document
@@ -87,19 +96,70 @@ func ProjectFile(original report.File, policy Policy) report.File {
 		return original
 	}
 	file := original
+	hadObserved := len(original.ObservedAxes) > 0 || original.ObservedScore != 0
 	file.Components = make(map[string]report.Component, len(original.Components))
 	file.Axes = map[string]float64{}
 	file.Score = 0
-	for id, originalComponent := range original.Components {
-		component, axis := ProjectComponent(id, originalComponent, policy)
-		file.Components[id] = component
-		file.Axes[axis] += component.Contribution
+	file.ScoringAttributions = nil
+	file.ScoringLimitations = append([]string(nil), original.ScoringLimitations...)
+	inputsPresent := false
+	componentIDs := make([]string, 0, len(original.Components))
+	for id := range original.Components {
+		componentIDs = append(componentIDs, id)
 	}
-	for axis, value := range file.Axes {
+	sort.Strings(componentIDs)
+	for _, component := range original.Components {
+		if component.ScoringDefinition != nil {
+			inputsPresent = true
+			break
+		}
+	}
+	for _, id := range componentIDs {
+		originalComponent := original.Components[id]
+		component, axis := ProjectComponent(id, originalComponent, policy)
+		if inputsPresent && isControlFlow(id) && originalComponent.ScoringDefinition == nil && originalComponent.Contribution != 0 {
+			file.ScoringLimitations = appendUniqueString(file.ScoringLimitations, "legacy control-flow contribution retained without compact scoring inputs: "+id)
+		}
+		file.Components[id] = component
+		if originalComponent.ScoringDefinition == nil || !isControlFlow(id) {
+			file.Axes[axis] += component.Contribution
+		}
+	}
+	if !inputsPresent {
+		file.ScoringLimitations = appendUniqueString(file.ScoringLimitations, "legacy report lacks compact scoring inputs; existing contributions retained")
+	}
+	if inputsPresent {
+		groups := projectControlFlow(&file, policy)
+		applyTypeCyclomaticResiduals(&file, original, policy, groups)
+		file.Axes = map[string]float64{}
+		file.Score = 0
+		for _, id := range componentIDs {
+			component := file.Components[id]
+			axis := ComponentAxis(id)
+			if component.Axis != "" {
+				axis = component.Axis
+			}
+			file.Axes[axis] = Round(file.Axes[axis] + component.Contribution)
+		}
+	}
+	axisIDs := make([]string, 0, len(file.Axes))
+	for axis := range file.Axes {
+		axisIDs = append(axisIDs, axis)
+	}
+	sort.Strings(axisIDs)
+	for _, axis := range axisIDs {
+		value := file.Axes[axis]
 		file.Axes[axis] = Round(value)
 		file.Score += file.Axes[axis]
 	}
 	file.Score = Round(file.Score)
+	// Projection has no pass threshold. A prior native outcome is stale once
+	// policy changes the score; native scoring assigns Passed after projection.
+	file.Passed = nil
+	if !hadObserved {
+		file.ObservedAxes = cloneFloatMap(file.Axes)
+		file.ObservedScore = file.Score
+	}
 	file.ValidZero = file.Complete && file.Score == 0
 	return file
 }
@@ -108,6 +168,23 @@ func ProjectFile(original report.File, policy Policy) report.File {
 func ProjectComponent(id string, original report.Component, policy Policy) (report.Component, string) {
 	component := original
 	component.Subjects = append([]report.SubjectContribution(nil), original.Subjects...)
+	if original.ScoringDefinition != nil {
+		component.Contribution = 0
+		for index := range component.Subjects {
+			projected := projectedSubject(component.Subjects[index], policy, id)
+			component.Subjects[index].Contribution = projected
+			if isControlFlow(id) {
+				continue
+			}
+			if original.ScoringDefinition.Aggregation == "max" {
+				component.Contribution = math.Max(component.Contribution, projected)
+			} else {
+				component.Contribution += projected
+			}
+		}
+		component.Contribution = Round(component.Contribution)
+		return component, ComponentAxis(id)
+	}
 	factor := policy.WeightFactor(id)
 	component.Contribution = Round(component.Contribution * factor)
 	component.ObservedContribution = original.ObservedContribution

@@ -43,7 +43,7 @@ var metricDefinitions = []MetricDefinition{
 	{ID: MetricShallowness, ComponentID: "module_shallowness", Aggregation: AggregationSum},
 	{ID: MetricGodClass, ComponentID: "god_class", Aggregation: AggregationContribution},
 	{ID: MetricCoupling, ComponentID: "coupling_between_objects", Aggregation: AggregationMaximum},
-	{ID: MetricNesting, ComponentID: "deeply_nested_if", Aggregation: AggregationContribution},
+	{ID: MetricNesting, ComponentID: "deeply_nested_if", Aggregation: AggregationSum},
 	{ID: MetricTypeSafety, Axis: "typescript_type_safety", Aggregation: AggregationAxis},
 }
 

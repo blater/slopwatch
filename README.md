@@ -67,7 +67,7 @@ These short descriptions are also available in the dashboard with the `h` "help"
 
 | Column | Meaning |
 | --- | --- |
-| `SCORE` | Weighted sum of all enabled metrics and rules. Lower is better |
+| `SCORE` | Weighted contributions with overlapping control-flow signals grouped per routine. Lower is better |
 | `COG` | Cognitive effort needed to understand nested decisions. Lower is better |
 | `NPATH` | Number of possible execution paths. Lower is better |
 | `CYCLO` | Cyclomatic complexity - independent control-flow paths. Lower is better |
@@ -114,8 +114,11 @@ Valid files continue to be measured; cross-file metrics affected by a broken sib
 
 ### SCORE
 
-`SCORE` adds the weighted contributions from the enabled components supported
-for the file's language. It does not add the raw values shown in the report.
+`SCORE` combines the enabled measurements supported for the file's language.
+Each routine contributes its strongest weighted control-flow signal: COG,
+CYCLO, NPATH, or nesting. Separate routines contribute separately. Raw values
+remain visible, and details identify the winning signal and supporting
+severities. Supporting signals are not additional charges.
 
 Type-safety checks are disabled by default because constructing and validating
 a repository-wide TypeScript compiler graph can dominate startup on mature
@@ -125,21 +128,37 @@ no restart or extra flag is required. For non-interactive reports, or to preload
 the graph before opening the dashboard, use `--typescript-types`.
 
 Deep-nesting checks are also disabled in the dashboard score by default. To
-include them, enable `NESTING` in Settings → Appearance → Columns. This keeps the separate
-nesting penalty from silently adding to the nesting already reflected in COG.
+include them, enable `NESTING` in Settings → Appearance → Columns. Nesting then
+competes within each routine's control-flow group rather than adding another
+penalty for the same branches.
 
 ```text
 raw measurements
-→ component aggregation
-→ threshold and formula
+→ aggregation within each routine/component
+→ severity formula
 → weight
-→ component contribution
+→ strongest control-flow signal per routine
+→ attributed component contributions
 → SCORE
 ```
 
-Below a component's threshold, its contribution is zero when its formula uses
-a threshold. At or above the threshold, that formula sets the contribution.
-For a component configured with `log-ratio`:
+COG, routine CYCLO and NPATH use a continuous curve. Small decisions contribute
+without crossing a threshold; extracting small helpers does not erase their
+cost. A trivial routine starts at zero:
+
+```text
+severity = log₂(1 + max(0, value − baseline) / (reference − baseline))
+contribution = weight × severity
+```
+
+COG uses baseline 0 and reference 15; routine CYCLO uses 1 and 10; NPATH uses
+1 and 200. Each reference value contributes one configured weight before
+grouping. Nesting retains its count formula. Type CYCLO retains only its
+weighted contribution beyond the routine charges reliably associated with it;
+raw type complexity remains visible.
+
+Other components keep their existing formulas. For `log-ratio`, values below
+the threshold contribute zero; at or above it:
 
 ```text
 contribution = weight × (1 + log₂(value / threshold))
@@ -148,6 +167,13 @@ contribution = weight × (1 + log₂(value / threshold))
 The score sums component contributions through their configured axes. A
 missing or unavailable component contributes zero and marks the file
 incomplete; it does not silently become a raw zero measurement.
+
+Structural scoring changes are versioned independently of SHALLOW. Old cached
+projections are invalidated. Existing pass thresholds and saved weights are
+preserved; review them against the new score distribution before using them as
+release gates. Scores from different structural policies are not directly
+comparable. See the [structural scoring epic](docs/structural-scoring/epic.md)
+for calibration and performance evidence.
 
 The follow dashboard's two line header includes a `0..100+` score distribution.
 The aggregate keeps five point buckets with a separate `100+` overflow bucket;

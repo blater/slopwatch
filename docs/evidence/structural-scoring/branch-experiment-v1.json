@@ -1,0 +1,810 @@
+{
+  "candidate_parameters_changed": false,
+  "decision_reasons": [
+    "The direct adapter fact walk completed for Go, Java, and Rust, and the TypeScript FunctionFact walk completed for both dispatch files.",
+    "All bounded walks stayed within 128 instructions/nodes and 64 regions.",
+    "Go, Java, and Rust measured zero canonical field reads/writes; TypeScript has no canonical ordered read/write field in FunctionFact.",
+    "The dispatch examples mutate local state, while the available Plan 4 signal is field/access-path based. Treating this as proof of independence would be unsound, so no interaction discount or bonus ships."
+  ],
+  "experiment": "structural-branch-evidence-v1",
+  "fact_layer": {
+    "adapter_evidence_path": "/tmp/structural-branch-experiment/adapter-facts-v1.json",
+    "adapter_probe_sha256": "80a3b6915c3ef06e80b5e2ed5a1c969b5d5fab609063d0d6b119e39c7401c74c",
+    "adapter_probe_source_sha256": "941d06bdd630d8125e14e72eec028461926f5a7430fd53ac16e93c523063da10",
+    "interpretation": {
+      "measured_zero": "Go, Java, and Rust report field_reads=0 and field_writes=0 over their bounded depth flows.",
+      "missing": "TypeScript reports canonical_reads_writes=null because FunctionFact has only node/name/subject; syntax property counts are not substituted.",
+      "mutable_locals": "The interacting dispatch examples mutate local state. A field-only signal cannot establish coupling for local variables, so Plan 4 receives no discount or bonus.",
+      "termination_and_shape": "All four language walks distinguish the flat switch from the interacting if chain by statement shape and region count; that is already Plan 3 control-flow evidence and is not a new state-coupling signal."
+    },
+    "languages": [
+      {
+        "evidence_state": "available",
+        "field_reads": 0,
+        "field_writes": 0,
+        "flow_artifacts": 1,
+        "flow_blocks": 14,
+        "flow_functions": 2,
+        "flow_instructions": 22,
+        "functions": [
+          {
+            "name": "DispatchFlat",
+            "regions": 1,
+            "statement_count": 4,
+            "statement_kinds": [
+              "switch",
+              "return",
+              "return",
+              "return"
+            ],
+            "traversal_nodes": 4,
+            "traversal_truncated": false
+          },
+          {
+            "name": "DispatchInteracting",
+            "regions": 4,
+            "statement_count": 12,
+            "statement_kinds": [
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "block",
+              "linear",
+              "return"
+            ],
+            "traversal_nodes": 12,
+            "traversal_truncated": false
+          }
+        ],
+        "language": "go",
+        "parser_modes": [
+          "go-ast-syntax",
+          "go-types-exact-source",
+          "go-ast-type-fallback"
+        ],
+        "source_sha256": {
+          "go/dispatch_flat.go": "6a716301ad11db7e6ab674f20532795cc621cd66d22fe024940a6e1962b314b9",
+          "go/dispatch_interacting.go": "43dda1d4d9485c3be5d2098bc6f642d06a0277f8777a8e6f4668523e41de7fea"
+        },
+        "traversal_truncated": false,
+        "unknown_ops": 1,
+        "unsupported_reasons": [
+          "none reported for requested source parsing or depth coverage",
+          "canonical field read/write count is measured zero; mutable local state is not represented by field-only coupling evidence"
+        ]
+      },
+      {
+        "evidence_state": "available",
+        "field_reads": 0,
+        "field_writes": 0,
+        "flow_artifacts": 1,
+        "flow_blocks": 16,
+        "flow_functions": 4,
+        "flow_instructions": 18,
+        "functions": [
+          {
+            "name": "run",
+            "regions": 1,
+            "statement_count": 4,
+            "statement_kinds": [
+              "switch",
+              "return",
+              "return",
+              "return"
+            ],
+            "traversal_nodes": 4,
+            "traversal_truncated": false
+          },
+          {
+            "name": "run",
+            "regions": 4,
+            "statement_count": 11,
+            "statement_kinds": [
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "linear",
+              "return"
+            ],
+            "traversal_nodes": 11,
+            "traversal_truncated": false
+          }
+        ],
+        "language": "java",
+        "parser_modes": [
+          "jdk-compiler-tree-no-processing"
+        ],
+        "source_sha256": {
+          "java/DispatchFlat.java": "f508deeef262545e9d5f10aa2f1f4edb6421d130ffd3d8ae73a450b2f0a6a8d9",
+          "java/DispatchInteracting.java": "eac8a2a75378ed58fd24f422a7753af9c80abc33f76f286f5638241c4f95af00"
+        },
+        "traversal_truncated": false,
+        "unknown_ops": 6,
+        "unsupported_reasons": [
+          "none reported for requested source parsing or depth coverage",
+          "canonical field read/write count is measured zero; mutable local state is not represented by field-only coupling evidence"
+        ]
+      },
+      {
+        "evidence_state": "available",
+        "field_reads": 0,
+        "field_writes": 0,
+        "flow_artifacts": 2,
+        "flow_blocks": 2,
+        "flow_functions": 2,
+        "flow_instructions": 4,
+        "functions": [
+          {
+            "name": "dispatch_flat",
+            "regions": 1,
+            "statement_count": 4,
+            "statement_kinds": [
+              "switch",
+              "linear",
+              "linear",
+              "linear"
+            ],
+            "traversal_nodes": 4,
+            "traversal_truncated": false
+          },
+          {
+            "name": "dispatch_interacting",
+            "regions": 4,
+            "statement_count": 11,
+            "statement_kinds": [
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "if",
+              "linear",
+              "linear",
+              "linear"
+            ],
+            "traversal_nodes": 11,
+            "traversal_truncated": false
+          }
+        ],
+        "language": "rust",
+        "parser_modes": [
+          "syn-full-no-macro-expansion"
+        ],
+        "source_sha256": {
+          "rust/dispatch_flat.rs": "9d68a87d9a88f131fe3fb6d3b9bd7576ec492c29b01b4099f7ca58b7d651694b",
+          "rust/dispatch_interacting.rs": "a00f34ca90e0f20addbefc998c72702441639e6c8a1e3131a683a7ee66530ad8"
+        },
+        "traversal_truncated": false,
+        "unknown_ops": 2,
+        "unsupported_reasons": [
+          "none reported for requested source parsing or depth coverage",
+          "canonical field read/write count is measured zero; mutable local state is not represented by field-only coupling evidence"
+        ]
+      }
+    ],
+    "limits": {
+      "instructions": 128,
+      "regions": 64
+    },
+    "typescript": {
+      "decision": "no-ship: FunctionFact has no canonical state read/write representation",
+      "evidence_state": "available-ast-function-facts",
+      "experiment": "structural-branch-typescript-facts-v1",
+      "functions": [
+        {
+          "canonical_evidence": {
+            "reason": "FunctionFact exposes node/name/subject only; it has no canonical ordered read/write stream",
+            "state": "unavailable"
+          },
+          "canonical_reads_writes": null,
+          "function_fact_fields": [
+            "name",
+            "node",
+            "subject"
+          ],
+          "name": "dispatchFlat",
+          "property_reads": 0,
+          "property_writes": 0,
+          "regions": 1,
+          "source_path": "typescript/dispatch_flat.ts",
+          "statement_count": 4,
+          "statement_kinds": [
+            "switch",
+            "return",
+            "return",
+            "return"
+          ],
+          "truncated": false,
+          "visited_nodes": 24
+        },
+        {
+          "canonical_evidence": {
+            "reason": "FunctionFact exposes node/name/subject only; it has no canonical ordered read/write stream",
+            "state": "unavailable"
+          },
+          "canonical_reads_writes": null,
+          "function_fact_fields": [
+            "name",
+            "node",
+            "subject"
+          ],
+          "name": "dispatchInteracting",
+          "property_reads": 0,
+          "property_writes": 0,
+          "regions": 4,
+          "source_path": "typescript/dispatch_interacting.ts",
+          "statement_count": 14,
+          "statement_kinds": [
+            "linear",
+            "if",
+            "linear",
+            "linear",
+            "if",
+            "linear",
+            "if",
+            "linear",
+            "linear",
+            "if",
+            "linear",
+            "linear",
+            "linear",
+            "return"
+          ],
+          "truncated": false,
+          "visited_nodes": 59
+        }
+      ],
+      "instruction_cap": 128,
+      "language": "typescript",
+      "region_cap": 64,
+      "schema": 1,
+      "sources": [
+        {
+          "functions": 1,
+          "path": "typescript/dispatch_flat.ts",
+          "sha256": "01cb54676ccfd9006fd25e795dfd0af9465bc56f0fe15095ca7951585395ed73"
+        },
+        {
+          "functions": 1,
+          "path": "typescript/dispatch_interacting.ts",
+          "sha256": "0c004568edd8f23c74606f7295d5ece88ba543fca63a372798821a01f4e70e9d"
+        }
+      ],
+      "unsupported_reasons": [
+        "canonical read/write stream unavailable in FunctionFact; property node counts are syntax observations, not canonical state evidence",
+        "mutable local state is outside the FunctionFact field-only representation"
+      ]
+    },
+    "typescript_evidence_sha256": "8f967e34e3679ef6d27a7b29051ef0a5ad54116e065d212122d9f733b8b5a768",
+    "typescript_probe_path": "/tmp/structural-branch-experiment/typescript-facts.json",
+    "typescript_probe_script_sha256": "ce8c29edab98e0e8d519514a6822831c3fbe29c46c4559fcd9f6156c11258b12"
+  },
+  "holdout_tuning": false,
+  "languages": [
+    {
+      "binary": "/tmp/slopwatch-baseline-20260920T1420Z/analyzers/structural/slopslap-structural",
+      "binary_sha256": "d0239ccd7738ef4cdcb152d2147dfc526c5c94ae044485a64b6ab9ae232eb0a8",
+      "canonical_flow_record_count": 0,
+      "canonical_reads_writes": [],
+      "coverage": [
+        {
+          "component_id": "cognitive_complexity",
+          "path": "go/dispatch_flat.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cyclomatic_method_complexity",
+          "path": "go/dispatch_flat.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "npath_complexity",
+          "path": "go/dispatch_flat.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "deeply_nested_if",
+          "path": "go/dispatch_flat.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "module_shallowness",
+          "path": "go/dispatch_flat.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cognitive_complexity",
+          "path": "go/dispatch_interacting.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cyclomatic_method_complexity",
+          "path": "go/dispatch_interacting.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "npath_complexity",
+          "path": "go/dispatch_interacting.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "deeply_nested_if",
+          "path": "go/dispatch_interacting.go",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "module_shallowness",
+          "path": "go/dispatch_interacting.go",
+          "reason": "",
+          "state": "complete"
+        }
+      ],
+      "coverage_unsupported_reasons": [],
+      "diagnostics": [],
+      "evidence_note": "Protocol payload contains no normalized Program/facts or ordered canonical reads/writes.",
+      "evidence_state": "unavailable",
+      "execution_plans": [
+        {
+          "discovered_source_count": 2,
+          "invocation_id": "branch-experiment-go",
+          "kernels": [
+            "cognitive_complexity",
+            "cyclomatic_method_complexity",
+            "deeply_nested_if",
+            "module_shallowness",
+            "npath_complexity"
+          ],
+          "parsed_source_count": 2,
+          "parser_modes": [
+            "go-ast-syntax",
+            "go-types-exact-source",
+            "go-ast-type-fallback"
+          ],
+          "protocol_version": 1,
+          "type": "execution_plan",
+          "unit_id": "dispatch"
+        }
+      ],
+      "language": "go",
+      "measurement_count": 8,
+      "parse_errors": [],
+      "payload_bytes": 8430,
+      "payload_sha256": "0d8bb1e8375e0287b1c6ced2c8196ceca9eafce8301e85cfd151162d7d49c8b6",
+      "protocol_payload": "/tmp/structural-branch-experiment/raw/go.ndjson",
+      "records": 20,
+      "records_by_type": {
+        "coverage": 10,
+        "execution_plan": 1,
+        "measurement": 8,
+        "terminal": 1
+      },
+      "request_sha256": "522ef518afa6d8d9b37794903a27bfb09102cb43e461b29cafce5558bb86ed84",
+      "returncode": 0,
+      "runtime_ms": 20.272,
+      "source_sha256": {
+        "go/dispatch_flat.go": "6a716301ad11db7e6ab674f20532795cc621cd66d22fe024940a6e1962b314b9",
+        "go/dispatch_interacting.go": "43dda1d4d9485c3be5d2098bc6f642d06a0277f8777a8e6f4668523e41de7fea"
+      },
+      "status": "success",
+      "stderr": "/tmp/structural-branch-experiment/raw/go.stderr",
+      "unsupported_reasons": [
+        "none for requested structural measurements; all ten coverage records are complete",
+        "normalized facts and ordered canonical reads/writes are unavailable because the protocol does not serialize them"
+      ],
+      "workspace": "/tmp/structural-branch-experiment/go/workspace"
+    },
+    {
+      "binary": "/tmp/slopwatch-baseline-20260920T1420Z/analyzers/structural/slopslap-structural",
+      "binary_sha256": "d0239ccd7738ef4cdcb152d2147dfc526c5c94ae044485a64b6ab9ae232eb0a8",
+      "canonical_flow_record_count": 0,
+      "canonical_reads_writes": [],
+      "coverage": [
+        {
+          "component_id": "cognitive_complexity",
+          "path": "java/DispatchFlat.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cyclomatic_method_complexity",
+          "path": "java/DispatchFlat.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "npath_complexity",
+          "path": "java/DispatchFlat.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "deeply_nested_if",
+          "path": "java/DispatchFlat.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "module_shallowness",
+          "path": "java/DispatchFlat.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cognitive_complexity",
+          "path": "java/DispatchInteracting.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cyclomatic_method_complexity",
+          "path": "java/DispatchInteracting.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "npath_complexity",
+          "path": "java/DispatchInteracting.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "deeply_nested_if",
+          "path": "java/DispatchInteracting.java",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "module_shallowness",
+          "path": "java/DispatchInteracting.java",
+          "reason": "",
+          "state": "complete"
+        }
+      ],
+      "coverage_unsupported_reasons": [],
+      "diagnostics": [],
+      "evidence_note": "Protocol payload contains no normalized Program/facts or ordered canonical reads/writes.",
+      "evidence_state": "unavailable",
+      "execution_plans": [
+        {
+          "discovered_source_count": 2,
+          "invocation_id": "branch-experiment-java",
+          "kernels": [
+            "cognitive_complexity",
+            "cyclomatic_method_complexity",
+            "deeply_nested_if",
+            "module_shallowness",
+            "npath_complexity"
+          ],
+          "parsed_source_count": 2,
+          "parser_modes": [
+            "jdk-compiler-tree-no-processing"
+          ],
+          "protocol_version": 1,
+          "type": "execution_plan",
+          "unit_id": "dispatch"
+        }
+      ],
+      "language": "java",
+      "measurement_count": 8,
+      "parse_errors": [],
+      "payload_bytes": 7412,
+      "payload_sha256": "35e6eba1b811ef6ca066cdc8652b7fdd4406a9cd506124a2366a3e7ccd3ab5b5",
+      "protocol_payload": "/tmp/structural-branch-experiment/raw/java.ndjson",
+      "records": 20,
+      "records_by_type": {
+        "coverage": 10,
+        "execution_plan": 1,
+        "measurement": 8,
+        "terminal": 1
+      },
+      "request_sha256": "3c499b6f038d87a8883dae43cad7b91be80652c80330d7cb888a02c71d6f34d8",
+      "returncode": 0,
+      "runtime_ms": 327.796,
+      "source_sha256": {
+        "java/DispatchFlat.java": "f508deeef262545e9d5f10aa2f1f4edb6421d130ffd3d8ae73a450b2f0a6a8d9",
+        "java/DispatchInteracting.java": "eac8a2a75378ed58fd24f422a7753af9c80abc33f76f286f5638241c4f95af00"
+      },
+      "status": "success",
+      "stderr": "/tmp/structural-branch-experiment/raw/java.stderr",
+      "unsupported_reasons": [
+        "none for requested structural measurements; all ten coverage records are complete",
+        "normalized facts and ordered canonical reads/writes are unavailable because the protocol does not serialize them"
+      ],
+      "workspace": "/tmp/structural-branch-experiment/java/workspace"
+    },
+    {
+      "binary": "/tmp/slopwatch-baseline-20260920T1420Z/analyzers/structural/slopslap-structural",
+      "binary_sha256": "d0239ccd7738ef4cdcb152d2147dfc526c5c94ae044485a64b6ab9ae232eb0a8",
+      "canonical_flow_record_count": 0,
+      "canonical_reads_writes": [],
+      "coverage": [
+        {
+          "component_id": "cognitive_complexity",
+          "path": "rust/dispatch_flat.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cyclomatic_method_complexity",
+          "path": "rust/dispatch_flat.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "npath_complexity",
+          "path": "rust/dispatch_flat.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "deeply_nested_if",
+          "path": "rust/dispatch_flat.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "module_shallowness",
+          "path": "rust/dispatch_flat.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cognitive_complexity",
+          "path": "rust/dispatch_interacting.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "cyclomatic_method_complexity",
+          "path": "rust/dispatch_interacting.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "npath_complexity",
+          "path": "rust/dispatch_interacting.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "deeply_nested_if",
+          "path": "rust/dispatch_interacting.rs",
+          "reason": "",
+          "state": "complete"
+        },
+        {
+          "component_id": "module_shallowness",
+          "path": "rust/dispatch_interacting.rs",
+          "reason": "",
+          "state": "complete"
+        }
+      ],
+      "coverage_unsupported_reasons": [],
+      "diagnostics": [],
+      "evidence_note": "Protocol payload contains no normalized Program/facts or ordered canonical reads/writes.",
+      "evidence_state": "unavailable",
+      "execution_plans": [
+        {
+          "discovered_source_count": 2,
+          "invocation_id": "branch-experiment-rust",
+          "kernels": [
+            "cognitive_complexity",
+            "cyclomatic_method_complexity",
+            "deeply_nested_if",
+            "module_shallowness",
+            "npath_complexity"
+          ],
+          "parsed_source_count": 2,
+          "parser_modes": [
+            "syn-full-no-macro-expansion"
+          ],
+          "protocol_version": 1,
+          "type": "execution_plan",
+          "unit_id": "dispatch"
+        }
+      ],
+      "language": "rust",
+      "measurement_count": 8,
+      "parse_errors": [],
+      "payload_bytes": 8512,
+      "payload_sha256": "c339bfa62208bbff677eec0ba66de19cc30a0d9329123237b3d42d770cff623d",
+      "protocol_payload": "/tmp/structural-branch-experiment/raw/rust.ndjson",
+      "records": 20,
+      "records_by_type": {
+        "coverage": 10,
+        "execution_plan": 1,
+        "measurement": 8,
+        "terminal": 1
+      },
+      "request_sha256": "a6a2821338a0135f5ecb8a7212dd8ee9b091750f8a3baeff2dbf8506fc571d93",
+      "returncode": 0,
+      "runtime_ms": 17.329,
+      "source_sha256": {
+        "rust/dispatch_flat.rs": "9d68a87d9a88f131fe3fb6d3b9bd7576ec492c29b01b4099f7ca58b7d651694b",
+        "rust/dispatch_interacting.rs": "a00f34ca90e0f20addbefc998c72702441639e6c8a1e3131a683a7ee66530ad8"
+      },
+      "status": "success",
+      "stderr": "/tmp/structural-branch-experiment/raw/rust.stderr",
+      "unsupported_reasons": [
+        "none for requested structural measurements; all ten coverage records are complete",
+        "normalized facts and ordered canonical reads/writes are unavailable because the protocol does not serialize them"
+      ],
+      "workspace": "/tmp/structural-branch-experiment/rust/workspace"
+    },
+    {
+      "binary": "/tmp/slopwatch-baseline-20260920T1420Z/typescript/slopslap-typescript",
+      "binary_sha256": "1d92b7e28d0149e60e084a31c9fd079dcd5d06d0a722082ab2222d1cad38aa22",
+      "canonical_flow_record_count": 0,
+      "canonical_reads_writes": [],
+      "coverage": [
+        {
+          "component_id": "cognitive_complexity",
+          "path": "typescript/dispatch_flat.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "cyclomatic_method_complexity",
+          "path": "typescript/dispatch_flat.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "npath_complexity",
+          "path": "typescript/dispatch_flat.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "deeply_nested_if",
+          "path": "typescript/dispatch_flat.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "module_shallowness",
+          "path": "typescript/dispatch_flat.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "cognitive_complexity",
+          "path": "typescript/dispatch_interacting.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "cyclomatic_method_complexity",
+          "path": "typescript/dispatch_interacting.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "npath_complexity",
+          "path": "typescript/dispatch_interacting.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "deeply_nested_if",
+          "path": "typescript/dispatch_interacting.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        },
+        {
+          "component_id": "module_shallowness",
+          "path": "typescript/dispatch_interacting.ts",
+          "reason": "syntax kernel completed",
+          "state": "complete"
+        }
+      ],
+      "coverage_unsupported_reasons": [],
+      "diagnostics": [
+        {
+          "code": "typescript.structural_semantic_exceptions",
+          "invocation_id": "branch-experiment-typescript",
+          "message": "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects.",
+          "path": null,
+          "protocol_version": 1,
+          "severity": "info",
+          "type": "diagnostic",
+          "unit_id": null
+        }
+      ],
+      "evidence_note": "Protocol payload contains no normalized Program/facts or ordered canonical reads/writes.",
+      "evidence_state": "unavailable",
+      "execution_plans": [
+        {
+          "discovered_source_count": 2,
+          "invocation_id": "branch-experiment-typescript",
+          "kernels": [
+            "cognitive_complexity",
+            "cyclomatic_method_complexity",
+            "deeply_nested_if",
+            "module_shallowness",
+            "npath_complexity"
+          ],
+          "parsed_source_count": 2,
+          "parser_modes": [
+            "typescript-syntax"
+          ],
+          "protocol_version": 1,
+          "type": "execution_plan",
+          "unit_id": "dispatch"
+        }
+      ],
+      "language": "typescript",
+      "measurement_count": 8,
+      "parse_errors": [],
+      "payload_bytes": 9498,
+      "payload_sha256": "44c3246e791fbc961ed6d1754496734e5683c316dabf5046c2f4820534813ecc",
+      "protocol_payload": "/tmp/structural-branch-experiment/raw/typescript.ndjson",
+      "records": 21,
+      "records_by_type": {
+        "coverage": 10,
+        "diagnostic": 1,
+        "execution_plan": 1,
+        "measurement": 8,
+        "terminal": 1
+      },
+      "request_sha256": "b84fe937c043b7039513ffeb23728ae76ba49b0bc0c07486dd019854a5bbad3f",
+      "returncode": 0,
+      "runtime_ms": 426.622,
+      "source_sha256": {
+        "typescript/dispatch_flat.ts": "01cb54676ccfd9006fd25e795dfd0af9465bc56f0fe15095ca7951585395ed73",
+        "typescript/dispatch_interacting.ts": "0c004568edd8f23c74606f7295d5ece88ba543fca63a372798821a01f4e70e9d"
+      },
+      "status": "success",
+      "stderr": "/tmp/structural-branch-experiment/raw/typescript.stderr",
+      "unsupported_reasons": [
+        "none for requested structural measurements; all ten coverage records are complete",
+        "normalized facts and ordered canonical reads/writes are unavailable because the protocol does not serialize them"
+      ],
+      "workspace": "/tmp/structural-branch-experiment/typescript/workspace"
+    }
+  ],
+  "payload_access": {
+    "limitation": "Go, Java, and Rust adapter-owned facts were inspected directly; TypeScript FunctionFact/AST walk was inspected directly. The available normalized layers either measured zero field operations for these local-state cases or do not expose a canonical ordered read/write stream.",
+    "missing_evidence_policy": "Missing or partial state evidence retains the Plan 3 burden; measured zero field operations are not converted into proof that no state interaction exists.",
+    "normalized_program": true,
+    "ordered_canonical_reads_writes": false,
+    "smallest_justified_probe": "Bounded adapter-owned walk over the exact dispatch files: 128 instructions/nodes and 64 control regions per function, with flow artifacts, statement kinds, field opcodes, unknown operations, and source hashes recorded."
+  },
+  "schema": 1,
+  "scope": {
+    "case": "flat-dispatch-vs-interacting-state",
+    "instruction_cap": 128,
+    "languages": [
+      "go",
+      "java",
+      "rust",
+      "typescript"
+    ],
+    "region_cap": 64,
+    "source_root": "/Users/blater/src/slopwatch/go/internal/scoring/testdata/structural-v1"
+  },
+  "status": "no-ship-fact-layer-evaluated"
+}

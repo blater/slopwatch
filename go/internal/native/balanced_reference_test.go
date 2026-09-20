@@ -69,8 +69,8 @@ func assertBalancedDocument(t *testing.T, name string, document report.Document)
 		t.Fatalf("got %d files", len(document.Files))
 	}
 	file := document.Files[0]
-	if difference := math.Abs(file.Score - 20.854268271702); difference > 1e-9 {
-		t.Fatalf("%s score = %.12f, reference = 20.854268271702", name, file.Score)
+	if difference := math.Abs(file.Score - 12.630344058338); difference > 1e-9 {
+		t.Fatalf("%s score = %.12f, reference = 12.630344058338", name, file.Score)
 	}
 	if file.Path != name || !file.Complete {
 		t.Fatalf("%s result path=%q complete=%t", name, file.Path, file.Complete)

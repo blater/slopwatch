@@ -16,7 +16,7 @@ func TestMetricAggregationsPreserveDashboardSemantics(t *testing.T) {
 			"module_shallowness":           metricComponent(5, 20, 30),
 			"god_class":                    metricComponent(42, 1),
 			"coupling_between_objects":     metricComponent(10, 2, 7),
-			"deeply_nested_if":             metricComponent(6, 2),
+			"deeply_nested_if":             metricComponent(6, 2, 4),
 		},
 	}
 	tests := []struct {
@@ -56,7 +56,7 @@ func TestMetricCatalogDefinesEveryStableVerifierExpression(t *testing.T) {
 		MetricCognitive: AggregationMaximum, MetricNPath: AggregationMaximum,
 		MetricCyclomatic: AggregationMaximum, MetricShallowness: AggregationSum,
 		MetricGodClass: AggregationContribution, MetricCoupling: AggregationMaximum,
-		MetricNesting: AggregationContribution, MetricTypeSafety: AggregationAxis,
+		MetricNesting: AggregationSum, MetricTypeSafety: AggregationAxis,
 	}
 	for _, definition := range definitions {
 		if want[definition.ID] != definition.Aggregation {

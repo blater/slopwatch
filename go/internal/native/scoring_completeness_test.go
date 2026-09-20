@@ -1,8 +1,11 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"testing"
+
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func TestFortyFiveThousandZeroScoreJavaFilesRemainInReport(t *testing.T) {
@@ -46,5 +49,32 @@ func TestFailedCoverageRemainsIncompleteAndInvalidZero(t *testing.T) {
 	}
 	if len(document.Diagnostics) != 1 || document.Diagnostics[0]["code"] != "SYNTAX_ERROR" {
 		t.Fatalf("syntax diagnostic was lost: %#v", document.Diagnostics)
+	}
+}
+
+func TestAnalysisProgressFiltersOwnedBatchAndPreservesScore(t *testing.T) {
+	pathA, pathB := "a.go", "b.go"
+	inputs, err := collectScoreInputs([]protocolRecord{
+		depthRecord(pathA, "a-boundary", "measured", 70),
+		depthRecord(pathB, "b-boundary", "measured", 30),
+		{Type: "coverage", Component: "module_shallowness", Path: &pathA, Language: "go", State: "complete"},
+		{Type: "coverage", Component: "module_shallowness", Path: &pathB, Language: "go", State: "complete"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptors := []componentDescriptor{depthDescriptor()}
+	final, err := scoreInputsReport(catalogDocument{Components: descriptors}, []string{"go"}, inputs, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var progress report.Document
+	ctx := WithAnalysisProgress(context.Background(), func(document report.Document) { progress = document })
+	ctx = configureAnalysisProgress(ctx, catalogDocument{Components: descriptors}, map[string]bool{pathA: true}, nil)
+	if err := emitAnalysisFile(ctx, inputs, pathA); err != nil {
+		t.Fatal(err)
+	}
+	if len(progress.Files) != 1 || progress.Files[0].Path != pathA || progress.Files[0].Score == 0 || progress.Files[0].Score != final.Files[0].Score || len(progress.Depth) != 1 || progress.Depth["a-boundary"].ID != "a-boundary" {
+		t.Fatalf("progress=%#v final=%#v", progress.Files, final.Files)
 	}
 }

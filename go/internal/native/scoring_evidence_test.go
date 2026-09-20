@@ -52,8 +52,11 @@ func assertCountComponent(t *testing.T, component report.Component, flatAttribut
 
 func assertCountSummary(t *testing.T, component report.Component) {
 	t.Helper()
-	if component.Contribution != 4 || len(component.Subjects) != 1 || component.Subjects[0].Subject != "deduplicated_count" {
+	if component.Contribution != 4 || len(component.Subjects) != 2 {
 		t.Fatalf("count score changed: %#v", component)
+	}
+	if component.Subjects[0].Value+component.Subjects[1].Value != 2 {
+		t.Fatalf("nested findings were not grouped by routine: %#v", component.Subjects)
 	}
 	if len(component.Evidence) != 2 {
 		t.Fatalf("evidence = %#v", component.Evidence)

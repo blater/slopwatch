@@ -111,11 +111,9 @@ func cachedProjection(analyzer *analysisEngine) (report.Document, bool) {
 	if !ok {
 		return report.Document{}, false
 	}
-	if shallowProfile(options) == ShallowProfileResponsibilityV4 {
-		schemaVersion, profileHash, scoreProfile, policyRevision, identityErr := reportIdentity(activeCatalog(analyzer.catalog, options))
-		if identityErr != nil || projection.SchemaVersion != schemaVersion || projection.ProfileSetHash != profileHash || projection.ScoreProfile != scoreProfile || projection.PolicyRevision != policyRevision {
-			return report.Document{}, false
-		}
+	schemaVersion, profileHash, scoreProfile, policyRevision, identityErr := reportIdentity(activeCatalog(analyzer.catalog, options))
+	if identityErr != nil || projection.SchemaVersion != schemaVersion || projection.ProfileSetHash != profileHash || projection.ScoreProfile != scoreProfile || projection.PolicyRevision != policyRevision || projection.ScorePolicyRevision != StructuralScoringPolicyRevision {
+		return report.Document{}, false
 	}
 	discovered, err := discoverPolicy(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore)
 	if err != nil {
@@ -199,7 +197,7 @@ func projectionDocument(projection analysiscache.DisplayProjection) report.Docum
 	}
 	document := report.Document{
 		Calibrated: true, Files: projection.ReportFiles(), ProfileSetHash: profileHash,
-		ScoreProfile: projection.ScoreProfile, PolicyRevision: projection.PolicyRevision,
+		ScoreProfile: projection.ScoreProfile, PolicyRevision: projection.PolicyRevision, ScorePolicyRevision: projection.ScorePolicyRevision,
 		SchemaVersion: schemaVersion, Depth: projection.Depth, Summary: map[string]any{
 			"cache_state": "provisional", "discovered_source_count": len(projection.Files),
 		},

@@ -52,33 +52,36 @@ const (
 // Detailed evidence, waivers, diagnostics, and execution plans remain in the
 // corresponding UnitArtifact values and can be loaded lazily.
 type DisplayProjection struct {
-	ViewKey        ViewKey                         `json:"view_key"`
-	GeneratedAt    time.Time                       `json:"generated_at"`
-	Files          []DisplayFile                   `json:"files"`
-	SchemaVersion  int                             `json:"schema_version,omitempty"`
-	ProfileSetHash string                          `json:"profile_set_hash,omitempty"`
-	ScoreProfile   string                          `json:"score_profile,omitempty"`
-	PolicyRevision string                          `json:"policy_revision,omitempty"`
-	Depth          map[string]report.DepthBoundary `json:"depth,omitempty"`
+	ViewKey             ViewKey                         `json:"view_key"`
+	GeneratedAt         time.Time                       `json:"generated_at"`
+	Files               []DisplayFile                   `json:"files"`
+	SchemaVersion       int                             `json:"schema_version,omitempty"`
+	ProfileSetHash      string                          `json:"profile_set_hash,omitempty"`
+	ScoreProfile        string                          `json:"score_profile,omitempty"`
+	PolicyRevision      string                          `json:"policy_revision,omitempty"`
+	ScorePolicyRevision string                          `json:"score_policy_revision,omitempty"`
+	Depth               map[string]report.DepthBoundary `json:"depth,omitempty"`
 }
 
 // DisplayFile contains the fields needed to score, sort, and render a report
 // row. Components retain aggregate subjects but omit evidence and waivers.
 type DisplayFile struct {
-	Axes          map[string]float64          `json:"axes"`
-	Complete      bool                        `json:"complete"`
-	Components    map[string]DisplayComponent `json:"components"`
-	Coverage      map[string]string           `json:"coverage"`
-	Language      string                      `json:"language"`
-	ObservedAxes  map[string]float64          `json:"observed_axes"`
-	ObservedScore float64                     `json:"observed_score"`
-	Passed        *bool                       `json:"passed,omitempty"`
-	Path          string                      `json:"path"`
-	Rank          int                         `json:"rank"`
-	Score         float64                     `json:"score"`
-	ValidZero     bool                        `json:"valid_zero_score"`
-	Freshness     Freshness                   `json:"freshness"`
-	FreshnessNote string                      `json:"freshness_note,omitempty"`
+	Axes                map[string]float64          `json:"axes"`
+	Complete            bool                        `json:"complete"`
+	Components          map[string]DisplayComponent `json:"components"`
+	Coverage            map[string]string           `json:"coverage"`
+	Language            string                      `json:"language"`
+	ObservedAxes        map[string]float64          `json:"observed_axes"`
+	ObservedScore       float64                     `json:"observed_score"`
+	Passed              *bool                       `json:"passed,omitempty"`
+	Path                string                      `json:"path"`
+	Rank                int                         `json:"rank"`
+	Score               float64                     `json:"score"`
+	ScoringAttributions []report.GroupAttribution   `json:"scoring_attributions,omitempty"`
+	ScoringLimitations  []string                    `json:"scoring_limitations,omitempty"`
+	ValidZero           bool                        `json:"valid_zero_score"`
+	Freshness           Freshness                   `json:"freshness"`
+	FreshnessNote       string                      `json:"freshness_note,omitempty"`
 }
 
 // DisplayComponent is the evidence-free representation of a report component.
@@ -94,6 +97,7 @@ type DisplayComponent struct {
 	DepthVersion             string                       `json:"depth_version,omitempty"`
 	DepthBoundaryIDs         []string                     `json:"depth_boundary_ids,omitempty"`
 	RawMaximum               *float64                     `json:"raw_max,omitempty"`
+	ScoringDefinition        *report.ScoringDefinition    `json:"scoring_definition,omitempty"`
 }
 
 // UnitArtifact is the lossless result for one analyzer-owned unit. Report
@@ -140,6 +144,7 @@ func ProjectionFromReport(viewKey ViewKey, document report.Document, freshness F
 				Observations:             component.Observations,
 				ObservedContribution:     component.ObservedContribution,
 				Subjects:                 append([]report.SubjectContribution(nil), component.Subjects...),
+				ScoringDefinition:        cloneScoringDefinition(component.ScoringDefinition),
 				DepthState:               component.DepthState, DepthVersion: component.DepthVersion, DepthBoundaryIDs: append([]string(nil), component.DepthBoundaryIDs...), RawMaximum: component.RawMaximum,
 				DepthEstimated: component.DepthEstimated,
 			}
@@ -150,6 +155,7 @@ func ProjectionFromReport(viewKey ViewKey, document report.Document, freshness F
 			Language: file.Language, ObservedAxes: cloneFloatMap(file.ObservedAxes),
 			ObservedScore: file.ObservedScore, Passed: cloneBool(file.Passed),
 			Path: file.Path, Rank: file.Rank, Score: file.Score,
+			ScoringAttributions: cloneGroupAttributions(file.ScoringAttributions), ScoringLimitations: append([]string(nil), file.ScoringLimitations...),
 			ValidZero: file.ValidZero, Freshness: freshness, FreshnessNote: file.FreshnessNote,
 		}
 	}
@@ -160,7 +166,7 @@ func ProjectionFromReport(viewKey ViewKey, document report.Document, freshness F
 		depth[id] = report.DepthBoundary{ID: boundary.ID, State: boundary.State,
 			Estimated: boundary.Estimated, Shallow: boundary.Shallow}
 	}
-	return DisplayProjection{ViewKey: viewKey, GeneratedAt: time.Now().UTC(), Files: files, SchemaVersion: document.SchemaVersion, ProfileSetHash: document.ProfileSetHash, ScoreProfile: document.ScoreProfile, PolicyRevision: document.PolicyRevision, Depth: depth}
+	return DisplayProjection{ViewKey: viewKey, GeneratedAt: time.Now().UTC(), Files: files, SchemaVersion: document.SchemaVersion, ProfileSetHash: document.ProfileSetHash, ScoreProfile: document.ScoreProfile, PolicyRevision: document.PolicyRevision, ScorePolicyRevision: document.ScorePolicyRevision, Depth: depth}
 }
 
 // ReportFiles reconstructs report-compatible files from a projection. Evidence
@@ -178,6 +184,7 @@ func (projection DisplayProjection) ReportFiles() []report.File {
 				Observations:             component.Observations,
 				ObservedContribution:     component.ObservedContribution,
 				Subjects:                 append([]report.SubjectContribution(nil), component.Subjects...),
+				ScoringDefinition:        cloneScoringDefinition(component.ScoringDefinition),
 				DepthState:               component.DepthState, DepthVersion: component.DepthVersion, DepthBoundaryIDs: append([]string(nil), component.DepthBoundaryIDs...), RawMaximum: component.RawMaximum,
 				DepthEstimated: component.DepthEstimated,
 			}
@@ -188,6 +195,7 @@ func (projection DisplayProjection) ReportFiles() []report.File {
 			Language: file.Language, ObservedAxes: cloneFloatMap(file.ObservedAxes),
 			ObservedScore: file.ObservedScore, Passed: cloneBool(file.Passed),
 			Path: file.Path, Rank: file.Rank, Score: file.Score,
+			ScoringAttributions: cloneGroupAttributions(file.ScoringAttributions), ScoringLimitations: append([]string(nil), file.ScoringLimitations...),
 			ValidZero: file.ValidZero, Freshness: file.Freshness, FreshnessNote: file.FreshnessNote,
 		}
 	}
@@ -231,4 +239,20 @@ func cloneBool(value *bool) *bool {
 	}
 	copy := *value
 	return &copy
+}
+
+func cloneScoringDefinition(source *report.ScoringDefinition) *report.ScoringDefinition {
+	if source == nil {
+		return nil
+	}
+	copy := *source
+	return &copy
+}
+
+func cloneGroupAttributions(groups []report.GroupAttribution) []report.GroupAttribution {
+	result := append([]report.GroupAttribution(nil), groups...)
+	for i := range result {
+		result[i].Signals = append([]report.GroupSignal(nil), groups[i].Signals...)
+	}
+	return result
 }

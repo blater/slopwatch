@@ -37,6 +37,7 @@ type componentDescriptor struct {
 type componentDefaults struct {
 	Enabled   bool    `json:"enabled"`
 	Threshold *string `json:"threshold"`
+	Baseline  *string `json:"baseline"`
 	Weight    string  `json:"weight"`
 	Formula   string  `json:"formula"`
 	Cap       *string `json:"cap"`
@@ -52,6 +53,13 @@ func (defaults componentDefaults) threshold() (float64, bool, error) {
 
 func (defaults componentDefaults) weight() (float64, error) {
 	return strconv.ParseFloat(defaults.Weight, 64)
+}
+
+func (defaults componentDefaults) baseline() (float64, error) {
+	if defaults.Baseline == nil {
+		return 0, nil
+	}
+	return strconv.ParseFloat(*defaults.Baseline, 64)
 }
 
 func loadCatalog(installationRoot string) (catalogDocument, error) {

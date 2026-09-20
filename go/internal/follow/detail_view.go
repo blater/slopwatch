@@ -75,6 +75,7 @@ func detailContent(model Model, file report.File, width int) []string {
 	logical := detailHeaderLines(file)
 	logical = append(logical, detailMetricLines(model.files.Document, file)...)
 	logical = append(logical, detailDiagnosticLines(model, file)...)
+	logical = append(logical, detailScoringLines(file)...)
 	logical = append(logical, detailComponentLines(file)...)
 	return renderDetailLines(logical, width)
 }
@@ -118,7 +119,7 @@ func detailMetricLines(document report.Document, file report.File) []detailLine 
 	}
 	for _, item := range labels {
 		component, exists := file.Components[item.id]
-		if coverageFailed(file.Coverage[item.id]) {
+		if coverageFailed(file.Coverage[item.id]) && !(item.id == "module_shallowness" && !metricFailed(file, "deep")) {
 			logical = append(logical, detailLine{fmt.Sprintf("%-24s X", item.label), style.AccentCritical, true})
 			continue
 		}
@@ -147,7 +148,7 @@ func detailMetricLines(document report.Document, file report.File) []detailLine 
 		}
 	}
 	logical = append(logical, depthDetailLines(document, file)...)
-	logical = append(logical, detailLine{"", style.TextPrimary, false}, detailLine{"COMPONENTS", style.AccentPositive, true})
+	logical = append(logical, detailLine{"", style.TextPrimary, false})
 	return logical
 }
 
@@ -223,7 +224,7 @@ func maxSubjectValue(component report.Component) float64 {
 }
 
 func detailComponentLines(file report.File) []detailLine {
-	logical := []detailLine{}
+	logical := []detailLine{{"COMPONENTS", style.AccentPositive, true}}
 	componentIDs := make([]string, 0, len(file.Components))
 	for id := range file.Components {
 		componentIDs = append(componentIDs, id)
@@ -231,7 +232,7 @@ func detailComponentLines(file report.File) []detailLine {
 	sort.Strings(componentIDs)
 	for _, id := range componentIDs {
 		component := file.Components[id]
-		if coverageFailed(file.Coverage[id]) {
+		if coverageFailed(file.Coverage[id]) && !(id == "module_shallowness" && !metricFailed(file, "deep")) {
 			logical = append(logical, detailLine{fmt.Sprintf("%s  X", id), style.AccentCritical, true})
 			continue
 		}
@@ -239,13 +240,14 @@ func detailComponentLines(file report.File) []detailLine {
 			logical = append(logical, detailLine{fmt.Sprintf("%s  N/A", id), style.TextMuted, true})
 			continue
 		}
-		if id == "module_shallowness" && component.DepthVersion == "responsibility-burden-v4" && scoring.Metric(file, "deep").State != "measured" {
+		if id == "module_shallowness" && component.DepthVersion == "responsibility-burden-v4" && !scoring.Metric(file, "deep").Available {
 			logical = append(logical, detailLine{fmt.Sprintf("%s  X", id), style.AccentCritical, true})
 			continue
 		}
 		logical = append(logical, detailLine{fmt.Sprintf("%s  contribution %.1f  ·  observations %d", id, component.Contribution, component.Observations), style.TextPrimary, true})
 		for _, subject := range component.Subjects {
-			logical = append(logical, detailLine{fmt.Sprintf("  • %s = %s  (+%s)", subject.Subject, report.DisplayNumber(subject.Value), report.DisplayNumber(subject.Contribution)), style.TextMuted, false})
+			amount := detailSubjectCharge(id, component, subject)
+			logical = append(logical, detailLine{fmt.Sprintf("  • %s = %s  (%s)", subject.Subject, report.DisplayNumber(subject.Value), amount), style.TextMuted, false})
 		}
 	}
 	return logical

@@ -80,7 +80,7 @@ func TestCalibrationCachedProjectionRejectsIncompatibleProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projection := analysiscache.DisplayProjection{ViewKey: view, SchemaVersion: schema, ProfileSetHash: otherHash, ScoreProfile: profile, PolicyRevision: policy, Files: []analysiscache.DisplayFile{{Path: "service.go", Language: "go", Complete: true, Freshness: analysiscache.FreshnessCurrent}}}
+	projection := analysiscache.DisplayProjection{ViewKey: view, SchemaVersion: schema, ProfileSetHash: otherHash, ScoreProfile: profile, PolicyRevision: policy, ScorePolicyRevision: StructuralScoringPolicyRevision, Files: []analysiscache.DisplayFile{{Path: "service.go", Language: "go", Complete: true, Freshness: analysiscache.FreshnessCurrent}}}
 	put := func() {
 		t.Helper()
 		ref, err := store.PutProjection(view, projection)

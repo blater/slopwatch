@@ -86,12 +86,12 @@
       "required_capability": "structural_metrics",
       "evidence_posture": "oracle_aligned",
       "documentation": "docs/components/cognitive_complexity.md",
-      "allowed_formulas": ["linear-over-threshold", "log-ratio"],
+      "allowed_formulas": ["continuous-log", "linear-over-threshold", "log-ratio"],
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
       "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
-      "defaults": {"enabled": true, "severity": "warning", "threshold": "15", "weight": "10", "formula": "log-ratio", "cap": null}
+      "defaults": {"enabled": true, "severity": "warning", "threshold": "15", "baseline": "0", "weight": "10", "formula": "continuous-log", "cap": null}
     },
     {
       "component_id": "coupling_between_objects",
@@ -146,12 +146,12 @@
       "required_capability": "structural_metrics",
       "evidence_posture": "oracle_aligned",
       "documentation": "docs/components/cyclomatic_method_complexity.md",
-      "allowed_formulas": ["linear-over-threshold", "log-ratio"],
+      "allowed_formulas": ["continuous-log", "linear-over-threshold", "log-ratio"],
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
       "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
-      "defaults": {"enabled": true, "severity": "warning", "threshold": "10", "weight": "5", "formula": "log-ratio", "cap": null}
+      "defaults": {"enabled": true, "severity": "warning", "threshold": "10", "baseline": "1", "weight": "5", "formula": "continuous-log", "cap": null}
     },
     {
       "component_id": "deeply_nested_if",
@@ -266,12 +266,12 @@
       "required_capability": "structural_metrics",
       "evidence_posture": "oracle_aligned",
       "documentation": "docs/components/npath_complexity.md",
-      "allowed_formulas": ["linear-over-threshold", "log-ratio"],
+      "allowed_formulas": ["continuous-log", "linear-over-threshold", "log-ratio"],
       "value_constraint": {"minimum": "0", "maximum": null},
       "threshold_constraint": {"minimum": "1", "maximum": null},
       "waiver_value": "value",
       "support": {"go": "conformant", "java": "supported", "rust": "supported", "typescript": "conformant"},
-      "defaults": {"enabled": true, "severity": "warning", "threshold": "200", "weight": "8", "formula": "log-ratio", "cap": null}
+      "defaults": {"enabled": true, "severity": "warning", "threshold": "200", "baseline": "1", "weight": "8", "formula": "continuous-log", "cap": null}
     },
     {
       "component_id": "type_complexity",

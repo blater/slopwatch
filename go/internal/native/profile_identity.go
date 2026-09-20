@@ -7,6 +7,12 @@ import (
 	"github.com/blater/slopwatch/internal/sourceestimate"
 )
 
+// StructuralScoringPolicyRevision identifies grouped and continuous-curve
+// projection semantics.
+// It is independent of the SHALLOW policy revision so either depth profile
+// invalidates stale score projections consistently.
+const StructuralScoringPolicyRevision = "grouping-curves-v1"
+
 type reportComponentIdentity struct {
 	ID               string            `json:"id"`
 	Version          string            `json:"version"`
@@ -24,7 +30,24 @@ func reportIdentity(catalog catalogDocument) (int, string, string, string, error
 
 func reportIdentityWithCalibration(catalog catalogDocument, calibration string) (int, string, string, string, error) {
 	if !catalogHasDepthV4(catalog) {
-		return 3, "native-balanced-v1", "", "", nil
+		identity := struct {
+			Languages  []string                  `json:"languages"`
+			Analyzers  []analyzerDescriptor      `json:"analyzers"`
+			Components []reportComponentIdentity `json:"components"`
+			Policy     string                    `json:"structural_scoring_policy"`
+		}{Languages: catalog.Languages, Analyzers: catalog.Analyzers, Policy: StructuralScoringPolicyRevision}
+		for _, component := range catalog.Components {
+			identity.Components = append(identity.Components, reportComponentIdentity{
+				ID: component.ID, Version: component.Version, Axis: component.Axis, Kind: component.Kind,
+				Aggregator: component.Aggregator, DeduplicationKey: component.DeduplicationKey,
+				Support: component.Support, Defaults: component.Defaults,
+			})
+		}
+		encoded, err := json.Marshal(identity)
+		if err != nil {
+			return 0, "", "", "", err
+		}
+		return 3, string(analysiscache.DigestBytes(encoded)), "", "", nil
 	}
 	identity := struct {
 		Languages   []string                  `json:"languages"`
@@ -33,7 +56,8 @@ func reportIdentityWithCalibration(catalog catalogDocument, calibration string) 
 		Profile     string                    `json:"profile"`
 		Calibration string                    `json:"calibration"`
 		Policy      string                    `json:"policy_revision"`
-	}{Languages: catalog.Languages, Analyzers: catalog.Analyzers, Profile: ShallowProfileResponsibilityV4, Policy: ShallowPolicyRevisionV4, Calibration: calibration}
+		Structural  string                    `json:"structural_scoring_policy"`
+	}{Languages: catalog.Languages, Analyzers: catalog.Analyzers, Profile: ShallowProfileResponsibilityV4, Policy: ShallowPolicyRevisionV4, Structural: StructuralScoringPolicyRevision, Calibration: calibration}
 	for _, component := range catalog.Components {
 		identity.Components = append(identity.Components, reportComponentIdentity{
 			ID: component.ID, Version: component.Version, Axis: component.Axis, Kind: component.Kind,

@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "id": "structural-score-calibration-v1",
+  "status": "frozen-baseline-recorded-candidate-evaluation-pending",
+  "scope": {
+    "languages": ["go", "java", "typescript", "rust"],
+    "root": "go/internal/scoring/testdata/structural-v1",
+    "include_tests": false,
+    "source_only": true,
+    "generated_code": false,
+    "dependencies": "none"
+  },
+  "real_validation": {
+    "purpose": "source-reviewed ranking and raw-evidence checks after focused tuning; never tune against these holdouts",
+    "slopwatch": {
+      "root": "/Users/blater/src/slopwatch",
+      "revision": "801da93a46c708f9396f46d83df6d772c2ce41e3",
+      "examples": [
+        {"path": "go/internal/scoring/projection.go", "sha256": "48ccb5f15b0d36a386d86980d2e13969095d8cae5f960cd67eddc683939b124b", "role": "policy reweighting and projection"},
+        {"path": "go/internal/native/scoring.go", "sha256": "c57e3aa1700a0fd5158f46bb6b5b50eea221f803ad54fc35734a49669cbb1c7b", "role": "raw formula and evidence aggregation"},
+        {"path": "go/internal/sourceestimate/structural_responsibility_test.go", "sha256": "1c55f0f5509ad858899d8349c05d7cfc35daab478890b0e2733808a21c560d47", "role": "state and extraction source examples"}
+      ]
+    },
+    "kafka": {
+      "root": "/Users/blater/src/kafka",
+      "revision": "d3b8b1bd023dc3d8dff4f7f85af5963de0214b11",
+      "examples": [
+        {"path": "metadata/src/main/java/org/apache/kafka/metadata/placement/StripedReplicaPlacer.java", "sha256": "0042bacf08906563b1fc9751b2a449141c3b1a0329eb8abf2d6868806c7278d7", "role": "index/state traversal"},
+        {"path": "metadata/src/main/java/org/apache/kafka/metadata/authorizer/StandardAuthorizerData.java", "sha256": "e1205ae38f42e072d1c816ab476f5750e0be61a4c81c3807ad44dc4cbc05749b", "role": "branching and scan behavior"},
+        {"path": "metadata/src/main/java/org/apache/kafka/controller/BrokerHeartbeatManager.java", "sha256": "c64b8f553c4fe8a44d4d11d024beb2195ddc932dd3ce25656b88fe489c715031", "role": "state transitions and guards"}
+      ]
+    }
+  },
+  "policy": {
+    "profile": "slopslap-balanced-v1",
+    "score_profile": "responsibility-v4",
+    "catalog": "component-catalog.json",
+    "weights": "catalog defaults",
+    "enabled": "catalog defaults",
+    "shallow_profile": "responsibility-v4",
+    "typescript_types": false,
+    "pass_score": null,
+    "cache": false
+  },
+  "evaluation": {
+    "primary_measure": "grouped control-flow contribution for the functions named by the case",
+    "secondary_measure": "full SCORE is recorded; a full-score relation is admissible only when unchanged components and SHALLOW state are equivalent",
+    "shallow_handling": "report numeric/estimated state separately; do not use parser/context differences as evidence of structural improvement",
+    "score_epsilon": 0.25,
+    "relative_epsilon": 0.02,
+    "meaningful_delta": 0.5,
+    "raw_metric_tolerance": 0.000001,
+    "rank_tie": "abs(score_delta) <= max(score_epsilon, relative_epsilon * max(abs(scores)))",
+    "unrelated_regression": "within the same candidate policy, unchanged functions/files in a transformed case may not regress by more than max(0.5, 0.02 * max(abs(baseline), 1)); do not compare absolute scores across policy versions",
+    "grouping_nonincrease": "for one function, grouped control-flow contribution may not exceed the preserved raw-signal contribution under the same policy",
+    "policy_migration": "profile changes report numerical changes and require explicit threshold migration; no global nonincrease is assumed",
+    "missing_file": "failure",
+    "missing_finding": "failure unless the relation declares unsupported evidence",
+    "unknown_or_partial": "retain numeric score and report limitation; never coerce to zero"
+  },
+  "performance_budget": {
+    "status": "pre-evaluation reference; selected for this calibration and not a claim of measured p95",
+    "fixture_cold_p95_ms": 5000,
+    "fixture_warm_p95_ms": 2000,
+    "fixture_incremental_p95_ms": 5000,
+    "fixture_peak_rss_mb": 512,
+    "scoring_change_reference": {
+      "repetitions": 3,
+      "statistic": "median of three paired baseline/candidate runs on the same host, source snapshot, cache state, and output mode",
+      "elapsed_overhead": "candidate_median_ms <= baseline_median_ms * 1.10 + max(100, baseline_median_ms * 0.05)",
+      "peak_rss_overhead": "candidate_median_mb <= baseline_median_mb * 1.10 + 32",
+      "output_overhead": "candidate_median_bytes <= baseline_median_bytes * 1.10 + 65536",
+      "timer_noise_allowance": "max(100ms, 5% of the paired baseline median); applied once after taking each three-run median",
+      "failure_data": "retain all three samples, medians, host/toolchain, cache state, source and manifest hashes"
+    },
+    "runtime_measurement": "indexed lookup must beat repeated rescans as query count grows; runtime is reported separately and does not change SCORE",
+    "p0_mandate_reference": "The P0 directive requires reproducible 30,000-file cold, unchanged-warm, one-file-edit, and idle-watch measurements with latency, peak memory, and output evidence. Its release thresholds are governed by the reviewed release policy; they are not invented or replaced by this fixture's selected references."
+  },
+  "cases": [
+    {
+      "id": "unused-work",
+      "partition": "tuning",
+      "kind": "paired-transformation",
+      "property": "remove computation whose result is provably unused",
+      "maintainability": {"relation": "after_lt_before", "minimum_delta": 0.5},
+      "runtime": {"relation": "after_le_before", "measurement": "single invocation"},
+      "files": {"go": ["go/unused_before.go", "go/unused_after.go"], "java": ["java/UnusedBefore.java", "java/UnusedAfter.java"], "typescript": ["typescript/unused_before.ts", "typescript/unused_after.ts"], "rust": ["rust/unused_before.rs", "rust/unused_after.rs"]}
+    },
+    {
+      "id": "flatten-guards",
+      "partition": "tuning",
+      "kind": "paired-transformation",
+      "property": "flatten nested guards while preserving decisions",
+      "maintainability": {"relation": "after_lt_before", "minimum_delta": 0.5},
+      "runtime": {"relation": "tie_or_after_faster", "measurement": "same inputs"},
+      "files": {"go": ["go/guards_before.go", "go/guards_after.go"], "java": ["java/GuardsBefore.java", "java/GuardsAfter.java"], "typescript": ["typescript/guards_before.ts", "typescript/guards_after.ts"], "rust": ["rust/guards_before.rs", "rust/guards_after.rs"]}
+    },
+    {
+      "id": "coherent-shared-state-extraction",
+      "partition": "tuning",
+      "kind": "paired-transformation",
+      "property": "extract one complete state transition with its validation and result",
+      "maintainability": {"relation": "after_lt_before", "minimum_delta": 0.5, "anti_gaming": "helper owns the complete transition and extraction must not erase it"},
+      "runtime": {"relation": "tie_or_after_faster", "measurement": "same inputs"},
+      "files": {"go": ["go/state_coherent_before.go", "go/state_coherent_after.go"], "java": ["java/StateCoherentBefore.java", "java/StateCoherentAfter.java"], "typescript": ["typescript/state_coherent_before.ts", "typescript/state_coherent_after.ts"], "rust": ["rust/state_coherent_before.rs", "rust/state_coherent_after.rs"]}
+    },
+    {
+      "id": "cosmetic-shared-state-extraction",
+      "partition": "holdout",
+      "kind": "paired-transformation",
+      "property": "extract one assignment while leaving the state protocol fragmented",
+      "maintainability": {"relation": "after_ge_before", "tolerance": "score_epsilon_or_relative", "anti_gaming": "cosmetic extraction cannot earn a meaningful improvement"},
+      "runtime": {"relation": "tie", "measurement": "same inputs"},
+      "files": {"go": ["go/state_cosmetic_before.go", "go/state_cosmetic_after.go"], "java": ["java/StateCosmeticBefore.java", "java/StateCosmeticAfter.java"], "typescript": ["typescript/state_cosmetic_before.ts", "typescript/state_cosmetic_after.ts"], "rust": ["rust/state_cosmetic_before.rs", "rust/state_cosmetic_after.rs"]}
+    },
+    {
+      "id": "index-vs-rescan",
+      "partition": "tuning",
+      "kind": "paired-transformation",
+      "property": "replace a reusable index with repeated scans",
+      "maintainability": {"relation": "record_only", "note": "algorithmic runtime is assessed independently; no maintainability bonus or penalty is prescribed"},
+      "runtime": {"relation": "indexed_faster_as_queries_grow", "measurement": "query counts 1, 8, 64, 512"},
+      "files": {"go": ["go/indexed.go", "go/rescan.go"], "java": ["java/Indexed.java", "java/Rescan.java"], "typescript": ["typescript/indexed.ts", "typescript/rescan.ts"], "rust": ["rust/indexed.rs", "rust/rescan.rs"]}
+    },
+    {
+      "id": "flat-dispatch-vs-interacting-state",
+      "partition": "holdout",
+      "kind": "paired-transformation",
+      "property": "compare independent dispatch alternatives with branch-coupled mutations",
+      "maintainability": {"relation": "interacting_ge_flat", "minimum_delta": 0.5},
+      "runtime": {"relation": "tie_or_flat_faster", "measurement": "same inputs"},
+      "files": {"go": ["go/dispatch_flat.go", "go/dispatch_interacting.go"], "java": ["java/DispatchFlat.java", "java/DispatchInteracting.java"], "typescript": ["typescript/dispatch_flat.ts", "typescript/dispatch_interacting.ts"], "rust": ["rust/dispatch_flat.rs", "rust/dispatch_interacting.rs"]}
+    },
+    {
+      "id": "distinct-functions",
+      "partition": "holdout",
+      "kind": "file-comparison",
+      "property": "two difficult independent routines remain visible in a file score",
+      "maintainability": {"relation": "two_ge_one", "minimum_delta": 0.5},
+      "runtime": {"relation": "not_applicable"},
+      "files": {"go": ["go/distinct_one.go", "go/distinct_two.go"], "java": ["java/DistinctOne.java", "java/DistinctTwo.java"], "typescript": ["typescript/distinct_one.ts", "typescript/distinct_two.ts"], "rust": ["rust/distinct_one.rs", "rust/distinct_two.rs"]}
+    },
+    {
+      "id": "rename-move",
+      "partition": "holdout",
+      "kind": "paired-transformation",
+      "property": "unchanged code renamed and moved with equivalent context",
+      "maintainability": {"relation": "tie", "tolerance": "score_epsilon_or_relative"},
+      "runtime": {"relation": "tie", "measurement": "same inputs"},
+      "evidence": {"relation": "same_raw_metric_multiset", "path_change": "allowed", "finding_identity": "preserve underlying symbol role; names and paths may change"},
+      "files": {"go": ["go/rename/original.go", "go/rename/moved.go"], "java": ["java/rename/Original.java", "java/rename/Moved.java"], "typescript": ["typescript/rename/original.ts", "typescript/rename/moved.ts"], "rust": ["rust/rename/original.rs", "rust/rename/moved.rs"]}
+    }
+  ]
+}

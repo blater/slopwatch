@@ -1,0 +1,13 @@
+{
+  "os": "macOS 26.6.2 (25G83)",
+  "cpu": "Apple M5",
+  "logical_cpus": 10,
+  "ram_bytes": 25769803776,
+  "go": "go1.27.1 darwin/arm64",
+  "node": "v26.9.0",
+  "python": "3.14.7",
+  "driver_sha256": "cb2012356ff85b8d2abc3430407aea7d92144fb5d70b1be8a2355796458bd27f",
+  "candidate_sha256": "e480be137a14da2317da71e92a597442651e54e524e389ddfed0df1a667e19f4",
+  "catalog_sha256": "7882610f65df61b20f358d0b55a264074010be90dc1758ffad807f2772810047",
+  "analyzers": "Preserved baseline analyzer artifacts; runnable TypeScript build tree included."
+}

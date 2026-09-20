@@ -8,17 +8,19 @@ import (
 	"strconv"
 
 	"github.com/blater/slopwatch/internal/report"
+	sharedscoring "github.com/blater/slopwatch/internal/scoring"
 )
 
 type observation struct {
-	component  string
-	path       string
-	language   string
-	scope      string
-	value      float64
-	subject    protocolSubject
-	attributes map[string]any
-	provenance map[string]any
+	scoringRoutine string // Projection identity; raw analyzer evidence remains unchanged.
+	component      string
+	path           string
+	language       string
+	scope          string
+	value          float64
+	subject        protocolSubject
+	attributes     map[string]any
+	provenance     map[string]any
 }
 
 func number(value any) (float64, error) {
@@ -56,34 +58,40 @@ func roundScore(value float64) float64 {
 }
 
 func scalarContribution(formula string, value, threshold, weight float64, hasThreshold bool) (float64, error) {
-	result := 0.0
-	switch formula {
-	case "binary":
-		if value > 0 {
-			result = weight
-		}
-	case "count":
-		result = weight * value
-	case "log-count":
-		result = weight * math.Log2(1+value)
-	case "linear-over-threshold", "log-ratio":
-		if !hasThreshold || threshold <= 0 {
-			return 0, fmt.Errorf("formula %s requires a threshold", formula)
-		}
-		if value >= threshold {
-			if formula == "linear-over-threshold" {
-				result = weight * value / threshold
-			} else {
-				result = weight * (1 + math.Log2(value/threshold))
-			}
-		}
-	default:
-		return 0, fmt.Errorf("unknown formula %s", formula)
+	return scalarContributionWithBaseline(formula, value, 0, threshold, weight, hasThreshold)
+}
+
+func scalarContributionWithBaseline(formula string, value, baseline, reference, weight float64, hasReference bool) (float64, error) {
+	if math.IsNaN(weight) || math.IsInf(weight, 0) || weight < 0 {
+		return 0, fmt.Errorf("formula %s requires a finite nonnegative weight", formula)
 	}
-	return roundScore(result), nil
+	severity, err := scalarSeverityWithBaseline(formula, value, baseline, reference, hasReference)
+	if err != nil {
+		return 0, err
+	}
+	return roundScore(weight * severity), nil
+}
+
+func scalarSeverity(formula string, value, threshold float64, hasThreshold bool) (float64, error) {
+	return scalarSeverityWithBaseline(formula, value, 0, threshold, hasThreshold)
+}
+
+func scalarSeverityWithBaseline(formula string, value, baseline, reference float64, hasReference bool) (float64, error) {
+	if !hasReference {
+		reference = 0
+	}
+	return sharedscoring.ScalarSeverity(formula, value, baseline, reference)
 }
 
 func godContribution(item observation, weight float64) (float64, error) {
+	severity, err := godSeverity(item)
+	if err != nil {
+		return 0, err
+	}
+	return roundScore(weight * severity), nil
+}
+
+func godSeverity(item observation) (float64, error) {
 	wmc, err := attributeNumber(item.attributes, "wmc")
 	if err != nil {
 		return 0, err
@@ -107,7 +115,7 @@ func godContribution(item observation, weight float64) (float64, error) {
 	atfdSeverity := 1 + math.Log2(math.Max(atfd, 5)/5)
 	boundedTCC := math.Max(1, math.Min(tcc, threshold))
 	tccSeverity := 1 + math.Log2(threshold/boundedTCC)
-	return roundScore(weight * (30 + 8*atfdSeverity + 8*tccSeverity)), nil
+	return 30 + 8*atfdSeverity + 8*tccSeverity, nil
 }
 
 func subjectKey(subject protocolSubject) string {
@@ -166,7 +174,7 @@ func scoreInputsReport(catalog catalogDocument, selected []string, inputs scoreI
 	if err != nil {
 		return report.Document{}, err
 	}
-	document := report.Document{Calibrated: true, Configuration: nil, Diagnostics: diagnostics, ExecutionPlans: plans, Files: files, ProfileSetHash: profileHash, ScoreProfile: scoreProfile, PolicyRevision: policyRevision, SchemaVersion: schemaVersion, Summary: map[string]any{}}
+	document := report.Document{Calibrated: true, Configuration: nil, Diagnostics: diagnostics, ExecutionPlans: plans, Files: files, ProfileSetHash: profileHash, ScoreProfile: scoreProfile, PolicyRevision: policyRevision, ScorePolicyRevision: StructuralScoringPolicyRevision, SchemaVersion: schemaVersion, Summary: map[string]any{}}
 	if len(inputs.depth) > 0 {
 		document.Depth = inputs.depth
 	}

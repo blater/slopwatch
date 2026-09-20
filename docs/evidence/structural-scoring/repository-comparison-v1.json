@@ -1,0 +1,630 @@
+{
+  "policy": "grouping-curves-v1",
+  "comparisons": {
+    "slopwatch": {
+      "reports": [
+        {
+          "path": "/private/tmp/slopwatch-structural-perf-szciyigx/rep-1/raw/cold-1.json",
+          "sha256": "af76b0addcd80f76f1fb5e83a8a538af26edce79e90cd40f4c5c42aa817ec458"
+        },
+        {
+          "path": "/private/tmp/slopwatch-structural-perf-9z25azyt/rep-1/raw/cold-1.json",
+          "sha256": "265054721b413f36a5e32a65677d4f2e9df048bbb38073b5f2336d3f2c6c42a3"
+        }
+      ],
+      "files": 958,
+      "missing_before": [],
+      "missing_after": [],
+      "raw_evidence_changes": [],
+      "unrelated_contribution_changes": [],
+      "distribution_before": {
+        "zero": 267,
+        "median": 10.521683299074,
+        "p95": 74.651720392808,
+        "maximum": 266.17593637537
+      },
+      "distribution_after": {
+        "zero": 49,
+        "median": 20.058302279017,
+        "p95": 73.425467488892,
+        "maximum": 261.113548413077
+      },
+      "increased": 646,
+      "decreased": 231,
+      "unchanged": 81,
+      "largest_increases": [
+        {
+          "path": "go/internal/follow/fix_view.go",
+          "before": 22.690207266669,
+          "after": 200.768724257273,
+          "delta": 178.078516991,
+          "rank_before": 321,
+          "rank_after": 2
+        },
+        {
+          "path": "analyzers/typescript/src/type-safety.ts",
+          "before": 0,
+          "after": 124.975376556498,
+          "delta": 124.975376556,
+          "rank_before": 748,
+          "rank_after": 6
+        },
+        {
+          "path": "go/internal/follow/agents_view.go",
+          "before": 8.827673731815,
+          "after": 103.612575346573,
+          "delta": 94.784901615,
+          "rank_before": 513,
+          "rank_after": 22
+        },
+        {
+          "path": "analyzers/typescript/src/structural.ts",
+          "before": 0,
+          "after": 85.465565365896,
+          "delta": 85.465565366,
+          "rank_before": 746,
+          "rank_after": 36
+        },
+        {
+          "path": "docs/evidence/shallow-v4/structural-fresh-holdout/witnesses/analyzers/typescript/src/structural.ts",
+          "before": 0,
+          "after": 85.465565365896,
+          "delta": 85.465565366,
+          "rank_before": 767,
+          "rank_after": 37
+        },
+        {
+          "path": "go/internal/follow/fix_dialog_state.go",
+          "before": 0,
+          "after": 81.956647764737,
+          "delta": 81.956647765,
+          "rank_before": 834,
+          "rank_after": 40
+        },
+        {
+          "path": "analyzers/structural/internal/metrics/registry.go",
+          "before": 0,
+          "after": 80.294977082075,
+          "delta": 80.294977082,
+          "rank_before": 739,
+          "rank_after": 41
+        },
+        {
+          "path": "go/internal/follow/config_views.go",
+          "before": 25.077877144313,
+          "after": 104.613440428735,
+          "delta": 79.535563284,
+          "rank_before": 291,
+          "rank_after": 21
+        },
+        {
+          "path": "go/internal/native/analyzer.go",
+          "before": 48.762705115144,
+          "after": 122.19094349324,
+          "delta": 73.428238378,
+          "rank_before": 119,
+          "rank_after": 9
+        },
+        {
+          "path": "go/internal/follow/interaction.go",
+          "before": 37.563780784615,
+          "after": 109.516427085774,
+          "delta": 71.952646301,
+          "rank_before": 178,
+          "rank_after": 18
+        }
+      ],
+      "largest_decreases": [
+        {
+          "path": "go/internal/sourceestimate/graded_surface_main.go",
+          "before": 90.884781284451,
+          "after": 28.875252707416,
+          "delta": -62.009528577,
+          "rank_before": 20,
+          "rank_after": 306
+        },
+        {
+          "path": "go/internal/sourceestimate/typescript_module_storage.go",
+          "before": 96.180364705763,
+          "after": 36.609405711086,
+          "delta": -59.570958995,
+          "rank_before": 13,
+          "rank_after": 193
+        },
+        {
+          "path": "analyzers/typescript/src/depth-function.ts",
+          "before": 98.172635517496,
+          "after": 41.903703058938,
+          "delta": -56.268932459,
+          "rank_before": 9,
+          "rank_after": 160
+        },
+        {
+          "path": "go/internal/sourceestimate/graded_constraint_callers.go",
+          "before": 103.926453748775,
+          "after": 49.451082415039,
+          "delta": -54.475371334,
+          "rank_before": 6,
+          "rank_after": 112
+        },
+        {
+          "path": "go/internal/sourceestimate/graded_rust_expression_flow.go",
+          "before": 99.622960176825,
+          "after": 45.160125436179,
+          "delta": -54.462834741,
+          "rank_before": 7,
+          "rank_after": 134
+        },
+        {
+          "path": "analyzers/typescript/src/depth-facts.ts",
+          "before": 88.295309312078,
+          "after": 33.961390124286,
+          "delta": -54.333919188,
+          "rank_before": 28,
+          "rank_after": 223
+        },
+        {
+          "path": "go/internal/sourceestimate/graded_rust_eager.go",
+          "before": 96.672157610751,
+          "after": 45.763019773771,
+          "delta": -50.909137837,
+          "rank_before": 11,
+          "rank_after": 131
+        },
+        {
+          "path": "go/internal/sourceestimate/graded_rust_helper_expansion.go",
+          "before": 69.022574275992,
+          "after": 18.210298589547,
+          "delta": -50.812275686,
+          "rank_before": 58,
+          "rank_after": 517
+        },
+        {
+          "path": "go/internal/sourceestimate/graded_constraint_bounds.go",
+          "before": 81.330798711147,
+          "after": 31.967330048026,
+          "delta": -49.363468663,
+          "rank_before": 37,
+          "rank_after": 258
+        },
+        {
+          "path": "go/internal/sourceestimate/graded_connected_projection.go",
+          "before": 88.856799699649,
+          "after": 39.818526532898,
+          "delta": -49.038273167,
+          "rank_before": 26,
+          "rank_after": 172
+        }
+      ],
+      "candidate_top_ten": [
+        {
+          "path": "docs/evidence/shallow-v4/connected-high-holdout/witnesses/go/reverseproxy.go",
+          "before": 266.17593637537,
+          "after": 261.113548413077,
+          "delta": -5.062387962,
+          "rank_before": 1,
+          "rank_after": 1
+        },
+        {
+          "path": "go/internal/follow/fix_view.go",
+          "before": 22.690207266669,
+          "after": 200.768724257273,
+          "delta": 178.078516991,
+          "rank_before": 321,
+          "rank_after": 2
+        },
+        {
+          "path": "analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaDepthBoundary.java",
+          "before": 70.219478557238,
+          "after": 133.719155978988,
+          "delta": 63.499677422,
+          "rank_before": 56,
+          "rank_after": 3
+        },
+        {
+          "path": "analyzers/structural/adapters/java/src/dev/slopslap/structural/JavaDepthMinimumScannerGuards.java",
+          "before": 95.703324619856,
+          "after": 130.804690638644,
+          "delta": 35.101366019,
+          "rank_before": 14,
+          "rank_after": 4
+        },
+        {
+          "path": "go/internal/sourceestimate/parser_helpers.go",
+          "before": 80.8146076941,
+          "after": 128.331222114283,
+          "delta": 47.51661442,
+          "rank_before": 38,
+          "rank_after": 5
+        },
+        {
+          "path": "analyzers/typescript/src/type-safety.ts",
+          "before": 0,
+          "after": 124.975376556498,
+          "delta": 124.975376556,
+          "rank_before": 748,
+          "rank_after": 6
+        },
+        {
+          "path": "docs/evidence/shallow-v4/connected-confirmation-holdout/witnesses/go-reader/reader.go",
+          "before": 117.308958254156,
+          "after": 124.491998239659,
+          "delta": 7.183039986,
+          "rank_before": 4,
+          "rank_after": 7
+        },
+        {
+          "path": "go/internal/sourceestimate/java_class_shape.go",
+          "before": 88.327751189118,
+          "after": 122.783064018875,
+          "delta": 34.45531283,
+          "rank_before": 27,
+          "rank_after": 8
+        },
+        {
+          "path": "go/internal/native/analyzer.go",
+          "before": 48.762705115144,
+          "after": 122.19094349324,
+          "delta": 73.428238378,
+          "rank_before": 119,
+          "rank_after": 9
+        },
+        {
+          "path": "docs/evidence/shallow-v4/calibration-holdout/witnesses/river/SqlAccessEdgeSelector.java",
+          "before": 79.870595467027,
+          "after": 119.37961250567,
+          "delta": 39.509017039,
+          "rank_before": 40,
+          "rank_after": 10
+        }
+      ],
+      "motivating_file": [
+        {
+          "path": "go/internal/sourceestimate/graded_caller_scan_refs.go",
+          "before": 0,
+          "after": 0,
+          "delta": 0,
+          "rank_before": 935,
+          "rank_after": 955
+        }
+      ],
+      "shallow_before": {
+        "finite_contributions": 958,
+        "finite_subject_ratings": 940,
+        "estimated": 932,
+        "depth_states": {
+          "partial": 931,
+          "measured": 24,
+          "not_applicable": 3
+        },
+        "coverage": {
+          "unavailable": 800,
+          "complete": 152,
+          "failed": 6
+        }
+      },
+      "shallow_after": {
+        "finite_contributions": 958,
+        "finite_subject_ratings": 940,
+        "estimated": 932,
+        "depth_states": {
+          "partial": 931,
+          "measured": 24,
+          "not_applicable": 3
+        },
+        "coverage": {
+          "unavailable": 800,
+          "complete": 152,
+          "failed": 6
+        }
+      }
+    },
+    "kafka": {
+      "reports": [
+        {
+          "path": "/private/tmp/slopwatch-structural-perf-t188xmhz/rep-1/raw/cold-1.json",
+          "sha256": "610f322d4c1f862d640589b83b18d354f37c181a8632ebf44284cbbc7fd57042"
+        },
+        {
+          "path": "/private/tmp/slopwatch-structural-perf-1y56g_6b/rep-1/raw/cold-1.json",
+          "sha256": "3bc52c505015590186668b2695c9b56ac52bfffb8974c3af969db2d1f64ce3d6"
+        }
+      ],
+      "files": 3782,
+      "missing_before": [],
+      "missing_after": [],
+      "raw_evidence_changes": [],
+      "unrelated_contribution_changes": [],
+      "distribution_before": {
+        "zero": 1337,
+        "median": 10.849625007212,
+        "p95": 83.687742332029,
+        "maximum": 795.78594806585
+      },
+      "distribution_after": {
+        "zero": 1098,
+        "median": 13.915769755851,
+        "p95": 102.032837956506,
+        "maximum": 1178.117345690493
+      },
+      "increased": 2074,
+      "decreased": 121,
+      "unchanged": 1587,
+      "largest_increases": [
+        {
+          "path": "group-coordinator/src/main/java/org/apache/kafka/coordinator/group/GroupMetadataManager.java",
+          "before": 795.78594806585,
+          "after": 1178.117345690493,
+          "delta": 382.331397625,
+          "rank_before": 1,
+          "rank_after": 1
+        },
+        {
+          "path": "clients/src/main/java/org/apache/kafka/clients/admin/KafkaAdminClient.java",
+          "before": 339.219541368512,
+          "after": 550.935271416112,
+          "delta": 211.715730048,
+          "rank_before": 11,
+          "rank_after": 3
+        },
+        {
+          "path": "raft/src/main/java/org/apache/kafka/raft/KafkaRaftClient.java",
+          "before": 223.065595616627,
+          "after": 404.938780998416,
+          "delta": 181.873185382,
+          "rank_before": 32,
+          "rank_after": 10
+        },
+        {
+          "path": "clients/src/main/java/org/apache/kafka/clients/consumer/internals/AsyncKafkaConsumer.java",
+          "before": 221.188855226242,
+          "after": 399.201936656893,
+          "delta": 178.013081431,
+          "rank_before": 35,
+          "rank_after": 12
+        },
+        {
+          "path": "group-coordinator/src/main/java/org/apache/kafka/coordinator/group/GroupCoordinatorService.java",
+          "before": 108.107172274212,
+          "after": 267.019272252966,
+          "delta": 158.912099979,
+          "rank_before": 143,
+          "rank_after": 37
+        },
+        {
+          "path": "clients/src/main/java/org/apache/kafka/common/utils/Utils.java",
+          "before": 170.0250967183,
+          "after": 328.378389165132,
+          "delta": 158.353292447,
+          "rank_before": 70,
+          "rank_after": 20
+        },
+        {
+          "path": "streams/src/main/java/org/apache/kafka/streams/processor/internals/DefaultStateUpdater.java",
+          "before": 203.823533675506,
+          "after": 341.256741017493,
+          "delta": 137.433207342,
+          "rank_before": 44,
+          "rank_after": 18
+        },
+        {
+          "path": "streams/src/main/java/org/apache/kafka/streams/processor/internals/TaskManager.java",
+          "before": 270.459405221795,
+          "after": 400.502879479663,
+          "delta": 130.043474258,
+          "rank_before": 23,
+          "rank_after": 11
+        },
+        {
+          "path": "streams/src/main/java/org/apache/kafka/streams/processor/internals/InternalTopologyBuilder.java",
+          "before": 310.992697242986,
+          "after": 431.777578243662,
+          "delta": 120.784881001,
+          "rank_before": 16,
+          "rank_after": 7
+        },
+        {
+          "path": "streams/src/main/java/org/apache/kafka/streams/state/internals/InMemoryWindowStore.java",
+          "before": 112.420687903577,
+          "after": 226.920880651646,
+          "delta": 114.500192748,
+          "rank_before": 137,
+          "rank_after": 54
+        }
+      ],
+      "largest_decreases": [
+        {
+          "path": "generator/src/main/java/org/apache/kafka/message/FieldSpec.java",
+          "before": 384.935058568857,
+          "after": 235.214837044895,
+          "delta": -149.720221524,
+          "rank_before": 8,
+          "rank_after": 52
+        },
+        {
+          "path": "connect/json/src/main/java/org/apache/kafka/connect/json/JsonConverter.java",
+          "before": 347.869792482956,
+          "after": 224.397466376691,
+          "delta": -123.472326106,
+          "rank_before": 10,
+          "rank_after": 56
+        },
+        {
+          "path": "tools/src/main/java/org/apache/kafka/tools/ConfigCommand.java",
+          "before": 485.314163958403,
+          "after": 371.140995715114,
+          "delta": -114.173168243,
+          "rank_before": 3,
+          "rank_after": 13
+        },
+        {
+          "path": "server-common/src/main/java/org/apache/kafka/server/share/persister/PersisterStateManager.java",
+          "before": 334.319413220348,
+          "after": 239.473973854803,
+          "delta": -94.845439366,
+          "rank_before": 12,
+          "rank_after": 50
+        },
+        {
+          "path": "streams/src/main/java/org/apache/kafka/streams/state/internals/StreamThreadStateStoreProvider.java",
+          "before": 92.552242489722,
+          "after": 43.790047680341,
+          "delta": -48.762194809,
+          "rank_before": 171,
+          "rank_after": 459
+        },
+        {
+          "path": "generator/src/main/java/org/apache/kafka/message/MessageSpec.java",
+          "before": 86.5381048887,
+          "after": 38.239984532775,
+          "delta": -48.298120356,
+          "rank_before": 185,
+          "rank_after": 539
+        },
+        {
+          "path": "clients/src/main/java/org/apache/kafka/common/network/SslTransportLayer.java",
+          "before": 297.538636402639,
+          "after": 250.371336249032,
+          "delta": -47.167300154,
+          "rank_before": 18,
+          "rank_after": 42
+        },
+        {
+          "path": "tools/src/main/java/org/apache/kafka/tools/consumer/group/ShareGroupCommandOptions.java",
+          "before": 150.029500202584,
+          "after": 104.192505451395,
+          "delta": -45.836994751,
+          "rank_before": 89,
+          "rank_after": 186
+        },
+        {
+          "path": "clients/src/main/java/org/apache/kafka/clients/producer/internals/Sender.java",
+          "before": 238.02207844849,
+          "after": 196.646571146943,
+          "delta": -41.375507302,
+          "rank_before": 27,
+          "rank_after": 72
+        },
+        {
+          "path": "tools/src/main/java/org/apache/kafka/tools/consumer/group/ConsumerGroupCommandOptions.java",
+          "before": 110.239936334373,
+          "after": 70.311688385551,
+          "delta": -39.928247949,
+          "rank_before": 140,
+          "rank_after": 260
+        }
+      ],
+      "candidate_top_ten": [
+        {
+          "path": "group-coordinator/src/main/java/org/apache/kafka/coordinator/group/GroupMetadataManager.java",
+          "before": 795.78594806585,
+          "after": 1178.117345690493,
+          "delta": 382.331397625,
+          "rank_before": 1,
+          "rank_after": 1
+        },
+        {
+          "path": "core/src/main/java/kafka/server/share/SharePartition.java",
+          "before": 552.149883588551,
+          "after": 575.344678150036,
+          "delta": 23.194794561,
+          "rank_before": 2,
+          "rank_after": 2
+        },
+        {
+          "path": "clients/src/main/java/org/apache/kafka/clients/admin/KafkaAdminClient.java",
+          "before": 339.219541368512,
+          "after": 550.935271416112,
+          "delta": 211.715730048,
+          "rank_before": 11,
+          "rank_after": 3
+        },
+        {
+          "path": "connect/runtime/src/main/java/org/apache/kafka/connect/runtime/distributed/DistributedHerder.java",
+          "before": 385.393790025628,
+          "after": 485.755463393267,
+          "delta": 100.361673368,
+          "rank_before": 7,
+          "rank_after": 4
+        },
+        {
+          "path": "storage/src/main/java/org/apache/kafka/server/log/remote/storage/RemoteLogManager.java",
+          "before": 416.766383530249,
+          "after": 466.173846824736,
+          "delta": 49.407463294,
+          "rank_before": 5,
+          "rank_after": 5
+        },
+        {
+          "path": "metadata/src/main/java/org/apache/kafka/controller/ReplicationControlManager.java",
+          "before": 405.950196303899,
+          "after": 458.883068421334,
+          "delta": 52.932872117,
+          "rank_before": 6,
+          "rank_after": 6
+        },
+        {
+          "path": "streams/src/main/java/org/apache/kafka/streams/processor/internals/InternalTopologyBuilder.java",
+          "before": 310.992697242986,
+          "after": 431.777578243662,
+          "delta": 120.784881001,
+          "rank_before": 16,
+          "rank_after": 7
+        },
+        {
+          "path": "storage/src/main/java/org/apache/kafka/storage/internals/log/UnifiedLog.java",
+          "before": 426.164994643627,
+          "after": 421.176802949239,
+          "delta": -4.988191694,
+          "rank_before": 4,
+          "rank_after": 8
+        },
+        {
+          "path": "connect/api/src/main/java/org/apache/kafka/connect/data/Values.java",
+          "before": 324.490542119408,
+          "after": 412.718982478134,
+          "delta": 88.228440359,
+          "rank_before": 14,
+          "rank_after": 9
+        },
+        {
+          "path": "raft/src/main/java/org/apache/kafka/raft/KafkaRaftClient.java",
+          "before": 223.065595616627,
+          "after": 404.938780998416,
+          "delta": 181.873185382,
+          "rank_before": 32,
+          "rank_after": 10
+        }
+      ],
+      "motivating_file": [],
+      "shallow_before": {
+        "finite_contributions": 3782,
+        "finite_subject_ratings": 3384,
+        "estimated": 3599,
+        "depth_states": {
+          "partial": 3273,
+          "not_applicable": 398,
+          "measured": 111
+        },
+        "coverage": {
+          "unavailable": 815,
+          "complete": 2967
+        }
+      },
+      "shallow_after": {
+        "finite_contributions": 3782,
+        "finite_subject_ratings": 3384,
+        "estimated": 3599,
+        "depth_states": {
+          "partial": 3273,
+          "not_applicable": 398,
+          "measured": 111
+        },
+        "coverage": {
+          "unavailable": 815,
+          "complete": 2967
+        }
+      }
+    }
+  }
+}

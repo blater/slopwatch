@@ -10,36 +10,39 @@ import (
 )
 
 type Document struct {
-	Calibrated     bool                     `json:"calibrated"`
-	Configuration  any                      `json:"configuration"`
-	Diagnostics    []map[string]any         `json:"diagnostics"`
-	Depth          map[string]DepthBoundary `json:"depth,omitempty"`
-	ExecutionPlans []map[string]any         `json:"execution_plans"`
-	Files          []File                   `json:"files"`
-	ProfileSetHash string                   `json:"profile_set_hash"`
-	ScoreProfile   string                   `json:"score_profile,omitempty"`
-	PolicyRevision string                   `json:"policy_revision,omitempty"`
-	ReturnedFiles  int                      `json:"returned_files"`
-	SchemaVersion  int                      `json:"schema_version"`
-	Summary        map[string]any           `json:"summary"`
-	Truncated      bool                     `json:"truncated"`
+	Calibrated          bool                     `json:"calibrated"`
+	Configuration       any                      `json:"configuration"`
+	Diagnostics         []map[string]any         `json:"diagnostics"`
+	Depth               map[string]DepthBoundary `json:"depth,omitempty"`
+	ExecutionPlans      []map[string]any         `json:"execution_plans"`
+	Files               []File                   `json:"files"`
+	ProfileSetHash      string                   `json:"profile_set_hash"`
+	ScoreProfile        string                   `json:"score_profile,omitempty"`
+	PolicyRevision      string                   `json:"policy_revision,omitempty"`
+	ScorePolicyRevision string                   `json:"score_policy_revision,omitempty"`
+	ReturnedFiles       int                      `json:"returned_files"`
+	SchemaVersion       int                      `json:"schema_version"`
+	Summary             map[string]any           `json:"summary"`
+	Truncated           bool                     `json:"truncated"`
 }
 
 type File struct {
-	Axes          map[string]float64   `json:"axes"`
-	Complete      bool                 `json:"complete"`
-	Components    map[string]Component `json:"components"`
-	Coverage      map[string]string    `json:"coverage"`
-	Language      string               `json:"language"`
-	ObservedAxes  map[string]float64   `json:"observed_axes"`
-	ObservedScore float64              `json:"observed_score"`
-	Passed        *bool                `json:"passed,omitempty"`
-	Path          string               `json:"path"`
-	Rank          int                  `json:"rank"`
-	Score         float64              `json:"score"`
-	ValidZero     bool                 `json:"valid_zero_score"`
-	Freshness     Freshness            `json:"freshness,omitempty"`
-	FreshnessNote string               `json:"freshness_note,omitempty"`
+	Axes                map[string]float64   `json:"axes"`
+	Complete            bool                 `json:"complete"`
+	Components          map[string]Component `json:"components"`
+	Coverage            map[string]string    `json:"coverage"`
+	Language            string               `json:"language"`
+	ObservedAxes        map[string]float64   `json:"observed_axes"`
+	ObservedScore       float64              `json:"observed_score"`
+	Passed              *bool                `json:"passed,omitempty"`
+	Path                string               `json:"path"`
+	Rank                int                  `json:"rank"`
+	Score               float64              `json:"score"`
+	ScoringAttributions []GroupAttribution   `json:"scoring_attributions,omitempty"`
+	ScoringLimitations  []string             `json:"scoring_limitations,omitempty"`
+	ValidZero           bool                 `json:"valid_zero_score"`
+	Freshness           Freshness            `json:"freshness,omitempty"`
+	FreshnessNote       string               `json:"freshness_note,omitempty"`
 }
 
 // Freshness describes how closely a displayed result is known to match the
@@ -70,6 +73,29 @@ type Component struct {
 	DepthVersion             string                `json:"depth_version,omitempty"`
 	DepthBoundaryIDs         []string              `json:"depth_boundary_ids,omitempty"`
 	RawMaximum               *float64              `json:"raw_max,omitempty"`
+	ScoringDefinition        *ScoringDefinition    `json:"scoring_definition,omitempty"`
+}
+
+// ScoringDefinition declares how canonical subject severities compose.
+// Formula parameters belong to the policy/catalog identity; projection needs
+// only unit severities and aggregation, not a repeated catalog per file.
+type ScoringDefinition struct {
+	Aggregation string `json:"aggregation,omitempty"`
+}
+
+// GroupSignal records a supporting signal; GroupAttribution carries the winner.
+type GroupSignal struct {
+	Component    string  `json:"component"`
+	Contribution float64 `json:"contribution"`
+}
+
+// GroupAttribution identifies the deterministic winning component for one
+// overlap group. Supporting signals explain the charge; they are not added.
+type GroupAttribution struct {
+	Group        string        `json:"group"`
+	Component    string        `json:"component"`
+	Contribution float64       `json:"contribution"`
+	Signals      []GroupSignal `json:"signals,omitempty"`
 }
 
 type SourcePosition struct {
@@ -99,6 +125,9 @@ type SubjectContribution struct {
 	Contribution float64 `json:"contribution"`
 	Subject      string  `json:"subject"`
 	Value        float64 `json:"value"`
+	BaseSeverity float64 `json:"base_severity,omitempty"`
+	Routine      string  `json:"routine,omitempty"`
+	Owner        string  `json:"owner,omitempty"`
 }
 
 func Decode(data []byte) (Document, error) {

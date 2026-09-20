@@ -97,6 +97,7 @@ func testV4PolicyInvalidation(t *testing.T, oldPolicy string) {
 		t.Fatal(oldPolicy + " projection accepted under current view")
 	}
 	projection.PolicyRevision = policy
+	projection.ScorePolicyRevision = StructuralScoringPolicyRevision
 	put()
 	if _, ok := analyzer.CachedProjection(); !ok {
 		t.Fatal("current policy projection rejected")

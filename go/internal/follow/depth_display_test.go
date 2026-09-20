@@ -74,6 +74,10 @@ func TestV4NumericEstimateDisplaysAndSortsWithFailedCoverage(t *testing.T) {
 	if text := ansi.Strip(renderMetricCell(high, columnDefinitions[4], style.SurfaceScreen)); !strings.Contains(text, "70") || strings.Contains(text, "X") {
 		t.Fatalf("numeric estimate was not displayed: %q", text)
 	}
+	detail := ansi.Strip(strings.Join(detailContent(Model{}, high, 120), "\n"))
+	if !strings.Contains(detail, "70/100") || strings.Contains(detail, "module_shallowness  X") {
+		t.Fatalf("detail hid numeric estimate behind incomplete coverage: %s", detail)
+	}
 }
 
 func TestV4ShallowDetailAndInfoShowLedgerReasonsAndEvidence(t *testing.T) {

@@ -1,0 +1,370 @@
+{
+  "purpose": "Existing balanced reference: nonzero overlap with unchanged legacy severity curves",
+  "profile": "legacy-signature-v3",
+  "reports": {
+    "baseline": {
+      "sha256": "d7778260f88f999ac58b3fcfaf0e1834963803a0236f4b649bc710033924b011",
+      "files": [
+        {
+          "path": "go/internal/native/testdata/balanced/Reference.java",
+          "score": 20.854268271702,
+          "components": {
+            "cognitive_complexity": {
+              "contribution": 14.854268271702,
+              "raw": [
+                21
+              ]
+            },
+            "coupling_between_objects": {
+              "contribution": 0,
+              "raw": [
+                0
+              ]
+            },
+            "cyclomatic_class_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "cyclomatic_method_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "deeply_nested_if": {
+              "contribution": 6,
+              "raw": [
+                1
+              ]
+            },
+            "god_class": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "module_shallowness": {
+              "contribution": 0,
+              "raw": [
+                19
+              ]
+            },
+            "npath_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            }
+          },
+          "attributions": null
+        },
+        {
+          "path": "go/internal/native/testdata/balanced/reference.go",
+          "score": 20.854268271702,
+          "components": {
+            "cognitive_complexity": {
+              "contribution": 14.854268271702,
+              "raw": [
+                21
+              ]
+            },
+            "coupling_between_objects": {
+              "contribution": 0,
+              "raw": []
+            },
+            "cyclomatic_class_complexity": {
+              "contribution": 0,
+              "raw": []
+            },
+            "cyclomatic_method_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "deeply_nested_if": {
+              "contribution": 6,
+              "raw": [
+                1
+              ]
+            },
+            "god_class": {
+              "contribution": 0,
+              "raw": []
+            },
+            "module_shallowness": {
+              "contribution": 0,
+              "raw": [
+                11
+              ]
+            },
+            "npath_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            }
+          },
+          "attributions": null
+        },
+        {
+          "path": "go/internal/native/testdata/balanced/reference.rs",
+          "score": 20.854268271702,
+          "components": {
+            "cognitive_complexity": {
+              "contribution": 14.854268271702,
+              "raw": [
+                21
+              ]
+            },
+            "coupling_between_objects": {
+              "contribution": 0,
+              "raw": []
+            },
+            "cyclomatic_class_complexity": {
+              "contribution": 0,
+              "raw": []
+            },
+            "cyclomatic_method_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "deeply_nested_if": {
+              "contribution": 6,
+              "raw": [
+                1
+              ]
+            },
+            "god_class": {
+              "contribution": 0,
+              "raw": []
+            },
+            "module_shallowness": {
+              "contribution": 0,
+              "raw": [
+                11
+              ]
+            },
+            "npath_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            }
+          },
+          "attributions": null
+        }
+      ]
+    },
+    "grouping": {
+      "sha256": "a6b0111ac54da22e2beaca91813f22cc8993e521c3a7fab2dd10384f0434e271",
+      "files": [
+        {
+          "path": "go/internal/native/testdata/balanced/Reference.java",
+          "score": 14.8542682717,
+          "components": {
+            "cognitive_complexity": {
+              "contribution": 14.8542682717,
+              "raw": [
+                21
+              ]
+            },
+            "coupling_between_objects": {
+              "contribution": 0,
+              "raw": [
+                0
+              ]
+            },
+            "cyclomatic_class_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "cyclomatic_method_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "deeply_nested_if": {
+              "contribution": 0,
+              "raw": [
+                1
+              ]
+            },
+            "god_class": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "module_shallowness": {
+              "contribution": 0,
+              "raw": [
+                19
+              ]
+            },
+            "npath_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            }
+          },
+          "attributions": [
+            {
+              "group": "Reference.choose@1:26-16:2",
+              "component": "cognitive_complexity",
+              "contribution": 14.8542682717,
+              "signals": [
+                {
+                  "component": "cognitive_complexity",
+                  "contribution": 14.8542682717
+                },
+                {
+                  "component": "deeply_nested_if",
+                  "contribution": 6
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "path": "go/internal/native/testdata/balanced/reference.go",
+          "score": 14.8542682717,
+          "components": {
+            "cognitive_complexity": {
+              "contribution": 14.8542682717,
+              "raw": [
+                21
+              ]
+            },
+            "coupling_between_objects": {
+              "contribution": 0,
+              "raw": []
+            },
+            "cyclomatic_class_complexity": {
+              "contribution": 0,
+              "raw": []
+            },
+            "cyclomatic_method_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "deeply_nested_if": {
+              "contribution": 0,
+              "raw": [
+                1
+              ]
+            },
+            "god_class": {
+              "contribution": 0,
+              "raw": []
+            },
+            "module_shallowness": {
+              "contribution": 0,
+              "raw": [
+                11
+              ]
+            },
+            "npath_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            }
+          },
+          "attributions": [
+            {
+              "group": "Choose@3:1-18:2",
+              "component": "cognitive_complexity",
+              "contribution": 14.8542682717,
+              "signals": [
+                {
+                  "component": "cognitive_complexity",
+                  "contribution": 14.8542682717
+                },
+                {
+                  "component": "deeply_nested_if",
+                  "contribution": 6
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "path": "go/internal/native/testdata/balanced/reference.rs",
+          "score": 14.8542682717,
+          "components": {
+            "cognitive_complexity": {
+              "contribution": 14.8542682717,
+              "raw": [
+                21
+              ]
+            },
+            "coupling_between_objects": {
+              "contribution": 0,
+              "raw": []
+            },
+            "cyclomatic_class_complexity": {
+              "contribution": 0,
+              "raw": []
+            },
+            "cyclomatic_method_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            },
+            "deeply_nested_if": {
+              "contribution": 0,
+              "raw": [
+                1
+              ]
+            },
+            "god_class": {
+              "contribution": 0,
+              "raw": []
+            },
+            "module_shallowness": {
+              "contribution": 0,
+              "raw": [
+                11
+              ]
+            },
+            "npath_complexity": {
+              "contribution": 0,
+              "raw": [
+                7
+              ]
+            }
+          },
+          "attributions": [
+            {
+              "group": "choose@1:1-16:2",
+              "component": "cognitive_complexity",
+              "contribution": 14.8542682717,
+              "signals": [
+                {
+                  "component": "cognitive_complexity",
+                  "contribution": 14.8542682717
+                },
+                {
+                  "component": "deeply_nested_if",
+                  "contribution": 6
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

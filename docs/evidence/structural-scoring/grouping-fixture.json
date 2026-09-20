@@ -1,0 +1,3350 @@
+{
+  "stage": "grouping-only; legacy scalar curves",
+  "policy": "grouping-v1",
+  "report_sha256": "36c974c75356d15488cb06cb41c290a1190ba78cf2969f747c25d0da47e83699",
+  "binary_sha256": "4168f52b20ae25638ce90cde165ac42cbe89cfbe447fcfce603d57ef1d73c80c",
+  "catalog_sha256": "1b8987de18d904b976b9965fecbee5541a7e9f450a766859d84ec511ce1bb619",
+  "manifest_sha256": "f4d685594f3ff2d931ddfc50d689596428996a07c51c0309dd9fb9132956b8de",
+  "analyzers": "preserved baseline runnable artifacts, including build/typescript; source inputs frozen by manifest",
+  "files": [
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/dispatch_flat.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/dispatch_interacting.go",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            7
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/distinct_one.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "measured"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/distinct_two.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0,
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/guards_after.go",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "measured"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/guards_before.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            8
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "measured"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/indexed.go",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/rename/moved.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "measured"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/rename/original.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "measured"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/rescan.go",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            4
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/state_coherent_after.go",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            0,
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            1,
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            1,
+            1
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/state_coherent_before.go",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/state_cosmetic_after.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1,
+            1,
+            0,
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2,
+            1,
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2,
+            1,
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/state_cosmetic_before.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/unused_after.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        }
+      },
+      "shallow_state": "measured"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/go/unused_before.go",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/DispatchFlat.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/DispatchInteracting.java",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            7
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/DistinctOne.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0,
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/DistinctTwo.java",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20,
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/GuardsAfter.java",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20,
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/GuardsBefore.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            8,
+            8
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/Indexed.java",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/Rescan.java",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            4
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/StateCoherentAfter.java",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            0,
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            1,
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            1,
+            1
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/StateCoherentBefore.java",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/StateCosmeticAfter.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1,
+            1,
+            0,
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            7
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2,
+            1,
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            7
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2,
+            1,
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/StateCosmeticBefore.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/UnusedAfter.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0,
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/UnusedBefore.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0,
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/rename/Moved.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0,
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/java/rename/Original.java",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0,
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/dispatch_flat.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/dispatch_interacting.rs",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            7
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/distinct_one.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/distinct_two.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/guards_after.rs",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/guards_before.rs",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/indexed.rs",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/rename/moved.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/rename/original.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/rescan.rs",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            4
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/state_coherent_after.rs",
+      "score": 12.427134135851,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            0,
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            1,
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 12.427134135851,
+          "raw": [
+            56
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            1,
+            1
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/state_coherent_before.rs",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/state_cosmetic_after.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1,
+            1,
+            0,
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            7
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2,
+            1,
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            7
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            14
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2,
+            1,
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/state_cosmetic_before.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/unused_after.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/rust/unused_before.rs",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/dispatch_flat.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/dispatch_interacting.ts",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            7
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/distinct_one.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/distinct_two.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/guards_after.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            8
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/guards_before.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            8
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/indexed.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            0,
+            0,
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            1,
+            1,
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/rename/moved.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/rename/original.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/rescan.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            6
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            5
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            4
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/state_coherent_after.ts",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            0,
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            8
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            1,
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            8
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            1,
+            1
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/state_coherent_before.ts",
+      "score": 5,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            8
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            8
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 5,
+          "raw": [
+            20
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3,
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/state_cosmetic_after.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1,
+            1,
+            0,
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            11
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2,
+            1,
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            11
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2,
+            2,
+            1,
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/state_cosmetic_before.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": [
+            4
+          ]
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": [
+            4
+          ]
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            3
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/unused_after.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        }
+      },
+      "shallow_state": "measured"
+    },
+    {
+      "path": "go/internal/scoring/testdata/structural-v1/typescript/unused_before.ts",
+      "score": 0,
+      "control_flow": 0,
+      "components": {
+        "cognitive_complexity": {
+          "contribution": 0,
+          "raw": [
+            1
+          ]
+        },
+        "coupling_between_objects": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_class_complexity": {
+          "contribution": 0,
+          "raw": []
+        },
+        "cyclomatic_method_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        },
+        "deeply_nested_if": {
+          "contribution": 0,
+          "raw": []
+        },
+        "god_class": {
+          "contribution": 0,
+          "raw": []
+        },
+        "module_shallowness": {
+          "contribution": 0,
+          "raw": [
+            0
+          ]
+        },
+        "npath_complexity": {
+          "contribution": 0,
+          "raw": [
+            2
+          ]
+        }
+      },
+      "shallow_state": "partial"
+    }
+  ]
+}

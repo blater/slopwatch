@@ -151,3 +151,21 @@ func TestFileDetailWrapsLongDiagnosticForScrolling(t *testing.T) {
 		t.Fatal("wrapped diagnostic did not contribute to detail scrolling")
 	}
 }
+
+func TestFileDetailExplainsGroupedChargesAndAssociationLimits(t *testing.T) {
+	file := report.File{Path: "scan.go", ScoringAttributions: []report.GroupAttribution{
+		{Group: "scan", Component: "cognitive_complexity", Contribution: 12, Signals: []report.GroupSignal{
+			{Component: "npath_complexity", Contribution: 8},
+		}},
+		{Group: "finish", Component: "cyclomatic_method_complexity", Contribution: 5},
+	}, ScoringLimitations: []string{"one nesting finding has no enclosing routine"}}
+	text := ansi.Strip(strings.Join(detailContent(Model{}, file, 160), "\n"))
+	for _, want := range []string{"scan: +12 from Cognitive complexity", "finish: +5 from Cyclomatic complexity", "Supporting severities (not added)", "NPath complexity 8", "Scoring limitation: one nesting finding"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("detail omitted %q: %s", want, text)
+		}
+	}
+	if lines := detailScoringLines(report.File{Path: "legacy.go"}); len(lines) != 0 {
+		t.Fatalf("invented grouping for a report without attribution: %#v", lines)
+	}
+}

@@ -77,8 +77,14 @@ func applyDepthContribution(descriptor componentDescriptor, component report.Com
 		return report.Component{}, err
 	}
 	component.Contribution, component.ObservedContribution = contribution, contribution
+	component.ScoringDefinition = &report.ScoringDefinition{Aggregation: "max"}
 	for index := range component.Subjects {
-		component.Subjects[index].Contribution, _ = scalarContribution(descriptor.Defaults.Formula, component.Subjects[index].Value, threshold, weight, hasThreshold)
+		severity, err := scalarSeverity(descriptor.Defaults.Formula, component.Subjects[index].Value, threshold, hasThreshold)
+		if err != nil {
+			return report.Component{}, err
+		}
+		component.Subjects[index].BaseSeverity = severity
+		component.Subjects[index].Contribution = roundScore(weight * severity)
 	}
 	return component, nil
 }

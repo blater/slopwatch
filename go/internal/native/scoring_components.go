@@ -2,6 +2,8 @@ package native
 
 import (
 	"math"
+	"sort"
+	"strconv"
 
 	"github.com/blater/slopwatch/internal/report"
 )
@@ -23,35 +25,85 @@ func scoreComponent(descriptor componentDescriptor, state string, raw []observat
 	if err != nil {
 		return report.Component{}, err
 	}
+	baseline, err := descriptor.Defaults.baseline()
+	if err != nil {
+		return report.Component{}, err
+	}
+	component.ScoringDefinition = &report.ScoringDefinition{Aggregation: descriptor.Aggregator}
 	if descriptor.Kind == "count" {
+		if descriptor.ID == "deeply_nested_if" {
+			return scoreNestedCount(descriptor, raw, threshold, hasThreshold, weight)
+		}
 		value := float64(len(raw))
-		contribution, err := scalarContribution(descriptor.Defaults.Formula, value, threshold, weight, hasThreshold)
+		baseSeverity, err := scalarSeverityWithBaseline(descriptor.Defaults.Formula, value, baseline, threshold, hasThreshold)
 		if err != nil {
 			return report.Component{}, err
 		}
+		contribution := roundScore(weight * baseSeverity)
 		component.Contribution, component.ObservedContribution = contribution, contribution
 		if len(raw) > 0 {
-			component.Subjects = append(component.Subjects, report.SubjectContribution{Subject: "deduplicated_count", Value: value, Contribution: contribution})
+			component.Subjects = append(component.Subjects, report.SubjectContribution{Subject: "deduplicated_count", Value: value, Contribution: contribution, BaseSeverity: baseSeverity})
 		}
 		return component, nil
 	}
 	for _, item := range raw {
-		var contribution float64
+		var contribution, baseSeverity float64
 		var err error
 		if descriptor.Kind == "compound" {
-			contribution, err = godContribution(item, weight)
+			baseSeverity, err = godSeverity(item)
 		} else {
-			contribution, err = scalarContribution(descriptor.Defaults.Formula, item.value, threshold, weight, hasThreshold)
+			baseSeverity, err = scalarSeverityWithBaseline(descriptor.Defaults.Formula, item.value, baseline, threshold, hasThreshold)
 		}
 		if err != nil {
 			return report.Component{}, err
 		}
+		contribution = roundScore(weight * baseSeverity)
 		if descriptor.Aggregator == "max" {
 			component.Contribution = math.Max(component.Contribution, contribution)
 		} else {
 			component.Contribution += contribution
 		}
-		component.Subjects = append(component.Subjects, report.SubjectContribution{Subject: subjectKey(item.subject), Value: item.value, Contribution: contribution})
+		subject := subjectKey(item.subject)
+		routine := item.scoringRoutine
+		// Function observations already use their canonical range key as the
+		// subject. Avoid storing that same long key twice in the compact cache.
+		if routine == subject {
+			routine = ""
+		}
+		component.Subjects = append(component.Subjects, report.SubjectContribution{Subject: subject, Value: item.value, Contribution: contribution, BaseSeverity: baseSeverity, Routine: routine})
+	}
+	component.Contribution = roundScore(component.Contribution)
+	component.ObservedContribution = component.Contribution
+	return component, nil
+}
+
+func scoreNestedCount(descriptor componentDescriptor, raw []observation, threshold float64, hasThreshold bool, weight float64) (report.Component, error) {
+	component := report.Component{Observations: len(raw), DeduplicatedObservations: len(raw), Subjects: []report.SubjectContribution{}, Waivers: []map[string]any{}, Evidence: make([]report.MeasurementEvidence, 0, len(raw)), ScoringDefinition: &report.ScoringDefinition{Aggregation: descriptor.Aggregator}}
+	counts := map[string]int{}
+	for _, item := range raw {
+		evidence := measurementEvidence(item)
+		component.Evidence = append(component.Evidence, evidence)
+		key := item.scoringRoutine
+		if key == "" {
+			key = "unassociated:" + evidence.Location.Path + ":" + strconv.Itoa(evidence.Location.Start.Line) + ":" + strconv.Itoa(evidence.Location.Start.Column)
+		}
+		counts[key]++
+	}
+	keys := make([]string, 0, len(counts))
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		value := float64(counts[key])
+		baseSeverity, err := scalarSeverityWithBaseline(descriptor.Defaults.Formula, value, 0, threshold, hasThreshold)
+		if err != nil {
+			return report.Component{}, err
+		}
+		contribution := roundScore(weight * baseSeverity)
+		component.Contribution += contribution
+		// Subject already carries the enclosing routine key.
+		component.Subjects = append(component.Subjects, report.SubjectContribution{Subject: key, Value: value, Contribution: contribution, BaseSeverity: baseSeverity})
 	}
 	component.Contribution = roundScore(component.Contribution)
 	component.ObservedContribution = component.Contribution

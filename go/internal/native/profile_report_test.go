@@ -17,7 +17,7 @@ func TestDepthV4ReportIdentityIsVersionedAndCatalogSensitive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if legacy.SchemaVersion != 3 || legacy.ProfileSetHash != "native-balanced-v1" || v4.SchemaVersion != 4 || v4.ScoreProfile != ShallowProfileResponsibilityV4 || v4.PolicyRevision != ShallowPolicyRevisionV4 || v4.ProfileSetHash == legacy.ProfileSetHash {
+	if legacy.SchemaVersion != 3 || legacy.ProfileSetHash == "" || legacy.ProfileSetHash == "native-balanced-v1" || legacy.ScorePolicyRevision != StructuralScoringPolicyRevision || v4.SchemaVersion != 4 || v4.ScoreProfile != ShallowProfileResponsibilityV4 || v4.PolicyRevision != ShallowPolicyRevisionV4 || v4.ScorePolicyRevision != StructuralScoringPolicyRevision || v4.ProfileSetHash == legacy.ProfileSetHash {
 		t.Fatalf("profile report identity mismatch: legacy=%#v v4=%#v", legacy, v4)
 	}
 	changed := depthDescriptor()
@@ -42,7 +42,7 @@ func TestDepthV4ProjectionPreservesProfileAndComponentMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	projection := analysiscache.ProjectionFromReport("view", document, analysiscache.FreshnessCurrent)
-	if projection.SchemaVersion != 4 || projection.ProfileSetHash != document.ProfileSetHash || projection.PolicyRevision != ShallowPolicyRevisionV4 || len(projection.Depth) != 1 {
+	if projection.SchemaVersion != 4 || projection.ProfileSetHash != document.ProfileSetHash || projection.PolicyRevision != ShallowPolicyRevisionV4 || projection.ScorePolicyRevision != StructuralScoringPolicyRevision || len(projection.Depth) != 1 {
 		t.Fatalf("v4 projection metadata lost: %#v", projection)
 	}
 	files := projection.ReportFiles()
