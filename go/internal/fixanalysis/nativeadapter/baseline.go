@@ -7,6 +7,7 @@ import (
 
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/fixanalysis"
+	"github.com/blater/slopwatch/internal/report"
 )
 
 func (service *Service) PrepareBaseline(ctx context.Context, request fixanalysis.BaselineRequest) (fixanalysis.BaselineSnapshot, error) {
@@ -31,7 +32,7 @@ func (service *Service) PrepareBaseline(ctx context.Context, request fixanalysis
 	if err != nil {
 		return fixanalysis.BaselineSnapshot{}, fmt.Errorf("fingerprint baseline targets: %w", err)
 	}
-	document, catalogID, err := service.analyze(ctx, mapper.analysisRoot, targets, service.config.BaselineReadCache)
+	document, catalogID, err := service.analyzeReport(ctx, mapper.analysisRoot, targets, false, false)
 	if err != nil {
 		return fixanalysis.BaselineSnapshot{}, fmt.Errorf("analyze baseline: %w", err)
 	}
@@ -42,41 +43,55 @@ func (service *Service) PrepareBaseline(ctx context.Context, request fixanalysis
 	if before.aggregate != after.aggregate {
 		return fixanalysis.BaselineSnapshot{}, errors.New("baseline targets changed during analysis")
 	}
-	files, err := exactFiles(document, mapper, request.Targets)
-	if err != nil {
-		return fixanalysis.BaselineSnapshot{}, fmt.Errorf("prepare baseline report: %w", err)
-	}
+	files := baselineFiles(document, mapper, request.Targets)
 	snapshots := make([]fix.TargetSnapshot, len(request.Targets))
 	for index, path := range request.Targets {
 		file := files[path]
-		snapshot, snapshotErr := targetSnapshot(path, before.files[path], file, document.Depth, mapper)
+		if hasEstimatedDepth(file, document.Depth) {
+			file.Complete = false
+		}
+		snapshot, snapshotErr := targetSnapshot(path, before.files[path], file, mapper)
 		if snapshotErr != nil {
 			return fixanalysis.BaselineSnapshot{}, snapshotErr
-		}
-		for _, id := range request.RequiredMetrics {
-			metric, ok := snapshot.Metrics[id]
-			if !ok || !metric.Complete {
-				return fixanalysis.BaselineSnapshot{}, fmt.Errorf("baseline target %q: required metric %q is missing or incomplete", path, id)
-			}
-		}
-		if !snapshot.Complete {
-			return fixanalysis.BaselineSnapshot{}, fmt.Errorf("baseline target %q is incomplete", path)
-		}
-		if err := requiredMetricsComplete(snapshot.Metrics, request.Goal); err != nil {
-			return fixanalysis.BaselineSnapshot{}, fmt.Errorf("baseline target %q: %w", path, err)
 		}
 		snapshots[index] = snapshot
 	}
 	preparedAt := service.config.Clock()
-	if !request.FreshBy.IsZero() && preparedAt.Before(request.FreshBy) {
-		return fixanalysis.BaselineSnapshot{}, fmt.Errorf("baseline prepared at %s before required freshness %s", preparedAt, request.FreshBy)
-	}
 	contract := fix.ScoringContract{
 		CatalogID: catalogID, ProfileSetHash: document.ProfileSetHash,
-		Targets: snapshots, Goal: cloneGoal(request.Goal), RequireComplete: true,
+		Targets: snapshots, Goal: cloneGoal(request.Goal),
 	}
 	return fixanalysis.BaselineSnapshot{
 		Workspace: request.Workspace, Contract: cloneContract(contract),
 		Fingerprint: before.aggregate, PreparedAt: preparedAt,
 	}, nil
+}
+
+// baselineFiles projects only requested paths. Missing or ambiguous report entries
+// leave an incomplete snapshot; report metadata never broadens filesystem scope.
+func baselineFiles(document report.Document, mapper pathMapper, targets []fix.RepoPath) map[fix.RepoPath]report.File {
+	result := make(map[fix.RepoPath]report.File, len(targets))
+	seen := make(map[fix.RepoPath]bool)
+	for _, target := range targets {
+		result[target] = report.File{}
+	}
+	for _, file := range document.Files {
+		path, err := mapper.repositoryPath(file.Path)
+		if err != nil {
+			continue
+		}
+		if _, requested := result[path]; !requested {
+			continue
+		}
+		if seen[path] {
+			result[path] = report.File{}
+			continue
+		}
+		seen[path] = true
+		if document.Truncated || !document.Calibrated || document.SchemaVersion <= 0 || document.ProfileSetHash == "" {
+			file.Complete = false
+		}
+		result[path] = file
+	}
+	return result
 }

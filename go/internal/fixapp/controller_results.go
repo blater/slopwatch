@@ -177,17 +177,20 @@ func (manager *controller) completeAgent(record *jobRecord, result workerResult)
 		manager.failRecord(record, "agent_"+string(result.agent.Failure), errors.New(nonempty(result.agent.Diagnostic, result.agent.Summary)))
 		return
 	}
-	record.presentation.Phase = fix.PhaseWaitingVerifier
-	record.presentation.CurrentAction = "Waiting for a verifier slot"
-	manager.bump(record)
+	record.presentation.TargetStatus = fix.ScoreUnmeasured
+	manager.finishAgentDelivery(record)
 }
 
 func (manager *controller) completeVerification(record *jobRecord, result workerResult) {
-	record.applyVerification(result)
-	if record.presentation.TargetStatus != fix.TargetMet {
-		manager.queueRetry(record)
-		return
-	}
+	// Saved jobs from older versions may still arrive through the verifier phase.
+	// Their measurements are informational and never trigger another agent run.
+	record.applyDiffInventory(result.diff)
+	applyVerifiedFiles(record, result.verify)
+	record.presentation.TargetStatus = fix.ScoreUnmeasured
+	manager.finishAgentDelivery(record)
+}
+
+func (manager *controller) finishAgentDelivery(record *jobRecord) {
 	record.presentation.Phase = fix.PhasePublishing
 	record.presentation.Attention = fix.AttentionNone
 	record.presentation.CurrentAction = publicationAction(record)
@@ -200,20 +203,6 @@ func (manager *controller) completeVerification(record *jobRecord, result worker
 		return
 	}
 	manager.startNextPublication(record)
-}
-
-func (manager *controller) queueRetry(record *jobRecord) {
-	record.presentation.AttemptOrdinal++
-	record.presentation.Phase = fix.PhaseQueued
-	record.presentation.Attention = fix.AttentionNone
-	activity := fmt.Sprintf("Retry attempt %d queued: target score not met", record.presentation.AttemptOrdinal)
-	record.presentation.CurrentAction = activity
-	entry := LogEntry{At: manager.options.Clock(), Kind: agent.EventActivity, Summary: activity}
-	record.logs = append(record.logs, entry)
-	manager.logging.appendJobText(record.presentation.ID, formatJobActivity(entry))
-	record.presentation.Issue = nil
-	record.presentation.TargetStatus = fix.ScorePending
-	manager.bump(record)
 }
 
 func publicationAction(record *jobRecord) string {

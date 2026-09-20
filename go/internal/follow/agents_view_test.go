@@ -463,3 +463,17 @@ func assertCompactSelectedBlock(t *testing.T, view, firstNeedle, secondNeedle st
 	}
 	t.Fatalf("selected compact row %q not found", firstNeedle)
 }
+
+func TestUnmeasuredFixScoresDoNotLookPendingOrFabricateZero(t *testing.T) {
+	for _, test := range []struct {
+		file fix.FilePresentation
+		want string
+	}{
+		{fix.FilePresentation{BaselineScore: 88, AfterScoreUnmeasured: true}, "SCORE 88 (before)"},
+		{fix.FilePresentation{BaselineScoreUnavailable: true, AfterScoreUnmeasured: true}, "SCORE - (before)"},
+	} {
+		if got := agentScoreTransitionText(test.file); got != test.want {
+			t.Fatalf("score = %q, want %q", got, test.want)
+		}
+	}
+}

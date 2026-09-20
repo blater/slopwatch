@@ -1,8 +1,6 @@
 package fixapp
 
 import (
-	"fmt"
-
 	"github.com/blater/slopwatch/internal/fix"
 	"github.com/blater/slopwatch/internal/fixprompt"
 )
@@ -74,8 +72,8 @@ func maximumMetric(targets []fix.TargetSnapshot, id fix.MetricID) (float64, bool
 	maximum, found := 0.0, false
 	for _, target := range targets {
 		metric, ok := target.Metrics[id]
-		if !ok || !metric.Complete {
-			return 0, false, fmt.Errorf("configured focus metric %q is unavailable or incomplete for target %q", id, target.Path)
+		if !ok {
+			continue
 		}
 		if !found || metric.Value > maximum {
 			maximum, found = metric.Value, true

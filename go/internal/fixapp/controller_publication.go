@@ -64,7 +64,7 @@ func (owner *publicationOwner) checkPublicationCommit(ctx context.Context, input
 		return previous, fmt.Errorf("check files before commit: %w", err)
 	}
 	if latest.Fingerprint != diffHash {
-		return previous, errors.New("files changed after verification")
+		return previous, errors.New("files changed after agent completion")
 	}
 	current, err := owner.preflightDelivery(ctx, input.Workspace, input.DeliveryPlan, input.Preferences.Delivery, input.BranchName, true)
 	if err != nil {

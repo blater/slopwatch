@@ -147,7 +147,7 @@ func (manager *controller) scheduleVerifiers() {
 			return
 		}
 		record.presentation.Phase = fix.PhaseVerifying
-		record.presentation.CurrentAction = "Re-analyzing candidate"
+		record.presentation.CurrentAction = "Collecting changed files"
 		ctx, cancel := context.WithCancel(context.Background())
 		record.cancel = cancel
 		state.verifiersRunning++

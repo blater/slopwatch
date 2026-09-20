@@ -144,21 +144,9 @@ func (owner *workerOwner) runVerifier(ctx context.Context, input FixInput, job f
 		owner.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, err: fmt.Errorf("inventory candidate diff: %w", err)}
 		return
 	}
-	verified, err := owner.analysis.Verify(ctx, fixanalysis.VerificationRequest{Candidate: identity, Contract: input.Baseline.Contract})
-	if err != nil {
-		owner.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, err: fmt.Errorf("verify candidate scores: %w", err)}
-		return
-	}
-	finalDiff, err := owner.candidates.Diff(ctx, identity)
-	if err != nil {
-		owner.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff, verify: verified, err: fmt.Errorf("re-inventory candidate after verification: %w", err)}
-		return
-	}
-	if finalDiff.Fingerprint != diff.Fingerprint {
-		owner.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: finalDiff, verify: verified, err: errors.New("candidate changed during analysis")}
-		return
-	}
-	owner.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: finalDiff, verify: verified}
+	// Compatibility for jobs saved in the old verifier phase: retain their
+	// changed-file listing, without running an analysis acceptance gate.
+	owner.results <- workerResult{kind: workerVerifier, job: job, attempt: attempt, diff: diff}
 }
 
 func targetLabel(targets []fix.RepoPath) string {

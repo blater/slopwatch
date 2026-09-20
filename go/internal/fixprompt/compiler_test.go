@@ -15,7 +15,7 @@ func TestCompileAppliesTheSavedMasterTemplateDeterministically(t *testing.T) {
 	contract := fix.ScoringContract{
 		Targets: []fix.TargetSnapshot{
 			{Path: a, Score: 120, Metrics: map[fix.MetricID]fix.MetricValue{"cog": {ID: "cog", Value: 12, Complete: true}}},
-			{Path: b, Score: 150},
+			{Path: b, Score: 150, Complete: true},
 		},
 		Goal: fix.ScoringGoal{MaximumScore: 100, Focus: []fix.MetricGoal{{Metric: "cog", Maximum: 10}}},
 	}
@@ -61,7 +61,7 @@ func TestDefaultTemplateContainsTheCompleteAgentInstructions(t *testing.T) {
 		"Primary refactoring guardrail — these rules take precedence", "do not game or merely redistribute Slopmark measurements",
 		"numbered, part, or function shards", "cohesive, meaningfully named module",
 		"do not apply a cosmetic quick fix; state the limitation explicitly in your final response",
-		"Work only inside the workspace", "Slopwatch will measure", "Measurement context:",
+		"Work only inside the workspace", "Slopwatch will handle Git", "Measurement context:",
 		"Slopmark static code-quality measurements", "SCORE is Slopmark's weighted total",
 		"This is a code refactor task using the 'slopmark' tool to monitor effectiveness",
 		"Improve responsibilities and abstractions rather than moving complexity around.",
@@ -137,5 +137,20 @@ func TestCompileUsesCompactPromptForLargeTargetList(t *testing.T) {
 	}
 	if len(prompt) > 2*1024 {
 		t.Fatalf("compact prompt is unexpectedly large: %d bytes", len(prompt))
+	}
+}
+
+func TestIncompleteBaselineIsGuidanceAndMissingScoresAreNotFabricated(t *testing.T) {
+	text := evidenceText([]fix.TargetSnapshot{
+		{Path: "missing.go"},
+		{Path: "partial.go", Score: 70, Metrics: map[fix.MetricID]fix.MetricValue{"cog": {Value: 8}}},
+	})
+	for _, want := range []string{"missing.go: measurements unavailable", "partial.go: SCORE 70 (analysis incomplete", "cog 8 (incomplete evidence)"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in %q", want, text)
+		}
+	}
+	if strings.Contains(text, "missing.go: SCORE 0") {
+		t.Fatal("missing score presented as zero")
 	}
 }

@@ -29,14 +29,14 @@ Treat every changed or newly created source file as part of the refactor's quali
 const DefaultTemplate = `Work only inside the workspace. The named files are measurement targets, not a write allowlist.
 You may change supporting project files when needed for a coherent refactor.
 Do not create branches, commits, pushes, pull requests, waivers, suppressions, scoring configuration changes, or dead code intended to game scores.
-Slopwatch will measure the changed files and handle Git after you finish.
+Slopwatch will handle Git after you finish.
 
 Measurement context:
 The values in this task are Slopmark static code-quality measurements reported by Slopwatch. Each baseline line belongs to the file named at the start of that line. Lower values are better.
 SCORE is Slopmark's weighted total of the enabled measurements for that file; it is not the sum of the raw values shown.
 COG means cognitive complexity; NPATH means possible execution paths; CYCLO means cyclomatic complexity; SHALLOW is the module-shallowness penalty; GOD is responsibility concentration; coupling counts referenced types; nesting means excessive control-flow nesting; type safety counts unsafe TypeScript findings.
 
-This is a code refactor task using the 'slopmark' tool to monitor effectiveness. Refactor {targets} until every file has a score of {target_score} or lower.
+This is a code refactor task using the 'slopmark' tool to monitor effectiveness. Refactor {targets}, aiming for a score of {target_score} or lower. Measurements guide the work; incomplete or estimated measurements must not prevent refactoring.
 Focus on: {focus_metrics}.
 You may edit any project file needed for a coherent refactor. Improve responsibilities and abstractions rather than moving complexity around. Do not increase the scores of other existing code by more than trivial amounts. Any new code must score low.
 Current measurements:
@@ -44,7 +44,7 @@ Current measurements:
 Keep observable behaviour and public APIs unchanged unless the task requires a compatible change.
 
 Required target checklist:
-Review and address every file below; do not stop after the first. Each file must meet the requested goal before you finish.
+Review and address every file below; do not stop after the first. Explain the changes and any remaining limitations for each file.
 {target_checklist}
 
 There are {target_count} selected target files. When a target manifest path is present below, read every newline-delimited filename from it before editing and report what was done for each target.
@@ -167,6 +167,11 @@ func evidenceText(targets []fix.TargetSnapshot) string {
 	lines := make([]string, 0, len(targets))
 	for _, target := range targets {
 		line := fmt.Sprintf("- %s: SCORE %s", target.Path, number(target.Score))
+		if !target.Complete && len(target.Metrics) == 0 {
+			line = fmt.Sprintf("- %s: measurements unavailable", target.Path)
+		} else if !target.Complete {
+			line += " (analysis incomplete; use available measurements as guidance)"
+		}
 		metricIDs := make([]string, 0, len(target.Metrics))
 		for id := range target.Metrics {
 			metricIDs = append(metricIDs, string(id))
@@ -174,8 +179,9 @@ func evidenceText(targets []fix.TargetSnapshot) string {
 		sort.Strings(metricIDs)
 		for _, id := range metricIDs {
 			metric := target.Metrics[fix.MetricID(id)]
-			if metric.Complete {
-				line += fmt.Sprintf(", %s %s", id, number(metric.Value))
+			line += fmt.Sprintf(", %s %s", id, number(metric.Value))
+			if !metric.Complete {
+				line += " (incomplete evidence)"
 			}
 		}
 		lines = append(lines, line)

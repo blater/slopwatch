@@ -21,7 +21,6 @@ func cloneContract(value fix.ScoringContract) fix.ScoringContract {
 	result.Targets = make([]fix.TargetSnapshot, len(value.Targets))
 	for index, target := range value.Targets {
 		result.Targets[index] = target
-		result.Targets[index].DepthInventory = cloneDepthInventory(target.DepthInventory)
 		result.Targets[index].Metrics = cloneMetrics(target.Metrics)
 		result.Targets[index].Evidence = make([]fix.MetricEvidence, len(target.Evidence))
 		for evidenceIndex, evidence := range target.Evidence {
@@ -29,17 +28,6 @@ func cloneContract(value fix.ScoringContract) fix.ScoringContract {
 			result.Targets[index].Evidence[evidenceIndex].Values = append([]float64(nil), evidence.Values...)
 			result.Targets[index].Evidence[evidenceIndex].Paths = append([]fix.RepoPath(nil), evidence.Paths...)
 		}
-	}
-	return result
-}
-
-func cloneDepthInventory(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-	result := make(map[string]string, len(values))
-	for id, fingerprint := range values {
-		result[id] = fingerprint
 	}
 	return result
 }

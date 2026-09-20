@@ -22,12 +22,13 @@ type Config struct {
 	TypeScriptTypes   bool
 	ShallowProfile    string
 	FollowSymlinks    bool
+	// Deprecated: Fix baselines always analyze the selected targets afresh.
 	BaselineReadCache bool
 	Clock             func() time.Time
 }
 
-// AnalyzerOptions is the construction snapshot supplied to Factory. Final
-// verification always receives ReadCache=false regardless of Config.
+// AnalyzerOptions is the construction snapshot supplied to Factory. Baseline
+// refresh and final verification always bypass report-cache reads.
 type AnalyzerOptions struct {
 	DisableGitignore bool
 	Languages        []string
@@ -79,6 +80,10 @@ func NewWithFactory(config Config, factory Factory) (*Service, error) {
 }
 
 func (service *Service) analyze(ctx context.Context, analysisRoot string, targets []string, readCache bool) (report.Document, string, error) {
+	return service.analyzeReport(ctx, analysisRoot, targets, readCache, true)
+}
+
+func (service *Service) analyzeReport(ctx context.Context, analysisRoot string, targets []string, readCache, validateReport bool) (report.Document, string, error) {
 	disabled := service.config.DisableGitignore
 	if service.config.GitignoreDisabled != nil {
 		var err error
@@ -99,26 +104,28 @@ func (service *Service) analyze(ctx context.Context, analysisRoot string, target
 		return report.Document{}, "", err
 	}
 	identity, err := analyzer.ScoringIdentity()
-	if err != nil {
+	if err != nil && validateReport {
 		return report.Document{}, "", err
 	}
-	if identity == "" {
+	if identity == "" && validateReport {
 		return report.Document{}, "", errors.New("analyzer returned an empty scoring identity")
 	}
 	document, err := analyzer.Analyze(ctx, append([]string(nil), targets...), append([]string(nil), options.Languages...))
 	if err != nil {
 		return report.Document{}, "", err
 	}
-	if document.SchemaVersion <= 0 {
+	if validateReport && document.SchemaVersion <= 0 {
 		return report.Document{}, "", errors.New("analyzer returned an invalid report schema version")
 	}
-	if document.ProfileSetHash == "" {
+	if validateReport && document.ProfileSetHash == "" {
 		return report.Document{}, "", errors.New("analyzer returned an empty profile-set identity")
 	}
-	if !document.Calibrated {
+	if validateReport && !document.Calibrated {
 		return report.Document{}, "", errors.New("analyzer returned an uncalibrated report")
 	}
-	identity = fmt.Sprintf("%s/report-schema-%d", identity, document.SchemaVersion)
+	if identity != "" {
+		identity = fmt.Sprintf("%s/report-schema-%d", identity, document.SchemaVersion)
+	}
 	return document, identity, nil
 }
 

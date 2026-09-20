@@ -24,9 +24,10 @@ const (
 type TargetStatus string
 
 const (
-	ScorePending TargetStatus = "score_pending"
-	TargetMet    TargetStatus = "met"
-	TargetNotMet TargetStatus = "not_met"
+	ScorePending    TargetStatus = "score_pending"
+	ScoreUnmeasured TargetStatus = "unmeasured"
+	TargetMet       TargetStatus = "met"
+	TargetNotMet    TargetStatus = "not_met"
 )
 
 type ScopeState string
@@ -133,14 +134,16 @@ type UsagePresentation struct {
 }
 
 type FilePresentation struct {
-	Path            RepoPath
-	PreviousPath    RepoPath
-	Classification  string
-	ChangeStatus    string
-	BaselineScore   float64
-	VerifiedScore   *float64
-	BaselineMetrics []MetricValue
-	VerifiedMetrics []MetricValue
+	Path                     RepoPath
+	PreviousPath             RepoPath
+	Classification           string
+	ChangeStatus             string
+	BaselineScore            float64
+	BaselineScoreUnavailable bool
+	AfterScoreUnmeasured     bool
+	VerifiedScore            *float64
+	BaselineMetrics          []MetricValue
+	VerifiedMetrics          []MetricValue
 	// Metrics is retained for saved-state compatibility. New code projects
 	// baseline and verified values separately.
 	Metrics        []MetricValue

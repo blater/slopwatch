@@ -10,11 +10,13 @@ import (
 )
 
 type BaselineRequest struct {
-	Workspace       fix.WorkspaceIdentity
-	Targets         []fix.RepoPath
-	Goal            fix.ScoringGoal
+	Workspace fix.WorkspaceIdentity
+	Targets   []fix.RepoPath
+	Goal      fix.ScoringGoal
+	// Deprecated: measurements are advisory and never gate baseline preparation.
 	RequiredMetrics []fix.MetricID
-	FreshBy         time.Time
+	// Deprecated: baseline preparation always requests fresh analysis.
+	FreshBy time.Time
 }
 
 type BaselineSnapshot struct {

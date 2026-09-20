@@ -103,7 +103,7 @@ func baselineTargets(contract fix.ScoringContract) []fix.FilePresentation {
 	result := make([]fix.FilePresentation, 0, len(contract.Targets))
 	for _, target := range contract.Targets {
 		metrics := metricValues(target.Metrics)
-		result = append(result, fix.FilePresentation{Path: target.Path, Classification: "target", BaselineScore: target.Score, BaselineMetrics: metrics, Metrics: metrics})
+		result = append(result, fix.FilePresentation{Path: target.Path, Classification: "target", BaselineScore: target.Score, BaselineScoreUnavailable: !target.Complete && len(target.Metrics) == 0, AfterScoreUnmeasured: true, BaselineMetrics: metrics, Metrics: metrics})
 	}
 	return result
 }

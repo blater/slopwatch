@@ -58,11 +58,18 @@ func agentSupportingFileText(file fix.FilePresentation, metricCount int) string 
 }
 
 func agentScoreTransitionText(file fix.FilePresentation) string {
+	baseline := roundedIntegerText(file.BaselineScore)
+	if file.BaselineScoreUnavailable {
+		baseline = "-"
+	}
+	if file.AfterScoreUnmeasured && file.VerifiedScore == nil {
+		return "SCORE " + baseline + " (before)"
+	}
 	verified := "…"
 	if file.VerifiedScore != nil {
 		verified = roundedIntegerText(*file.VerifiedScore) + agentVerificationGlyph(file.Verification)
 	}
-	return fmt.Sprintf("SCORE %s→%s", roundedIntegerText(file.BaselineScore), verified)
+	return fmt.Sprintf("SCORE %s→%s", baseline, verified)
 }
 
 func agentMetricTransitionText(metric fix.MetricValue, verified map[fix.MetricID]fix.MetricValue) string {
