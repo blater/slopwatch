@@ -17,7 +17,7 @@ TS_LAUNCHER := $(TYPESCRIPT_RUNTIME_DIR)/slopslap-typescript
 
 GO_ENV := CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off
 GO_FLAGS := -trimpath -buildvcs=false
-GO_TEST_FLAGS := -buildvcs=false
+GO_TEST_FLAGS := -buildvcs=false -count=1
 JAR_DATE := 1980-01-01T00:00:02Z
 
 STRUCTURAL_GO_SOURCES := $(wildcard $(STRUCTURAL_DIR)/cmd/slopslap-structural/*.go) \
@@ -29,28 +29,29 @@ GO_SOURCES := $(shell find $(ROOT)/go/cmd/slopslap-go $(ROOT)/go/internal -type 
 WATCH_SOURCES := $(shell find $(ROOT)/go/cmd/slopwatch -type f -name '*.go')
 TS_SOURCES := $(wildcard $(TYPESCRIPT_DIR)/src/*.ts) $(wildcard $(TYPESCRIPT_DIR)/test/*.ts)
 
-.PHONY: all build dev-build build-structural build-rust build-java build-go \
+.PHONY: all build build-artifacts dev-build build-structural build-rust build-java build-go \
   build-typescript test test-clean test-structural test-go test-typescript clean
 
 all: build
 
-build: build-structural build-rust build-java build-go build-typescript
-ifeq ($(filter test%,$(MAKECMDGOALS)),)
-	@$(MAKE) --no-print-directory clean-go-cache
-endif
+# Standard builds always run the same suite as CI and releases.
+build: test
+
+# Internal compilation prerequisite; avoids recursion through build -> test.
+build-artifacts: build-structural build-rust build-java build-go build-typescript
 
 # Normative source conformance, including currently unsupported capabilities.
 # This deliberately fails when any expected result is not delivered.
 .PHONY: test-shallow-adapters
-test-shallow-adapters: build
+test-shallow-adapters: build-artifacts
 	@python3 tools/shallow_adapter_acceptance.py
 
 .PHONY: test-shallow-carriers
-test-shallow-carriers: build
+test-shallow-carriers: build-artifacts
 	@python3 tools/shallow_carrier_acceptance.py
 
 .PHONY: test-shallow-values
-test-shallow-values: build
+test-shallow-values: build-artifacts
 	@python3 tools/shallow_value_acceptance.py
 
 dev-build: build-structural build-typescript build-go
@@ -115,17 +116,17 @@ $(TS_LAUNCHER): $(TS_MARKER) $(TYPESCRIPT_DIR)/slopslap-typescript.sh $(TYPESCRI
 build-typescript: $(TS_LAUNCHER)
 
 test-structural: build-structural build-rust build-java
-	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(STRUCTURAL_DIR) $(GO_TEST_FLAGS) ./...
-	@cargo test --locked --manifest-path $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml
+	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache SLOPSLAP_JAVA_TEST_JAR=$(JAVA_JAR) go test -C $(STRUCTURAL_DIR) $(GO_TEST_FLAGS) -parallel=4 ./...
+	@CARGO_TARGET_DIR=$(BUILD_DIR)/cargo-target cargo test --locked --release --manifest-path $(STRUCTURAL_DIR)/adapters/rust/Cargo.toml
 
 test-typescript: build-typescript build-structural
-	@SLOPSLAP_DEPTH_EVALUATOR=$(STRUCTURAL_BIN) npm --prefix $(TYPESCRIPT_WORK_DIR) test
+	@cd $(TYPESCRIPT_WORK_DIR) && SLOPSLAP_DEPTH_EVALUATOR=$(STRUCTURAL_BIN) node --test dist/test/*.test.js
 
-test-go: build
+test-go: build-artifacts
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./...
 
 test: test-structural test-typescript test-go
-	@$(MAKE) --no-print-directory clean-go-cache
+	@bash util/test-distribution.sh
 
 test-clean: clean
 	@$(MAKE) test
@@ -151,19 +152,19 @@ test-shallow-sensitivity:
 test-shallow-regressions:
 	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./internal/sourceestimate ./internal/native ./internal/report ./internal/scoring ./internal/follow ./internal/fixanalysis/nativeadapter
 
-test-shallow-high: build
+test-shallow-high: build-artifacts
 	@status=0; python3 $(ROOT)/tools/shallow_holdout_acceptance.py --manifest $(ROOT)/docs/evidence/shallow-v4/connected-high-holdout/manifest.json --require-high-language go --require-high-language typescript --require-high-language rust --output $(BUILD_DIR)/shallow-high-holdout.json || status=1; python3 $(ROOT)/tools/shallow_holdout_context.py --manifest $(ROOT)/docs/evidence/shallow-v4/connected-high-holdout/manifest.json --context $(ROOT)/docs/evidence/shallow-v4/connected-high-context.json --frozen-only --output $(BUILD_DIR)/shallow-high-context.json || status=1; exit $$status
 
-test-shallow-confirmation: build
+test-shallow-confirmation: build-artifacts
 	@status=0; python3 $(ROOT)/tools/shallow_holdout_acceptance.py --manifest $(ROOT)/docs/evidence/shallow-v4/connected-confirmation-holdout/manifest.json --require-high-language go --require-high-language rust --output $(BUILD_DIR)/shallow-confirmation-holdout.json || status=1; python3 $(ROOT)/tools/shallow_holdout_context.py --manifest $(ROOT)/docs/evidence/shallow-v4/connected-confirmation-holdout/manifest.json --context $(ROOT)/docs/evidence/shallow-v4/connected-confirmation-context.json --frozen-only --output $(BUILD_DIR)/shallow-confirmation-context.json || status=1; exit $$status
 
-test-shallow-fresh: build
+test-shallow-fresh: build-artifacts
 	@python3 $(ROOT)/tools/shallow_holdout_acceptance.py --manifest $(ROOT)/docs/evidence/shallow-v4/structural-fresh-holdout/manifest.json --allow-no-high-cases --output $(BUILD_DIR)/shallow-fresh-holdout.json
 
-test-shallow-context: build
+test-shallow-context: build-artifacts
 	@python3 $(ROOT)/tools/shallow_holdout_context.py --frozen-only --output $(BUILD_DIR)/shallow-holdout-context.json
 
-test-shallow-holdout: build
+test-shallow-holdout: build-artifacts
 	@python3 $(ROOT)/tools/shallow_holdout_acceptance.py
 
 test-shallow-safeguards:

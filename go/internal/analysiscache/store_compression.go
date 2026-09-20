@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -124,7 +125,9 @@ func (store *Store) CompactArtifacts(ctx context.Context) (stats CompactionStats
 			stats.Errors++
 			return walkErr
 		}
-		if entry.IsDir() {
+		// Atomic writers rename these files while the directory is being walked.
+		// They are not artifacts and must be ignored before requesting metadata.
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".tmp-") {
 			return nil
 		}
 		stats.Examined++

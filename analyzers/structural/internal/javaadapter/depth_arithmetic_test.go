@@ -11,22 +11,31 @@ func TestJavaDepthArithmeticDivisionAndRemainder(t *testing.T) {
 	cases := []struct {
 		name, source string
 	}{
-		{"quotient", `public final class Service { private Service() {} public static int run(int x) { return x / 2; } }`},
 		{"remainder", `public final class Service { private Service() {} public static int run(int x) { return x % 2; } }`},
 		{"signedLiteral", `public final class Service { private Service() {} public static int run(int x) { return x % -2; } }`},
 		{"constantDivisor", `public final class Service { private static final int TWO = 2; private Service() {} public static int run(int x) { return x / TWO; } }`},
 		{"longMinWrap", `public final class Service { private Service() {} public static long run(long x) { return x / -1L; } }`},
 	}
+	// The scalar source-to-score test already covers division by two.
+	var paths []string
+	for _, test := range cases {
+		path := test.name + "/Service.java"
+		writeSource(t, root, path, "package "+test.name+"; "+test.source)
+		paths = append(paths, path)
+	}
+	program, err := adapter.Analyze(root, paths, map[string]any{"depth_profile": "responsibility-v4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scores := metrics.MeasureDepth(program)
+	if len(scores) != len(cases) {
+		t.Fatalf("arithmetic scores = %+v", scores)
+	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			writeSource(t, root, "Service.java", test.source)
-			program, err := adapter.Analyze(root, []string{"Service.java"}, map[string]any{"depth_profile": "responsibility-v4"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			scores := metrics.MeasureDepth(program)
-			if len(scores) != 1 || scores[0].State != facts.KnowledgeMeasured || scores[0].Shallow == nil || *scores[0].Shallow != 30 {
-				t.Fatalf("arithmetic score = %+v", scores)
+			score := scoreForJavaBoundary(scores, test.name+".Service")
+			if score == nil || score.State != facts.KnowledgeMeasured || score.Shallow == nil || *score.Shallow != 30 {
+				t.Fatalf("arithmetic score = %+v", score)
 			}
 		})
 	}

@@ -38,9 +38,16 @@ func TestJavaBoundedScoringPreservesBasicIncentives(t *testing.T) {
 		{"unreachableValidation", "return x;", "if (false) { if (x < 0) throw new IllegalArgumentException(); } return x;", ""},
 		{"privateExtraction", "return x * 2;", "return doubled(x);", "private int doubled(int x) { return x * 2; }"},
 	}
+	// Several transformations share the exact same baseline source.
+	baselines := make(map[string]metrics.DepthScore)
+	for _, test := range cases {
+		if _, exists := baselines[test.before]; !exists {
+			baselines[test.before] = score(test.before, "")
+		}
+	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			before := score(test.before, "")
+			before := baselines[test.before]
 			after := score(test.after, test.helper)
 			if *before.Shallow != *after.Shallow || before.H != after.H || before.B8 != after.B8 {
 				t.Fatalf("refactoring changed score: before=%+v after=%+v", before, after)

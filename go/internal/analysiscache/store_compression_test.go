@@ -93,11 +93,15 @@ func TestCompactArtifactsCompatibility(t *testing.T) {
 	os.WriteFile(bad, []byte("untouched"), 0600)
 	link := filepath.Join(store.root, "artifacts", "link")
 	os.Symlink(path, link)
+	temporary := filepath.Join(filepath.Dir(path), ".tmp-in-progress")
+	if err := os.WriteFile(temporary, []byte("unfinished write"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	stats, err := store.CompactArtifacts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats.Compacted != 1 || stats.Skipped != 2 || stats.AfterBytes >= stats.BeforeBytes {
+	if stats.Examined != 3 || stats.Compacted != 1 || stats.Skipped != 2 || stats.AfterBytes >= stats.BeforeBytes {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
 	if _, got, ok := store.LoadUnitByKey(key); !ok || got != ref {
@@ -106,6 +110,9 @@ func TestCompactArtifactsCompatibility(t *testing.T) {
 	next, err := store.CompactArtifacts(context.Background())
 	if err != nil || next.Compacted != 0 {
 		t.Fatalf("non-idempotent: %+v %v", next, err)
+	}
+	if data, err := os.ReadFile(temporary); err != nil || string(data) != "unfinished write" {
+		t.Fatalf("changed in-progress write: %q, %v", data, err)
 	}
 	if data, _ := os.ReadFile(bad); string(data) != "untouched" {
 		t.Fatal("changed noncanonical file")

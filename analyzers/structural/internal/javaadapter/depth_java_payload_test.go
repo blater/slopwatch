@@ -13,9 +13,13 @@ func TestJavaDepthOversizedBoundaryDoesNotEraseHealthyBoundary(t *testing.T) {
 	root, adapter := javaTestAdapter(t)
 	var source strings.Builder
 	source.WriteString("package demo; public final class Huge { private Huge() {}")
-	for index := 0; index < 6000; index++ {
+	// Large identifiers exceed the real transport budget without requiring
+	// thousands of method bodies to exercise the same payload-limit path.
+	namePadding := strings.Repeat("x", 2048)
+	for index := 0; index < 128; index++ {
 		source.WriteString(" public static int method")
 		source.WriteString(strconv.Itoa(index))
+		source.WriteString(namePadding)
 		source.WriteString("(int x) { return x; }")
 	}
 	source.WriteString(" }")

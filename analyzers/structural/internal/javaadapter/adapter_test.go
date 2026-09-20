@@ -53,6 +53,8 @@ final class ServiceTest { void testIt() { if (true) { return; } } }`)
 
 func javaTestAdapter(t *testing.T) (string, Adapter) {
 	t.Helper()
+	// Each test owns its source directory and only reads the shared helper JAR.
+	t.Parallel()
 	java, javaErr := exec.LookPath("java")
 	javac, javacErr := exec.LookPath("javac")
 	jar, jarErr := exec.LookPath("jar")
@@ -452,6 +454,14 @@ func orderedTestProgram(paths []string) *facts.Program {
 
 func buildHelper(t *testing.T, root, javac, jar string) string {
 	t.Helper()
+	// Make already built this exact helper. Reading it also makes changes visible
+	// to Go's test cache; subprocess execution alone does not track the JAR.
+	if helper := os.Getenv("SLOPSLAP_JAVA_TEST_JAR"); helper != "" {
+		if _, err := os.ReadFile(helper); err != nil {
+			t.Fatal(err)
+		}
+		return helper
+	}
 	classes := filepath.Join(root, "classes")
 	if err := os.Mkdir(classes, 0o755); err != nil {
 		t.Fatal(err)

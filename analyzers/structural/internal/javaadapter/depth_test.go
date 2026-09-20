@@ -23,37 +23,55 @@ func TestJavaDepthScalarSourceToScore(t *testing.T) {
 		{"conditional", "return x>0 ? x : -x;", 30, true},
 		{"longPromotion", "if (x<=0) return 0; return x-1;", 30, true},
 	}
+	// Valid independent packages share one JVM per profile. Keep unresolved
+	// source isolated so compiler recovery cannot affect the other fixtures.
+	var paths []string
+	for _, test := range cases {
+		if test.known {
+			path := test.name + "/Service.java"
+			writeSource(t, root, path, "package "+test.name+"; public final class Service { private Service() {} public static int run(int x) {"+test.body+"} }")
+			paths = append(paths, path)
+		}
+	}
+	analyze := func(paths []string) []metrics.DepthScore {
+		t.Helper()
+		legacy, err := adapter.Analyze(root, paths, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		program, err := adapter.Analyze(root, paths, map[string]any{"depth_profile": "responsibility-v4"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(program.Failures) != 0 {
+			t.Fatalf("semantic failure treated as syntax: %+v", program.Failures)
+		}
+		depth := program.Depth
+		program.Depth = nil
+		if !reflect.DeepEqual(program, legacy) {
+			t.Fatal("opt-in attribution changed legacy facts")
+		}
+		program.Depth = depth
+		scores := metrics.MeasureDepth(program)
+		if len(scores) != len(paths) {
+			t.Fatalf("scores %+v", scores)
+		}
+		return scores
+	}
+	scores := analyze(paths)
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			writeSource(t, root, "Service.java", "public final class Service { private Service() {} public static int run(int x) {"+test.body+"} }")
-			legacy, err := adapter.Analyze(root, []string{"Service.java"}, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			program, err := adapter.Analyze(root, []string{"Service.java"}, map[string]any{"depth_profile": "responsibility-v4"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(program.Failures) != 0 {
-				t.Fatalf("semantic failure treated as syntax: %+v", program.Failures)
-			}
-			depth := program.Depth
-			program.Depth = nil
-			if !reflect.DeepEqual(program, legacy) {
-				t.Fatal("opt-in attribution changed legacy facts")
-			}
-			program.Depth = depth
-			scores := metrics.MeasureDepth(program)
-			if len(scores) != 1 {
-				t.Fatalf("scores %+v", scores)
-			}
-			score := scores[0]
-			if test.known {
-				if score.State != facts.KnowledgeMeasured || score.Shallow == nil || *score.Shallow != test.score {
-					t.Fatalf("score %+v", score)
+			if !test.known {
+				writeSource(t, root, "Service.java", "public final class Service { private Service() {} public static int run(int x) {"+test.body+"} }")
+				score := analyze([]string{"Service.java"})[0]
+				if score.Shallow != nil || score.State != facts.KnowledgePartial {
+					t.Fatalf("unsupported source measured: %+v", score)
 				}
-			} else if score.Shallow != nil || score.State != facts.KnowledgePartial {
-				t.Fatalf("unsupported source measured: %+v", score)
+				return
+			}
+			score := scoreForJavaBoundary(scores, test.name+".Service")
+			if score == nil || score.State != facts.KnowledgeMeasured || score.Shallow == nil || *score.Shallow != test.score {
+				t.Fatalf("score %+v", score)
 			}
 		})
 	}

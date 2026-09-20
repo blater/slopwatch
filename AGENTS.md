@@ -19,3 +19,16 @@ calling every unknown responsibility zero, emitting blanket 0/100 scores, or
 merely displaying the known misleading recognition-only 100 estimates. Deliver
 a defensible bounded approximation across Java, TypeScript, Go and Rust.
 Preserve honest evidence metadata and separate safety gates for automated fixes.
+
+## One test entry point (user mandate, 2026-09-19)
+
+Local builds, CI, and releases must use the exact same command: `make build`,
+with no workflow-specific flags or parameters. Plain `make` invokes it too.
+The Makefile owns orchestration: build, package, and run the full test
+suite, including packaged-distribution smoke tests. Never add tests, fixtures,
+or assertions to release YAML or a release-only test path. Keep shared test
+implementations in the repository and invoke them through this common path.
+The release environment may supply VERSION solely to name the archive. Publish
+that tested archive without rebuilding it. Preserve build caches; use
+`make test-clean` explicitly when a clean run is needed. Publishing credentials and network
+availability are external requirements, not additional test suites.
