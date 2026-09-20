@@ -41,7 +41,7 @@ func assertAnalyzerCalls(t *testing.T, factory *fakeFactory, workspace, candidat
 	if factory.calls[0].workspace != workspace || factory.calls[1].workspace != candidate {
 		t.Fatalf("factory workspaces = %#v", factory.calls)
 	}
-	if factory.calls[0].options.ReadCache || factory.calls[1].options.ReadCache {
+	if !factory.calls[0].options.ReadCache || factory.calls[1].options.ReadCache {
 		t.Fatalf("cache options = %#v", factory.calls)
 	}
 	for index, analyzer := range factory.analyzers {

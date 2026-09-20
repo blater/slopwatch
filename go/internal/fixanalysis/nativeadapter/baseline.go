@@ -32,7 +32,7 @@ func (service *Service) PrepareBaseline(ctx context.Context, request fixanalysis
 	if err != nil {
 		return fixanalysis.BaselineSnapshot{}, fmt.Errorf("fingerprint baseline targets: %w", err)
 	}
-	document, catalogID, err := service.analyzeReport(ctx, mapper.analysisRoot, targets, false, false)
+	document, catalogID, err := service.analyzeReport(ctx, mapper.analysisRoot, targets, service.config.BaselineReadCache, false)
 	if err != nil {
 		return fixanalysis.BaselineSnapshot{}, fmt.Errorf("analyze baseline: %w", err)
 	}

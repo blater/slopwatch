@@ -15,7 +15,7 @@ type BaselineRequest struct {
 	Goal      fix.ScoringGoal
 	// Deprecated: measurements are advisory and never gate baseline preparation.
 	RequiredMetrics []fix.MetricID
-	// Deprecated: baseline preparation always requests fresh analysis.
+	// Deprecated: baseline preparation uses current analysis, including valid cache entries.
 	FreshBy time.Time
 }
 

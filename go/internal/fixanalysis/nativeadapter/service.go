@@ -22,13 +22,13 @@ type Config struct {
 	TypeScriptTypes   bool
 	ShallowProfile    string
 	FollowSymlinks    bool
-	// Deprecated: Fix baselines always analyze the selected targets afresh.
+	// BaselineReadCache permits reuse of current analysis units for selected targets.
 	BaselineReadCache bool
 	Clock             func() time.Time
 }
 
 // AnalyzerOptions is the construction snapshot supplied to Factory. Baseline
-// refresh and final verification always bypass report-cache reads.
+// refresh can reuse current cache entries; final verification bypasses reads.
 type AnalyzerOptions struct {
 	DisableGitignore bool
 	Languages        []string
