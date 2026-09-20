@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/blater/slopwatch/internal/analysiscache"
 	"github.com/blater/slopwatch/internal/report"
@@ -26,6 +27,39 @@ func runPersistentCache(analyzer *analysisEngine, parent context.Context, catalo
 	state, usable, err := preparePersistentCache(analyzer, parent, catalog, discovered, selected, options, plan, planErr)
 	if !usable || err != nil {
 		return report.Document{}, usable, err
+	}
+	// Startup needs the display projection, not every unit's full evidence.
+	if parent.Value(startupProjectionKey{}) == true && len(state.generation.Units) == len(state.prepared.units) {
+		unchanged := true
+		for _, unit := range state.prepared.units {
+			if _, ok := state.generation.Units[unit.key]; !ok {
+				unchanged = false
+				break
+			}
+		}
+		if unchanged {
+			if projection, ok := state.store.LoadProjection(state.generation.Projection, state.view); ok {
+				if valid, err := verifyPersistentCache(analyzer, parent, &state, options); err != nil {
+					return report.Document{}, true, err
+				} else if valid {
+					// Upgrade old generations and remember metadata-only edits,
+					// so unchanged bytes are not hashed again next startup.
+					if !maps.Equal(state.generation.InputStamps, state.prepared.stamps) {
+						generation := state.generation
+						generation.InputStamps = state.prepared.stamps
+						generation.InputDigests = state.prepared.digests
+						_, _ = state.store.CommitGeneration(state.view, generation)
+					}
+					document := projectionDocument(projection)
+					document.Summary["cache_state"] = "current"
+					for i := range document.Files {
+						document.Files[i].Freshness = report.FreshnessCurrent
+						document.Files[i].FreshnessNote = ""
+					}
+					return document, true, nil
+				}
+			}
+		}
 	}
 	usable, err = loadPersistentCache(parent, catalog, options, &state)
 	if !usable || err != nil {
@@ -140,7 +174,7 @@ func verifyPersistentCache(analyzer *analysisEngine, parent context.Context, sta
 	if !options.ignoreMatcher.Unchanged() {
 		return false, ErrWorkspaceChanged
 	}
-	unchanged, err := verifyWorkspaceInputs(analyzer, parent, state.prepared.digests)
+	unchanged, err := verifyWorkspaceStamps(analyzer, parent, state.prepared.stamps)
 	if err != nil {
 		if parent.Err() != nil {
 			return true, parent.Err()
@@ -201,7 +235,7 @@ func persistPersistentReport(parent context.Context, document report.Document, d
 	if err != nil {
 		return document, true, nil
 	}
-	if _, err := state.store.CommitGeneration(state.view, analysiscache.Generation{Projection: projectionRef, Units: state.unitRefs}); err != nil {
+	if _, err := state.store.CommitGeneration(state.view, analysiscache.Generation{Projection: projectionRef, Units: state.unitRefs, InputStamps: state.prepared.stamps, InputDigests: state.prepared.digests}); err != nil {
 		return document, true, nil
 	}
 	return document, true, nil

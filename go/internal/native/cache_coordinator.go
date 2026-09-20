@@ -25,6 +25,7 @@ type plannedCacheUnit struct {
 }
 
 type cachePreparation struct {
+	stamps         map[string]analysiscache.FileStamp
 	units          []plannedCacheUnit
 	digests        map[string]analysiscache.Digest
 	backendDigests map[string]analysiscache.Digest

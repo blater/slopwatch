@@ -93,7 +93,7 @@ func handleWatcherReady(model *Model, message watcherReady) (tea.Model, tea.Cmd)
 	}
 	model.analyzing = true
 	markFreshness(model, nil, report.FreshnessVerifying, "validating current workspace")
-	return model, tea.Batch(model.resumeWatcherWait(), analysisCommand(model.analyzer, model.options.Targets, nil, true))
+	return model, tea.Batch(model.resumeWatcherWait(), startupAnalysisCommand(model.analyzer, model.options.Targets))
 }
 
 func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.Cmd) {

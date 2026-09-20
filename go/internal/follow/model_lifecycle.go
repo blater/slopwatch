@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/blater/slopwatch/internal/report"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -58,4 +59,16 @@ func languagesForPaths(paths []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+func startupAnalysisCommand(analyzer Analyzer, targets []string) tea.Cmd {
+	if startup, ok := analyzer.(interface {
+		AnalyzeStartup(context.Context, []string) (report.Document, error)
+	}); ok {
+		return func() tea.Msg {
+			document, err := startup.AnalyzeStartup(context.Background(), targets)
+			return analysisResult{document: document, full: true, err: err}
+		}
+	}
+	return analysisCommand(analyzer, targets, nil, true)
 }

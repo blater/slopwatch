@@ -175,10 +175,14 @@ func javaUnitID(module *javaModule, sourceSet string) string {
 func javaSourceSet(moduleDirectory, file string) string {
 	relative := strings.TrimPrefix(strings.TrimPrefix(file, moduleDirectory), "/")
 	parts := strings.Split(relative, "/")
-	if len(parts) >= 3 && parts[0] == "src" && parts[2] == "java" {
-		return parts[1]
+	// A root Gradle build can own nested projects without their own build file.
+	// Source roots, not substrings in class names, determine the source set.
+	for index := 0; index+2 < len(parts); index++ {
+		if parts[index] == "src" && parts[index+2] == "java" {
+			return parts[index+1]
+		}
 	}
-	if strings.Contains(strings.ToLower(lastPart(file)), "test") || hasPathSegment(strings.ToLower(file), "test") {
+	if hasPathSegment(strings.ToLower(file), "test") {
 		return "test"
 	}
 	return "main"

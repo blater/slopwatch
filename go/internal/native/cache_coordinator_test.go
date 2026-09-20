@@ -437,11 +437,15 @@ func TestFinalWorkspaceVerificationTreatsDeletedInputsAsChurn(t *testing.T) {
 	workspace := t.TempDir()
 	writeTestFile(t, workspace, "a.go", "package sample\n")
 	analyzer := &analysisEngine{workspace: workspace}
-	expected := map[string]analysiscache.Digest{"a.go": analysiscache.DigestBytes([]byte("package sample\n"))}
+	stamp, err := workspaceStamp(workspace, "a.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string]analysiscache.FileStamp{"a.go": stamp}
 	if err := os.Remove(filepath.Join(workspace, "a.go")); err != nil {
 		t.Fatal(err)
 	}
-	unchanged, err := verifyWorkspaceInputs(analyzer, context.Background(), expected)
+	unchanged, err := verifyWorkspaceStamps(analyzer, context.Background(), expected)
 	if err != nil || unchanged {
 		t.Fatalf("deleted verification input = unchanged:%t err:%v, want churn without error", unchanged, err)
 	}
@@ -453,7 +457,7 @@ func TestFinalWorkspaceVerificationPreservesNonChurnErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	analyzer := &analysisEngine{workspace: workspace}
-	_, err := verifyWorkspaceInputs(analyzer, context.Background(), map[string]analysiscache.Digest{"a.go": analysiscache.Digest("")})
+	_, err := verifyWorkspaceStamps(analyzer, context.Background(), map[string]analysiscache.FileStamp{"a.go": {}})
 	if err == nil {
 		t.Fatal("directory verification unexpectedly succeeded")
 	}
@@ -553,7 +557,7 @@ func unitKeysByID(units []plannedCacheUnit) map[string]analysiscache.Key {
 	return result
 }
 
-func newCacheTestAnalyzer(t *testing.T, workspace string, options Options, store *analysiscache.Store, catalog catalogDocument) *Analyzer {
+func newCacheTestAnalyzer(t testing.TB, workspace string, options Options, store *analysiscache.Store, catalog catalogDocument) *Analyzer {
 	t.Helper()
 	resolved, err := filepath.EvalSymlinks(workspace)
 	if err != nil {
@@ -586,7 +590,7 @@ func typescriptTestCatalog() catalogDocument {
 	return catalog
 }
 
-func fakeBatchInputs(t *testing.T, request analyzerRequest) map[string]scoreInputs {
+func fakeBatchInputs(t testing.TB, request analyzerRequest) map[string]scoreInputs {
 	t.Helper()
 	result := make(map[string]scoreInputs, len(request.Units))
 	for _, unit := range request.Units {
@@ -609,7 +613,7 @@ func fakeBatchInputs(t *testing.T, request analyzerRequest) map[string]scoreInpu
 	return result
 }
 
-func writeTestFile(t *testing.T, root, relative, contents string) {
+func writeTestFile(t testing.TB, root, relative, contents string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(relative))
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

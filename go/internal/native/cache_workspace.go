@@ -17,23 +17,6 @@ type workspaceHashResult struct {
 	err    error
 }
 
-func verifyWorkspaceInputs(analyzer *analysisEngine, ctx context.Context, expected map[string]analysiscache.Digest) (bool, error) {
-	paths := mapKeys(expected)
-	actual, err := hashWorkspacePaths(analyzer, ctx, paths)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, err
-	}
-	for _, path := range paths {
-		if actual[path] != expected[path] {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
 func hashWorkspacePaths(analyzer *analysisEngine, ctx context.Context, paths []string) (map[string]analysiscache.Digest, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

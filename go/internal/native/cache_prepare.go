@@ -22,7 +22,13 @@ func prepareCacheUnits(analyzer *analysisEngine, ctx context.Context, catalog ca
 	}
 	relevant := relevantUnitIDs(byID, active, options.IncludeTests)
 	paths := inputPathsForUnits(byID, relevant)
-	digests, err := hashWorkspacePaths(analyzer, ctx, mapKeys(paths))
+	var previous analysiscache.Generation
+	if store := cacheStore(analyzer); store != nil && options.ReadCache {
+		if view, err := viewKey(analyzer, options); err == nil {
+			previous, _ = store.LoadGeneration(view)
+		}
+	}
+	digests, stamps, err := cachedWorkspaceDigests(analyzer, ctx, paths, previous)
 	if err != nil {
 		return cachePreparation{}, err
 	}
@@ -40,7 +46,7 @@ func prepareCacheUnits(analyzer *analysisEngine, ctx context.Context, catalog ca
 	}
 	dependencyFingerprints := dependencyGraphFingerprints(byID, localKeys)
 	conservativeFingerprints := conservativeLanguageFingerprints(byID, localKeys)
-	result := cachePreparation{digests: digests, backendDigests: analyzerDigests, plans: byID, units: make([]plannedCacheUnit, len(active))}
+	result := cachePreparation{stamps: stamps, digests: digests, backendDigests: analyzerDigests, plans: byID, units: make([]plannedCacheUnit, len(active))}
 	for index, unit := range active {
 		dependencies := dependencyFingerprintsFor(unit.plan, dependencyFingerprints, conservativeFingerprints)
 		key, keyErr := analysiscache.UnitKey(unitKeyInput(unit.plan, dependencies, digests, analyzerDigests[string(unit.plan.Language)], catalogDigest, catalog, options))

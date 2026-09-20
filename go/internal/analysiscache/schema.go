@@ -107,14 +107,23 @@ type UnitArtifact struct {
 	Report      report.Document `json:"report"`
 }
 
+// FileStamp identifies the filesystem version associated with a content digest.
+type FileStamp struct {
+	Size     int64 `json:"size"`
+	Modified int64 `json:"modified"`
+	Changed  int64 `json:"changed"`
+}
+
 // Generation is a complete workspace view. Commits replace the current view
 // atomically; individual referenced artifacts remain immutable.
 type Generation struct {
-	ViewKey    ViewKey             `json:"view_key"`
-	Number     uint64              `json:"number"`
-	CreatedAt  time.Time           `json:"created_at"`
-	Projection ArtifactRef         `json:"projection"`
-	Units      map[Key]ArtifactRef `json:"units"`
+	InputStamps  map[string]FileStamp `json:"input_stamps,omitempty"`
+	InputDigests map[string]Digest    `json:"input_digests,omitempty"`
+	ViewKey      ViewKey              `json:"view_key"`
+	Number       uint64               `json:"number"`
+	CreatedAt    time.Time            `json:"created_at"`
+	Projection   ArtifactRef          `json:"projection"`
+	Units        map[Key]ArtifactRef  `json:"units"`
 }
 
 // ProjectionFromReport strips heavyweight detail while preserving the values

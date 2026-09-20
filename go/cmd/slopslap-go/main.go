@@ -244,10 +244,6 @@ func runFollow(workspace, installationRoot string, targets, languages []string, 
 	initial := report.Document{}
 	if cached, ok := nativeAnalyzer.CachedProjection(); ok {
 		initial = cached
-	} else {
-		// A first-ever dashboard launch should be no slower than slopmark's
-		// ordinary fresh scan. Reuse is enabled after that result is visible.
-		nativeAnalyzer.SetCacheReads(false)
 	}
 	fixFeature, fixErr := buildFixFeature(context.Background(), workspace, installationRoot, preferencesPath, userDataRoot, parsed, languages)
 	follow.ConfigureTerminalColours()

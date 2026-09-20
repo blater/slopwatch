@@ -44,9 +44,7 @@ func (analyzer *Analyzer) SetCacheStore(store *analysiscache.Store) {
 	analyzer.cache.mu.Unlock()
 }
 
-// SetCacheReads changes reuse policy without affecting cache writes. Follow
-// mode uses this to make a first-ever launch take the ordinary fresh path,
-// then enables package reuse after that initial result is visible.
+// SetCacheReads changes reuse policy without affecting cache writes.
 func (analyzer *Analyzer) SetCacheReads(enabled bool) {
 	analyzer.optionsMu.Lock()
 	analyzer.options.ReadCache = enabled
@@ -127,24 +125,9 @@ func cachedProjection(analyzer *analysisEngine) (report.Document, bool) {
 	if err != nil {
 		return report.Document{}, false
 	}
-	files := reconcileProjectionInventory(projection.ReportFiles(), discovered, selected)
-	schemaVersion, profileHash := projection.SchemaVersion, projection.ProfileSetHash
-	if schemaVersion == 0 {
-		schemaVersion = 3
-	}
-	if profileHash == "" {
-		profileHash = "native-balanced-v1"
-	}
-	for id, boundary := range projection.Depth {
-		projection.Depth[id] = report.CompactDepthBoundary(boundary)
-	}
-	document := report.Document{
-		Calibrated: true, Files: files, ProfileSetHash: profileHash,
-		ScoreProfile: projection.ScoreProfile, PolicyRevision: projection.PolicyRevision,
-		SchemaVersion: schemaVersion, Depth: projection.Depth, Summary: map[string]any{
-			"cache_state": "provisional", "discovered_source_count": len(files),
-		},
-	}
+	document := projectionDocument(projection)
+	document.Files = reconcileProjectionInventory(document.Files, discovered, selected)
+	document.Summary["discovered_source_count"] = len(document.Files)
 	for index := range document.Files {
 		document.Files[index].Freshness = report.FreshnessProvisional
 		document.Files[index].FreshnessNote = "validating current workspace"
@@ -201,4 +184,25 @@ func persistProjection(analyzer *analysisEngine, document report.Document, optio
 		}
 	}
 	_, _ = store.CommitGeneration(view, analysiscache.Generation{Projection: reference, Units: units})
+}
+
+func projectionDocument(projection analysiscache.DisplayProjection) report.Document {
+	schemaVersion, profileHash := projection.SchemaVersion, projection.ProfileSetHash
+	if schemaVersion == 0 {
+		schemaVersion = 3
+	}
+	if profileHash == "" {
+		profileHash = "native-balanced-v1"
+	}
+	for id, boundary := range projection.Depth {
+		projection.Depth[id] = report.CompactDepthBoundary(boundary)
+	}
+	document := report.Document{
+		Calibrated: true, Files: projection.ReportFiles(), ProfileSetHash: profileHash,
+		ScoreProfile: projection.ScoreProfile, PolicyRevision: projection.PolicyRevision,
+		SchemaVersion: schemaVersion, Depth: projection.Depth, Summary: map[string]any{
+			"cache_state": "provisional", "discovered_source_count": len(projection.Files),
+		},
+	}
+	return document
 }
