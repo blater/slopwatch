@@ -2,16 +2,21 @@ import ts from "typescript";
 
 import {
   COMPONENT_BY_ID,
-  STRUCTURAL_COMPONENTS,
-  TYPED_COMPONENTS,
 } from "./catalog.js";
 import { AnalysisContext } from "./context.js";
 import type { TypedContext } from "./context.js";
 import { analyzeDepth } from "./depth.js";
+import {
+  prepareAnalysis,
+  responseAnalysisProgress,
+  responseDiagnostic,
+  type AnalysisBuffers,
+  type ResponseRecord,
+} from "./analysis-preparation.js";
+export type { ResponseRecord } from "./analysis-preparation.js";
 import { analyzeStructural } from "./structural.js";
 import { analyzeTypeSafety } from "./type-safety.js";
 import {
-  PROTOCOL_VERSION,
   protocolEnvelope,
   type AnalyzerRequest,
   type Coverage,
@@ -19,24 +24,6 @@ import {
   type Measurement,
   type TypeMode,
 } from "./model.js";
-
-export type ResponseRecord = Record<string, unknown>;
-
-function responseDiagnostic(
-  invocationId: string,
-  diagnostic: Diagnostic,
-): ResponseRecord {
-  return {
-    type: "diagnostic",
-    ...protocolEnvelope(invocationId),
-    severity: diagnostic.severity,
-    code: diagnostic.code,
-    message: diagnostic.message,
-    unit_id: diagnostic.unit_id ?? null,
-    path: diagnostic.path ?? null,
-    ...(diagnostic.attributes === undefined ? {} : { attributes: diagnostic.attributes }),
-  };
-}
 
 function responseCoverage(
   invocationId: string,
@@ -65,141 +52,6 @@ function responseMeasurement(
   };
 }
 
-function inputInvocationId(input: unknown): string {
-  if (typeof input !== "object" || input === null) return "unknown";
-  const value = Reflect.get(input, "invocation_id");
-  return typeof value === "string" ? value : "unknown";
-}
-
-function validateUnits(request: Partial<AnalyzerRequest>): void {
-  if (!Array.isArray(request.units) || request.units.length === 0) {
-    throw new Error("units must contain at least one analysis unit");
-  }
-  const unitIds = new Set<string>();
-  for (const unit of request.units) {
-    validateUnit(unit, unitIds);
-  }
-}
-
-function validateUnit(
-  unit: NonNullable<AnalyzerRequest["units"]>[number],
-  unitIds: Set<string>,
-): void {
-	validateUnitID(unit.unit_id, unitIds);
-  unitIds.add(unit.unit_id);
-  if (unit.language !== "typescript")
-	throw new Error(`unsupported language ${String(unit.language)}`);
-	if (!validSourcePaths(unit.source_paths)) {
-	throw new Error(`unit ${unit.unit_id} source_paths must be a string array`);
-  }
-}
-
-function validateUnitID(value: unknown, unitIds: ReadonlySet<string>): asserts value is string {
-	if (typeof value !== "string" || value.length === 0)
-		throw new Error("each unit_id must be a non-empty analysis unit");
-	if (unitIds.has(value)) throw new Error(`duplicate unit_id ${value}`);
-}
-
-function validSourcePaths(value: unknown): value is string[] {
-	return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-
-function validateComponents(request: Partial<AnalyzerRequest>): void {
-  if (!Array.isArray(request.components))
-    throw new Error("components must be an array");
-  const requested = new Set<string>();
-  for (const component of request.components) {
-    validateComponent(component, requested);
-  }
-}
-
-function validateComponent(
-  component: AnalyzerRequest["components"][number],
-  requested: Set<string>,
-): void {
-	if (!validComponentShape(component)) {
-    throw new Error(
-      "each component must contain component_id and definition_version",
-    );
-  }
-  const definition = COMPONENT_BY_ID.get(component.component_id);
-  if (definition === undefined)
-    throw new Error(`unsupported component ${component.component_id}`);
-  if (
-    component.component_id === "module_shallowness" &&
-    component.definition_version === "responsibility-burden-v4"
-  ) {
-    if (requested.has(component.component_id))
-      throw new Error(`duplicate component ${component.component_id}`);
-    requested.add(component.component_id);
-    return;
-  }
-  if (definition.definition_version !== component.definition_version) {
-    throw new Error(
-      `unsupported definition ${component.component_id}/${component.definition_version}; expected ${definition.definition_version}`,
-    );
-  }
-  if (requested.has(component.component_id))
-    throw new Error(`duplicate component ${component.component_id}`);
-  requested.add(component.component_id);
-}
-
-function validComponentShape(
-	component: unknown,
-): component is AnalyzerRequest["components"][number] {
-	return (
-		component !== null &&
-		typeof component === "object" &&
-		typeof Reflect.get(component, "component_id") === "string" &&
-		typeof Reflect.get(component, "definition_version") === "string"
-	);
-}
-
-function validateOptions(request: Partial<AnalyzerRequest>): void {
-  const mode = request.options?.typescript_types;
-  if (
-    mode !== undefined &&
-    mode !== "auto" &&
-    mode !== "require" &&
-    mode !== "off"
-  ) {
-    throw new Error("options.typescript_types must be auto, require, or off");
-  }
-  if (
-    request.options?.depth_evaluator_path !== undefined &&
-    typeof request.options.depth_evaluator_path !== "string"
-  ) {
-    throw new Error("options.depth_evaluator_path must be a string");
-  }
-}
-
-function validateRequest(value: unknown): AnalyzerRequest {
-	validateRequestObject(value);
-  const request = value as Partial<AnalyzerRequest>;
-	validateRequestEnvelope(request);
-  validateUnits(request);
-  validateComponents(request);
-  validateOptions(request);
-  return request as AnalyzerRequest;
-}
-
-function validateRequestObject(value: unknown): asserts value is object {
-	if (typeof value !== "object" || value === null)
-		throw new Error("request must be a JSON object");
-}
-
-function validateRequestEnvelope(request: Partial<AnalyzerRequest>): void {
-	if (request.type !== "request") throw new Error("record type must be request");
-	if (request.protocol_version !== PROTOCOL_VERSION) {
-		throw new Error(
-			`unsupported protocol version ${String(request.protocol_version)}`,
-		);
-	}
-	if (typeof request.invocation_id !== "string" || request.invocation_id.length === 0)
-		throw new Error("invocation_id must be a non-empty string");
-	if (typeof request.workspace !== "string" || request.workspace.length === 0)
-		throw new Error("workspace must be a non-empty string");
-}
 
 function syntaxDiagnostic(entry: {
   unitId: string;
@@ -220,31 +72,29 @@ function syntaxDiagnostic(entry: {
   }));
 }
 
-interface AnalysisBuffers {
-  measurements: Measurement[];
-  coverage: Coverage[];
-  failedUnits: Set<string>;
-  records: ResponseRecord[];
-}
-
 interface TypedAnalysisResult {
 	unavailableReason: string | undefined;
 	context?: TypedContext;
 }
 
-function analyzeSyntaxSources(
+export function analyzeSyntaxSources(
   context: AnalysisContext,
   invocationId: string,
   requestedStructural: ReadonlySet<string>,
   buffers: AnalysisBuffers,
+  emitProgress?: (record: ResponseRecord) => void,
 ): void {
-  for (const entry of context.sources) {
+  const entries = context.sources.filter((entry) => !entry.isDeclaration);
+  let completed = 0;
+  for (const entry of entries) {
     if (entry.isDeclaration) continue;
+    const measurements: Measurement[] = [];
+    const coverage: Coverage[] = [];
     if (entry.syntaxErrors.length > 0) {
       for (const item of syntaxDiagnostic(entry))
         buffers.records.push(responseDiagnostic(invocationId, item));
       for (const component of requestedStructural) {
-        buffers.coverage.push({
+        coverage.push({
           unit_id: entry.unitId,
           path: entry.relativePath,
           component_id: component,
@@ -254,11 +104,15 @@ function analyzeSyntaxSources(
           reason: "the TypeScript syntax parser reported errors",
         });
       }
+      buffers.coverage.push(...coverage);
+      emitFileProgress(emitProgress, invocationId, entry, measurements, coverage);
+      completed++;
+      emitProgress?.(responseAnalysisProgress(invocationId, entry.unitId, "typescript_syntax", completed, entries.length, entries.length));
       continue;
     }
-    buffers.measurements.push(...analyzeStructural(entry, requestedStructural));
+    measurements.push(...analyzeStructural(entry, requestedStructural));
     for (const component of requestedStructural) {
-      buffers.coverage.push({
+      coverage.push({
         unit_id: entry.unitId,
         path: entry.relativePath,
         component_id: component,
@@ -268,18 +122,40 @@ function analyzeSyntaxSources(
         reason: "syntax kernel completed",
       });
     }
+    buffers.measurements.push(...measurements);
+    buffers.coverage.push(...coverage);
+    emitFileProgress(emitProgress, invocationId, entry, measurements, coverage);
+    completed++;
+    emitProgress?.(responseAnalysisProgress(invocationId, entry.unitId, "typescript_syntax", completed, entries.length, entries.length));
   }
 }
 
-function analyzeTypedSources(
+export function emitFileProgress(
+  emit: ((record: ResponseRecord) => void) | undefined,
+  invocationId: string,
+  entry: AnalysisContext["sources"][number],
+  measurements: readonly Measurement[],
+  coverage: readonly Coverage[],
+  complete?: boolean,
+): void {
+  if (emit === undefined || (measurements.length === 0 && coverage.length === 0))
+    return;
+  for (const item of measurements) emit(responseMeasurement(invocationId, item));
+  for (const item of coverage) emit(responseCoverage(invocationId, item));
+}
+
+export function analyzeTypedSources(
   request: AnalyzerRequest,
   context: AnalysisContext,
   invocationId: string,
   requestedTyped: ReadonlySet<string>,
   typeMode: TypeMode,
   buffers: AnalysisBuffers,
+  emitProgress?: (record: ResponseRecord) => void,
   forceContextWhenOff = false,
 ): TypedAnalysisResult {
+  const entries = context.sources.filter((entry) => !entry.isDeclaration);
+  emitProgress?.(responseAnalysisProgress(invocationId, request.units[0]?.unit_id ?? "", "typescript_typed_context", 0, 0, entries.length));
   if (context.inventoryIssues.length > 0) {
     const reason =
       "typed analysis is unavailable because the requested source inventory is incomplete";
@@ -301,6 +177,7 @@ function analyzeTypedSources(
       typeMode,
       buffers,
       reason,
+      emitProgress,
     );
     return { unavailableReason: reason };
   }
@@ -316,8 +193,10 @@ function analyzeTypedSources(
       analyzeAvailableTypedSources(
         context,
         typedResult.context,
+        invocationId,
         requestedTyped,
         buffers,
+        emitProgress,
       );
     }
     if (typeMode === "off" && requestedTyped.size > 0) {
@@ -329,28 +208,41 @@ function analyzeTypedSources(
         typeMode,
         buffers,
         "typescript_types is off",
+        emitProgress,
       );
     }
     return { unavailableReason, context: typedResult.context };
   }
-  markTypedAnalysisUnavailable(request, context, invocationId, requestedTyped, typeMode, buffers, unavailableReason);
+  markTypedAnalysisUnavailable(request, context, invocationId, requestedTyped, typeMode, buffers, unavailableReason, emitProgress);
   return { unavailableReason };
 }
 
 function analyzeAvailableTypedSources(
 	context: AnalysisContext,
 	typedContext: NonNullable<ReturnType<AnalysisContext["createTypedContext"]>["context"]>,
-	requestedTyped: ReadonlySet<string>,
-	buffers: AnalysisBuffers,
+	invocationId: string,
+  requestedTyped: ReadonlySet<string>,
+  buffers: AnalysisBuffers,
+  emitProgress?: (record: ResponseRecord) => void,
 ): void {
-	for (const entry of context.sources) {
+	const entries = context.sources.filter((entry) => !entry.isDeclaration);
+	let completed = 0;
+	for (const entry of entries) {
 		if (entry.isDeclaration) continue;
 		if (entry.syntaxErrors.length > 0) {
 			addTypedCoverage(entry, requestedTyped, buffers, "failed", "syntax errors prevent trustworthy typed analysis");
+		emitFileProgress(emitProgress, invocationId, entry, [], requestedTyped.size === 0 ? [] : buffers.coverage.slice(-requestedTyped.size), true);
+			completed++;
+			emitProgress?.(responseAnalysisProgress(invocationId, entry.unitId, "typescript_typed", completed, entries.length, entries.length));
 			continue;
 		}
-		buffers.measurements.push(...analyzeTypeSafety(entry, typedContext, requestedTyped));
+		const measurements = analyzeTypeSafety(entry, typedContext, requestedTyped);
+		const coverage = requestedTyped.size;
+		buffers.measurements.push(...measurements);
 		addTypedCoverage(entry, requestedTyped, buffers, "complete", "compiler-aware kernel completed with a trustworthy type graph");
+		emitFileProgress(emitProgress, invocationId, entry, measurements, coverage === 0 ? [] : buffers.coverage.slice(-coverage), true);
+		completed++;
+		emitProgress?.(responseAnalysisProgress(invocationId, entry.unitId, "typescript_typed", completed, entries.length, entries.length));
 	}
 }
 
@@ -379,8 +271,9 @@ function markTypedAnalysisUnavailable(
 	invocationId: string,
 	requestedTyped: ReadonlySet<string>,
 	typeMode: TypeMode,
-	buffers: AnalysisBuffers,
-	unavailableReason: string | undefined,
+  buffers: AnalysisBuffers,
+  unavailableReason: string | undefined,
+  emitProgress?: (record: ResponseRecord) => void,
 ): void {
   const reason = unavailableReason ?? "typed analysis is unavailable";
   const hasSyntaxUsableSource = context.sources.some(
@@ -409,10 +302,11 @@ function markTypedAnalysisUnavailable(
 	} else {
 	  addTypedCoverage(entry, requestedTyped, buffers, "unavailable", reason);
 	}
+	emitFileProgress(emitProgress, invocationId, entry, [], requestedTyped.size === 0 ? [] : buffers.coverage.slice(-requestedTyped.size), true);
   }
 }
 
-function finishAnalysis(
+export function finishAnalysis(
   request: AnalyzerRequest,
   context: AnalysisContext,
   invocationId: string,
@@ -475,119 +369,16 @@ function finishAnalysis(
   return buffers.records;
 }
 
-export function analyze(input: unknown): ResponseRecord[] {
-  let invocationId = inputInvocationId(input);
-  let request: AnalyzerRequest;
-  try {
-    request = validateRequest(input);
-    invocationId = request.invocation_id;
-  } catch (error) {
-    return [
-      responseDiagnostic(invocationId, {
-        code: "protocol.invalid_request",
-        severity: "error",
-        message: error instanceof Error ? error.message : String(error),
-      }),
-      {
-        type: "terminal",
-        ...protocolEnvelope(invocationId),
-        status: "failure",
-        message: "invalid analyzer request",
-        analyzed_unit_ids: [],
-        failed_unit_ids: [],
-        skipped_unit_ids: [],
-      },
-    ];
-  }
-
-  const records: ResponseRecord[] = [];
-  let context: AnalysisContext;
-  try {
-    context = AnalysisContext.create(request);
-  } catch (error) {
-    records.push(
-      responseDiagnostic(invocationId, {
-        code: "typescript.source_inventory_failed",
-        severity: "error",
-        message: error instanceof Error ? error.message : String(error),
-      }),
-    );
-    records.push({
-      type: "terminal",
-      ...protocolEnvelope(invocationId),
-      status: "failure",
-      message: "source inventory failed",
-      analyzed_unit_ids: [],
-      failed_unit_ids: request.units.map((unit) => unit.unit_id),
-      skipped_unit_ids: [],
-    });
-    return records;
-  }
-
-  const requested = new Set(
-    request.components.map((item) => item.component_id),
-  );
-  const requestedStructural = new Set(
-    [...requested].filter((item) => STRUCTURAL_COMPONENTS.has(item)),
-  );
-  const requestedTyped = new Set(
-    [...requested].filter((item) => TYPED_COMPONENTS.has(item)),
-  );
-  const requestedDepth = request.components.some(
-    (item) =>
-      item.component_id === "module_shallowness" &&
-      item.definition_version === "responsibility-burden-v4",
-  );
-  const requestedSyntax = new Set(
-    [...requestedStructural].filter(
-      (item) => !requestedDepth || item !== "module_shallowness",
-    ),
-  );
-  const measurements: Measurement[] = [];
-  const coverage: Coverage[] = [];
-  const failedUnits = new Set<string>();
-
-  if (requestedStructural.size > 0) {
-    records.push(
-      responseDiagnostic(invocationId, {
-        code: "typescript.structural_semantic_exceptions",
-        severity: "info",
-        message:
-          "TypeScript pmd-v1 exceptions are active: optional chaining, nullish coalescing, async suspension, and generator yield are linear; nested functions are separate cyclomatic/NPath subjects.",
-      }),
-    );
-  }
-
-  const buffers: AnalysisBuffers = {
-    measurements,
-    coverage,
-    failedUnits,
-    records,
-  };
-  for (const issue of context.inventoryIssues) {
-    const diagnostic: Diagnostic = {
-      unit_id: issue.unitId,
-      path: issue.path,
-      code: "typescript.source_inventory_failed",
-      severity: "error",
-      message: issue.message,
-    };
-    records.push(responseDiagnostic(invocationId, diagnostic));
-    for (const component of requested) {
-      buffers.coverage.push({
-        unit_id: issue.unitId,
-        path: issue.path,
-        component_id: component,
-        definition_version:
-          COMPONENT_BY_ID.get(component)?.definition_version ?? "unknown",
-        state: "failed",
-        reason: issue.message,
-      });
-    }
-  }
-  analyzeSyntaxSources(context, invocationId, requestedSyntax, buffers);
-
-  const typeMode: TypeMode = request.options?.typescript_types ?? "auto";
+export function analyze(
+  input: unknown,
+  emitProgress?: (record: ResponseRecord) => void,
+): ResponseRecord[] {
+  const prepared = prepareAnalysis(input, emitProgress);
+  if (Array.isArray(prepared)) return prepared;
+  const { request, context, invocationId, requested, requestedStructural,
+    requestedTyped, requestedDepth, requestedSyntax, typeMode, buffers } = prepared;
+  const progress = request.options?.stream_results === true ? emitProgress : undefined;
+  analyzeSyntaxSources(context, invocationId, requestedSyntax, buffers, progress);
   let typedUnavailableReason: string | undefined;
   let typedContext: TypedContext | undefined;
   if (requestedTyped.size > 0 || requestedDepth) {
@@ -598,6 +389,7 @@ export function analyze(input: unknown): ResponseRecord[] {
       requestedTyped,
       typeMode,
       buffers,
+      progress,
       requestedDepth,
     );
     typedUnavailableReason = typedResult.unavailableReason;
@@ -606,7 +398,7 @@ export function analyze(input: unknown): ResponseRecord[] {
   if (requestedDepth) {
     const depth = analyzeDepth(request, context, typedContext);
     for (const item of depth.diagnostics)
-      records.push(responseDiagnostic(invocationId, item));
+      buffers.records.push(responseDiagnostic(invocationId, item));
     buffers.measurements.push(...depth.measurements);
     buffers.coverage.push(...depth.coverage);
   }

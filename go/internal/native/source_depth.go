@@ -2,11 +2,7 @@ package native
 
 import (
 	"context"
-	"io"
 	"math"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/blater/slopwatch/internal/report"
@@ -16,11 +12,7 @@ import (
 // Estimates are attached to fresh semantic units before partitioning and cache
 // persistence. Warm reads reuse them; incremental runs only visit supplied units.
 func withSourceDepthEstimates(ctx context.Context, request analyzerRequest, inputs scoreInputs) (scoreInputs, error) {
-	enabled := false
-	for _, component := range request.Components {
-		enabled = enabled || component.ID == "module_shallowness" && component.Version == ShallowDefinitionV4
-	}
-	if !enabled {
+	if !sourceDepthEnabled(request) {
 		return inputs, nil
 	}
 	needed := false
@@ -40,109 +32,61 @@ func withSourceDepthEstimates(ctx context.Context, request analyzerRequest, inpu
 		return inputs, nil
 	}
 	var files []sourceestimate.File
-	seen := map[string]bool{}
-	truncated := map[string]bool{}
-	const maxSourceBytes = 2 << 20
-	for _, unit := range request.Units {
-		for _, path := range unit.Paths {
-			if err := ctx.Err(); err != nil {
-				return inputs, err
-			}
-			if seen[path] {
-				continue
-			}
-			seen[path] = true
-			stream, err := os.Open(filepath.Join(request.Workspace, filepath.FromSlash(path)))
-			if err != nil {
-				// Preserve the analyzer's read/syntax diagnostics. An unreadable
-				// source cannot honestly receive a source-based estimate.
-				continue
-			}
-			data, readErr := io.ReadAll(io.LimitReader(stream, maxSourceBytes+1))
-			closeErr := stream.Close()
-			if readErr != nil || closeErr != nil {
-				continue
-			}
-			if len(data) > maxSourceBytes {
-				truncated[path] = true
-				data = data[:maxSourceBytes]
-			}
-			files = append(files, sourceestimate.File{Path: path, Language: unit.Language, Source: data})
-		}
-	}
-	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
-	estimates, fileEstimates := sourceestimate.AnalyzeWithAttribution(files)
-	byBoundary := map[string][]sourceestimate.Result{}
-	for _, file := range files {
-		if err := ctx.Err(); err != nil {
+	var truncated map[string]bool
+	var estimates map[string]sourceestimate.Result
+	if run := sourceDepthRunFromContext(ctx); run != nil {
+		var err error
+		files, truncated, estimates, err = run.wait()
+		if err != nil {
 			return inputs, err
 		}
-		estimate, exists := estimates[file.Path]
-		if attributed, ok := fileEstimates[file.Path]; ok {
-			estimate, exists = attributed, true
-			if file.Language == "go" {
-				projectGoFileDepth(&inputs, file, !truncated[file.Path])
-			}
-			projectAttributedFileDepth(&inputs, file, estimate)
-		}
-		if !exists {
-			continue
-		}
-		if truncated[file.Path] {
-			estimate.Limitations = append(estimate.Limitations, "source_byte_limit")
-			if !estimate.Applicable {
-				// A truncated prefix cannot demonstrate absence of abstraction.
-				estimate.Applicable, estimate.Burden, estimate.Hidden = true, 1, 1
-				estimate.Categories = map[string]float64{"unknown_outcome": 1}
-			}
-		}
-		inputs.languages[file.Path] = file.Language
-		if inputs.coverage[file.Path] == nil {
-			inputs.coverage[file.Path] = map[string]string{"module_shallowness": "partial"}
-		}
-		ids := inputs.depthByPath[file.Path]
-		if len(ids) == 0 {
-			id := "source:" + file.Language + ":" + file.Path
-			inputs.depth[id] = report.DepthBoundary{ID: id, State: "partial", Files: []string{file.Path},
-				Boundary: map[string]any{"artifact": file.Path, "audience": "source", "view": "file", "symbol": file.Path}}
-			inputs.depthByPath[file.Path] = []string{id}
-			ids = inputs.depthByPath[file.Path]
-		}
-		for _, id := range ids {
-			boundary := inputs.depth[id]
-			if !needsSourceDepth(boundary) {
-				if boundary.State == "measured" && estimate.Grade != nil && !estimate.RoleOnly && len(boundary.DeclarationFiles) == 0 {
-					inputs.depth[id] = gradedMeasuredBoundary(boundary, estimate)
-				}
-				continue
-			}
-			if _, attributed := fileEstimates[file.Path]; attributed {
-				// The bounded result selects the maximum declared abstraction.
-				// An incomplete adapter aggregate has a different denominator.
-				boundary.Raw = nil
-				inputs.depth[id] = boundary
-			}
-			byBoundary[id] = append(byBoundary[id], estimate)
+	} else {
+		var err error
+		files, truncated, err = readSourceDepthFiles(ctx, request)
+		if err != nil {
+			return inputs, err
 		}
 	}
-	// Package boundaries can span many files. Combine once, preserving shared
-	// helper responsibility identities, rather than replacing the same boundary
-	// repeatedly with whichever source file happened to be visited last.
-	for id, estimates := range byBoundary {
-		inputs.depth[id] = estimateDepthBoundary(inputs.depth[id], sourceestimate.Merge(estimates...))
-	}
-
-	for _, file := range files {
-
-		// The adapter's old availability state describes precise evidence. Once
-		// a source rating exists, recompute the numeric projection independently.
-		state := ""
-		for _, id := range inputs.depthByPath[file.Path] {
-			state = mergeDepthState(state, inputs.depth[id].State)
+	progress := &sourceDepthProgress{ctx: ctx, inputs: &inputs, truncated: truncated, byBoundary: map[string][]sourceestimate.Result{}, finalized: map[string]bool{}}
+	progress.shared = sharedDepthBoundaries(inputs)
+	if estimates != nil {
+		for _, file := range files {
+			if estimate, ok := estimates[file.Path]; ok && progress.err == nil {
+				progress.err = progress.apply(file, estimate)
+			}
 		}
-		inputs.depthStates[file.Path] = state
+	} else {
+		fileCount := sourceRequestFileCount(request)
+		_, _ = sourceestimate.AnalyzeWithAttributionProgressAndStatus(files, func(file sourceestimate.File, estimate sourceestimate.Result) {
+			if progress.err == nil {
+				progress.err = progress.apply(file, estimate)
+			}
+		}, func(status sourceestimate.AttributionProgress) {
+			emitSourceEstimateProgress(ctx, request, status, fileCount)
+		})
 	}
+	if progress.err != nil {
+		return inputs, progress.err
+	}
+	progress.finalize(files)
 	return inputs, nil
+}
+
+func sharedDepthBoundaries(inputs scoreInputs) map[string]bool {
+	shared := make(map[string]bool)
+	for id, boundary := range inputs.depth {
+		shared[id] = len(boundary.Files) > 1
+	}
+	seen := map[string]int{}
+	for _, ids := range inputs.depthByPath {
+		for _, id := range ids {
+			seen[id]++
+			if seen[id] > 1 {
+				shared[id] = true
+			}
+		}
+	}
+	return shared
 }
 
 func needsSourceDepth(boundary report.DepthBoundary) bool {

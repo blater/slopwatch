@@ -173,8 +173,9 @@ func analyzeLanguage(analyzer *analysisEngine, parent context.Context, catalog c
 	requestOptions := analyzerRequestOptions(analyzer, options, language, typeScriptMode)
 	unitOptions := map[string]any{"include_tests": options.IncludeTests, "follow_symlinks": options.FollowSymlinks}
 	request := analyzerRequest{"request", 1, invocation, analyzer.workspace, []protocolUnit{{language + "-unit", language, files, unitOptions}}, components, requestOptions, map[string]int{}}
-	records, runErr := runAnalyzer(parent, executable, request)
-	return recoverAnalyzerInputs(parent, request, records, runErr)
+	progressCtx := configureAnalysisProgress(parent, catalog, pathSet(files), options.PassScore)
+	records, runErr := runAnalyzer(progressCtx, executable, request)
+	return recoverAnalyzerInputs(progressCtx, request, records, runErr)
 }
 
 func analyzerRequestOptions(analyzer *analysisEngine, options Options, language, typeScriptMode string) map[string]any {

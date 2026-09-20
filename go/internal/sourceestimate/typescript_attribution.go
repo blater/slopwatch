@@ -29,7 +29,7 @@ func AnalyzeTypeScriptFiles(files []File) map[string]Result {
 	return analyzeTypeScriptUnits(units, byKey)
 }
 
-func analyzeTypeScriptUnits(units []unit, byKey map[string][]*operation) map[string]Result {
+func analyzeTypeScriptUnits(units []unit, byKey map[string][]*operation, callbacks ...func(File, Result)) map[string]Result {
 	roles := supportingTypeScriptOwners(units)
 	rolesByFile := map[int]map[string]string{}
 	for key, role := range roles {
@@ -107,6 +107,9 @@ func analyzeTypeScriptUnits(units []unit, byKey map[string][]*operation) map[str
 			best.Burden, best.Hidden = 0, 0
 		}
 		results[u.file.Path] = best
+		if len(callbacks) > 0 && callbacks[0] != nil {
+			callbacks[0](u.file, best)
+		}
 	}
 	return results
 }

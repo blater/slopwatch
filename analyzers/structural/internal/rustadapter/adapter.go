@@ -65,6 +65,14 @@ func (Adapter) ParserModes() []string  { return []string{"syn-full-no-macro-expa
 
 // Analyze requests facts for the exact canonical inventory from the Rust helper.
 func (adapter Adapter) Analyze(workspace string, paths []string, options map[string]any) (*facts.Program, error) {
+	return adapter.analyze(workspace, paths, options, nil)
+}
+
+func (adapter Adapter) AnalyzeProgress(workspace string, paths []string, options map[string]any, progress func(*facts.Program)) (*facts.Program, error) {
+	return adapter.analyze(workspace, paths, options, progress)
+}
+
+func (adapter Adapter) analyze(workspace string, paths []string, options map[string]any, progress func(*facts.Program)) (*facts.Program, error) {
 	executable := adapter.Executable
 	if executable == "" {
 		executable = defaultExecutable()
@@ -77,11 +85,20 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 		paths,
 		includeTests,
 		depth,
-	})
+	}, progress != nil)
 	if err != nil {
 		return nil, err
 	}
-	response, decodeErr := decodeFactResponse(stdout)
+	var response factResponse
+	var decodeErr error
+	if progress != nil {
+		response, decodeErr = decodeFactStream(stdout, options, progress)
+	} else {
+		response, decodeErr = decodeFactResponse(stdout)
+	}
+	if decodeErr != nil {
+		_, _ = io.Copy(io.Discard, stdout)
+	}
 	if err := command.Wait(); err != nil {
 		return nil, fmt.Errorf("Rust fact adapter failed: %w: %s", err, stderr.String())
 	}
@@ -91,12 +108,15 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 	return validateFactResponse(response)
 }
 
-func startFactCommand(executable string, request factRequest) (*exec.Cmd, *bytes.Buffer, io.ReadCloser, error) {
+func startFactCommand(executable string, request factRequest, stream ...bool) (*exec.Cmd, *bytes.Buffer, io.ReadCloser, error) {
 	payload, err := json.Marshal(request)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("encode Rust fact request: %w", err)
 	}
 	command := exec.Command(executable)
+	if len(stream) > 0 && stream[0] {
+		command.Args = append(command.Args, "--stream")
+	}
 	command.Stdin = bytes.NewReader(payload)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr

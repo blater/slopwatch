@@ -73,12 +73,19 @@ func runMissingLanguage(analyzer *analysisEngine, ctx context.Context, workspace
 	if runner == nil {
 		runner = runAnalyzerUnits
 	}
-	inputs, err := runner(ctx, analyzerExecutable(analyzer.root, language), request)
+	allowed := map[string]bool{}
+	for _, unit := range units {
+		for _, path := range unit.owned {
+			allowed[path] = true
+		}
+	}
+	progressCtx := configureAnalysisProgress(ctx, catalog, allowed, options.PassScore)
+	inputs, err := runner(progressCtx, analyzerExecutable(analyzer.root, language), request)
 	combined, exists := inputs[combinedID]
 	if err == nil && !exists {
 		err = fmt.Errorf("%s analyzer omitted combined batch %s", language, combinedID)
 	}
-	combined, err = recoverAnalyzerInputs(ctx, request, combined, err)
+	combined, err = recoverAnalyzerInputs(progressCtx, request, combined, err)
 	if err != nil {
 		return nil, err
 	}

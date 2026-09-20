@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import ts from "typescript";
 import type { AnalysisContext, TypedContext } from "./context.js";
 import type { AnalyzerRequest, Coverage, Diagnostic, Measurement, SourceEntry, Subject } from "./model.js";
-import type { BoundaryIdentity, DepthFacts, EvaluatorResponse } from "./depth-model.js";
+import type { BoundaryIdentity, DepthBoundary, DepthFacts, EvaluatorResponse } from "./depth-model.js";
 import { buildFacts } from "./depth-facts.js";
 
 const MAX_EVALUATOR_BYTES = 64 * 1024 * 1024;
@@ -26,7 +26,7 @@ function subject(entry: SourceEntry): Subject {
   };
 }
 
-function boundaryIdentityString(boundary: Partial<BoundaryIdentity>): string {
+export function boundaryIdentityString(boundary: Partial<BoundaryIdentity>): string {
   const fields = [boundary.artifact, boundary.audience, boundary.view, boundary.symbol].map(
     (value) => typeof value === "string" ? value : "",
   );
@@ -50,7 +50,7 @@ function invokeEvaluator(executable: string, facts: DepthFacts): EvaluatorRespon
   return response as EvaluatorResponse;
 }
 
-function depthMeasurement(entry: SourceEntry, score: Record<string, unknown>, policyRevision: string): Measurement {
+export function depthMeasurement(entry: SourceEntry, score: Record<string, unknown>, policyRevision: string): Measurement {
   const boundary = (score.boundary ?? {}) as BoundaryIdentity;
   const state = typeof score.state === "string" ? score.state : "partial";
   const shallow = typeof score.shallow === "number" ? score.shallow : null;

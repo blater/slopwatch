@@ -194,6 +194,10 @@ pub fn parse_program(
     include_tests: bool,
     depth: bool,
 ) -> Result<Program, String> {
+    parse_program_progress(workspace, paths, include_tests, depth, false)
+}
+
+pub fn parse_program_progress(workspace: &Path, paths: &[String], include_tests: bool, depth: bool, stream: bool) -> Result<Program, String> {
     let workspace = workspace
         .canonicalize()
         .map_err(|error| error.to_string())?;
@@ -201,7 +205,8 @@ pub fn parse_program(
     let mut valid_files = Vec::with_capacity(paths.len());
     let mut failures = Vec::new();
     let mut seen = HashSet::with_capacity(paths.len());
-    for requested in paths {
+    for (position, requested) in paths.iter().enumerate() {
+        crate::stream::progress(stream, "parsing", position, paths.len())?;
         if !seen.insert(requested) {
             return Err(format!("duplicate Rust source path: {requested}"));
         }
@@ -248,6 +253,7 @@ pub fn parse_program(
             }
         }
     }
+    crate::stream::progress(stream, "parsing", paths.len(), paths.len())?;
     let mut program = Program {
         files: valid_files,
         failures,
@@ -272,11 +278,13 @@ pub fn parse_program(
             program.unavailable.insert(path.clone(), components);
         }
     }
-    for (path, syntax) in &parsed {
+    for (position, (path, syntax)) in parsed.iter().enumerate() {
+        crate::stream::progress(stream, "types", position, parsed.len())?;
         declare_types(&syntax.items, path, &mut program.types, include_tests);
     }
     let type_owners = TypeOwnerIndex::new(&program.types);
-    for (path, syntax) in &parsed {
+    for (position, (path, syntax)) in parsed.iter().enumerate() {
+        crate::stream::progress(stream, "syntax", position, parsed.len())?;
         collect_functions(
             &syntax.items,
             path,
@@ -314,8 +322,9 @@ pub fn parse_program(
             .then(left.location.line.cmp(&right.location.line))
             .then(left.location.column.cmp(&right.location.column))
     });
+    if stream { crate::stream::write(&serde_json::json!({"type": "syntax", "program": &program}))?; }
     if depth {
-        program.depth = Some(crate::depth::collect(&parsed, &program.failures));
+        program.depth = Some(crate::depth::collect_progress(&parsed, &program.failures, stream)?);
     }
     Ok(program)
 }

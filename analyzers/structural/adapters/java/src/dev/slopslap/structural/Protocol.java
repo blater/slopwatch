@@ -35,10 +35,22 @@ final class Protocol {
 
     static void writeSuccess(OutputStream output, Facts.Program program) throws IOException {
         DataOutputStream data = new DataOutputStream(new BufferedOutputStream(output, 64 << 10));
-        data.writeInt(RESPONSE_MAGIC);
-        data.writeInt(RESPONSE_SCHEMA_VERSION);
-        data.writeBoolean(true);
-        writeProgram(data, program);
+        writeSuccessHeader(data);
+        writeProgramPrefix(data, program);
+        writeStrings(data, program.depth);
+        data.flush();
+    }
+
+    static void writeSuccessPrefix(OutputStream output, Facts.Program program) throws IOException {
+        DataOutputStream data = new DataOutputStream(new BufferedOutputStream(output, 64 << 10));
+        writeSuccessHeader(data);
+        writeProgramPrefix(data, program);
+        data.flush();
+    }
+
+    static void writeSuccessDepth(OutputStream output, List<String> depth) throws IOException {
+        DataOutputStream data = new DataOutputStream(new BufferedOutputStream(output, 64 << 10));
+        writeStrings(data, depth);
         data.flush();
     }
 
@@ -75,6 +87,12 @@ final class Protocol {
         byte[] encoded = value.getBytes(StandardCharsets.UTF_8);
         data.writeInt(encoded.length);
         data.write(encoded);
+    }
+
+    private static void writeSuccessHeader(DataOutputStream data) throws IOException {
+        data.writeInt(RESPONSE_MAGIC);
+        data.writeInt(RESPONSE_SCHEMA_VERSION);
+        data.writeBoolean(true);
     }
 
     private static void writeLocation(DataOutputStream data, Facts.Location value) throws IOException {
@@ -166,7 +184,7 @@ final class Protocol {
         writeString(data, value.confidence);
     }
 
-    private static void writeProgram(DataOutputStream data, Facts.Program value) throws IOException {
+    private static void writeProgramPrefix(DataOutputStream data, Facts.Program value) throws IOException {
         writeList(data, value.functions, Protocol::writeFunction);
         writeList(data, value.types, Protocol::writeType);
         writeList(data, value.publicOperations, Protocol::writeOperation);
@@ -178,7 +196,6 @@ final class Protocol {
             writeString(data, failure.code);
             writeString(data, failure.diagnostic);
         }
-        writeStrings(data, value.depth);
     }
 
     private static void writeStrings(DataOutputStream data, List<String> values) throws IOException {

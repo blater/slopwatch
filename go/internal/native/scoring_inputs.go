@@ -8,14 +8,15 @@ import (
 )
 
 type scoreInputs struct {
-	observations map[string]map[string][]observation
-	coverage     map[string]map[string]string
-	languages    map[string]string
-	diagnostics  []map[string]any
-	plans        []map[string]any
-	depth        map[string]report.DepthBoundary
-	depthByPath  map[string][]string
-	depthStates  map[string]string
+	replaceCompleted bool
+	observations     map[string]map[string][]observation
+	coverage         map[string]map[string]string
+	languages        map[string]string
+	diagnostics      []map[string]any
+	plans            []map[string]any
+	depth            map[string]report.DepthBoundary
+	depthByPath      map[string][]string
+	depthStates      map[string]string
 }
 
 func newScoreInputs() scoreInputs {
@@ -34,6 +35,15 @@ func (inputs *scoreInputs) add(record protocolRecord) error {
 	case "measurement":
 		if record.Path == nil {
 			return fmt.Errorf("measurement has no path")
+		}
+		// A later component result replaces its previous completed snapshot.
+		if _, completed := inputs.coverage[*record.Path][record.Component]; completed && inputs.replaceCompleted {
+			delete(inputs.coverage[*record.Path], record.Component)
+			delete(inputs.observations[*record.Path], record.Component)
+			if record.Component == "module_shallowness" {
+				replacePreviewDepthPath(inputs, *record.Path, nil)
+				delete(inputs.depthStates, *record.Path)
+			}
 		}
 		if isDepthV4(record) {
 			return inputs.addDepth(record)

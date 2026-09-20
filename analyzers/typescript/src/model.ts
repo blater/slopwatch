@@ -29,6 +29,7 @@ export interface AnalyzerRequest {
   components: ComponentRequest[];
   options?: {
     typescript_types?: TypeMode;
+    stream_results?: boolean;
     tsconfig?: string;
     [key: string]: unknown;
   };

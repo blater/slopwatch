@@ -19,6 +19,12 @@ final class JavaDepth {
 
     static List<String> collect(JavacTask task, List<CompilationUnitTree> units, Path workspace,
                                 Facts.Program program, DiagnosticCollector<JavaFileObject> diagnostics) throws Exception {
+        return collect(task, units, workspace, program, diagnostics, null);
+    }
+
+    static List<String> collect(JavacTask task, List<CompilationUnitTree> units, Path workspace,
+            Facts.Program program, DiagnosticCollector<JavaFileObject> diagnostics, DepthStream.Writer stream) throws Exception {
+        if (stream != null) DepthStream.observe(task, stream);
         task.analyze();
         Trees trees = Trees.instance(task);
         Elements elements = task.getElements();
@@ -38,7 +44,15 @@ final class JavaDepth {
                 || program.failures.stream().anyMatch(failure -> !parsedFiles.contains(failure.path));
         Map<String, Map<String, Object>> roles = JavaDepthRoles.collect(
                 trees, elements, types, units, workspace, included, failedFiles, globallyUnknown, errors);
+        Map<String, Integer> remaining = new HashMap<>();
+        Map<String, List<String>> packageFiles = new HashMap<>();
         for (CompilationUnitTree unit : units) {
+            String file = workspace.relativize(Path.of(unit.getSourceFile().toUri())).toString().replace('\\', '/');
+            if (included.contains(file)) remaining.merge(String.valueOf(unit.getPackageName()), 1, Integer::sum);
+        }
+        int completed = 0;
+        for (CompilationUnitTree unit : units) {
+            int first = boundaries.size();
             String file = workspace.relativize(Path.of(unit.getSourceFile().toUri())).toString().replace('\\', '/');
             if (!included.contains(file)) continue;
             for (Tree declaration : unit.getTypeDecls()) {
@@ -59,6 +73,19 @@ final class JavaDepth {
                 // the synthetic global-limit fallback.
                 boundaryFlows.add(sourceIncomplete ? null : boundary.flow());
             }
+            if (stream != null) {
+                for (String chunk : encodeChunks(boundaries.subList(first, boundaries.size()), boundaryFlows.subList(first, boundaryFlows.size()), List.of(), program.files)) {
+                    stream.write(Map.of("type", "depth", "group", String.valueOf(unit.getPackageName()), "payload", chunk));
+                }
+                String group = String.valueOf(unit.getPackageName());
+                packageFiles.computeIfAbsent(group, key -> new ArrayList<>()).add(file);
+                if (remaining.merge(group, -1, Integer::sum) == 0) stream.write(Map.of("type", "group_done", "group", group, "paths", packageFiles.remove(group)));
+                stream.write(Map.of("type", "progress", "stage", "semantic", "completed", ++completed, "total", program.files.size()));
+            }
+        }
+        if (stream != null) {
+            if (!errors.reasons().isEmpty()) stream.write(Map.of("type", "depth", "payload", DepthJson.encode(Map.of("boundaries", List.of(), "flows", List.of(), "reasons", errors.reasons()))));
+            return List.of();
         }
         return encodeChunks(boundaries, boundaryFlows, errors.reasons(), program.files);
     }

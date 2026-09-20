@@ -2,6 +2,7 @@ package follow
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,6 +40,7 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 		return handleAnalysisRetry(model)
 	case animationTick:
 		model.animationFrame++
+		flushAnalysisProgress(model, false)
 		return model, tickAnimationFor(*model)
 	case startupLogoExpired:
 		model.startupLogoExpired = true
@@ -93,7 +95,8 @@ func handleWatcherReady(model *Model, message watcherReady) (tea.Model, tea.Cmd)
 	}
 	model.analyzing = true
 	markFreshness(model, nil, report.FreshnessVerifying, "validating current workspace")
-	return model, tea.Batch(model.resumeWatcherWait(), startupAnalysisCommand(model.analyzer, model.options.Targets))
+	emit := beginAnalysisProgress(model, report.FreshnessVerifying, "analysis in progress")
+	return model, tea.Batch(model.resumeWatcherWait(), startupAnalysisCommandWithProgress(model.analyzer, model.options.Targets, emit))
 }
 
 func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -144,7 +147,8 @@ func handleFullSourceChange(model *Model, message sourceChange, command tea.Cmd)
 		return model, command
 	}
 	model.analyzing = true
-	return model, tea.Batch(command, analysisCommand(model.analyzer, model.options.Targets, nil, true))
+	emit := beginAnalysisProgress(model, report.FreshnessRefreshing, "analysis in progress")
+	return model, tea.Batch(command, analysisCommandWithProgress(model.analyzer, model.options.Targets, nil, true, emit))
 }
 
 func handlePartialSourceChange(model *Model, message sourceChange, command tea.Cmd) (tea.Model, tea.Cmd) {
@@ -158,7 +162,8 @@ func handlePartialSourceChange(model *Model, message sourceChange, command tea.C
 	}
 	paths := takeQueue(model)
 	model.analyzing = true
-	return model, tea.Batch(command, analyzeExisting(*model, paths))
+	emit := beginAnalysisProgress(model, report.FreshnessRefreshing, "analysis in progress")
+	return model, tea.Batch(command, analyzeExistingWithProgress(*model, paths, emit))
 }
 
 func queueChangedPaths(model *Model, paths []string) {
@@ -178,10 +183,17 @@ func queueChangedPaths(model *Model, paths []string) {
 func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.Cmd) {
 	if model.runtime.discardAnalysis {
 		model.runtime.discardAnalysis = false
+		clearAnalysisProgress(model)
 		model.analyzing = false
 		return continueQueuedAnalysis(model)
 	}
 	if errors.Is(message.err, native.ErrWorkspaceChanged) {
+		clearAnalysisProgress(model)
+		if message.full {
+			markFreshness(model, nil, report.FreshnessStaleError, "workspace changed before verification completed")
+		} else {
+			markFreshness(model, message.paths, report.FreshnessStaleError, "workspace changed before verification completed")
+		}
 		if message.full {
 			model.runtime.pendingFullAnalysis = true
 		} else {
@@ -205,6 +217,13 @@ func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.
 		message.document.Depth = nil
 		message.document.Summary = map[string]any{"discovered_source_count": 0}
 	}
+	if message.err != nil {
+		flushAnalysisProgress(model, true)
+	}
+	if buffer := model.runtime.analysisProgress; buffer != nil {
+		message.previous = buffer.previous
+	}
+	clearAnalysisProgress(model)
 	wasInitial := model.initialAnalysis
 	model.analyzing = false
 	if message.full {
@@ -216,6 +235,49 @@ func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.
 		handleAnalysisSuccess(model, message, wasInitial)
 	}
 	return continueQueuedAnalysis(model)
+}
+
+func beginAnalysisProgress(model *Model, freshness report.Freshness, note string) func(report.Document) {
+	clearAnalysisProgress(model)
+	model.runtime.scanProgress = map[string]report.ScanProgress{}
+	model.runtime.scanFiles = map[string]bool{}
+	model.runtime.scanFinished, model.runtime.scanTotal = 0, 0
+	model.runtime.analysisGeneration++
+	buffer := newAnalysisProgressBuffer(model.runtime.analysisGeneration, freshness, note)
+	buffer.previous = append([]report.File(nil), model.files.Document.Files...)
+	model.runtime.analysisProgress = buffer
+	return buffer.add
+}
+
+func clearAnalysisProgress(model *Model) {
+	if model.runtime.analysisProgress != nil {
+		model.runtime.analysisProgress.deactivate()
+		model.runtime.analysisProgress = nil
+	}
+}
+
+func flushAnalysisProgress(model *Model, force bool) {
+	if model.runtime.discardAnalysis || model.runtime.watchReconfigurePending {
+		return
+	}
+	buffer := model.runtime.analysisProgress
+	if buffer == nil {
+		return
+	}
+	if buffer.generation != model.runtime.analysisGeneration {
+		return
+	}
+	document := buffer.take(time.Now(), force)
+	updateScanProgress(model, document)
+	if len(document.Files) == 0 && len(document.Depth) == 0 && len(document.Diagnostics) == 0 {
+		return
+	}
+	sort.Slice(document.Files, func(left, right int) bool { return document.Files[left].Path < document.Files[right].Path })
+	paths := make([]string, 0, len(document.Files))
+	for _, file := range document.Files {
+		paths = append(paths, file.Path)
+	}
+	merge(model, analysisResult{document: document, replace: paths, progress: true})
 }
 
 func handleAnalysisRetry(model *Model) (tea.Model, tea.Cmd) {
@@ -234,6 +296,7 @@ func handleAnalysisError(model *Model, message analysisResult) {
 
 func handleAnalysisSuccess(model *Model, message analysisResult, wasInitial bool) {
 	model.status = ""
+	message.progress = wasInitial
 	merge(model, message)
 	model.clampPathOffset()
 	if wasInitial {
@@ -284,12 +347,14 @@ func continueQueuedAnalysis(model *Model) (tea.Model, tea.Cmd) {
 		model.queued = map[string]bool{}
 		model.analyzing = true
 		markFreshness(model, nil, report.FreshnessRefreshing, "workspace inputs changed")
-		return model, analysisCommand(model.analyzer, model.options.Targets, nil, true)
+		emit := beginAnalysisProgress(model, report.FreshnessRefreshing, "analysis in progress")
+		return model, analysisCommandWithProgress(model.analyzer, model.options.Targets, nil, true, emit)
 	}
 	if len(model.queued) > 0 {
 		paths := takeQueue(model)
 		model.analyzing = true
-		return model, analyzeExisting(*model, paths)
+		emit := beginAnalysisProgress(model, report.FreshnessRefreshing, "analysis in progress")
+		return model, analyzeExistingWithProgress(*model, paths, emit)
 	}
 	return model, nil
 }

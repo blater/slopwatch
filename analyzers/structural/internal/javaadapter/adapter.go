@@ -66,6 +66,18 @@ func (Adapter) ParserModes() []string  { return []string{"jdk-compiler-tree-no-p
 
 // Analyze requests facts for the exact canonical inventory from the Java helper.
 func (adapter Adapter) Analyze(workspace string, paths []string, options map[string]any) (*facts.Program, error) {
+	return adapter.analyze(workspace, paths, options, nil)
+}
+
+// AnalyzeProgress exposes decoded syntax facts before the helper finishes depth.
+func (adapter Adapter) AnalyzeProgress(workspace string, paths []string, options map[string]any, progress func(*facts.Program)) (*facts.Program, error) {
+	if options["depth_profile"] != "responsibility-v4" {
+		return adapter.Analyze(workspace, paths, options)
+	}
+	return adapter.analyze(workspace, paths, options, progress)
+}
+
+func (adapter Adapter) analyze(workspace string, paths []string, options map[string]any, progress func(*facts.Program)) (*facts.Program, error) {
 	java := adapter.JavaExecutable
 	if configured, ok := options["java_path"].(string); java == "" && ok {
 		java = configured
@@ -78,7 +90,7 @@ func (adapter Adapter) Analyze(workspace string, paths []string, options map[str
 		jar = defaultHelperJar()
 	}
 	includeTests, _ := options["include_tests"].(bool)
-	program, err := analyzeProfile(java, jar, workspace, paths, includeTests, options)
+	program, err := analyzeProfile(java, jar, workspace, paths, includeTests, options, streamCallbacks{syntax: progress, depth: depthCallback(options), stage: stageCallback(options)})
 	if err != nil {
 		return nil, err
 	}
@@ -115,12 +127,15 @@ func analyzeBatch(java, jar, workspace string, paths []string, includeTests bool
 	return analyzeBatchProfile(java, jar, workspace, paths, includeTests, false)
 }
 
-func analyzeBatchProfile(java, jar, workspace string, paths []string, includeTests, depth bool) (*facts.Program, error) {
+func analyzeBatchProfile(java, jar, workspace string, paths []string, includeTests, depth bool, progress ...streamCallbacks) (*facts.Program, error) {
 	var input bytes.Buffer
 	if err := writeRequestProfile(&input, workspace, paths, includeTests, depth); err != nil {
 		return nil, fmt.Errorf("encode Java fact request: %w", err)
 	}
 	command := javaCommand(java, jar)
+	if len(progress) > 0 && progress[0].syntax != nil {
+		command.Args = append(command.Args, "--stream-depth")
+	}
 	command.Stdin = &input
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -131,7 +146,7 @@ func analyzeBatchProfile(java, jar, workspace string, paths []string, includeTes
 	if err := command.Start(); err != nil {
 		return nil, fmt.Errorf("Java fact adapter failed: %w: %s", err, stderr.String())
 	}
-	program, decodeErr := readResponse(stdout)
+	program, decodeErr := readResponse(stdout, progress...)
 	if decodeErr != nil {
 		_, _ = io.Copy(io.Discard, stdout)
 	}
@@ -301,7 +316,7 @@ func writeRequestProfile(writer io.Writer, workspace string, paths []string, inc
 	return data.Flush()
 }
 
-func readResponse(reader io.Reader) (*facts.Program, error) {
+func readResponse(reader io.Reader, progress ...streamCallbacks) (*facts.Program, error) {
 	data := bufio.NewReader(reader)
 	magic, err := readUint32(data)
 	if err != nil || magic != responseMagic {
@@ -325,7 +340,7 @@ func readResponse(reader io.Reader) (*facts.Program, error) {
 	if success != 1 {
 		return nil, fmt.Errorf("invalid Java fact response status")
 	}
-	program, err := readProgram(data)
+	program, err := readProgram(data, progress...)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +348,7 @@ func readResponse(reader io.Reader) (*facts.Program, error) {
 	return program, nil
 }
 
-func readProgram(data *bufio.Reader) (*facts.Program, error) {
+func readProgram(data *bufio.Reader, progress ...streamCallbacks) (*facts.Program, error) {
 	program := &facts.Program{}
 	var err error
 	if program.Functions, err = readFunctions(data); err != nil {
@@ -367,7 +382,14 @@ func readProgram(data *bufio.Reader) (*facts.Program, error) {
 			return nil, err
 		}
 	}
-	if program.Depth, err = readDepth(data); err != nil {
+	if len(progress) > 0 && progress[0].syntax != nil {
+		if err := program.LinkTypeMethods(); err != nil {
+			return nil, err
+		}
+		markRejectedSourceAvailability(program)
+		progress[0].syntax(program)
+	}
+	if program.Depth, err = readDepth(data, progress...); err != nil {
 		return nil, err
 	}
 	return program, nil

@@ -58,7 +58,7 @@ func renderPath(path string, width, offset int, background lipgloss.Color) strin
 }
 
 func metric(file report.File, key string) (float64, bool, float64) {
-	if metricFailed(file, key) {
+	if metricPending(file, key) || metricFailed(file, key) {
 		return 0, false, 0
 	}
 	value := scoring.Metric(file, key)

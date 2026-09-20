@@ -1,6 +1,9 @@
 package metrics
 
-import "slopslap.dev/structural/internal/facts"
+import (
+	"slopslap.dev/structural/internal/facts"
+	"sort"
+)
 
 // DepthV4Registry is selected explicitly per analyzer request. It never mutates
 // the default registry or legacy component definitions in a running process.
@@ -18,17 +21,30 @@ func DepthV4Registry() *Registry {
 	return registry
 }
 func depthV4Measurements(program *facts.Program) []Measurement {
-	scores := MeasureDepth(program)
+	return DepthV4MeasurementsProgress(program, nil)
+}
+
+// DepthV4MeasurementsProgress reports a file after all of its boundaries have
+// been scored, while retaining one shared flow context for the semantic unit.
+func DepthV4MeasurementsProgress(program *facts.Program, emit func(string, []Measurement)) []Measurement {
 	if program.Depth == nil {
 		return unavailableDepthMeasurements(program)
 	}
-	output := make([]Measurement, 0, len(scores))
+	remaining := map[string]int{}
 	inventories := map[string]facts.BoundaryAssessment{}
 	for _, boundary := range program.Depth.Boundaries {
 		inventories[boundary.Identity.String()] = boundary
 	}
-	for _, score := range scores {
+	for _, boundary := range program.Depth.Boundaries {
+		for _, path := range inventories[boundary.Identity.String()].Files {
+			remaining[path]++
+		}
+	}
+	byPath := map[string][]Measurement{}
+	var output []Measurement
+	MeasureDepthProgress(program, func(boundary facts.BoundaryAssessment, score DepthScore) {
 		inventory := inventories[score.Boundary.String()]
+		start := len(output)
 		locations := map[string]facts.Location{}
 		for _, location := range inventory.SourceLocations {
 			if _, ok := locations[location.Path]; !ok {
@@ -47,9 +63,34 @@ func depthV4Measurements(program *facts.Program) []Measurement {
 				setDepthUnavailable(program, path, "SHALLOW v4 boundary analysis is incomplete")
 			}
 		}
+		if emit == nil {
+			return
+		}
+		for _, measurement := range output[start:] {
+			path := measurement.Location.Path
+			byPath[path] = append(byPath[path], measurement)
+			remaining[path]--
+			if remaining[path] == 0 {
+				emit(path, byPath[path])
+				delete(byPath, path)
+			}
+		}
+	})
+	if emit != nil {
+		for _, path := range program.Files {
+			if _, exists := remaining[path]; !exists {
+				emit(path, nil)
+			}
+		}
 	}
+	sort.SliceStable(output, func(i, j int) bool {
+		a, _ := output[i].Attributes["boundary_id"].(string)
+		b, _ := output[j].Attributes["boundary_id"].(string)
+		return a < b
+	})
 	return output
 }
+
 func unavailableDepthMeasurements(program *facts.Program) []Measurement {
 	output := make([]Measurement, 0, len(program.Files))
 	for _, path := range program.Files {

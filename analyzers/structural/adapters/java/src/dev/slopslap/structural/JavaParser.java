@@ -11,6 +11,14 @@ import java.util.*;
 /** Compiler orchestration for Java syntax and optional attributed-depth analysis. */
 final class JavaParser {
     static Facts.Program analyze(Protocol.Request request) throws Exception {
+        return analyze(request, null);
+    }
+
+    static Facts.Program analyze(Protocol.Request request, PrefixWriter prefixWriter) throws Exception {
+        return analyze(request, prefixWriter, null);
+    }
+
+    static Facts.Program analyze(Protocol.Request request, PrefixWriter prefixWriter, DepthStream.Writer stream) throws Exception {
         Path workspace = Path.of(request.workspace()).toRealPath();
         List<Path> sources = new ArrayList<>();
         Set<String> requestedPaths = new HashSet<>(request.paths().size());
@@ -28,6 +36,7 @@ final class JavaParser {
         if (sources.isEmpty()) {
             Facts.Program program = new Facts.Program();
             program.failures.addAll(sourceFailures);
+            writePrefix(prefixWriter, program);
             return program;
         }
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
@@ -52,12 +61,22 @@ final class JavaParser {
             Facts.Program program = analyzer.program();
             program.failures.addAll(sourceFailures);
             JavaParseDiagnostics.addFailures(program, syntaxErrors);
+            writePrefix(prefixWriter, program);
             if (request.depth()) {
                 configureDepthFileManager(files);
-                program.depth.addAll(JavaDepth.collect(task, units, workspace, program, diagnostics));
+                program.depth.addAll(JavaDepth.collect(task, units, workspace, program, diagnostics, stream));
             }
             return program;
         }
+    }
+
+    private static void writePrefix(PrefixWriter prefixWriter, Facts.Program program) throws Exception {
+        if (prefixWriter != null) prefixWriter.write(program);
+    }
+
+    @FunctionalInterface
+    interface PrefixWriter {
+        void write(Facts.Program program) throws Exception;
     }
 
     private static List<String> options(boolean depth) {

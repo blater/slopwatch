@@ -62,46 +62,58 @@ export class AnalysisContext {
     this.sources = sources;
   }
 
-  static create(request: AnalyzerRequest): AnalysisContext {
+  static create(
+    request: AnalyzerRequest,
+    onSource?: (completed: number, total: number) => void,
+  ): AnalysisContext {
     const workspace = path.resolve(request.workspace);
     const seen = new Map<string, string>();
     const sources: SourceEntry[] = [];
     const parseCounts = new Map<string, number>();
     const inventoryIssues: SourceInventoryIssue[] = [];
 
+    const total = request.units.reduce(
+      (count, unit) => count + unit.source_paths.length,
+      0,
+    );
+    let completed = 0;
     for (const unit of request.units) {
       validateTypeScriptUnit(unit);
       for (const requestedPath of unit.source_paths) {
-        let source: SourceEntry | undefined;
         try {
-          source = loadSource(
-            workspace,
-            unit.unit_id,
-            requestedPath,
-            seen,
-            parseCounts,
-          );
-        } catch (error) {
-          if (error instanceof SourceInventoryError) {
-            const relative = path.relative(workspace, error.absolutePath);
-            const location =
-              relative === "" ||
-              (relative !== ".." &&
-                !relative.startsWith(`..${path.sep}`) &&
-                !path.isAbsolute(relative))
-                ? posixPath(relative)
-                : requestedPath;
-            const issue = {
-              unitId: unit.unit_id,
-              path: location,
-              message: error.message,
-            };
-            inventoryIssues.push(issue);
-            continue;
+          let source: SourceEntry | undefined;
+          try {
+            source = loadSource(
+              workspace,
+              unit.unit_id,
+              requestedPath,
+              seen,
+              parseCounts,
+            );
+          } catch (error) {
+            if (error instanceof SourceInventoryError) {
+              const relative = path.relative(workspace, error.absolutePath);
+              const location =
+                relative === "" ||
+                (relative !== ".." &&
+                  !relative.startsWith(`..${path.sep}`) &&
+                  !path.isAbsolute(relative))
+                  ? posixPath(relative)
+                  : requestedPath;
+              inventoryIssues.push({
+                unitId: unit.unit_id,
+                path: location,
+                message: error.message,
+              });
+            } else {
+              throw error;
+            }
           }
-          throw error;
+          if (source !== undefined) sources.push(source);
+        } finally {
+          completed++;
+          onSource?.(completed, total);
         }
-        if (source !== undefined) sources.push(source);
       }
     }
 

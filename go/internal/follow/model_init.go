@@ -76,6 +76,10 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 }
 
 func (model *Model) Close() {
+	if model.runtime.analysisProgress != nil {
+		model.runtime.analysisProgress.deactivate()
+	}
+	model.runtime.analysisProgress = nil
 	if model.runtime.watchReconfigureCancel != nil {
 		model.runtime.watchReconfigureCancel()
 	}

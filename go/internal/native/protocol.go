@@ -47,6 +47,10 @@ type protocolRecord struct {
 	Kernels               []string        `json:"kernels"`
 	DiscoveredSourceCount int             `json:"discovered_source_count"`
 	ParsedSourceCount     int             `json:"parsed_source_count"`
+	Stage                 string          `json:"stage"`
+	Completed             int             `json:"completed"`
+	Total                 int             `json:"total"`
+	Files                 int             `json:"files"`
 	Raw                   map[string]any  `json:"-"`
 }
 

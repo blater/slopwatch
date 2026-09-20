@@ -9,6 +9,12 @@ import (
 // behavior. Missing flow or unsupported proofs withhold the affected score.
 // Pre-assessed inputs without flows remain supported by the standalone scorer.
 func AssessFlowBoundaries(input *facts.DepthFacts) []facts.BoundaryAssessment {
+	return AssessFlowBoundariesProgress(input, nil)
+}
+
+// AssessFlowBoundariesProgress retains shared flow compilation and delivers each
+// boundary immediately after its assessment.
+func AssessFlowBoundariesProgress(input *facts.DepthFacts, emit func(facts.BoundaryAssessment)) []facts.BoundaryAssessment {
 	artifacts := map[string]*CompiledArtifact{}
 	for _, flow := range input.Flows {
 		compiled, _, err := CompileFlowArtifactPartial(flow)
@@ -18,7 +24,11 @@ func AssessFlowBoundaries(input *facts.DepthFacts) []facts.BoundaryAssessment {
 	}
 	output := make([]facts.BoundaryAssessment, 0, len(input.Boundaries))
 	for _, inventory := range input.Boundaries {
-		output = append(output, assessBoundaryFlow(inventory, artifacts[inventory.Identity.Artifact]))
+		assessment := assessBoundaryFlow(inventory, artifacts[inventory.Identity.Artifact])
+		output = append(output, assessment)
+		if emit != nil {
+			emit(assessment)
+		}
 	}
 	return output
 }

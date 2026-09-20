@@ -92,6 +92,9 @@ func (state *FilesState) moveSortCursor(delta int) {
 }
 
 func filesLess(sortKey string, reverse bool, left, right report.File) bool {
+	if sortKey != "filename" && (len(left.PendingComponents) > 0) != (len(right.PendingComponents) > 0) {
+		return len(left.PendingComponents) == 0
+	}
 	if sortKey == "filename" {
 		comparison := strings.Compare(strings.ToLower(left.Path), strings.ToLower(right.Path))
 		if comparison == 0 {

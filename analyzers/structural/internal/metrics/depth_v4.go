@@ -138,15 +138,15 @@ func missingFamilyBehavior(families [][]facts.ObligationSet) bool {
 
 // MeasureDepth scores every optional v4 boundary in canonical identity order.
 func MeasureDepth(program *facts.Program) []DepthScore {
+	return MeasureDepthProgress(program, nil)
+}
+
+func MeasureDepthProgress(program *facts.Program, emit func(facts.BoundaryAssessment, DepthScore)) []DepthScore {
 	if program == nil || program.Depth == nil {
 		return nil
 	}
-	boundaries := program.Depth.Boundaries
-	if len(program.Depth.Flows) != 0 {
-		boundaries = depth.AssessFlowBoundaries(program.Depth)
-	}
-	items := make([]DepthScore, 0, len(boundaries))
-	for _, boundary := range boundaries {
+	items := make([]DepthScore, 0, len(program.Depth.Boundaries))
+	score := func(boundary facts.BoundaryAssessment) {
 		item, err := ScoreBoundary(boundary)
 		if err == nil {
 			item = scoreBoundedAssessment(boundary, item)
@@ -156,6 +156,16 @@ func MeasureDepth(program *facts.Program) []DepthScore {
 			item.Reasons = canonicalReasons(item.Reasons)
 		}
 		items = append(items, item)
+		if emit != nil {
+			emit(boundary, item)
+		}
+	}
+	if len(program.Depth.Flows) != 0 {
+		depth.AssessFlowBoundariesProgress(program.Depth, score)
+	} else {
+		for _, boundary := range program.Depth.Boundaries {
+			score(boundary)
+		}
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Boundary.String() < items[j].Boundary.String() })
 	return items

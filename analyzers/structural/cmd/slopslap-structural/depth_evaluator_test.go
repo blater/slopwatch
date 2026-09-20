@@ -43,6 +43,30 @@ func TestRunDepthEvaluatorSourceNormalizedFlow(t *testing.T) {
 	if response.SchemaVersion != 1 || len(response.Assessments) != 1 || len(response.Scores) != 1 {
 		t.Fatalf("response = %+v", response)
 	}
+	var streamed bytes.Buffer
+	payload, _ := json.Marshal(input)
+	if err := runDepthEvaluatorStream(bytes.NewReader(payload), &streamed); err != nil {
+		t.Fatal(err)
+	}
+	decoder := json.NewDecoder(&streamed)
+	var frame struct {
+		Type       string                   `json:"type"`
+		Assessment facts.BoundaryAssessment `json:"assessment"`
+		Score      json.RawMessage          `json:"score"`
+	}
+	if err := decoder.Decode(&frame); err != nil {
+		t.Fatal(err)
+	}
+	expected, _ := json.Marshal(response.Scores[0])
+	if frame.Type != "score" || !bytes.Equal(frame.Score, expected) {
+		t.Fatalf("stream score differs: %s", frame.Score)
+	}
+	var done struct {
+		Type string `json:"type"`
+	}
+	if err := decoder.Decode(&done); err != nil || done.Type != "done" {
+		t.Fatalf("missing terminal: %v", err)
+	}
 	if response.Scores[0].Shallow == nil || *response.Scores[0].Shallow != 100 {
 		t.Fatalf("score = %+v", response.Scores[0])
 	}

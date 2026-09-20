@@ -78,3 +78,34 @@ func TestAnalysisProgressFiltersOwnedBatchAndPreservesScore(t *testing.T) {
 		t.Fatalf("progress=%#v final=%#v", progress.Files, final.Files)
 	}
 }
+
+func TestOrdinaryRecordsPublishMergedFileWithoutProgressEnvelope(t *testing.T) {
+	path := "source.go"
+	catalog := catalogDocument{Components: []componentDescriptor{depthDescriptor(), {
+		ID: "cognitive_complexity", Version: "pmd-sonar-v1", Axis: "structural_core",
+		Support: map[string]string{"go": "supported"}, Defaults: componentDefaults{Enabled: true, Weight: "1", Formula: "count"},
+	}}}
+	var latest report.Document
+	ctx := configureAnalysisProgress(WithAnalysisProgress(context.Background(), func(document report.Document) { latest = document }), catalog, map[string]bool{path: true}, nil)
+	request := analyzerRequest{Units: []protocolUnit{{ID: "arbitrary-unit", Language: "go"}}}
+	emit := analysisFilePreview(ctx, request)
+	depth := depthRecord(path, "boundary", "measured", 70)
+	depth.UnitID = "arbitrary-unit"
+	for _, record := range []protocolRecord{
+		{Type: "measurement", UnitID: "arbitrary-unit", Path: &path, Component: "cognitive_complexity", Value: float64(3)},
+		{Type: "coverage", UnitID: "arbitrary-unit", Path: &path, Component: "cognitive_complexity", State: "complete"},
+		depth,
+		{Type: "coverage", UnitID: "arbitrary-unit", Path: &path, Component: "module_shallowness", State: "unavailable"},
+	} {
+		if err := emit(record); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(latest.Files) != 1 {
+		t.Fatal("ordinary records did not publish a file")
+	}
+	file := latest.Files[0]
+	if file.Language != "go" || file.Components["cognitive_complexity"].Observations != 1 || len(file.PendingComponents) != 0 || file.Components["module_shallowness"].RawMaximum == nil {
+		t.Fatalf("component result was lost or finished evidence stayed pending: %+v", file)
+	}
+}

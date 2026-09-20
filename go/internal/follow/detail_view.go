@@ -82,7 +82,9 @@ func detailContent(model Model, file report.File, width int) []string {
 
 func detailHeaderLines(file report.File) []detailLine {
 	score := fmt.Sprintf("%.1f", file.Score)
-	if metricFailed(file, "score") {
+	if metricPending(file, "score") {
+		score = fmt.Sprintf("pending (partial subtotal %.1f)", file.Score)
+	} else if metricFailed(file, "score") {
 		score = "X"
 	}
 	logical := []detailLine{

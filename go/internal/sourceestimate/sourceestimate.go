@@ -3,7 +3,6 @@
 package sourceestimate
 
 import (
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -124,79 +123,30 @@ func AnalyzeGoFiles(files []File) map[string]Result {
 	return fileResults
 }
 
-// AnalyzeWithAttribution computes non-Go legacy package-rooted estimates and,
-// for Go inputs, per-file projections from the same parsed operation graph.
-// Go callers should use the second map: the first map intentionally omits Go
-// package projections so native attribution does not repeat that work.
+// AnalyzeWithAttribution computes non-Go legacy package-rooted estimates and
+// per-file projections for all supported languages from one parsed graph. The
+// first map intentionally omits per-file projections so native attribution
+// does not repeat that work.
 func AnalyzeWithAttribution(files []File) (map[string]Result, map[string]Result) {
-	return analyzeWithAttribution(files, false)
+	return AnalyzeWithAttributionProgress(files, nil)
+}
+
+// AnalyzeWithAttributionProgress matches AnalyzeWithAttribution and calls
+// callback once for each finalized per-file result. The callback runs after
+// shared cross-file attribution is complete, so it never changes scoring.
+func AnalyzeWithAttributionProgress(files []File, callback func(File, Result)) (map[string]Result, map[string]Result) {
+	return analyzeWithAttributionProgress(files, false, callback, nil)
+}
+
+// AnalyzeWithAttributionProgressAndStatus is the streaming form used by the
+// native host. It retains the ordinary per-file callback and additionally
+// reports real preparation/evaluation work as shared indexes are built.
+func AnalyzeWithAttributionProgressAndStatus(files []File, callback func(File, Result), progress func(AttributionProgress)) (map[string]Result, map[string]Result) {
+	return analyzeWithAttributionProgress(files, false, callback, progress)
 }
 
 func analyzeWithAttribution(files []File, includeGoPackage bool, profiles ...CalibrationProfile) (map[string]Result, map[string]Result) {
-	profile := DefaultCalibration()
-	if len(profiles) > 0 {
-		profile = profiles[0]
-	}
-	units := make([]unit, len(files))
-	all := make([]*operation, 0)
-	for i, file := range files {
-		tokens, limited, lexicallyValid := lex(file.Source)
-		pkg := packageName(file.Language, tokens)
-		if normalizeLanguage(file.Language, file.Path) == "go" {
-			pkg = filepath.ToSlash(filepath.Dir(file.Path)) + "@" + pkg
-		}
-		units[i] = unit{inventory: &unitInventory{}, calibration: profile, index: i, file: file, tokens: tokens, pkg: pkg, limited: limited, lexicallyValid: lexicallyValid}
-		units[i].ops = findOperations(file, i, tokens, units[i].pkg)
-		hasExternal := false
-		for _, op := range units[i].ops {
-			hasExternal = hasExternal || op.exposed
-		}
-		if !hasExternal && (normalizeLanguage(file.Language, file.Path) == "java" || normalizeLanguage(file.Language, file.Path) == "rust") {
-			for _, op := range units[i].ops {
-				op.exposed = op.packageVisible
-			}
-		}
-		if len(units[i].ops) >= maxOperationsPerFile {
-			units[i].limited = true
-		}
-	}
-	rustAnnotations := annotateRustAttribution(units)
-	annotateTypeScriptImports(units)
-	for _, u := range units {
-		all = append(all, u.ops...)
-	}
-	byKey := make(map[string][]*operation, len(all))
-	for _, op := range all {
-		indexOperation(byKey, op)
-	}
-	annotateGoUnusedInputs(units)
-	annotateSourceSurfaceInputs(units, byKey)
-	annotateCallerObligations(units)
-	annotateConstraintWitnesses(units)
-	annotateOutputObligations(units, byKey)
-	goMethods := indexGoMethods(units)
-	goGraph := goCallGraph(units, byKey)
-	packageResults := make(map[string]Result, len(files))
-	for index, unit := range units {
-		if includeGoPackage {
-			packageResults[unit.file.Path] = estimateUnit(index, unit, units, byKey, goMethods.supporting)
-		}
-	}
-	if includeGoPackage {
-		return packageResults, nil
-	}
-	fileResults := estimateGoAttribution(units, byKey, goMethods, goGraph)
-	for path, result := range analyzeTypeScriptUnits(units, byKey) {
-		fileResults[path] = result
-	}
-	for path, result := range analyzeJavaUnits(units, byKey) {
-		fileResults[path] = result
-	}
-	rustResults := analyzeRustUnits(units, byKey, rustAnnotations)
-	for path, result := range rustResults.Results {
-		fileResults[path] = result
-	}
-	return packageResults, fileResults
+	return analyzeWithAttributionProgress(files, includeGoPackage, nil, nil, profiles...)
 }
 
 func estimateUnit(index int, u unit, units []unit, byKey map[string][]*operation, supporting map[string]string) Result {

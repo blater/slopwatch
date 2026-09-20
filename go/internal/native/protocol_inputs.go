@@ -14,16 +14,19 @@ func decodeRecords(reader io.Reader, request analyzerRequest) ([]protocolRecord,
 	return records, err
 }
 
-func decodeScoreInputs(reader io.Reader, request analyzerRequest) (scoreInputs, error) {
+func decodeScoreInputs(reader io.Reader, request analyzerRequest, progress ...func(protocolRecord) error) (scoreInputs, error) {
 	inputs := newScoreInputs()
-	err := decodeProtocol(reader, request, inputs.add)
+	inputs.replaceCompleted, _ = request.Options["stream_results"].(bool)
+	err := decodeProtocol(reader, request, inputs.add, progress...)
 	return inputs, err
 }
 
-func decodeUnitScoreInputs(reader io.Reader, request analyzerRequest) (map[string]scoreInputs, error) {
+func decodeUnitScoreInputs(reader io.Reader, request analyzerRequest, progress ...func(protocolRecord) error) (map[string]scoreInputs, error) {
 	units := make(map[string]scoreInputs, len(request.Units))
 	for _, unit := range request.Units {
-		units[unit.ID] = newScoreInputs()
+		inputs := newScoreInputs()
+		inputs.replaceCompleted, _ = request.Options["stream_results"].(bool)
+		units[unit.ID] = inputs
 	}
 	err := decodeProtocol(reader, request, func(record protocolRecord) error {
 		if record.UnitID == "" {
@@ -46,6 +49,6 @@ func decodeUnitScoreInputs(reader io.Reader, request analyzerRequest) (map[strin
 		}
 		units[record.UnitID] = inputs
 		return nil
-	})
+	}, progress...)
 	return units, err
 }

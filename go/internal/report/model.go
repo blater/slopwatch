@@ -10,6 +10,7 @@ import (
 )
 
 type Document struct {
+	Progress            map[string]ScanProgress  `json:"-"`
 	Calibrated          bool                     `json:"calibrated"`
 	Configuration       any                      `json:"configuration"`
 	Diagnostics         []map[string]any         `json:"diagnostics"`
@@ -27,6 +28,7 @@ type Document struct {
 }
 
 type File struct {
+	PendingComponents   []string             `json:"-"`
 	Axes                map[string]float64   `json:"axes"`
 	Complete            bool                 `json:"complete"`
 	Components          map[string]Component `json:"components"`

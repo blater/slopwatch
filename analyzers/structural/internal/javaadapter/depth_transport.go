@@ -9,20 +9,27 @@ import (
 	"slopslap.dev/structural/internal/facts"
 )
 
-func analyzeProfile(java, jar, workspace string, paths []string, includeTests bool, options map[string]any) (*facts.Program, error) {
+func analyzeProfile(java, jar, workspace string, paths []string, includeTests bool, options map[string]any, progress ...streamCallbacks) (*facts.Program, error) {
 	if options["depth_profile"] == "responsibility-v4" {
 		// Attribution must see the whole supplied semantic unit, including helpers.
-		return analyzeBatchProfile(java, jar, workspace, paths, includeTests, true)
+		return analyzeBatchProfile(java, jar, workspace, paths, includeTests, true, progress...)
 	}
 	return analyzePaths(paths, func(batch []string) (*facts.Program, error) {
 		return analyzeBatch(java, jar, workspace, batch, includeTests)
 	})
 }
 
-func readDepth(data *bufio.Reader) (*facts.DepthFacts, error) {
+func readDepth(data *bufio.Reader, progress ...streamCallbacks) (*facts.DepthFacts, error) {
 	count, err := readUint32(data)
 	if err != nil {
 		return nil, err
+	}
+	if count == ^uint32(0) {
+		var callbacks streamCallbacks
+		if len(progress) > 0 {
+			callbacks = progress[0]
+		}
+		return readDepthStream(data, callbacks)
 	}
 	if count == 0 {
 		return nil, nil

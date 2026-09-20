@@ -60,7 +60,11 @@ func Analyze(workspace string, requested []string) (*facts.Program, error) {
 	return analyzeOptions(workspace, requested, nil)
 }
 
-func analyzeOptions(workspace string, requested []string, options map[string]any) (*facts.Program, error) {
+func (Adapter) AnalyzeProgress(workspace string, requested []string, options map[string]any, progress func(*facts.Program)) (*facts.Program, error) {
+	return analyzeOptions(workspace, requested, options, progress)
+}
+
+func analyzeOptions(workspace string, requested []string, options map[string]any, progress ...func(*facts.Program)) (*facts.Program, error) {
 	root, err := filepath.EvalSymlinks(workspace)
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace: %w", err)
@@ -70,11 +74,21 @@ func analyzeOptions(workspace string, requested []string, options map[string]any
 		return nil, fmt.Errorf("absolute workspace: %w", err)
 	}
 	fset := token.NewFileSet()
-	sources, failures, err := parseSources(root, requested, fset)
+	stage, _ := options["analysis_progress"].(func(string, int, int))
+	parsed := func(done int) {
+		if stage != nil {
+			stage("parsing", done, len(requested))
+		}
+	}
+	sources, failures, err := parseSources(root, requested, fset, parsed)
 	if err != nil {
 		return nil, err
 	}
-	typeCheck(root, sources, fset)
+	typeCheckMode(root, sources, fset, false, func(done, total int) {
+		if stage != nil {
+			stage("types", done, total)
+		}
+	})
 
 	b := &analysisContext{fset: fset}
 	collectFunctions(b, sources)
@@ -87,20 +101,31 @@ func analyzeOptions(workspace string, requested []string, options map[string]any
 		Representation: representation, Files: sourcePaths(sources), Failures: failures,
 		Unavailable: syntaxAffectedComponents(sources, failures),
 	}
+	if len(progress) > 0 && progress[0] != nil {
+		progress[0](program)
+	}
 	if options["depth_profile"] == "responsibility-v4" {
 		// Keep v4 type evidence separate from the legacy measurement inputs.
 		depthSources := append([]source(nil), sources...)
-		typeCheckMode(root, depthSources, fset, true)
-		program.Depth = collectDepth(depthSources, failures, fset)
+		typeCheckMode(root, depthSources, fset, true, func(done, total int) {
+			if stage != nil {
+				stage("depth_types", done, total)
+			}
+		})
+		callback, _ := options["depth_progress"].(func(*facts.DepthFacts, []string))
+		program.Depth = collectDepth(depthSources, failures, fset, callback)
 	}
 	return program, nil
 }
 
-func parseSources(root string, requested []string, fset *token.FileSet) ([]source, []facts.FileFailure, error) {
+func parseSources(root string, requested []string, fset *token.FileSet, progress ...func(int)) ([]source, []facts.FileFailure, error) {
 	sources := make([]source, 0, len(requested))
 	failures := make([]facts.FileFailure, 0)
 	seen := make(map[string]struct{}, len(requested))
-	for _, raw := range requested {
+	for index, raw := range requested {
+		if len(progress) > 0 && progress[0] != nil {
+			progress[0](index)
+		}
 		if _, exists := seen[raw]; exists {
 			return nil, nil, fmt.Errorf("duplicate Go source path: %s", raw)
 		}
@@ -150,6 +175,9 @@ func parseSources(root string, requested []string, fset *token.FileSet) ([]sourc
 		if importsValid {
 			sources = append(sources, source{rel: rel, file: parsed, imports: imports})
 		}
+	}
+	if len(progress) > 0 && progress[0] != nil {
+		progress[0](len(requested))
 	}
 	sort.Slice(sources, func(left, right int) bool { return sources[left].rel < sources[right].rel })
 	sort.SliceStable(failures, func(left, right int) bool { return failures[left].Path < failures[right].Path })

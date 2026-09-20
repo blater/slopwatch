@@ -45,7 +45,20 @@ func recoverAnalyzerInputs(ctx context.Context, request analyzerRequest, inputs 
 	if err != nil {
 		return inputs, err
 	}
-	return withSourceDepthEstimates(ctx, request, inputs)
+	inputs, err = withSourceDepthEstimates(ctx, request, inputs)
+	if err != nil {
+		return inputs, err
+	}
+	if state := analysisProgress(ctx); state != nil {
+		for _, unit := range request.Units {
+			for _, path := range unit.Paths {
+				if err := emitAnalysisFile(ctx, inputs, path); err != nil {
+					return inputs, err
+				}
+			}
+		}
+	}
+	return inputs, nil
 }
 
 func recoverAnalyzerState(ctx context.Context, request analyzerRequest, inputs scoreInputs, err error) (scoreInputs, error) {

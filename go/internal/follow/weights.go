@@ -131,7 +131,8 @@ func (model *Model) syncTypeScriptTypes() tea.Cmd {
 		return nil
 	}
 	model.analyzing = true
-	return analysisCommand(model.analyzer, model.options.Targets, nil, true)
+	emit := beginAnalysisProgress(model, report.FreshnessVerifying, "analysis in progress")
+	return analysisCommandWithProgress(model.analyzer, model.options.Targets, nil, true, emit)
 }
 
 type settingsItem struct {

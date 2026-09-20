@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 
 import { analyze } from "./analyzer.js";
+import { analyzeStreaming } from "./streaming.js";
 
 function emit(records: ReadonlyArray<Record<string, unknown>>): void {
   const batchSize = 256;
@@ -14,7 +15,7 @@ function emit(records: ReadonlyArray<Record<string, unknown>>): void {
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const input = readFileSync(0, "utf8").trim();
   let parsed: unknown;
   try {
@@ -41,10 +42,16 @@ function main(): void {
       }
     }
   }
-  const records = analyze(parsed);
-  emit(records);
+  const streaming =
+    typeof parsed === "object" &&
+    parsed !== null &&
+    Reflect.get(Reflect.get(parsed, "options") ?? {}, "stream_results") === true;
+  const records = streaming
+    ? await analyzeStreaming(parsed, (record) => emit([record]))
+    : analyze(parsed, (record) => emit([record]));
+  emit(streaming ? records.filter((record) => record.type !== "measurement" && record.type !== "coverage") : records);
   const terminal = records.at(-1);
   if (terminal?.status === "failure") process.exitCode = 1;
 }
 
-main();
+void main();

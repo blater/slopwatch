@@ -165,6 +165,24 @@ func emitProgramCoverage(out emitter, item unit, components []component, program
 	}
 }
 
+func emitMeasurement(out emitter, item unit, measurement metrics.Measurement) {
+	out.emit("measurement", measurementRecord(item, measurement))
+}
+
+func measurementRecord(item unit, measurement metrics.Measurement) map[string]any {
+	return map[string]any{
+		"type":    "measurement",
+		"unit_id": item.ID, "component_id": measurement.Component,
+		"definition_version": measurement.Definition, "path": measurement.Location.Path,
+		"language": item.Language, "scope": measurement.Scope,
+		"value": encodedValue(measurement.Value), "subject": subject(measurement),
+		"attributes": measurement.Attributes, "provenance": map[string]any{
+			"analyzer": analyzerName, "analyzer_version": analyzerVersion,
+			"rule": measurement.Component + "/" + measurement.Definition,
+		},
+	}
+}
+
 func run(input request, writer io.Writer) int {
 	encoder := json.NewEncoder(writer)
 	encoder.SetEscapeHTML(false)
@@ -206,30 +224,27 @@ func run(input request, writer io.Writer) int {
 			failed = append(failed, item.ID)
 			continue
 		}
-		program, err := languageAdapter.Analyze(input.Workspace, item.Paths, adapterOptions)
+		progress, _ := input.Options["stream_results"].(bool)
+		var program *facts.Program
+		var measurements []metrics.Measurement
+		var err error
+		if progress {
+			program, measurements, err = analyzeProgressUnit(languageAdapter, input, item, out, strategies, adapterOptions)
+		} else {
+			program, err = languageAdapter.Analyze(input.Workspace, item.Paths, adapterOptions)
+			if err == nil {
+				measurements, err = strategies.Analyze(program, requested)
+			}
+		}
 		if err != nil {
 			failUnit(out, item, input.Components, err.Error())
 			failed = append(failed, item.ID)
 			continue
 		}
-		measurements, strategyErr := strategies.Analyze(program, requested)
-		if strategyErr != nil {
-			failUnit(out, item, input.Components, strategyErr.Error())
-			failed = append(failed, item.ID)
-			continue
-		}
-		for _, measurement := range measurements {
-			out.emit("measurement", map[string]any{
-				"unit_id": item.ID, "component_id": measurement.Component,
-				"definition_version": measurement.Definition,
-				"path":               measurement.Location.Path, "language": item.Language,
-				"scope": measurement.Scope, "value": encodedValue(measurement.Value),
-				"subject": subject(measurement), "attributes": measurement.Attributes,
-				"provenance": map[string]any{
-					"analyzer": analyzerName, "analyzer_version": analyzerVersion,
-					"rule": measurement.Component + "/" + measurement.Definition,
-				},
-			})
+		if !progress {
+			for _, measurement := range measurements {
+				emitMeasurement(out, item, measurement)
+			}
 		}
 		emitProgramCoverage(out, item, input.Components, program)
 		out.emit("execution_plan", map[string]any{
@@ -270,8 +285,12 @@ func decodeRequest(reader io.Reader) (request, error) {
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "--evaluate-depth-v4" {
-		if err := runDepthEvaluator(os.Stdin, os.Stdout); err != nil {
+	if len(os.Args) > 1 && (os.Args[1] == "--evaluate-depth-v4" || os.Args[1] == "--evaluate-depth-v4-stream") {
+		run := runDepthEvaluator
+		if os.Args[1] == "--evaluate-depth-v4-stream" {
+			run = runDepthEvaluatorStream
+		}
+		if err := run(os.Stdin, os.Stdout); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}

@@ -33,7 +33,7 @@ type depthRouteCandidate struct {
 	object *types.Func
 }
 
-func collectDepth(sources []source, failures []facts.FileFailure, fset *token.FileSet) *facts.DepthFacts {
+func collectDepth(sources []source, failures []facts.FileFailure, fset *token.FileSet, progress ...func(*facts.DepthFacts, []string)) *facts.DepthFacts {
 	failedDirectories := map[string]bool{}
 	for _, failure := range failures {
 		failedDirectories[filepath.Dir(failure.Path)] = true
@@ -97,8 +97,12 @@ func collectDepth(sources []source, failures []facts.FileFailure, fset *token.Fi
 		if len(group.boundary.RouteFamilies) == 0 {
 			depthSurfaceGap(group, "unresolved_or_absent_public_surface")
 		}
-		output.Boundaries = append(output.Boundaries, splitDepthBoundaries(group)...)
+		boundaries := splitDepthBoundaries(group)
+		output.Boundaries = append(output.Boundaries, boundaries...)
 		output.Flows = append(output.Flows, group.flow)
+		if len(progress) > 0 && progress[0] != nil {
+			progress[0](&facts.DepthFacts{Boundaries: boundaries, Flows: []facts.FlowArtifact{group.flow}}, group.boundary.Files)
+		}
 	}
 	return output
 }

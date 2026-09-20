@@ -79,7 +79,7 @@ func analyzeRustAttribution(files []File) RustAttribution {
 // analyzeRustUnits consumes the shared parsed inventory. Native callers can
 // annotate once, build their common operation index once, and then pass both
 // here without reparsing or creating a second Rust graph.
-func analyzeRustUnits(units []unit, byKey map[string][]*operation, annotations map[string]rustFunction) RustAttribution {
+func analyzeRustUnits(units []unit, byKey map[string][]*operation, annotations map[string]rustFunction, callbacks ...func(File, Result)) RustAttribution {
 	if byKey == nil {
 		byKey = operationIndex(units)
 	}
@@ -113,6 +113,9 @@ func analyzeRustUnits(units []unit, byKey map[string][]*operation, annotations m
 				}
 			}
 			results[u.file.Path] = Result{Applicable: false, Roles: []string{role}, Supporting: supportingRoles, RoleOnly: true, NoAbstractionProven: false}
+			if len(callbacks) > 0 && callbacks[0] != nil {
+				callbacks[0](u.file, results[u.file.Path])
+			}
 			families[u.file.Path] = nil
 			continue
 		}
@@ -165,6 +168,9 @@ func analyzeRustUnits(units []unit, byKey map[string][]*operation, annotations m
 			projection.Supporting[owner] = roleName
 		}
 		results[u.file.Path] = projection
+		if len(callbacks) > 0 && callbacks[0] != nil {
+			callbacks[0](u.file, projection)
+		}
 	}
 	return RustAttribution{Results: results, RouteFamilies: families}
 }

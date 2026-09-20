@@ -9,17 +9,35 @@ import { harmlessUnexportedClass, simpleEnum } from "./depth-callables.js";
 import { lowerFunction } from "./depth-function.js";
 import { flowFamilyKey } from "./depth-families.js";
 
-export function buildFacts(context: AnalysisContext, typed: TypedContext): { facts: DepthFacts; entries: SourceEntry[] } {
+export function buildFacts(
+  context: AnalysisContext,
+  typed: TypedContext,
+  onBoundary?: (completed: number, total: number) => void,
+): { facts: DepthFacts; entries: SourceEntry[] } {
   const boundaries: DepthBoundary[] = [];
   const flows: DepthFlowArtifact[] = [];
   const entries: SourceEntry[] = [];
-  for (const entry of context.sources) {
-    if (entry.isDeclaration || entry.syntaxErrors.length > 0) continue;
+  const candidates = context.sources.filter((entry) => !entry.isDeclaration);
+  let completed = 0;
+  for (const entry of candidates) {
+    if (entry.syntaxErrors.length > 0) {
+      completed++;
+      onBoundary?.(completed, candidates.length);
+      continue;
+    }
     const source = typed.sourceFiles.get(entry.absolutePath);
-    if (source === undefined) continue;
+    if (source === undefined) {
+      completed++;
+      onBoundary?.(completed, candidates.length);
+      continue;
+    }
     const surface = analyzeSourceSurface(entry, source, typed.checker);
     const { callables, symbols, passiveEnums, provenPassive, provenPassiveNodes, hasDefaultCallable, exported, unsupportedExport } = surface;
-    if (exported.length === 0 && !unsupportedExport && provenPassive.length === 0 && passiveEnums.length === 0) continue;
+    if (exported.length === 0 && !unsupportedExport && provenPassive.length === 0 && passiveEnums.length === 0) {
+      completed++;
+      onBoundary?.(completed, candidates.length);
+      continue;
+    }
     entries.push(entry);
     const identity: BoundaryIdentity = { artifact: entry.relativePath, audience: "external", view: "module", symbol: entry.relativePath };
     const flowFunctions: DepthFlowFunction[] = [];
@@ -116,6 +134,8 @@ export function buildFacts(context: AnalysisContext, typed: TypedContext): { fac
     ];
     boundaries.push(boundary);
     flows.push({ artifact: entry.relativePath, language: "typescript", functions: flowFunctions, public_routes: [] });
+    completed++;
+    onBoundary?.(completed, candidates.length);
   }
   return { facts: { boundaries, flows, creations: [], reasons: [] }, entries };
 }

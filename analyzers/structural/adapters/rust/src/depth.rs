@@ -51,10 +51,15 @@ struct Lowered {
     calls: Vec<String>,
 }
 
+#[cfg(test)]
 pub fn collect(parsed: &[(String, syn::File)], failures: &[FileFailure]) -> DepthFacts {
+    collect_progress(parsed, failures, false).expect("disabled stream does not perform I/O")
+}
+
+pub fn collect_progress(parsed: &[(String, syn::File)], failures: &[FileFailure], stream: bool) -> Result<DepthFacts, String> {
     let mut result = DepthFacts::default();
     let has_explicit_crate_root = parsed.iter().any(|(path, _)| likely_crate_root(path));
-    for (path, syntax) in parsed {
+    for (position, (path, syntax)) in parsed.iter().enumerate() {
         let mut index = Index {
             artifact: path.clone(),
             functions: Vec::new(),
@@ -86,10 +91,12 @@ pub fn collect(parsed: &[(String, syn::File)], failures: &[FileFailure]) -> Dept
         };
         let (boundaries, flow) =
             lower_index(path, &index, failures, has_explicit_crate_root, passive);
+        if stream { crate::stream::write(&json!({"type": "depth", "path": path, "depth": {"boundaries": &boundaries, "flows": [&flow]}}))?; }
+        crate::stream::progress(stream, "semantic", position + 1, parsed.len())?;
         result.boundaries.extend(boundaries);
         result.flows.push(flow);
     }
-    result
+    Ok(result)
 }
 
 fn lower_index(

@@ -160,7 +160,7 @@ func typeCheck(root string, sources []source, fset *token.FileSet) {
 	typeCheckMode(root, sources, fset, false)
 }
 
-func typeCheckMode(root string, sources []source, fset *token.FileSet, depthMode bool) {
+func typeCheckMode(root string, sources []source, fset *token.FileSet, depthMode bool, progress ...func(int, int)) {
 	// A -trimpath distribution deliberately carries no build-machine GOROOT.
 	// importer.ForCompiler cannot resolve even the standard library in that
 	// environment, so walking and partially checking every package only to use
@@ -212,8 +212,14 @@ func typeCheckMode(root string, sources []source, fset *token.FileSet, depthMode
 		groups = append(groups, group)
 	}
 	sort.Slice(groups, func(left, right int) bool { return groups[left].importPath < groups[right].importPath })
-	for _, group := range groups {
+	for position, group := range groups {
+		if len(progress) > 0 && progress[0] != nil {
+			progress[0](position, len(groups))
+		}
 		_, _ = loader.Import(group.importPath)
+		if len(progress) > 0 && progress[0] != nil {
+			progress[0](position+1, len(groups))
+		}
 		for _, index := range group.indices {
 			sources[index].typeInfo = group.info
 			if depthMode {

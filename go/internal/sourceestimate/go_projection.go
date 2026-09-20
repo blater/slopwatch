@@ -2,13 +2,17 @@ package sourceestimate
 
 import "sort"
 
-func estimateGoAttribution(units []unit, byKey map[string][]*operation, goMethods goMethodIndex, graph map[string][]*operation) map[string]Result {
+func estimateGoAttribution(units []unit, byKey map[string][]*operation, goMethods goMethodIndex, graph map[string][]*operation, callbacks ...func(File, Result)) map[string]Result {
 	projections := goMethodProjections(units, byKey, goMethods)
 	inbound := buildGoInboundIndex(units, graph)
 	results := make(map[string]Result)
 	for index, unit := range units {
 		if normalizeLanguage(unit.file.Language, unit.file.Path) == "go" {
-			results[unit.file.Path] = projectGoUnit(index, unit, units, byKey, goMethods, projections, inbound)
+			result := projectGoUnit(index, unit, units, byKey, goMethods, projections, inbound)
+			results[unit.file.Path] = result
+			if len(callbacks) > 0 && callbacks[0] != nil {
+				callbacks[0](unit.file, result)
+			}
 		}
 	}
 	return results

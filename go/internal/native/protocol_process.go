@@ -20,15 +20,26 @@ func invocationID() (string, error) {
 }
 
 func runAnalyzer(ctx context.Context, executable string, request analyzerRequest) (scoreInputs, error) {
-	return runAnalyzerDecoded(ctx, executable, request, decodeScoreInputs)
+	return runAnalyzerDecoded(ctx, executable, request, func(reader io.Reader, request analyzerRequest) (scoreInputs, error) {
+		return decodeScoreInputs(reader, request, analysisFilePreview(ctx, request))
+	})
 }
 
 func runAnalyzerUnits(ctx context.Context, executable string, request analyzerRequest) (map[string]scoreInputs, error) {
-	return runAnalyzerDecoded(ctx, executable, request, decodeUnitScoreInputs)
+	return runAnalyzerDecoded(ctx, executable, request, func(reader io.Reader, request analyzerRequest) (map[string]scoreInputs, error) {
+		return decodeUnitScoreInputs(reader, request, analysisFilePreview(ctx, request))
+	})
 }
 
 func runAnalyzerDecoded[T any](ctx context.Context, executable string, request analyzerRequest, decode func(io.Reader, analyzerRequest) (T, error)) (T, error) {
 	var zero T
+	ctx = startSourceDepthRun(ctx, request)
+	if analysisProgress(ctx) != nil {
+		if request.Options == nil {
+			request.Options = map[string]any{}
+		}
+		request.Options["stream_results"] = true
+	}
 	payload, err := json.Marshal(request)
 	if err != nil {
 		return zero, err

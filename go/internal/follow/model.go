@@ -67,6 +67,8 @@ type cacheReadController interface {
 }
 
 type analysisResult struct {
+	progress bool // Scan delivery must not create source-edit highlights.
+	previous []report.File
 	document report.Document
 	replace  []string
 	// paths are the original requested inputs. They remain available for a

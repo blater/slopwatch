@@ -7,13 +7,25 @@ import (
 	"strings"
 )
 
-func decodeProtocol(reader io.Reader, request analyzerRequest, consume func(protocolRecord) error) error {
+func decodeProtocol(reader io.Reader, request analyzerRequest, consume func(protocolRecord) error, progress ...func(protocolRecord) error) error {
 	diagnostics := []string{}
 	err := decodeProtocolStream(reader, request, func(record protocolRecord) error {
+		if record.Type == "analysis_progress" {
+			if len(progress) > 0 && progress[0] != nil {
+				return progress[0](record)
+			}
+			return nil
+		}
 		if record.Type == "diagnostic" && record.Message != "" {
 			diagnostics = append(diagnostics, record.Message)
 		}
-		return consume(record)
+		if err := consume(record); err != nil {
+			return err
+		}
+		if len(progress) > 0 && progress[0] != nil {
+			return progress[0](record)
+		}
+		return nil
 	})
 	if err != nil && !isTerminalFailure(err) {
 		if len(diagnostics) > 0 {

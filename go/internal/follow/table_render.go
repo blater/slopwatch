@@ -98,7 +98,10 @@ func tableTopParts(model Model) (topLeft, topRight, bottomLeft, bottomRight stri
 	centeredWordmark := lipgloss.NewStyle().Width(lipgloss.Width(tableLogo)).Align(lipgloss.Center).Render(tableWordmark)
 	wordmark := logoStyle.Render(centeredWordmark)
 	statusBackground := lipgloss.NewStyle().Foreground(style.TextMuted).Background(style.SurfaceTop)
-	const statusWidth = 16
+	statusWidth := 16
+	if model.analyzing && len(model.runtime.scanProgress) > 0 {
+		statusWidth = min(48, max(20, model.width/3))
+	}
 	_, rightWidth, graphWidth, _ := headerColumnWidths(model.width, lipgloss.Width(logoText), statusWidth)
 	graphTop, graphBottom := renderScoreDistribution(model, graphWidth)
 	if graphWidth >= 6 && graphTop == "" {
@@ -154,6 +157,10 @@ func responsiveHeaderLabel(value string, budget int) string {
 }
 
 func headerStatusCells(model Model, width int) (string, string) {
+	if model.analyzing && len(model.runtime.scanProgress) > 0 {
+		top, bottom := scanStatus(model)
+		return truncateStatus(top, width), truncateStatus(bottom, width)
+	}
 	top := compactCacheStatus(model)
 	if !model.analyzing && model.status != "" && !overlayPresent(model.overlays, OverlayRuntimeError) {
 		top = truncateStatus(model.status, width)

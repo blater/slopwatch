@@ -53,7 +53,7 @@ func scoreDistributionBucket(score float64) int {
 }
 
 func scoreDistributionSample(file report.File) (int, bool) {
-	if metricFailed(file, "score") {
+	if len(file.PendingComponents) > 0 || metricFailed(file, "score") {
 		return -1, false
 	}
 	bucket := scoreDistributionBucket(file.Score)

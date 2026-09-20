@@ -91,7 +91,7 @@ func AnalyzeJavaFiles(files []File) map[string]Result {
 // analyzeJavaUnits projects Java roots from a shared parser/index. Keeping
 // this separate from AnalyzeJavaFiles lets the mixed-language attribution
 // pipeline reuse one cross-file call graph rather than reparsing Java files.
-func analyzeJavaUnits(units []unit, byKey map[string][]*operation) map[string]Result {
+func analyzeJavaUnits(units []unit, byKey map[string][]*operation, callbacks ...func(File, Result)) map[string]Result {
 	supporting := supportingJavaOwners(units)
 	results := make(map[string]Result)
 	for _, unit := range units {
@@ -162,6 +162,9 @@ func analyzeJavaUnits(units []unit, byKey map[string][]*operation) map[string]Re
 			best.Abstractions = nil
 		}
 		results[unit.file.Path] = best
+		if len(callbacks) > 0 && callbacks[0] != nil {
+			callbacks[0](unit.file, best)
+		}
 	}
 	return results
 }

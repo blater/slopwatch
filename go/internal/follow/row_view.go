@@ -40,7 +40,9 @@ func renderFixedColumns(model Model, file report.File, state rowState, backgroun
 	}
 	scoreText := decimalWithin(file.Score, scoreWidth)
 	scoreForeground := scoreColour(file.Score)
-	if metricFailed(file, "score") {
+	if metricPending(file, "score") {
+		scoreText, scoreForeground = "…", style.TextMuted
+	} else if metricFailed(file, "score") {
 		scoreText = "X"
 		scoreForeground = style.TextMuted
 	}
@@ -128,7 +130,9 @@ func renderMetricCell(file report.File, column column, background lipgloss.Color
 	value, exists, _ := metric(file, column.key)
 	metricState := scoring.Metric(file, column.key).State
 	text := "-"
-	if metricFailed(file, column.key) {
+	if metricPending(file, column.key) {
+		text = "…"
+	} else if metricFailed(file, column.key) {
 		text = "X"
 	} else if metricState == "not_applicable" {
 		text = "N/A"
