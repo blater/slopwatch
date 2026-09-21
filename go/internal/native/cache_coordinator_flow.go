@@ -38,7 +38,7 @@ func runPersistentCache(analyzer *analysisEngine, parent context.Context, catalo
 			}
 		}
 		if unchanged {
-			if projection, ok := state.store.LoadProjection(state.generation.Projection, state.view); ok {
+			if projection, ok := state.store.LoadProjection(state.generation.Projection); ok {
 				if valid, err := verifyPersistentCache(analyzer, parent, &state, options); err != nil {
 					return report.Document{}, true, err
 				} else if valid {
@@ -183,15 +183,6 @@ func verifyPersistentCache(analyzer *analysisEngine, parent context.Context, sta
 	}
 	if !unchanged {
 		return false, ErrWorkspaceChanged
-	}
-	for language, expected := range state.prepared.backendDigests {
-		actual, digestErr := backendDigest(analyzer, language, options)
-		if digestErr != nil {
-			return true, digestErr
-		}
-		if actual != expected {
-			return false, ErrWorkspaceChanged
-		}
 	}
 	return true, nil
 }

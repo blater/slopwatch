@@ -9,11 +9,6 @@ import (
 	"github.com/blater/slopwatch/internal/unitplan"
 )
 
-const (
-	nativeFactVersion     = "4"
-	nativeProtocolVersion = "1"
-)
-
 type analyzerUnitsRunner func(context.Context, string, analyzerRequest) (map[string]scoreInputs, error)
 
 type plannedCacheUnit struct {
@@ -25,11 +20,10 @@ type plannedCacheUnit struct {
 }
 
 type cachePreparation struct {
-	stamps         map[string]analysiscache.FileStamp
-	units          []plannedCacheUnit
-	digests        map[string]analysiscache.Digest
-	backendDigests map[string]analysiscache.Digest
-	plans          map[string]unitplan.Unit
+	stamps  map[string]analysiscache.FileStamp
+	units   []plannedCacheUnit
+	digests map[string]analysiscache.Digest
+	plans   map[string]unitplan.Unit
 }
 
 // ErrWorkspaceChanged reports that live workspace inputs changed while an

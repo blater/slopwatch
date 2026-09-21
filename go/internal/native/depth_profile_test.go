@@ -1,8 +1,6 @@
 package native
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/blater/slopwatch/internal/analysiscache"
@@ -46,7 +44,7 @@ func TestActiveCatalogOnlyChangesShallowProfileComponent(t *testing.T) {
 	}
 }
 
-func TestShallowProfileChangesWorkspaceAndUnitCacheKeys(t *testing.T) {
+func TestShallowProfileDoesNotChangeCacheIdentity(t *testing.T) {
 	workspace := t.TempDir()
 	legacy := Options{Targets: []string{"."}, Languages: []string{"go"}, ShallowProfile: ShallowProfileLegacy}
 	profiled := Options{Targets: []string{"."}, Languages: []string{"go"}, ShallowProfile: ShallowProfileResponsibilityV4}
@@ -58,8 +56,8 @@ func TestShallowProfileChangesWorkspaceAndUnitCacheKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if legacyView == profiledView {
-		t.Fatal("legacy and responsibility-v4 workspace views share a cache key")
+	if legacyView != profiledView {
+		t.Fatal("shallow profile changed the workspace cache key")
 	}
 	defaultView, err := viewKey(&analysisEngine{workspace: workspace}, Options{Targets: []string{"."}, Languages: []string{"go"}})
 	if err != nil {
@@ -71,17 +69,16 @@ func TestShallowProfileChangesWorkspaceAndUnitCacheKeys(t *testing.T) {
 
 	unit := unitplan.Unit{ID: "go", Language: unitplan.LanguageGo, Mode: unitplan.ModeSyntax, Sources: []string{"main.go"}}
 	catalog := catalogDocument{}
-	digest := analysiscache.Digest("catalog")
-	legacyKey, err := analysiscache.UnitKey(unitKeyInput(unit, nil, nil, "analyzer", digest, catalog, legacy))
+	legacyKey, err := analysiscache.UnitKey(unitKeyInput(unit, nil, nil, catalog, legacy))
 	if err != nil {
 		t.Fatal(err)
 	}
-	profiledKey, err := analysiscache.UnitKey(unitKeyInput(unit, nil, nil, "analyzer", digest, catalog, profiled))
+	profiledKey, err := analysiscache.UnitKey(unitKeyInput(unit, nil, nil, catalog, profiled))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if legacyKey == profiledKey {
-		t.Fatal("legacy and responsibility-v4 units share a cache key")
+	if legacyKey != profiledKey {
+		t.Fatal("shallow profile changed the unit cache key")
 	}
 	if samePlanOptions(legacy, profiled) {
 		t.Fatal("incremental plan options ignored shallow profile")
@@ -101,40 +98,5 @@ func TestResponsibilityProfileAddsTypeScriptEvaluatorContract(t *testing.T) {
 	want := "/installation/analyzers/structural/slopslap-structural"
 	if got := profiled["depth_evaluator_path"]; got != want {
 		t.Fatalf("depth evaluator path = %#v, want %q", got, want)
-	}
-}
-
-func TestTypeScriptDepthCacheTracksSharedEvaluator(t *testing.T) {
-	root := t.TempDir()
-	analyzer := &analysisEngine{root: root}
-	write := func(language, content string) {
-		t.Helper()
-		path := analyzerExecutable(root, language)
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	digest := func(options Options) analysiscache.Digest {
-		t.Helper()
-		result, err := backendDigest(analyzer, "typescript", options)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return result
-	}
-	write("typescript", "typescript analyzer")
-	legacy := digest(Options{ShallowProfile: ShallowProfileLegacy}) // Legacy does not require the shared evaluator.
-	write("go", "evaluator before")
-	profile := Options{ShallowProfile: ShallowProfileResponsibilityV4}
-	before := digest(profile)
-	write("go", "evaluator after")
-	if before == digest(profile) {
-		t.Fatal("changed shared evaluator reused TypeScript v4 cache identity")
-	}
-	if legacy != digest(Options{ShallowProfile: ShallowProfileLegacy}) {
-		t.Fatal("shared evaluator changed legacy TypeScript cache identity")
 	}
 }

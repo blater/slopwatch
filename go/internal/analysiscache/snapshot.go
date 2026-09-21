@@ -25,7 +25,7 @@ type SnapshotFile struct {
 }
 
 // MaterializeSnapshot builds a private, read-only temporary tree exclusively
-// from checksum-verified CAS blobs. It never opens the live workspace. The
+// from stored source blobs. It never opens the live workspace. The
 // returned cleanup function is idempotent and must be called by the owner.
 func (store *Store) MaterializeSnapshot(ctx context.Context, files []SnapshotFile) (root string, cleanup func() error, err error) {
 	canonical, err := canonicalSnapshotFiles(files)

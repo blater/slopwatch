@@ -5,7 +5,6 @@ import (
 
 	"github.com/blater/slopwatch/internal/analysiscache"
 	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/sourceestimate"
 )
 
 type analyzerCache struct {
@@ -75,11 +74,7 @@ func viewKey(analyzer *analysisEngine, options Options) (analysiscache.ViewKey, 
 }
 
 func cacheViewTargets(options Options) []string {
-	targets := append([]string(nil), options.Targets...)
-	if shallowProfile(options) == ShallowProfileResponsibilityV4 {
-		targets = append(targets, "\x00shallow-profile="+ShallowProfileResponsibilityV4+"\x00policy="+ShallowPolicyRevisionV4+"\x00calibration="+sourceestimate.DefaultCalibrationIdentity())
-	}
-	return targets
+	return append([]string(nil), options.Targets...)
 }
 
 // CachedProjection returns the last complete view immediately. Its rows are
@@ -107,12 +102,8 @@ func cachedProjection(analyzer *analysisEngine) (report.Document, bool) {
 	if !ok {
 		return report.Document{}, false
 	}
-	projection, ok := store.LoadProjection(generation.Projection, view)
+	projection, ok := store.LoadProjection(generation.Projection)
 	if !ok {
-		return report.Document{}, false
-	}
-	schemaVersion, profileHash, scoreProfile, policyRevision, identityErr := reportIdentity(activeCatalog(analyzer.catalog, options))
-	if identityErr != nil || projection.SchemaVersion != schemaVersion || projection.ProfileSetHash != profileHash || projection.ScoreProfile != scoreProfile || projection.PolicyRevision != policyRevision || projection.ScorePolicyRevision != StructuralScoringPolicyRevision {
 		return report.Document{}, false
 	}
 	discovered, err := discoverPolicy(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore)

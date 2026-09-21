@@ -166,6 +166,14 @@ func TestHeaderStatusCellsUseFixedPaintedCapacityAndPriority(t *testing.T) {
 			if lipgloss.Width(ansi.Strip(cell)) != 16 || !strings.Contains(cell, ";48;2") {
 				t.Fatalf("%s status cell was not painted across its padding: width=%d ansi=%q", theme, lipgloss.Width(ansi.Strip(cell)), cell)
 			}
+			reverseSequences := strings.Count(cell, "\x1b[7;") + strings.Count(cell, "\x1b[7m")
+			wantReverseSequences := 0
+			if value != "" {
+				wantReverseSequences = 1
+			}
+			if reverseSequences != wantReverseSequences {
+				t.Fatalf("%s status reverse video sequences = %d, want %d for value %q, ansi=%q", theme, reverseSequences, wantReverseSequences, value, cell)
+			}
 		}
 	}
 	ConfigureTheme(style.ThemeDark)

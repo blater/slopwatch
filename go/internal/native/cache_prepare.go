@@ -32,24 +32,16 @@ func prepareCacheUnits(analyzer *analysisEngine, ctx context.Context, catalog ca
 	if err != nil {
 		return cachePreparation{}, err
 	}
-	catalogDigest, err := analysisCatalogDigest(catalog)
-	if err != nil {
-		return cachePreparation{}, err
-	}
-	analyzerDigests, err := backendDigests(analyzer, byID, relevant, options)
-	if err != nil {
-		return cachePreparation{}, err
-	}
-	localKeys, err := localUnitKeys(analyzer, byID, relevant, digests, analyzerDigests, catalogDigest, catalog, options)
+	localKeys, err := localUnitKeys(byID, relevant, digests, catalog, options)
 	if err != nil {
 		return cachePreparation{}, err
 	}
 	dependencyFingerprints := dependencyGraphFingerprints(byID, localKeys)
 	conservativeFingerprints := conservativeLanguageFingerprints(byID, localKeys)
-	result := cachePreparation{stamps: stamps, digests: digests, backendDigests: analyzerDigests, plans: byID, units: make([]plannedCacheUnit, len(active))}
+	result := cachePreparation{stamps: stamps, digests: digests, plans: byID, units: make([]plannedCacheUnit, len(active))}
 	for index, unit := range active {
 		dependencies := dependencyFingerprintsFor(unit.plan, dependencyFingerprints, conservativeFingerprints)
-		key, keyErr := analysiscache.UnitKey(unitKeyInput(unit.plan, dependencies, digests, analyzerDigests[string(unit.plan.Language)], catalogDigest, catalog, options))
+		key, keyErr := analysiscache.UnitKey(unitKeyInput(unit.plan, dependencies, digests, catalog, options))
 		if keyErr != nil {
 			return cachePreparation{}, keyErr
 		}
@@ -127,27 +119,11 @@ func inputPathsForUnits(units map[string]unitplan.Unit, relevant map[string]bool
 	return paths
 }
 
-func backendDigests(analyzer *analysisEngine, units map[string]unitplan.Unit, relevant map[string]bool, options Options) (map[string]analysiscache.Digest, error) {
-	digests := make(map[string]analysiscache.Digest)
-	for id := range relevant {
-		language := string(units[id].Language)
-		if digests[language] != "" {
-			continue
-		}
-		digest, err := backendDigest(analyzer, language, options)
-		if err != nil {
-			return nil, err
-		}
-		digests[language] = digest
-	}
-	return digests, nil
-}
-
-func localUnitKeys(analyzer *analysisEngine, units map[string]unitplan.Unit, relevant map[string]bool, digests map[string]analysiscache.Digest, backends map[string]analysiscache.Digest, catalogDigest analysiscache.Digest, catalog catalogDocument, options Options) (map[string]analysiscache.Key, error) {
+func localUnitKeys(units map[string]unitplan.Unit, relevant map[string]bool, digests map[string]analysiscache.Digest, catalog catalogDocument, options Options) (map[string]analysiscache.Key, error) {
 	keys := make(map[string]analysiscache.Key, len(relevant))
 	for id := range relevant {
 		unit := units[id]
-		key, err := analysiscache.UnitKey(unitKeyInput(unit, nil, digests, backends[string(unit.Language)], catalogDigest, catalog, options))
+		key, err := analysiscache.UnitKey(unitKeyInput(unit, nil, digests, catalog, options))
 		if err != nil {
 			return nil, err
 		}

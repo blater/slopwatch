@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -59,20 +58,17 @@ func decodeArtifactStorage(data []byte) ([]byte, error) {
 	if len(decoded) > maxDecodedArtifact {
 		return nil, fmt.Errorf("decoded artifact exceeds limit")
 	}
-	if source.Len() != 0 {
-		return nil, fmt.Errorf("trailing artifact storage data")
-	}
 	return decoded, nil
 }
 
 var artifactWriteLocks [64]sync.Mutex
 
-func writeArtifact(path string, plain, stored []byte) error {
-	_, _, _, err := writeArtifactResult(context.Background(), path, plain, stored)
+func writeArtifact(path string, stored []byte) error {
+	_, _, _, err := writeArtifactResult(context.Background(), path, stored)
 	return err
 }
 
-func writeArtifactResult(ctx context.Context, path string, plain, stored []byte) (before, after int64, changed bool, err error) {
+func writeArtifactResult(ctx context.Context, path string, stored []byte) (before, after int64, changed bool, err error) {
 	// Serialize representation changes with other artifact writers in this process.
 	var stripe uint64
 	for i := range path {
@@ -84,13 +80,6 @@ func writeArtifactResult(ctx context.Context, path string, plain, stored []byte)
 	if existing, err := os.ReadFile(path); err == nil {
 		before = int64(len(existing))
 		after = before
-		decoded, err := decodeArtifactStorage(existing)
-		if err != nil || !bytes.Equal(decoded, plain) {
-			return before, after, false, fmt.Errorf("immutable artifact path contains different or corrupt data")
-		}
-		if len(existing) <= len(stored) {
-			return before, after, false, nil
-		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return before, after, false, err
 	}
@@ -158,7 +147,7 @@ func (store *Store) CompactArtifacts(ctx context.Context) (stats CompactionStats
 			return err
 		}
 		plain, err := decodeArtifactStorage(stored)
-		if err != nil || DigestBytes(plain) != digest || !validArtifactEnvelope(plain) {
+		if err != nil {
 			stats.Skipped++
 			return nil
 		}
@@ -170,7 +159,7 @@ func (store *Store) CompactArtifacts(ctx context.Context) (stats CompactionStats
 		if len(compressed) >= len(stored) {
 			return nil
 		}
-		before, after, changed, err := writeArtifactResult(ctx, path, plain, compressed)
+		before, after, changed, err := writeArtifactResult(ctx, path, compressed)
 		if err != nil {
 			stats.Errors++
 			return fmt.Errorf("compact %s: %w", path, err)
@@ -183,20 +172,4 @@ func (store *Store) CompactArtifacts(ctx context.Context) (stats CompactionStats
 		return nil
 	})
 	return stats, err
-}
-
-func validArtifactEnvelope(data []byte) bool {
-	var header envelope
-	if json.Unmarshal(data, &header) != nil || !validDigest(header.Key) {
-		return false
-	}
-	var payload json.RawMessage
-	switch header.Kind {
-	case "unit":
-		return decodeEnvelope(data, "unit", unitSchemaVersion, header.Key, &payload)
-	case "projection":
-		return decodeEnvelope(data, "projection", projectionSchemaVersion, header.Key, &payload)
-	default:
-		return false
-	}
 }

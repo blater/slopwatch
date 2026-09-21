@@ -14,18 +14,13 @@ func TestUnitKeyIsCanonicalAndCorrectnessSensitive(t *testing.T) {
 			{Path: "pkg" + string(filepath.Separator) + "b.go", ContentHash: DigestBytes([]byte("b"))},
 			{Path: "pkg/a.go", ContentHash: DigestBytes([]byte("a"))},
 		},
-		Configuration:   []InputFingerprint{{Path: "./go.mod", ContentHash: DigestBytes([]byte("module example"))}},
-		Dependencies:    []DependencyFingerprint{{UnitID: "z", Fingerprint: keyFor([]byte("z"))}, {UnitID: "a", Fingerprint: keyFor([]byte("a"))}},
-		AnalyzerDigest:  DigestBytes([]byte("analyzer")),
-		FactVersion:     "facts-1",
-		ProtocolVersion: "1",
-		CatalogVersion:  "catalog-1",
-		Components:      []ComponentDefinition{{ID: "z", Version: "1"}, {ID: "a", Version: "2"}},
-		ParserMode:      "syntax",
-		IncludeTests:    true,
-		Targets:         []string{"pkg/b.go", "./pkg/a.go"},
-		Languages:       []string{"rust", "go"},
-		Toolchain:       map[string]string{"go": "1.25"},
+		Configuration: []InputFingerprint{{Path: "./go.mod", ContentHash: DigestBytes([]byte("module example"))}},
+		Dependencies:  []DependencyFingerprint{{UnitID: "z", Fingerprint: keyFor([]byte("z"))}, {UnitID: "a", Fingerprint: keyFor([]byte("a"))}},
+		Components:    []ComponentDefinition{{ID: "z"}, {ID: "a"}},
+		ParserMode:    "syntax",
+		IncludeTests:  true,
+		Targets:       []string{"pkg/b.go", "./pkg/a.go"},
+		Languages:     []string{"rust", "go"},
 	}
 	b := a
 	b.Sources = []InputFingerprint{a.Sources[1], a.Sources[0]}
@@ -62,17 +57,11 @@ func TestUnitKeyIsCanonicalAndCorrectnessSensitive(t *testing.T) {
 	}{
 		{"configuration", func(value *UnitKeyInput) { value.Configuration[0].ContentHash = DigestBytes([]byte("config-2")) }},
 		{"dependency", func(value *UnitKeyInput) { value.Dependencies[0].Fingerprint = keyFor([]byte("dependency-2")) }},
-		{"analyzer", func(value *UnitKeyInput) { value.AnalyzerDigest = DigestBytes([]byte("analyzer-2")) }},
-		{"fact schema", func(value *UnitKeyInput) { value.FactVersion = "facts-2" }},
-		{"protocol", func(value *UnitKeyInput) { value.ProtocolVersion = "2" }},
-		{"catalog", func(value *UnitKeyInput) { value.CatalogVersion = "catalog-2" }},
-		{"component definition", func(value *UnitKeyInput) { value.Components[0].Version = "2" }},
 		{"parser mode", func(value *UnitKeyInput) { value.ParserMode = "typed" }},
 		{"type analysis", func(value *UnitKeyInput) { value.TypeAnalysisMode = "on" }},
 		{"include tests", func(value *UnitKeyInput) { value.IncludeTests = false }},
 		{"target", func(value *UnitKeyInput) { value.Targets = []string{"pkg/a.go"} }},
 		{"language", func(value *UnitKeyInput) { value.Languages = []string{"go"} }},
-		{"toolchain", func(value *UnitKeyInput) { value.Toolchain["go"] = "1.26" }},
 	}
 	for _, mutation := range mutations {
 		t.Run(mutation.name, func(t *testing.T) {

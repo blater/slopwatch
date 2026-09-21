@@ -179,7 +179,13 @@ func renderHeaderStatusCell(value string, width int) string {
 		return ""
 	}
 	cellStyle := lipgloss.NewStyle().Foreground(style.TextMuted).Background(style.SurfaceTop)
-	return cellStyle.Render(padANSI(truncateANSI(value, width), width))
+	value = truncateANSI(value, width)
+	if value == "" {
+		return cellStyle.Render(strings.Repeat(" ", width))
+	}
+	statusStyle := cellStyle.Reverse(true)
+	padding := max(0, width-lipgloss.Width(value))
+	return statusStyle.Render(value) + cellStyle.Render(strings.Repeat(" ", padding))
 }
 
 func hasActiveAgents(jobs []fix.JobPresentation) bool {

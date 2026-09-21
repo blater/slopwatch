@@ -26,8 +26,7 @@ type DependencyFingerprint struct {
 
 // ComponentDefinition identifies an analyzer component implementation.
 type ComponentDefinition struct {
-	ID      string `json:"id"`
-	Version string `json:"version"`
+	ID string `json:"id"`
 }
 
 // UnitKeyInput contains every correctness-affecting analysis input. Presentation
@@ -38,17 +37,12 @@ type UnitKeyInput struct {
 	Sources          []InputFingerprint      `json:"sources"`
 	Configuration    []InputFingerprint      `json:"configuration"`
 	Dependencies     []DependencyFingerprint `json:"dependencies"`
-	AnalyzerDigest   Digest                  `json:"analyzer_digest"`
-	FactVersion      string                  `json:"fact_version"`
-	ProtocolVersion  string                  `json:"protocol_version"`
-	CatalogVersion   string                  `json:"catalog_version"`
 	Components       []ComponentDefinition   `json:"components"`
 	ParserMode       string                  `json:"parser_mode"`
 	TypeAnalysisMode string                  `json:"type_analysis_mode"`
 	IncludeTests     bool                    `json:"include_tests"`
 	Targets          []string                `json:"targets"`
 	Languages        []string                `json:"languages"`
-	Toolchain        map[string]string       `json:"toolchain"`
 }
 
 // UnitKey returns an order-independent, stable SHA-256 key. Paths are converted
@@ -67,16 +61,10 @@ func UnitKey(input UnitKeyInput) (Key, error) {
 	})
 	canonical.Components = append([]ComponentDefinition{}, input.Components...)
 	sort.Slice(canonical.Components, func(i, j int) bool {
-		if canonical.Components[i].ID != canonical.Components[j].ID {
-			return canonical.Components[i].ID < canonical.Components[j].ID
-		}
-		return canonical.Components[i].Version < canonical.Components[j].Version
+		return canonical.Components[i].ID < canonical.Components[j].ID
 	})
 	canonical.Targets = canonicalStrings(input.Targets, true)
 	canonical.Languages = canonicalStrings(input.Languages, false)
-	if canonical.Toolchain == nil {
-		canonical.Toolchain = map[string]string{}
-	}
 	payload, err := json.Marshal(canonical)
 	if err != nil {
 		return "", fmt.Errorf("encode unit cache key: %w", err)

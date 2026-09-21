@@ -2,12 +2,9 @@ package native
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/blater/slopwatch/internal/analysiscache"
-	"github.com/blater/slopwatch/internal/sourceestimate"
 	"github.com/blater/slopwatch/internal/unitplan"
 )
 
@@ -42,7 +39,7 @@ func analysisCatalogDigest(catalog catalogDocument) (analysiscache.Digest, error
 	return analysiscache.DigestBytes(encoded), nil
 }
 
-func unitKeyInput(unit unitplan.Unit, dependencies []analysiscache.DependencyFingerprint, digests map[string]analysiscache.Digest, analyzerDigest, catalogDigest analysiscache.Digest, catalog catalogDocument, options Options) analysiscache.UnitKeyInput {
+func unitKeyInput(unit unitplan.Unit, dependencies []analysiscache.DependencyFingerprint, digests map[string]analysiscache.Digest, catalog catalogDocument, options Options) analysiscache.UnitKeyInput {
 	sources := fingerprints(append(append([]string{}, unit.Sources...), unit.ContextSources...), digests)
 	configuration := fingerprints(unit.ConfigInputs, digests)
 	typeMode := "off"
@@ -52,22 +49,13 @@ func unitKeyInput(unit unitplan.Unit, dependencies []analysiscache.DependencyFin
 	components := componentsForLanguage(catalog, string(unit.Language))
 	definitions := make([]analysiscache.ComponentDefinition, len(components))
 	for index, component := range components {
-		definitions[index] = analysiscache.ComponentDefinition{ID: component.ID, Version: component.Version}
-	}
-	toolchain := map[string]string{"go_runtime": runtime.Version(), "goos": runtime.GOOS, "goarch": runtime.GOARCH}
-	if shallowProfile(options) == ShallowProfileResponsibilityV4 {
-		toolchain["shallow_profile"] = ShallowProfileResponsibilityV4
-		toolchain["shallow_policy_revision"] = ShallowPolicyRevisionV4
-		toolchain["shallow_calibration"] = sourceestimate.DefaultCalibrationIdentity()
+		definitions[index] = analysiscache.ComponentDefinition{ID: component.ID}
 	}
 	return analysiscache.UnitKeyInput{
 		UnitID: unit.ID, Language: string(unit.Language), Sources: sources,
 		Configuration: configuration, Dependencies: dependencies,
-		AnalyzerDigest: analyzerDigest, FactVersion: nativeFactVersion,
-		ProtocolVersion: nativeProtocolVersion, CatalogVersion: string(catalogDigest),
 		Components: definitions, ParserMode: string(unit.Mode), TypeAnalysisMode: typeMode,
 		IncludeTests: unitOutputIncludesTests(unit),
-		Toolchain:    toolchain,
 	}
 }
 
@@ -95,46 +83,6 @@ func componentsForLanguage(catalog catalogDocument, language string) []requested
 		}
 	}
 	return result
-}
-
-func backendDigest(analyzer *analysisEngine, language string, options Options) (analysiscache.Digest, error) {
-	paths := []string{analyzerExecutable(analyzer.root, language)}
-	structural := filepath.Join(analyzer.root, "analyzers", "structural")
-	switch language {
-	case "typescript":
-		if shallowProfile(options) == ShallowProfileResponsibilityV4 {
-			paths = append(paths, analyzerExecutable(analyzer.root, "go"))
-		}
-	case "java":
-		paths = append(paths, filepath.Join(structural, "slopslap-structural-java.jar"), filepath.Join(structural, "java-runtime", "bin", "java"))
-	case "rust":
-		name := "slopslap-structural-rust"
-		if runtime.GOOS == "windows" {
-			name += ".exe"
-		}
-		paths = append(paths, filepath.Join(structural, name))
-	}
-	return digestFiles(paths)
-}
-
-func digestFiles(paths []string) (analysiscache.Digest, error) {
-	type identityFile struct {
-		Path   string               `json:"path"`
-		Digest analysiscache.Digest `json:"digest"`
-	}
-	files := make([]identityFile, 0, len(paths))
-	for _, path := range paths {
-		contents, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-		files = append(files, identityFile{Path: filepath.Base(path), Digest: analysiscache.DigestBytes(contents)})
-	}
-	encoded, err := json.Marshal(files)
-	if err != nil {
-		return "", err
-	}
-	return analysiscache.DigestBytes(encoded), nil
 }
 
 func analyzerExecutable(root, language string) string {

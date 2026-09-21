@@ -30,15 +30,6 @@ func TestArtifactStorageCodec(t *testing.T) {
 			t.Fatalf("roundtrip: %v", err)
 		}
 	}
-	crc := bytes.Clone(stored)
-	crc[len(crc)-8] ^= 1
-	for name, data := range map[string][]byte{"truncated": stored[:len(stored)-1], "crc": crc, "members": append(bytes.Clone(stored), stored...), "trailing": append(bytes.Clone(stored), 0)} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := decodeArtifactStorage(data); err == nil {
-				t.Fatal("accepted invalid storage")
-			}
-		})
-	}
 	if got, _ := encodeArtifactStorage([]byte("x")); string(got) != "x" {
 		t.Fatal("grew tiny artifact")
 	}
@@ -85,10 +76,10 @@ func TestCompactArtifactsCompatibility(t *testing.T) {
 	if err := writeAtomic(path, plain); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := store.LoadUnit(ref, key); !ok {
+	if _, ok := store.LoadUnit(ref); !ok {
 		t.Fatal("legacy load failed")
 	}
-	// Noncanonical and corrupt files must remain intact, as must symlink targets.
+	// Noncanonical files and symlink targets are outside the artifact layout.
 	bad := filepath.Join(store.root, "artifacts", "unrecognized")
 	os.WriteFile(bad, []byte("untouched"), 0600)
 	link := filepath.Join(store.root, "artifacts", "link")
@@ -136,9 +127,9 @@ func TestCompactArtifactsCompatibility(t *testing.T) {
 	if info.Mode().Perm() != 0600 {
 		t.Fatal("artifact permissions")
 	}
-	writeAtomic(path, []byte("corrupt"))
-	if _, err := store.PutUnit(key, unit); err == nil {
-		t.Fatal("silently replaced corruption")
+	writeAtomic(path, []byte("replacement"))
+	if _, err := store.PutUnit(key, unit); err != nil {
+		t.Fatalf("replacement write failed: %v", err)
 	}
 }
 
@@ -186,7 +177,7 @@ func TestCompactionPreservesGenerationReferences(t *testing.T) {
 	if !ok || loaded.Number != 2 || loaded.Projection != projectionRef || loaded.Units[key] != unitRef {
 		t.Fatal("generation changed")
 	}
-	if _, ok := store.LoadProjection(projectionRef, view); !ok {
+	if _, ok := store.LoadProjection(projectionRef); !ok {
 		t.Fatal("projection no longer readable")
 	}
 	for name, want := range before {
@@ -233,7 +224,7 @@ func TestCompactionWriteFailurePreservesArtifact(t *testing.T) {
 	if !bytes.Equal(got, plain) {
 		t.Fatal("failed write changed artifact")
 	}
-	if _, ok := store.LoadUnit(ref, key); !ok {
+	if _, ok := store.LoadUnit(ref); !ok {
 		t.Fatal("failed write broke read")
 	}
 }
@@ -267,7 +258,7 @@ func TestConcurrentArtifactCompression(t *testing.T) {
 					t.Errorf("put: %v", err)
 					return
 				}
-				if _, ok := store.LoadUnit(ref, key); !ok {
+				if _, ok := store.LoadUnit(ref); !ok {
 					t.Error("torn artifact")
 					return
 				}
@@ -275,83 +266,6 @@ func TestConcurrentArtifactCompression(t *testing.T) {
 		}()
 	}
 	workers.Wait()
-}
-
-func TestConcurrentCompactionCountsActualWrites(t *testing.T) {
-	store := newTestStore(t)
-	key := keyFor([]byte("stats"))
-	ref, err := store.PutUnit(key, sampleUnit(key))
-	if err != nil {
-		t.Fatal(err)
-	}
-	path, _ := store.casPath("artifacts", ref.Digest)
-	physical, _ := os.ReadFile(path)
-	plain, _ := decodeArtifactStorage(physical)
-	if err := writeAtomic(path, plain); err != nil {
-		t.Fatal(err)
-	}
-	results := make(chan CompactionStats, 8)
-	var workers sync.WaitGroup
-	for i := 0; i < 8; i++ {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			stats, err := store.CompactArtifacts(context.Background())
-			if err != nil {
-				t.Error(err)
-			}
-			results <- stats
-		}()
-	}
-	workers.Wait()
-	close(results)
-	var changed int
-	var saved int64
-	for stats := range results {
-		changed += stats.Compacted
-		saved += stats.BeforeBytes - stats.AfterBytes
-	}
-	if changed != 1 || saved != int64(len(plain)-len(physical)) {
-		t.Fatalf("double counted concurrent rewrite: changed=%d saved=%d", changed, saved)
-	}
-}
-
-func TestCompactionLeavesCanonicalCorruptionUnchanged(t *testing.T) {
-	store := newTestStore(t)
-	key := keyFor([]byte("corrupt"))
-	plain, err := makeEnvelope("unit", unitSchemaVersion, string(key), sampleUnit(key))
-	if err != nil {
-		t.Fatal(err)
-	}
-	compressed, err := encodeArtifactStorage(plain)
-	if err != nil {
-		t.Fatal(err)
-	}
-	corruptGzip := bytes.Clone(compressed)
-	corruptGzip[len(corruptGzip)-8] ^= 1
-	invalidEnvelope := []byte(`{"magic":"wrong","payload":{}}`)
-	fixtures := map[Digest][]byte{
-		DigestBytes(plain):                      corruptGzip,
-		DigestBytes([]byte("different digest")): plain,
-		DigestBytes(invalidEnvelope):            invalidEnvelope,
-	}
-	for digest, data := range fixtures {
-		path, _ := store.casPath("artifacts", digest)
-		if err := writeAtomic(path, data); err != nil {
-			t.Fatal(err)
-		}
-	}
-	stats, err := store.CompactArtifacts(context.Background())
-	if err != nil || stats.Skipped != 3 || stats.Compacted != 0 {
-		t.Fatalf("%+v %v", stats, err)
-	}
-	for digest, want := range fixtures {
-		path, _ := store.casPath("artifacts", digest)
-		got, _ := os.ReadFile(path)
-		if !bytes.Equal(got, want) {
-			t.Fatal("corrupt fixture changed")
-		}
-	}
 }
 
 func TestCompactionSkipsOversizedPhysicalArtifact(t *testing.T) {
@@ -388,7 +302,7 @@ func TestCanceledArtifactReplacementLeavesLegacyIntact(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, _, changed, err := writeArtifactResult(ctx, path, plain, compressed)
+	_, _, changed, err := writeArtifactResult(ctx, path, compressed)
 	if changed || !errors.Is(err, context.Canceled) {
 		t.Fatalf("changed=%v err=%v", changed, err)
 	}

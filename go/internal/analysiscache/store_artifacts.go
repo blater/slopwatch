@@ -11,8 +11,8 @@ func (store *Store) PutUnit(key Key, artifact UnitArtifact) (ArtifactRef, error)
 	return artifactStore{root: store.root}.putUnit(key, artifact)
 }
 
-func (store *Store) LoadUnit(ref ArtifactRef, expected Key) (UnitArtifact, bool) {
-	return artifactStore{root: store.root}.loadUnit(ref, expected)
+func (store *Store) LoadUnit(ref ArtifactRef) (UnitArtifact, bool) {
+	return artifactStore{root: store.root}.loadUnit(ref)
 }
 
 func (store *Store) LoadUnitByKey(key Key) (UnitArtifact, ArtifactRef, bool) {
@@ -23,23 +23,20 @@ func (store *Store) PutProjection(view ViewKey, projection DisplayProjection) (A
 	return artifactStore{root: store.root}.putProjection(view, projection)
 }
 
-func (store *Store) LoadProjection(ref ArtifactRef, view ViewKey) (DisplayProjection, bool) {
-	return artifactStore{root: store.root}.loadProjection(ref, view)
+func (store *Store) LoadProjection(ref ArtifactRef) (DisplayProjection, bool) {
+	return artifactStore{root: store.root}.loadProjection(ref)
 }
 
 func (store artifactStore) putUnit(key Key, artifact UnitArtifact) (ArtifactRef, error) {
 	if !validDigest(string(key)) {
 		return ArtifactRef{}, fmt.Errorf("invalid unit key")
 	}
-	if artifact.UnitKey != "" && artifact.UnitKey != key {
-		return ArtifactRef{}, fmt.Errorf("unit artifact key does not match cache key")
-	}
 	artifact.UnitKey = key
-	ref, err := store.putArtifact("unit", unitSchemaVersion, string(key), artifact)
+	ref, err := store.putArtifact("unit", artifact)
 	if err != nil {
 		return ArtifactRef{}, err
 	}
-	pointer, err := makeEnvelope("unit-pointer", unitSchemaVersion, string(key), ref)
+	pointer, err := makeEnvelope(ref)
 	if err != nil {
 		return ArtifactRef{}, err
 	}
@@ -49,9 +46,9 @@ func (store artifactStore) putUnit(key Key, artifact UnitArtifact) (ArtifactRef,
 	return ref, nil
 }
 
-func (store artifactStore) loadUnit(ref ArtifactRef, expected Key) (UnitArtifact, bool) {
+func (store artifactStore) loadUnit(ref ArtifactRef) (UnitArtifact, bool) {
 	var artifact UnitArtifact
-	if !store.loadArtifact(ref, "unit", unitSchemaVersion, string(expected), &artifact) || artifact.UnitKey != expected {
+	if !store.loadArtifact(ref, &artifact) {
 		return UnitArtifact{}, false
 	}
 	return artifact, true
@@ -66,10 +63,10 @@ func (store artifactStore) loadUnitByKey(key Key) (UnitArtifact, ArtifactRef, bo
 		return UnitArtifact{}, ArtifactRef{}, false
 	}
 	var ref ArtifactRef
-	if !decodeEnvelope(data, "unit-pointer", unitSchemaVersion, string(key), &ref) || !validDigest(string(ref.Digest)) {
+	if !decodeEnvelope(data, &ref) || !validDigest(string(ref.Digest)) {
 		return UnitArtifact{}, ArtifactRef{}, false
 	}
-	artifact, ok := store.loadUnit(ref, key)
+	artifact, ok := store.loadUnit(ref)
 	if !ok {
 		return UnitArtifact{}, ArtifactRef{}, false
 	}
@@ -80,21 +77,18 @@ func (store artifactStore) putProjection(view ViewKey, projection DisplayProject
 	if !validDigest(string(view)) {
 		return ArtifactRef{}, fmt.Errorf("invalid workspace view key")
 	}
-	if projection.ViewKey != "" && projection.ViewKey != view {
-		return ArtifactRef{}, fmt.Errorf("projection workspace view key does not match")
-	}
 	for _, file := range projection.Files {
 		if err := validateFreshness(file.Freshness); err != nil {
 			return ArtifactRef{}, err
 		}
 	}
 	projection.ViewKey = view
-	return store.putArtifact("projection", projectionSchemaVersion, string(view), projection)
+	return store.putArtifact("projection", projection)
 }
 
-func (store artifactStore) loadProjection(ref ArtifactRef, view ViewKey) (DisplayProjection, bool) {
+func (store artifactStore) loadProjection(ref ArtifactRef) (DisplayProjection, bool) {
 	var projection DisplayProjection
-	if !store.loadArtifact(ref, "projection", projectionSchemaVersion, string(view), &projection) || projection.ViewKey != view {
+	if !store.loadArtifact(ref, &projection) {
 		return DisplayProjection{}, false
 	}
 	for _, file := range projection.Files {

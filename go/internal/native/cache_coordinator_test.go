@@ -237,57 +237,6 @@ func analyzeTestDocument(t *testing.T, analyzer *Analyzer) report.Document {
 	return document
 }
 
-func TestCorruptUnitArtifactIsAMiss(t *testing.T) {
-	workspace := t.TempDir()
-	writeTestFile(t, workspace, "go.mod", "module example\n")
-	writeTestFile(t, workspace, "a.go", "package sample\n")
-	store, err := analysiscache.NewStore(filepath.Join(t.TempDir(), "cache"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	options := Options{Targets: []string{"."}, Languages: []string{"go"}, ReadCache: true}
-	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
-	calls := 0
-	analyzer.runUnits = func(_ context.Context, _ string, request analyzerRequest) (map[string]scoreInputs, error) {
-		calls++
-		return fakeBatchInputs(t, request), nil
-	}
-	if _, err := analyzer.Analyze(context.Background(), nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	view, err := analyzer.viewKey(options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	corruptCachedArtifacts(t, store, view)
-	if _, err := analyzer.Analyze(context.Background(), nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	assertCacheMiss(t, calls)
-}
-
-func corruptCachedArtifacts(t *testing.T, store *analysiscache.Store, view analysiscache.ViewKey) {
-	t.Helper()
-	generation, ok := store.LoadGeneration(view)
-	if !ok || len(generation.Units) != 1 {
-		t.Fatalf("generation = %#v, %v", generation, ok)
-	}
-	for _, ref := range generation.Units {
-		value := string(ref.Digest)
-		path := filepath.Join(store.Root(), "artifacts", value[:2], value[2:])
-		if err := os.Truncate(path, 7); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func assertCacheMiss(t *testing.T, calls int) {
-	t.Helper()
-	if calls != 2 {
-		t.Fatalf("corrupt artifact was not treated as a miss; calls = %d", calls)
-	}
-}
-
 func TestUnitIndexReusesFullPackageAcrossTargetViews(t *testing.T) {
 	analyzer, calls := indexedCacheFixture(t)
 	first, err := analyzer.Analyze(context.Background(), nil, nil)

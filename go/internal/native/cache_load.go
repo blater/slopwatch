@@ -38,7 +38,7 @@ func loadCachedUnits(ctx context.Context, store *analysiscache.Store, generation
 				artifact := analysiscache.UnitArtifact{}
 				loaded := false
 				if candidate {
-					artifact, loaded = store.LoadUnit(ref, unit.key)
+					artifact, loaded = store.LoadUnit(ref)
 				}
 				if !loaded {
 					artifact, ref, loaded = store.LoadUnitByKey(unit.key)

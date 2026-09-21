@@ -1,9 +1,8 @@
-// Package analysiscache persists verified analyzer inputs and results.
+// Package analysiscache persists analyzer inputs and results.
 //
 // The package deliberately separates the small, eagerly loaded display
-// projection from lossless per-unit reports. Stored values are immutable and
-// are addressed by SHA-256 digests; a workspace manifest is the only mutable
-// pointer.
+// projection from lossless per-unit reports. Source content digests are used
+// for input invalidation, while workspace manifests provide the mutable view.
 package analysiscache
 
 import (
@@ -13,13 +12,6 @@ import (
 	"github.com/blater/slopwatch/internal/report"
 )
 
-const (
-	storeSchemaVersion      = 1
-	projectionSchemaVersion = 1
-	unitSchemaVersion       = 1
-	manifestSchemaVersion   = 1
-)
-
 // Key is a lowercase hexadecimal SHA-256 digest used as a stable cache key.
 type Key string
 
@@ -27,10 +19,11 @@ type Key string
 // It is an alias of Key so unit and view identities share validation helpers.
 type ViewKey = Key
 
-// Digest identifies immutable content in the store.
+// Digest identifies a stored source or artifact path.
 type Digest string
 
-// ArtifactRef points at an immutable, checksummed artifact envelope.
+// ArtifactRef points at a stored artifact envelope. Digest is only the path
+// locator; loading does not recompute or compare it.
 type ArtifactRef struct {
 	Digest Digest `json:"digest"`
 }
@@ -119,7 +112,7 @@ type FileStamp struct {
 }
 
 // Generation is a complete workspace view. Commits replace the current view
-// atomically; individual referenced artifacts remain immutable.
+// atomically.
 type Generation struct {
 	InputStamps  map[string]FileStamp `json:"input_stamps,omitempty"`
 	InputDigests map[string]Digest    `json:"input_digests,omitempty"`

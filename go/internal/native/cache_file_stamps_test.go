@@ -56,8 +56,8 @@ func TestStartupVerificationInvalidatesChangedInputs(t *testing.T) {
 	if _, err := analyzer.AnalyzeStartup(context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
-	if calls <= before {
-		t.Fatal("changed backend reused stale report")
+	if calls != before {
+		t.Fatalf("changed backend unnecessarily invalidated cached report: before=%d after=%d", before, calls)
 	}
 	if err := os.Remove(filepath.Join(workspace, "pkg/new.go")); err != nil {
 		t.Fatal(err)

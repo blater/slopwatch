@@ -2,7 +2,6 @@ package native
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/blater/slopwatch/internal/analysiscache"
@@ -10,7 +9,7 @@ import (
 	"github.com/blater/slopwatch/internal/unitplan"
 )
 
-func TestCalibrationKeysDefaultProfile(t *testing.T) {
+func TestCalibrationDoesNotChangeCacheIdentity(t *testing.T) {
 	p := sourceestimate.DefaultCalibration()
 	current := p.Identity()
 	p.Input *= 1.2
@@ -28,34 +27,24 @@ func TestCalibrationKeysDefaultProfile(t *testing.T) {
 	if defaultReport == changedReport {
 		t.Fatal("report ignores calibration")
 	}
-	input := unitKeyInput(unitplan.Unit{}, nil, nil, "analyzer", "catalog", catalog, options)
-	if input.Toolchain["shallow_calibration"] != current {
-		t.Fatal("unit does not use default calibration")
-	}
+	input := unitKeyInput(unitplan.Unit{}, nil, nil, catalog, options)
 	before, err := analysiscache.UnitKey(input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	input.Toolchain["shallow_calibration"] = changed
 	after, err := analysiscache.UnitKey(input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if before == after {
-		t.Fatal("unit key ignores changed calibration")
+	if before != after {
+		t.Fatal("cache identity changed without a source or scope change")
 	}
-	if !strings.Contains(strings.Join(cacheViewTargets(options), ""), current) {
-		t.Fatal("display cache omits calibration")
-	}
-	legacy := Options{ShallowProfile: ShallowProfileLegacy}
-	if strings.Contains(strings.Join(cacheViewTargets(legacy), ""), current) {
-		t.Fatal("legacy changed by graded calibration")
+	if current == changed {
+		t.Fatal("calibration fixture did not produce distinct identities")
 	}
 }
 
-// Exercise persisted projections, not just digest comparison: an incompatible
-// calibration projection cannot be reused even if stored under today's view.
-func TestCalibrationCachedProjectionRejectsIncompatibleProfile(t *testing.T) {
+func TestCachedProjectionIgnoresStoredCalibrationIdentity(t *testing.T) {
 	workspace := t.TempDir()
 	writeTestFile(t, workspace, "service.go", "package sample\nfunc Run() {}\n")
 	store, err := analysiscache.NewStore(filepath.Join(t.TempDir(), "cache"))
@@ -70,7 +59,7 @@ func TestCalibrationCachedProjectionRejectsIncompatibleProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	active := activeCatalog(catalog, options)
-	schema, currentHash, profile, policy, err := reportIdentity(active)
+	schema, _, profile, policy, err := reportIdentity(active)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +81,7 @@ func TestCalibrationCachedProjectionRejectsIncompatibleProfile(t *testing.T) {
 		}
 	}
 	put()
-	if _, ok := analyzer.CachedProjection(); ok {
-		t.Fatal("reused persisted projection from incompatible calibration")
-	}
-	projection.ProfileSetHash = currentHash
-	put()
 	if _, ok := analyzer.CachedProjection(); !ok {
-		t.Fatal("rejected persisted current calibration projection")
+		t.Fatal("cache projection was rejected based on calibration identity")
 	}
 }

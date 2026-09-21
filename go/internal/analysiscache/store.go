@@ -11,26 +11,17 @@ import (
 	"github.com/blater/slopwatch/internal/userdata"
 )
 
-const envelopeMagic = "slopwatch-analysis-cache"
-
 type envelope struct {
-	Magic    string          `json:"magic"`
-	Store    int             `json:"store_schema"`
-	Kind     string          `json:"kind"`
-	Schema   int             `json:"schema"`
-	Key      string          `json:"key"`
-	Checksum Digest          `json:"checksum"`
-	Payload  json.RawMessage `json:"payload"`
+	Payload json.RawMessage `json:"payload"`
 }
 
 type currentPointer struct {
 	ViewKey    ViewKey `json:"view_key"`
 	Generation uint64  `json:"generation"`
 	Filename   string  `json:"filename"`
-	Digest     Digest  `json:"digest"`
 }
 
-// Store owns a private, immutable content store and atomic workspace pointers.
+// Store owns a private cache and atomic workspace pointers.
 // A Store is safe for concurrent readers and writers in one process.
 type Store struct {
 	root string

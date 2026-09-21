@@ -9,8 +9,8 @@ import (
 	"os"
 )
 
-func (store artifactStore) putArtifact(kind string, schema int, key string, value any) (ArtifactRef, error) {
-	encoded, err := makeEnvelope(kind, schema, key, value)
+func (store artifactStore) putArtifact(kind string, value any) (ArtifactRef, error) {
+	encoded, err := makeEnvelope(value)
 	if err != nil {
 		return ArtifactRef{}, err
 	}
@@ -20,13 +20,13 @@ func (store artifactStore) putArtifact(kind string, schema int, key string, valu
 	if err != nil {
 		return ArtifactRef{}, err
 	}
-	if err := writeArtifact(path, encoded, stored); err != nil {
+	if err := writeArtifact(path, stored); err != nil {
 		return ArtifactRef{}, fmt.Errorf("store %s artifact: %w", kind, err)
 	}
 	return ArtifactRef{Digest: digest}, nil
 }
 
-func (store artifactStore) loadArtifact(ref ArtifactRef, kind string, schema int, key string, target any) bool {
+func (store artifactStore) loadArtifact(ref ArtifactRef, target any) bool {
 	path, ok := cachePath(store.root, "artifacts", ref.Digest)
 	if !ok {
 		return false
@@ -36,34 +36,28 @@ func (store artifactStore) loadArtifact(ref ArtifactRef, kind string, schema int
 		return false
 	}
 	encoded, err = decodeArtifactStorage(encoded)
-	if err != nil || DigestBytes(encoded) != ref.Digest {
+	if err != nil {
 		return false
 	}
-	return decodeEnvelope(encoded, kind, schema, key, target)
+	return decodeEnvelope(encoded, target)
 }
 
-func makeEnvelope(kind string, schema int, key string, value any) ([]byte, error) {
+func makeEnvelope(value any) ([]byte, error) {
 	payload, err := json.Marshal(value)
 	if err != nil {
-		return nil, fmt.Errorf("encode %s cache payload: %w", kind, err)
+		return nil, fmt.Errorf("encode cache payload: %w", err)
 	}
-	encoded, err := json.Marshal(envelope{
-		Magic: envelopeMagic, Store: storeSchemaVersion, Kind: kind,
-		Schema: schema, Key: key, Checksum: DigestBytes(payload), Payload: payload,
-	})
+	encoded, err := json.Marshal(envelope{Payload: payload})
 	if err != nil {
-		return nil, fmt.Errorf("encode %s cache envelope: %w", kind, err)
+		return nil, fmt.Errorf("encode cache envelope: %w", err)
 	}
 	return append(encoded, '\n'), nil
 }
 
-func decodeEnvelope(data []byte, kind string, schema int, key string, target any) bool {
+func decodeEnvelope(data []byte, target any) bool {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	var stored envelope
-	if decoder.Decode(&stored) != nil || stored.Magic != envelopeMagic ||
-		stored.Store != storeSchemaVersion || stored.Kind != kind ||
-		stored.Schema != schema || stored.Key != key ||
-		DigestBytes(stored.Payload) != stored.Checksum {
+	if decoder.Decode(&stored) != nil {
 		return false
 	}
 	var extra any

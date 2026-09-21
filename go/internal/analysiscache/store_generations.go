@@ -64,7 +64,7 @@ func validateUnitReferences(units map[Key]ArtifactRef) error {
 }
 
 func (store generationStore) publish(view ViewKey, generation Generation, directory string) (Generation, error) {
-	encoded, err := makeEnvelope("manifest", manifestSchemaVersion, string(view), generation)
+	encoded, err := makeEnvelope(generation)
 	if err != nil {
 		return Generation{}, err
 	}
@@ -74,11 +74,11 @@ func (store generationStore) publish(view ViewKey, generation Generation, direct
 	}
 	filename := fmt.Sprintf("%020d-%s.json", generation.Number, digest)
 	generationPath := filepath.Join(directory, "generations", filename)
-	if err := writeImmutable(generationPath, encoded); err != nil {
+	if err := writeAtomic(generationPath, encoded); err != nil {
 		return Generation{}, fmt.Errorf("write workspace generation: %w", err)
 	}
-	pointer := currentPointer{ViewKey: view, Generation: generation.Number, Filename: filename, Digest: digest}
-	pointerBytes, err := makeEnvelope("pointer", manifestSchemaVersion, string(view), pointer)
+	pointer := currentPointer{ViewKey: view, Generation: generation.Number, Filename: filename}
+	pointerBytes, err := makeEnvelope(pointer)
 	if err != nil {
 		return Generation{}, err
 	}
@@ -102,17 +102,17 @@ func (store generationStore) loadUnlocked(view ViewKey) (Generation, bool) {
 		return Generation{}, false
 	}
 	var pointer currentPointer
-	if !decodeEnvelope(pointerData, "pointer", manifestSchemaVersion, string(view), &pointer) ||
+	if !decodeEnvelope(pointerData, &pointer) ||
 		pointer.ViewKey != view || pointer.Filename != filepath.Base(pointer.Filename) ||
-		!validDigest(string(pointer.Digest)) {
+		pointer.Filename == "" {
 		return Generation{}, false
 	}
 	generationData, err := os.ReadFile(filepath.Join(directory, "generations", pointer.Filename))
-	if err != nil || DigestBytes(generationData) != pointer.Digest {
+	if err != nil {
 		return Generation{}, false
 	}
 	var generation Generation
-	if !decodeEnvelope(generationData, "manifest", manifestSchemaVersion, string(view), &generation) ||
+	if !decodeEnvelope(generationData, &generation) ||
 		generation.ViewKey != view || generation.Number != pointer.Generation {
 		return Generation{}, false
 	}

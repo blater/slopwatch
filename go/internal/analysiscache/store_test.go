@@ -76,7 +76,7 @@ func assertUnitRoundTrip(t *testing.T, store *Store) {
 	if err != nil || secondRef != ref {
 		t.Fatalf("content-addressed artifact identity = %#v, %v; want %#v", secondRef, err, ref)
 	}
-	got, ok := store.LoadUnit(ref, unitKey)
+	got, ok := store.LoadUnit(ref)
 	if !ok || !reflect.DeepEqual(got, artifact) {
 		t.Fatalf("LoadUnit() mismatch:\n got %#v\nwant %#v", got, artifact)
 	}
@@ -86,52 +86,39 @@ func assertUnitRoundTrip(t *testing.T, store *Store) {
 	}
 }
 
-func TestCorruptUnitIndexIsCacheMiss(t *testing.T) {
-	t.Parallel()
-	for _, test := range []struct {
-		name   string
-		mutate func(*testing.T, string)
-	}{
-		{"truncated", func(t *testing.T, path string) {
-			if err := os.Truncate(path, 5); err != nil {
-				t.Fatal(err)
-			}
-		}},
-		{"schema mismatch", func(t *testing.T, path string) {
-			mutateEnvelopeSchema(t, path)
-		}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			store := newTestStore(t)
-			key := keyFor([]byte("indexed-unit"))
-			if _, err := store.PutUnit(key, sampleUnit(key)); err != nil {
-				t.Fatal(err)
-			}
-			test.mutate(t, store.unitIndexPath(key))
-			if _, _, ok := store.LoadUnitByKey(key); ok {
-				t.Fatal("corrupt unit index was accepted")
-			}
-		})
+func TestLegacyArtifactMetadataDoesNotGateLoad(t *testing.T) {
+	store := newTestStore(t)
+	key := keyFor([]byte("legacy-envelope"))
+	artifact := sampleUnit(key)
+	ref, err := store.PutUnit(key, artifact)
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func mutateEnvelopeSchema(t *testing.T, path string) {
-	t.Helper()
-	data, err := os.ReadFile(path)
+	encoded, err := makeEnvelope(artifact)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var stored envelope
-	if err := json.Unmarshal(data, &stored); err != nil {
+	if err := json.Unmarshal(encoded, &stored); err != nil {
 		t.Fatal(err)
 	}
-	stored.Schema++
-	data, err = json.Marshal(stored)
+	legacy, err := json.Marshal(map[string]any{
+		"magic":    "old-cache-format",
+		"schema":   999,
+		"key":      "different-key",
+		"checksum": "intentionally-ignored",
+		"payload":  stored.Payload,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	path, _ := store.casPath("artifacts", ref.Digest)
+	if err := writeAtomic(path, append(legacy, '\n')); err != nil {
 		t.Fatal(err)
+	}
+	loaded, ok := store.LoadUnit(ref)
+	if !ok || loaded.UnitID != artifact.UnitID {
+		t.Fatalf("legacy metadata blocked artifact load: %#v, %v", loaded, ok)
 	}
 }
 
@@ -210,116 +197,6 @@ func TestProjectionPreservesDisplayDataAndOmitsEvidence(t *testing.T) {
 		!reflect.DeepEqual(component.Subjects, wantComponent.Subjects) ||
 		files[0].Score != unit.Report.Files[0].Score {
 		t.Fatal("compact projection lost display aggregate data")
-	}
-}
-
-func TestCorruptArtifactsAreCacheMisses(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name   string
-		mutate func(t *testing.T, data []byte) []byte
-	}{
-		{"truncated", func(_ *testing.T, data []byte) []byte { return data[:len(data)/2] }},
-		{"checksum", func(t *testing.T, data []byte) []byte {
-			var stored envelope
-			if err := json.Unmarshal(data, &stored); err != nil {
-				t.Fatal(err)
-			}
-			stored.Checksum = DigestBytes([]byte("wrong checksum"))
-			result, err := json.Marshal(stored)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return result
-		}},
-		{"schema mismatch", func(t *testing.T, data []byte) []byte {
-			var stored envelope
-			if err := json.Unmarshal(data, &stored); err != nil {
-				t.Fatal(err)
-			}
-			stored.Schema++
-			result, err := json.Marshal(stored)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return result
-		}},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			assertCorruptArtifactMiss(t, test.mutate)
-		})
-	}
-}
-
-func assertCorruptArtifactMiss(t *testing.T, mutate func(*testing.T, []byte) []byte) {
-	t.Helper()
-	store := newTestStore(t)
-	key := keyFor([]byte("unit"))
-	ref, err := store.PutUnit(key, sampleUnit(key))
-	if err != nil {
-		t.Fatal(err)
-	}
-	path, _ := store.casPath("artifacts", ref.Digest)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err = decodeArtifactStorage(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mutated := mutate(t, data)
-	mutatedRef := ArtifactRef{Digest: DigestBytes(mutated)}
-	mutatedPath, _ := store.casPath("artifacts", mutatedRef.Digest)
-	if err := writeAtomic(mutatedPath, mutated); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := store.LoadUnit(mutatedRef, key); ok {
-		t.Fatal("corrupt artifact was accepted")
-	}
-}
-
-func TestWrongEmbeddedKeyIsCacheMiss(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	key := keyFor([]byte("unit"))
-	ref, err := store.PutUnit(key, sampleUnit(key))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := store.LoadUnit(ref, keyFor([]byte("other-unit"))); ok {
-		t.Fatal("artifact was accepted for the wrong unit key")
-	}
-
-	wrong := sampleUnit(keyFor([]byte("embedded-other")))
-	encoded, err := makeEnvelope("unit", unitSchemaVersion, string(key), wrong)
-	if err != nil {
-		t.Fatal(err)
-	}
-	forged := ArtifactRef{Digest: DigestBytes(encoded)}
-	path, _ := store.casPath("artifacts", forged.Digest)
-	if err := writeAtomic(path, encoded); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := store.LoadUnit(forged, key); ok {
-		t.Fatal("artifact with a wrong embedded key was accepted")
-	}
-}
-
-func TestSourceTruncationIsCacheMiss(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	digest, err := store.PutSource([]byte("complete source"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	path, _ := store.casPath("sources", digest)
-	if err := os.Truncate(path, 3); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := store.LoadSource(digest); ok {
-		t.Fatal("truncated source was accepted")
 	}
 }
 
@@ -559,7 +436,7 @@ func TestProjectionArtifactRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, ok := store.LoadProjection(ref, workspace)
+			got, ok := store.LoadProjection(ref)
 			if !ok {
 				t.Fatal("LoadProjection() missed stored projection")
 			}
@@ -600,8 +477,8 @@ func BenchmarkPutAndLoadFiveThousandUnitArtifacts(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
-		for index, key := range keys {
-			if _, ok := store.LoadUnit(refs[index], key); !ok {
+		for index := range keys {
+			if _, ok := store.LoadUnit(refs[index]); !ok {
 				b.Fatalf("unit %d did not round-trip", index)
 			}
 		}
