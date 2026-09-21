@@ -266,9 +266,10 @@ Existing preferences without this key default to `true`. Changes in the dashboar
 or relevant `.gitignore` files refresh the inventory and watcher registrations.
 
 **Project source exclusions** in the same Files menu opens a multiline editor.
-Enter one gitignore pattern per line; Ctrl+S saves and refreshes the inventory,
-and Escape discards edits. These exclusions apply even when Honor gitignore is
-off. They are stored only in `.slopwatch.toml` at the workspace root, separately
+Enter one gitignore pattern per line; changes save and refresh the inventory
+automatically. Escape closes the editor and retains edits. These exclusions apply
+even when Honor gitignore is off. They are stored only in `.slopwatch.toml` at the
+workspace root, separately
 from global preferences:
 
 ```toml

@@ -74,9 +74,7 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 		return handleKey(model, message)
 	default:
 		if model.runtime.filesEditing {
-			var command tea.Cmd
-			model.runtime.filesExclusions, command = model.runtime.filesExclusions.Update(message)
-			return model, command
+			return model, model.updateFilesExclusions(message)
 		}
 		return model, nil
 	}

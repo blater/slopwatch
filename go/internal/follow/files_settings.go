@@ -44,29 +44,32 @@ func (model *Model) resizeFilesExclusions() {
 }
 
 func (model *Model) handleFilesExclusionsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
-	case "esc":
+	if key.String() == "esc" {
 		model.runtime.filesEditing = false
 		model.runtime.filesExclusions.Blur()
 		return model, nil
-	case "ctrl+s":
-		document, err := preferences.LoadProject(model.options.Workspace)
-		if err == nil {
-			document.Files.Exclude = model.runtime.filesExclusions.Value()
-			err = preferences.SaveProject(model.options.Workspace, document)
-		}
-		if err != nil {
-			showRuntimeError(model, err)
-			return model, nil
-		}
-		model.runtime.filesEditing = false
-		model.runtime.filesExclusions.Blur()
-		model.runtime.watchRetryCount = 0
-		return model, model.refreshIgnorePolicy()
 	}
+	return model, model.updateFilesExclusions(key)
+}
+
+func (model *Model) updateFilesExclusions(message tea.Msg) tea.Cmd {
+	previous := model.runtime.filesExclusions.Value()
 	var command tea.Cmd
-	model.runtime.filesExclusions, command = model.runtime.filesExclusions.Update(key)
-	return model, command
+	model.runtime.filesExclusions, command = model.runtime.filesExclusions.Update(message)
+	if model.runtime.filesExclusions.Value() == previous {
+		return command
+	}
+	document, err := preferences.LoadProject(model.options.Workspace)
+	if err == nil {
+		document.Files.Exclude = model.runtime.filesExclusions.Value()
+		err = preferences.SaveProject(model.options.Workspace, document)
+	}
+	if err != nil {
+		showRuntimeError(model, err)
+		return command
+	}
+	model.runtime.watchRetryCount = 0
+	return tea.Batch(command, model.refreshIgnorePolicy())
 }
 
 func (model *Model) toggleGitignore() tea.Cmd {

@@ -32,9 +32,9 @@ func filesSettingsView(model Model) string {
 	if model.runtime.filesEditing {
 		content := []string{model.runtime.filesExclusions.View()}
 		if model.height > 0 && model.height < 10 {
-			return style.TightPopup(style.Heading("SOURCE EXCLUSIONS"), content, "Ctrl+S save · Esc cancel", model.runtime.filesExclusions.Width()+4)
+			return style.TightPopup(style.Heading("SOURCE EXCLUSIONS"), content, "Esc close", model.runtime.filesExclusions.Width()+4)
 		}
-		return style.Popup(style.Heading("SOURCE EXCLUSIONS"), content, "Ctrl+S save · Esc cancel", model.runtime.filesExclusions.Width()+4)
+		return style.Popup(style.Heading("SOURCE EXCLUSIONS"), content, "Esc close", model.runtime.filesExclusions.Width()+4)
 	}
 	mark := " "
 	if !model.options.DisableGitignore {
