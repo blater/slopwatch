@@ -2,7 +2,6 @@ package follow
 
 import (
 	"context"
-	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/sourceignore"
 	workspacefs "github.com/blater/slopwatch/internal/workspace"
 	"os"
@@ -53,7 +52,7 @@ func TestIgnoreRuleCreateChangeDeleteRebuildsWatchInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	change := watchResult(t, watcher, func() { watchWrite(t, root, "nested/.gitignore", "blocked/\n") })
-	if !change.Full || !change.IgnoreRules {
+	if !change.IgnoreRules {
 		t.Fatalf("create=%+v", change)
 	}
 	watcher.close()
@@ -106,7 +105,7 @@ func TestAncestorIgnoreCreationRefreshesExplicitFileScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	change := watchResult(t, watcher, func() { watchWrite(t, root, ".gitignore", "file.go\n") })
-	if !change.Full || !change.IgnoreRules {
+	if !change.IgnoreRules {
 		t.Fatalf("ancestor creation=%+v", change)
 	}
 }
@@ -124,45 +123,30 @@ func TestMissingNestedIgnoreForExplicitFileBecomesConfigurationInput(t *testing.
 		t.Fatal(err)
 	}
 	change := watchResult(t, watcher, func() { watchWrite(t, root, "deep/.gitignore", "sub/*.go\n") })
-	if !change.Full || !change.IgnoreRules {
+	if !change.IgnoreRules {
 		t.Fatalf("nested ancestor creation=%+v", change)
 	}
 }
 
-func TestRealRuleEventReplacesModelWatcherAndAdmitsDirectoryEdits(t *testing.T) {
+func TestRuleEventPreservesWatcherPolicyAndSimultaneousSource(t *testing.T) {
 	model := settingsRefreshFixture(t)
-	root := model.options.Workspace
-	watchWrite(t, root, "blocked/real.go", "package p")
-	watchWrite(t, root, ".gitignore", "blocked/\n")
-	// Install the initial policy after fixture creation.
-	initial := model.refreshIgnorePolicy()().(watcherReconfigured)
-	executeReplacementAnalysis(t, model, model.handleWatcherReconfigured(initial))
-	analyzer := model.analyzer.(*refreshAnalyzer)
-	analyzer.document = report.Document{Files: []report.File{testFile("a.go", 1), testFile("blocked/real.go", 3)}}
 	old := model.watcher
+	if err := old.start(); err != nil {
+		t.Fatal(err)
+	}
 	change := watchResult(t, old, func() {
-		if err := os.Remove(filepath.Join(root, ".gitignore")); err != nil {
-			t.Fatal(err)
-		}
+		watchWrite(t, model.options.Workspace, ".gitignore", "a.go\n")
+		watchWrite(t, model.options.Workspace, "a.go", "package edited")
 	})
-	if !change.IgnoreRules {
-		t.Fatal("real event lost ignore classification")
+	if !change.IgnoreRules || len(change.Paths) != 1 || change.Paths[0] != "a.go" {
+		t.Fatalf("combined batch=%+v", change)
 	}
-	_, replacement := handleSourceChange(model, change)
-	if replacement == nil || !model.runtime.watchNeedsWait {
-		t.Fatal("real event did not consume wait and request replacement")
+	_, command := handleSourceChange(model, change)
+	if command == nil || model.watcher != old || !model.analyzing || len(model.files.Document.Files) != 1 {
+		t.Fatal("rule edit lost source work or changed session")
 	}
-	executeReplacementAnalysis(t, model, model.handleWatcherReconfigured(replacement().(watcherReconfigured)))
-	if model.watcher == old || len(model.files.Document.Files) != 2 {
-		t.Fatal("rule event did not refresh inventory and watcher")
-	}
-	edit := watchResult(t, model.watcher, func() { watchWrite(t, root, "blocked/real.go", "package edited") })
-	if len(edit.Paths) != 1 || edit.Paths[0] != "blocked/real.go" {
-		t.Fatalf("admitted directory edit=%+v", edit)
-	}
-	_, command := handleSourceChange(model, edit)
-	if command == nil || !model.analyzing {
-		t.Fatal("newly admitted edit did not start analysis")
+	if _, _, ok := old.eligible(filepath.Join(model.options.Workspace, "a.go")); !ok {
+		t.Fatal("edited rules changed frozen eligibility")
 	}
 }
 
@@ -185,5 +169,42 @@ func TestFrequentReadySourceBatchesCannotStarveAncestorRulePolling(t *testing.T)
 		if changed != (index == 4) {
 			t.Fatalf("batch %d ancestor change=%v", index, changed)
 		}
+	}
+}
+
+func TestAncestorPollingCancellationRetainsAlreadyDrainedSourceBatch(t *testing.T) {
+	root := t.TempDir()
+	rulePath := filepath.Join(root, ".gitignore")
+	watcher := &sourceWatcher{ancestorRules: map[string]string{rulePath: sourceignore.InputFingerprint(rulePath)}}
+	watchWrite(t, root, ".gitignore", "ignored/\n")
+	batch := workspacefs.DirtyBatch{Entries: []workspacefs.DirtyEntry{{Path: "live.go", Kind: workspacefs.KindSource}}}
+	release := make(chan struct{})
+	defer close(release)
+	waiter := func(ctx context.Context) (workspacefs.DirtyBatch, error) {
+		// The batch has been drained, but delivery races the ancestor poll.
+		select {
+		case <-ctx.Done():
+			return batch, ctx.Err()
+		case <-release:
+			return batch, nil
+		}
+	}
+	type result struct {
+		batch   workspacefs.DirtyBatch
+		err     error
+		changed bool
+	}
+	ready := make(chan result, 1)
+	go func() {
+		got, err, changed := watcher.waitBatchFrom(waiter, time.Millisecond)
+		ready <- result{got, err, changed}
+	}()
+	select {
+	case got := <-ready:
+		if got.err != nil || !got.changed || len(got.batch.Entries) != 1 || got.batch.Entries[0].Path != "live.go" {
+			t.Fatalf("poll lost source batch: %+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("poll did not cancel pending waiter")
 	}
 }

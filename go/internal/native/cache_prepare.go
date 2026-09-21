@@ -28,7 +28,7 @@ func prepareCacheUnits(analyzer *analysisEngine, ctx context.Context, catalog ca
 			previous, _ = store.LoadGeneration(view)
 		}
 	}
-	digests, stamps, err := cachedWorkspaceDigests(analyzer, ctx, paths, previous)
+	digests, stamps, err := cachedWorkspaceDigests(analyzer, ctx, paths, previous, options.configuration.Bytes())
 	if err != nil {
 		return cachePreparation{}, err
 	}

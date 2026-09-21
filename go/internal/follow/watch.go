@@ -2,7 +2,9 @@ package follow
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,7 +27,7 @@ type sourceChange struct {
 	watcher     *sourceWatcher
 	IgnoreRules bool
 	Paths       []string
-	Full        bool
+	Closed      bool
 	Err         error
 }
 
@@ -100,10 +102,11 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 			if directory {
 				return workspacefs.Classification{}, false
 			}
-			if language, ok := configurationLanguage(relative); ok {
-				if len(result.languages) == 0 || language == "" || result.languages[language] {
-					return workspacefs.Classification{Kind: workspacefs.KindConfiguration, Language: language}, true
-				}
+			if filepath.Base(relative) == ".gitignore" {
+				return workspacefs.Classification{Kind: workspacefs.KindConfiguration}, true
+			}
+			if _, configuration := configurationLanguage(relative); configuration {
+				return workspacefs.Classification{}, false
 			}
 			if excluded(result, relative) {
 				return workspacefs.Classification{}, false
@@ -130,7 +133,7 @@ func (watcher *sourceWatcher) close() {
 }
 
 func (watcher *sourceWatcher) start() error {
-	watcher.startOnce.Do(func() { watcher.startErr = watcher.monitor.Start(context.Background()) })
+	watcher.startOnce.Do(func() { watcher.startErr = watcher.monitor.Start(context.Background()); watcher.matcher.Freeze() })
 	if watcher.startErr != nil {
 		return fmt.Errorf("source watcher: %w", watcher.startErr)
 	}
@@ -139,31 +142,19 @@ func (watcher *sourceWatcher) start() error {
 
 func (watcher *sourceWatcher) wait() sourceChange {
 	if err := watcher.start(); err != nil {
-		return sourceChange{Err: err, watcher: watcher}
+		return sourceChange{Err: err, Closed: true, watcher: watcher}
 	}
 	batch, err, rulesChanged := watcher.waitBatch()
-	if rulesChanged {
-		return sourceChange{watcher: watcher, Full: true, IgnoreRules: true}
-	}
-	if err != nil {
-		return sourceChange{Err: err, watcher: watcher}
-	}
 	paths := make([]string, 0, len(batch.Entries))
-	full := batch.All
-	ignoreRules := batch.All
 	for _, entry := range batch.Entries {
 		if entry.Kind == workspacefs.KindSource {
 			paths = append(paths, entry.Path)
-		} else {
-			// Configuration and dependency inputs can alter ownership and type
-			// context for many units. A path-only refresh is not cache-safe.
-			full = true
-			if filepath.Base(entry.Path) == ".gitignore" {
-				ignoreRules = true
-			}
+		}
+		if filepath.Base(entry.Path) == ".gitignore" {
+			rulesChanged = true
 		}
 	}
-	return sourceChange{Paths: paths, Full: full, IgnoreRules: ignoreRules, watcher: watcher}
+	return sourceChange{Paths: paths, IgnoreRules: rulesChanged, Err: errors.Join(err, batch.Err), Closed: batch.Closed || errors.Is(err, io.EOF), watcher: watcher}
 }
 
 // External ancestor paths are exact configuration inputs, not source scopes.
@@ -192,11 +183,18 @@ func (watcher *sourceWatcher) waitBatchFrom(wait func(context.Context) (workspac
 		select {
 		case found := <-ready:
 			// A steady stream of source batches can reset the timer indefinitely.
-			// Recheck before every return; a full refresh also covers the source batch.
+			// Recheck before every return while retaining the source batch.
 			return found.batch, found.err, watcher.ancestorRulesChanged()
 		case <-ticker.C:
 			if watcher.ancestorRulesChanged() {
-				return workspacefs.DirtyBatch{}, nil, true
+				cancel()
+				found := <-ready
+				// Cancellation does not consume dirty state; a batch already
+				// drained by the waiter must be delivered with the notice.
+				if errors.Is(found.err, context.Canceled) {
+					found.err = nil
+				}
+				return found.batch, found.err, true
 			}
 		}
 	}

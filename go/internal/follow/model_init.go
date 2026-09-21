@@ -83,9 +83,6 @@ func (model *Model) Close() {
 		model.runtime.analysisProgress.deactivate()
 	}
 	model.runtime.analysisProgress = nil
-	if model.runtime.watchReconfigureCancel != nil {
-		model.runtime.watchReconfigureCancel()
-	}
 	model.watcher.close()
 	model.fixUpdates.close()
 }

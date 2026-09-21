@@ -1,7 +1,6 @@
 package follow
 
 import (
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -9,14 +8,7 @@ import (
 	workspacefs "github.com/blater/slopwatch/internal/workspace"
 )
 
-var knownConfigurationFiles = []string{
-	".gitignore",
-	"go.mod", "go.sum", "go.work", "go.work.sum", "Cargo.toml", "Cargo.lock", "build.rs",
-	"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
-	"gradle.properties", "gradle.lockfile", "package.json", "package-lock.json",
-	"pnpm-lock.yaml", "yarn.lock", "tsconfig.json", ".cargo/config", ".cargo/config.toml",
-	".mvn/maven.config", ".mvn/jvm.config", "gradle/wrapper/gradle-wrapper.properties",
-}
+var knownConfigurationFiles = []string{".gitignore"}
 
 func configurationInputs(watcher *sourceWatcher) []workspacefs.Input {
 	seen := map[string]bool{}
@@ -32,7 +24,6 @@ func configurationInputs(watcher *sourceWatcher) []workspacefs.Input {
 	for _, scope := range watcher.scopes {
 		for directory := scopeDirectory(scope); directory != ""; directory = parentConfigurationDirectory(watcher.root, directory) {
 			addKnownConfigurationInputs(directory, add)
-			addDiscoveredConfigurationInputs(watcher.root, directory, add)
 		}
 	}
 	for _, path := range watcher.matcher.AncestorInputs() {
@@ -67,23 +58,5 @@ func parentConfigurationDirectory(root, directory string) string {
 func addKnownConfigurationInputs(directory string, add func(string)) {
 	for _, relative := range knownConfigurationFiles {
 		add(filepath.Join(directory, filepath.FromSlash(relative)))
-	}
-}
-
-func addDiscoveredConfigurationInputs(root, directory string, add func(string)) {
-	entries, err := os.ReadDir(directory)
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		relative, err := filepath.Rel(root, filepath.Join(directory, entry.Name()))
-		if err == nil {
-			if _, ok := configurationLanguage(relative); ok {
-				add(filepath.Join(directory, entry.Name()))
-			}
-		}
 	}
 }

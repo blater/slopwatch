@@ -86,18 +86,16 @@ func TestIncrementalDiagnosticsReplaceUnitMetadata(t *testing.T) {
 	}
 }
 
-func TestIncrementalSourceRefreshFallsBackToFullWhenPlanIsUnavailable(t *testing.T) {
-	analyzer := &refreshAnalyzer{
-		document:   report.Document{Files: []report.File{testFile("owner.go", 3)}},
-		changesErr: native.ErrIncrementalPlanUnavailable,
-	}
-	model := refreshModel(t.TempDir(), report.Document{}, analyzer)
+func TestUnavailableIncrementalPlanRetainsResultsAndSurfacesError(t *testing.T) {
+	analyzer := &refreshAnalyzer{changesErr: native.ErrIncrementalPlanUnavailable}
+	model := refreshModel(t.TempDir(), report.Document{Files: []report.File{testFile("owner.go", 3)}}, analyzer)
 	message := runSourceChangeAnalysis(t, &model)
-	if !message.full {
-		t.Fatal("unavailable incremental plan did not request a full refresh")
+	if message.full || !errors.Is(message.err, native.ErrIncrementalPlanUnavailable) || len(analyzer.targets) != 0 {
+		t.Fatalf("unexpected fallback: %+v", message)
 	}
-	if len(message.document.Files) != 1 || message.document.Files[0].Path != "owner.go" {
-		t.Fatalf("full fallback document = %#v", message.document.Files)
+	handleAnalysisResult(&model, message)
+	if len(model.files.Document.Files) != 1 || model.files.Document.Files[0].Score != 3 || model.runtimeError == "" {
+		t.Fatal("failed update lost published result or error")
 	}
 }
 
@@ -202,36 +200,6 @@ func assertRecoveredAnalysis(t *testing.T, model Model, command tea.Cmd) {
 	}
 }
 
-func TestWorkspaceChurnFullRetryCoalescesEditsDuringDelay(t *testing.T) {
-	analyzer := &refreshAnalyzer{document: report.Document{Files: []report.File{testFile("owner.go", 3)}}}
-	model := refreshModel(t.TempDir(), report.Document{Files: []report.File{testFile("owner.go", 2)}}, analyzer)
-	model.analyzing = true
-	model.initialAnalysis = true
-	_, retry := model.Update(analysisResult{full: true, err: native.ErrWorkspaceChanged})
-	assertFullChurnWaiting(t, model, retry)
-	_, command := handleSourceChange(&model, sourceChange{Paths: []string{"later.go"}})
-	assertQueuedEdit(t, model, command)
-	_, command = model.Update(analysisRetry{})
-	assertFullRetryStarted(t, model, command)
-	result, ok := command().(analysisResult)
-	if !ok {
-		t.Fatalf("coalesced retry result type = %T", result)
-	}
-	if !result.full {
-		t.Fatalf("coalesced retry was partial: %#v", result)
-	}
-}
-
-func assertFullChurnWaiting(t *testing.T, model Model, retry tea.Cmd) {
-	t.Helper()
-	if retry == nil {
-		t.Fatal("full workspace churn did not schedule a retry")
-	}
-	if !model.analyzing || !model.runtime.pendingFullAnalysis || !model.initialAnalysis {
-		t.Fatalf("full workspace churn state = analyzing:%t pending:%t initial:%t", model.analyzing, model.runtime.pendingFullAnalysis, model.initialAnalysis)
-	}
-}
-
 func assertQueuedEdit(t *testing.T, model Model, command tea.Cmd) {
 	t.Helper()
 	if command == nil {
@@ -242,16 +210,6 @@ func assertQueuedEdit(t *testing.T, model Model, command tea.Cmd) {
 	}
 	if len(model.queued) != 1 || !model.queued["later.go"] {
 		t.Fatalf("edit during retry queue = %v", model.queued)
-	}
-}
-
-func assertFullRetryStarted(t *testing.T, model Model, command tea.Cmd) {
-	t.Helper()
-	if command == nil {
-		t.Fatal("full retry was not dispatched")
-	}
-	if !model.analyzing || model.runtime.pendingFullAnalysis {
-		t.Fatalf("full retry state = analyzing:%t pending:%t", model.analyzing, model.runtime.pendingFullAnalysis)
 	}
 }
 
@@ -273,6 +231,9 @@ func runSourceChangeAnalysis(t *testing.T, model *Model) analysisResult {
 		t.Fatal("source change did not schedule analysis")
 	}
 	result := command()
+	if direct, ok := result.(analysisResult); ok {
+		return direct
+	}
 	batch, ok := result.(tea.BatchMsg)
 	if !ok || len(batch) == 0 {
 		t.Fatalf("source change command = %T, want batch", result)
@@ -437,4 +398,45 @@ func nativeRefreshFile(t *testing.T, document report.Document, path string) repo
 	}
 	t.Fatalf("analysis omitted %s: %#v", path, document.Files)
 	return report.File{}
+}
+
+func TestSuccessfulStartupIsOnlyFullCallAcrossSettingsErrorsAndQueuedChanges(t *testing.T) {
+	analyzer := &refreshAnalyzer{document: report.Document{Files: []report.File{testFile("owner.go", 3), testFile("unrelated.go", 8)}}}
+	model := refreshModel(t.TempDir(), report.Document{}, analyzer)
+	model.StartInitialAnalysis()
+	_, initial := handleWatcherReady(&model, watcherReady{})
+	handleAnalysisResult(&model, initial().(analysisResult))
+	if len(analyzer.targets) != 1 {
+		t.Fatal("startup did not run exactly once")
+	}
+	if _, cmd := handleSourceChange(&model, sourceChange{IgnoreRules: true}); cmd != nil {
+		t.Fatal("rule notice scheduled analysis")
+	}
+	model.preferencesPath = filepath.Join(t.TempDir(), "preferences.toml")
+	model.toggleGitignore()
+	model.syncTypeScriptTypes()
+	failure := errors.New("watcher overflow")
+	_, first := handleSourceChange(&model, sourceChange{Paths: []string{"methods.go"}, IgnoreRules: true, Err: failure})
+	if first == nil || model.runtimeError == "" {
+		t.Fatal("combined error/source batch was lost")
+	}
+	_, queued := handleSourceChange(&model, sourceChange{Paths: []string{"later.go"}})
+	if queued != nil || !model.queued["later.go"] {
+		t.Fatal("in-flight source batch was not queued")
+	}
+	_, next := handleAnalysisResult(&model, first().(analysisResult))
+	if next == nil {
+		t.Fatal("queued source changes were discarded")
+	}
+	handleAnalysisResult(&model, next().(analysisResult))
+	if len(analyzer.targets) != 1 || len(analyzer.changed) != 2 || analyzer.changed[1][0] != "later.go" {
+		t.Fatalf("full=%v incremental=%v", analyzer.targets, analyzer.changed)
+	}
+	if _, err := findReportFile(model.files.Document, "unrelated.go"); err != nil {
+		t.Fatal("unrelated published result removed")
+	}
+	_, stopped := handleSourceChange(&model, sourceChange{Closed: true, Err: errors.New("watcher closed")})
+	if stopped != nil || !model.runtime.watchStopped || len(analyzer.targets) != 1 {
+		t.Fatal("closed watcher started another wait or scan")
+	}
 }

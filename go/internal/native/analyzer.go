@@ -13,6 +13,7 @@ import (
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/sourceignore"
 	"github.com/blater/slopwatch/internal/sourcepath"
+	"github.com/blater/slopwatch/internal/unitplan"
 )
 
 var ErrUnsupported = errors.New("native analyzer path is not yet supported")
@@ -28,6 +29,7 @@ type Options struct {
 	DisableGitignore bool
 	ignorePolicy     string
 	ignoreMatcher    *sourceignore.Matcher
+	configuration    *unitplan.ConfigurationSnapshot
 	Targets          []string
 	Languages        []string
 	IncludeTests     bool
@@ -194,7 +196,11 @@ func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, lang
 	analyzer.planMu.Lock()
 	defer analyzer.planMu.Unlock()
 	document, snapshot, err := analyzeWithPlan(analyzer.engine(), parent, targets, languages)
+	if err == nil && snapshot != nil && !snapshot.options.configuration.Unchanged(analyzer.workspace) {
+		return report.Document{}, ErrWorkspaceChanged
+	}
 	if err == nil && snapshot != nil {
+		snapshot.options.ignoreMatcher.Freeze()
 		analyzer.plan = snapshot
 	}
 	return document, err
@@ -264,7 +270,9 @@ func analyzeWithPlan(analyzer *analysisEngine, parent context.Context, targets [
 	if err != nil {
 		return report.Document{}, nil, err
 	}
+	options.configuration = unitplan.NewConfigurationSnapshot()
 	plan, planErr := workspacePlan(analyzer, options)
+	options.configuration.Capture(analyzer.workspace, plan)
 	options.ignorePolicy = options.ignoreMatcher.Fingerprint()
 	if !options.ignoreMatcher.Unchanged() {
 		return report.Document{}, nil, ErrWorkspaceChanged
@@ -499,6 +507,10 @@ func discover(analyzer *analysisEngine, targets []string, includeTests, followSy
 }
 
 func discoverPolicy(analyzer *analysisEngine, targets []string, includeTests, followSymlinks, disableGitignore bool, matchers ...*sourceignore.Matcher) (map[string][]string, error) {
+	return discoverPolicyWithMissingTargets(analyzer, targets, includeTests, followSymlinks, disableGitignore, false, matchers...)
+}
+
+func discoverPolicyWithMissingTargets(analyzer *analysisEngine, targets []string, includeTests, followSymlinks, disableGitignore, missingTargetsOK bool, matchers ...*sourceignore.Matcher) (map[string][]string, error) {
 	var matcher *sourceignore.Matcher
 	if len(matchers) > 0 && matchers[0] != nil {
 		matcher = matchers[0]
@@ -517,6 +529,11 @@ func discoverPolicy(analyzer *analysisEngine, targets []string, includeTests, fo
 		absolute := target
 		if !filepath.IsAbs(absolute) {
 			absolute = filepath.Join(analyzer.workspace, target)
+		}
+		if missingTargetsOK {
+			if _, err := os.Lstat(absolute); errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 		}
 		if err := walkTarget(analyzer, filepath.Clean(absolute), grouped, includeTests, followSymlinks, matcher); err != nil {
 			return nil, err

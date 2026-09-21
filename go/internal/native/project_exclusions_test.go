@@ -3,7 +3,6 @@ package native
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/blater/slopwatch/internal/unitplan"
@@ -68,24 +67,16 @@ func TestMalformedProjectPreservesIncrementalPlan(t *testing.T) {
 	if _, err := analyzer.Analyze(context.Background(), nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	previous := analyzer.plan
 	requests = nil
 	writeTestFile(t, root, "pkg/a.go", "package pkg\nvar A = 2\n")
 	writeTestFile(t, root, ".slopwatch.toml", "[files]\nexclude = false\n")
-	if _, _, err := analyzer.AnalyzeChanges(context.Background(), []string{"pkg/a.go"}); err == nil || !strings.Contains(err.Error(), ".slopwatch.toml") {
-		t.Fatalf("incremental project error missing: %v", err)
-	}
-	if analyzer.plan != previous || len(requests) != 0 {
-		t.Fatal("malformed project changed prior plan or ran analysis")
-	}
-	writeTestFile(t, root, ".slopwatch.toml", "[files]\nexclude = ''\n")
 	document, replacements, err := analyzer.AnalyzeChanges(context.Background(), []string{"pkg/a.go"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertChangePaths(t, document, replacements, []string{"pkg/a.go"})
 	if len(requests) == 0 {
-		t.Fatal("corrected project did not refresh changed source")
+		t.Fatal("startup policy did not refresh changed source")
 	}
 }
 

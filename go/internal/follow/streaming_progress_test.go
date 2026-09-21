@@ -16,6 +16,7 @@ func progressModel(files ...report.File) Model {
 		rows[file.Path] = rowState{}
 	}
 	return Model{
+		initialAnalysis: true,
 		files: FilesState{
 			Document: document, BaseDocument: document, Rows: rows,
 			Visible: map[string]bool{}, SortKey: "score", SortReverse: true,
@@ -58,33 +59,6 @@ func TestAnalysisProgressDrainResortsAndPreservesSelection(t *testing.T) {
 	flushAnalysisProgress(&model, false)
 	if model.files.Document.Files[0].Score != 15 || model.files.ScoreDistribution.bins[3] != 1 {
 		t.Fatalf("second progress drain = files:%#v distribution:%#v", model.files.Document.Files, model.files.ScoreDistribution)
-	}
-}
-
-func TestSupersededAnalysisProgressIsIgnored(t *testing.T) {
-	model := progressModel(testFile("old.go", 1))
-	oldEmit := beginAnalysisProgress(&model, report.FreshnessVerifying, "analysis in progress")
-	beginAnalysisProgress(&model, report.FreshnessRefreshing, "analysis in progress")
-	oldEmit(report.Document{Files: []report.File{testFile("stale.go", 99)}})
-	model.runtime.analysisProgress.lastFlush = time.Now().Add(-analysisProgressBatchInterval)
-	flushAnalysisProgress(&model, false)
-	if len(model.files.Document.Files) != 1 || model.files.Document.Files[0].Path != "old.go" {
-		t.Fatalf("superseded progress changed rows: %#v", model.files.Document.Files)
-	}
-	emit := beginAnalysisProgress(&model, report.FreshnessRefreshing, "analysis in progress")
-	emit(report.Document{Files: []report.File{testFile("discarded.go", 99)}})
-	model.runtime.discardAnalysis = true
-	flushAnalysisProgress(&model, true)
-	if len(model.files.Document.Files) != 1 || model.files.Document.Files[0].Path != "old.go" {
-		t.Fatalf("discarded progress changed rows: %#v", model.files.Document.Files)
-	}
-	model.runtime.discardAnalysis = false
-	emit = beginAnalysisProgress(&model, report.FreshnessRefreshing, "analysis in progress")
-	emit(report.Document{Files: []report.File{testFile("reconfigure.go", 99)}})
-	model.runtime.watchReconfigurePending = true
-	flushAnalysisProgress(&model, true)
-	if len(model.files.Document.Files) != 1 || model.files.Document.Files[0].Path != "old.go" {
-		t.Fatalf("reconfigure progress changed rows: %#v", model.files.Document.Files)
 	}
 }
 
@@ -155,5 +129,17 @@ func TestScanProgressDoesNotCreateEditHighlights(t *testing.T) {
 	row := model.files.Rows["existing.go"]
 	if row.editedAt.IsZero() || row.scoreChangedAt.IsZero() || row.direction != 1 {
 		t.Fatal("actual source change lost its highlighting")
+	}
+}
+
+func TestIncrementalProgressFailureKeepsPublishedScores(t *testing.T) {
+	model := refreshModel(t.TempDir(), report.Document{Files: []report.File{testFile("owner.go", 7)}}, &refreshAnalyzer{})
+	model.initialAnalysis = false
+	emit := beginAnalysisProgress(&model, report.FreshnessRefreshing, "updating")
+	emit(report.Document{Files: []report.File{testFile("owner.go", 99)}})
+	flushAnalysisProgress(&model, true)
+	handleAnalysisResult(&model, analysisResult{err: errors.New("failed update"), paths: []string{"owner.go"}, replace: []string{"owner.go"}})
+	if len(model.files.Document.Files) != 1 || model.files.Document.Files[0].Score != 7 || model.runtimeError == "" {
+		t.Fatal("failed progress replaced published results")
 	}
 }

@@ -1,6 +1,9 @@
 package workspace
 
+import "io"
+
 func (m *eventManager) run() {
+	defer close(m.stopped)
 	events := m.watch.backend.Events()
 	errors := m.watch.backend.Errors()
 	for {
@@ -9,16 +12,16 @@ func (m *eventManager) run() {
 			return
 		case event, ok := <-events:
 			if !ok {
-				m.markAll(ReasonWatcherError)
+				m.markError(io.EOF, true)
 				return
 			}
 			m.handle(event)
-		case _, ok := <-errors:
+		case err, ok := <-errors:
 			if !ok {
 				errors = nil
 				continue
 			}
-			m.markAll(ReasonWatcherError)
+			m.markError(err, false)
 		}
 	}
 }

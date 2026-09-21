@@ -3,9 +3,7 @@ package follow
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -462,28 +460,11 @@ func analyzeExistingWithProgress(model Model, paths []string, emit func(report.D
 				ctx = native.WithAnalysisProgress(ctx, emit)
 			}
 			document, affected, err := analyzer.AnalyzeChanges(ctx, paths)
-			if errors.Is(err, native.ErrIncrementalPlanUnavailable) {
-				return analysisCommandWithProgress(model.analyzer, model.options.Targets, nil, true, emit)()
-			}
 			return analysisResult{document: document, replace: affected, paths: append([]string(nil), paths...), err: err}
 		}
 	}
-	existing := make([]string, 0, len(paths))
-	for _, path := range paths {
-		if info, err := os.Stat(filepath.Join(model.options.Workspace, filepath.FromSlash(path))); err == nil && !info.IsDir() {
-			existing = append(existing, path)
-		}
-	}
-	if len(existing) == 0 {
-		return func() tea.Msg { return analysisResult{replace: paths, document: report.Document{}} }
-	}
-	command := analysisCommandWithProgress(model.analyzer, model.options.Targets, existing, false, emit)
 	return func() tea.Msg {
-		result := command()
-		analysis := result.(analysisResult)
-		analysis.replace = paths
-		analysis.paths = append([]string(nil), paths...)
-		return analysis
+		return analysisResult{paths: append([]string(nil), paths...), replace: paths, err: native.ErrIncrementalPlanUnavailable}
 	}
 }
 

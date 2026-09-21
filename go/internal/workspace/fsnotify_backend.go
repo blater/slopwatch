@@ -80,3 +80,5 @@ func (b *fsnotifyBackend) Close() (err error) {
 	})
 	return err
 }
+
+func (b *fsnotifyBackend) Remove(path string) error { return b.watcher.Remove(path) }

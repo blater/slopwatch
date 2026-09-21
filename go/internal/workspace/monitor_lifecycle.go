@@ -26,15 +26,15 @@ func (m *Monitor) startupReconcile(ctx context.Context) {
 }
 
 // Reconcile invokes the configured inventory hook. It is safe to call after a
-// watcher overflow or other full-audit request; events arriving concurrently
-// remain in the same authoritative dirty set.
+// an explicitly requested inventory audit; events arriving concurrently
+// remain in the same authoritative dirty set. Follow mode does not call it.
 func (m *Monitor) Reconcile(ctx context.Context, full bool) error {
 	if m.engine.reconcile == nil {
 		return nil
 	}
 	paths, err := m.engine.reconcile(ctx, ReconcileRequest{Root: m.engine.paths.root, Scopes: m.engine.paths.scopesCopy(), Inputs: m.engine.paths.inputsCopy(), Full: full})
 	if err != nil {
-		m.engine.events.markAll(ReasonWatcherError | ReasonStartupAudit)
+		m.engine.events.markError(err, false)
 		return err
 	}
 	for _, path := range paths {

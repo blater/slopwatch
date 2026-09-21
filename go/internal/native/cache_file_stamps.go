@@ -22,13 +22,19 @@ func workspaceStamp(root, path string) (analysiscache.FileStamp, error) {
 
 // Reuse content digests only when filesystem metadata still matches the bytes
 // previously hashed. Capture stamps before reading and verify them afterwards.
-func cachedWorkspaceDigests(analyzer *analysisEngine, ctx context.Context, paths map[string]bool, previous analysiscache.Generation) (map[string]analysiscache.Digest, map[string]analysiscache.FileStamp, error) {
+func cachedWorkspaceDigests(analyzer *analysisEngine, ctx context.Context, paths map[string]bool, previous analysiscache.Generation, captured ...map[string][]byte) (map[string]analysiscache.Digest, map[string]analysiscache.FileStamp, error) {
 	stamps := make(map[string]analysiscache.FileStamp, len(paths))
 	digests := make(map[string]analysiscache.Digest, len(paths))
 	changed := make([]string, 0)
 	for path := range paths {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
+		}
+		if len(captured) > 0 {
+			if data, ok := captured[0][path]; ok {
+				digests[path] = analysiscache.DigestBytes(data)
+				continue
+			}
 		}
 		stamp, err := workspaceStamp(analyzer.workspace, path)
 		if err != nil {

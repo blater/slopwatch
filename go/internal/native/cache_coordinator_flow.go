@@ -146,7 +146,7 @@ func cachedUnitInputs(load cachedUnitLoad, unit plannedCacheUnit, catalog catalo
 func runPersistentMisses(parent context.Context, catalog catalogDocument, options Options, state *persistentCacheState) (bool, error) {
 	state.misses = prepareMissPaths(state.misses, state.prepared.plans)
 	snapshotFiles := snapshotFilesForMisses(state.misses, state.prepared.digests)
-	snapshotRoot, cleanup, err := state.store.MaterializeWorkspaceSnapshot(parent, state.analyzer.workspace, snapshotFiles)
+	snapshotRoot, cleanup, err := state.store.MaterializeWorkspaceSnapshot(parent, state.analyzer.workspace, snapshotFiles, options.configuration.Bytes())
 	if err != nil {
 		if errors.Is(err, analysiscache.ErrWorkspaceSnapshotChanged) {
 			return true, ErrWorkspaceChanged

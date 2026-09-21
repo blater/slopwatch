@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"io"
 	"time"
 )
 
@@ -21,6 +22,8 @@ func (m *Monitor) WaitAndDrain(ctx context.Context) (DirtyBatch, error) {
 	select {
 	case <-ctx.Done():
 		return DirtyBatch{}, ctx.Err()
+	case <-m.engine.events.stopped:
+		return m.Drain(), io.EOF
 	case <-m.engine.events.done:
 		return DirtyBatch{}, context.Canceled
 	case <-m.engine.events.wake:
@@ -35,6 +38,8 @@ func (m *eventManager) quietDrain(ctx context.Context) (DirtyBatch, error) {
 		select {
 		case <-ctx.Done():
 			return DirtyBatch{}, ctx.Err()
+		case <-m.stopped:
+			return m.dirty.snapshot(), io.EOF
 		case <-m.done:
 			return DirtyBatch{}, context.Canceled
 		case <-m.wake:

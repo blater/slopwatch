@@ -1,9 +1,6 @@
 package follow
 
 import (
-	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -85,40 +82,6 @@ func TestConcurrencySavePreservesAgentDraftAndRevision(t *testing.T) {
 	}
 }
 
-func TestToggleDropsSupersededAnalysisAndWatcher(t *testing.T) {
-	root := t.TempDir()
-	for path, data := range map[string]string{"keep.go": "package p", "omit.go": "package p", ".gitignore": "omit.go\n"} {
-		if err := os.WriteFile(filepath.Join(root, path), []byte(data), 0644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	analyzer := &refreshAnalyzer{}
-	model, err := New(report.Document{Files: []report.File{testFile("keep.go", 1), testFile("omit.go", 2)}}, analyzer, Options{Workspace: root})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer model.Close()
-	model.options.DisableGitignore = true
-	old := model.watcher
-	model.analyzing = true
-	command := model.toggleGitignore()
-	if len(model.files.Document.Files) != 1 || !model.runtime.discardAnalysis || !model.runtime.pendingFullAnalysis {
-		t.Fatal("policy change did not remove ignored rows or supersede old result")
-	}
-	message := command().(watcherReconfigured)
-	model.handleWatcherReconfigured(message)
-	if model.watcher == old {
-		t.Fatalf("watch registrations not replaced: %v / %s", message.err, model.runtimeError)
-	}
-	handleAnalysisResult(model, analysisResult{full: true, document: report.Document{Files: []report.File{testFile("omit.go", 2)}}})
-	if len(model.files.Document.Files) != 1 || model.files.Document.Files[0].Path != "keep.go" {
-		t.Fatal("old analysis restored ignored row")
-	}
-	if _, cmd := handleSourceChange(model, sourceChange{watcher: old, Err: os.ErrClosed}); cmd != nil || model.runtimeError != "" {
-		t.Fatal("retired watcher event was accepted")
-	}
-}
-
 func TestAllFilteredRefreshClearsRowsWithoutErrorPopup(t *testing.T) {
 	model := Model{files: FilesState{BaseDocument: report.Document{Files: []report.File{testFile("last.go", 1)}}, Document: report.Document{Files: []report.File{testFile("last.go", 1)}}, Rows: map[string]rowState{}}, weights: defaultWeights()}
 	handleAnalysisResult(&model, analysisResult{full: true, err: native.ErrNoSources})
@@ -140,101 +103,6 @@ func settingsRefreshFixture(t *testing.T) *Model {
 	return model
 }
 
-func executeReplacementAnalysis(t *testing.T, model *Model, command tea.Cmd) {
-	t.Helper()
-	if command == nil {
-		t.Fatal("replacement did not schedule analysis")
-	}
-	batch, ok := command().(tea.BatchMsg)
-	if !ok || len(batch) != 2 {
-		t.Fatalf("replacement commands=%T %v", batch, batch)
-	}
-	result, ok := batch[1]().(analysisResult)
-	if !ok {
-		t.Fatal("missing real analysis result")
-	}
-	handleAnalysisResult(model, result)
-	if model.analyzing || model.runtime.pendingFullAnalysis || model.runtime.discardAnalysis {
-		t.Fatal("replacement failed to settle")
-	}
-}
-
-func TestToggleBeforeInitialWatcherReadyStartsFreshAnalysis(t *testing.T) {
-	model := settingsRefreshFixture(t)
-	model.StartInitialAnalysis()
-	old := model.watcher
-	command := model.toggleGitignore()
-	message := command().(watcherReconfigured)
-	next := model.handleWatcherReconfigured(message)
-	if model.runtime.startupWatcherPending || model.runtime.discardAnalysis {
-		t.Fatal("unstarted initial analysis treated as running job")
-	}
-	if _, cmd := handleWatcherReady(model, watcherReady{watcher: old}); cmd != nil {
-		t.Fatal("retired startup watcher launched analysis")
-	}
-	executeReplacementAnalysis(t, model, next)
-}
-
-func TestToggleDuringRetryDoesNotDiscardFreshRetryResult(t *testing.T) {
-	model := settingsRefreshFixture(t)
-	model.analyzing = true
-	model.runtime.analysisRetryPending = true
-	command := model.toggleGitignore()
-	if model.runtime.discardAnalysis || model.runtime.analysisRetryPending {
-		t.Fatal("retry delay treated as in-flight work")
-	}
-	next := model.handleWatcherReconfigured(command().(watcherReconfigured))
-	if _, cmd := handleAnalysisRetry(model); cmd != nil {
-		t.Fatal("old retry tick launched duplicate job")
-	}
-	executeReplacementAnalysis(t, model, next)
-	if model.files.Document.Files[0].Score != 2 {
-		t.Fatal("fresh replacement result discarded")
-	}
-}
-
-func TestWatcherReplacementFailureResumesOnlyConsumedWaitAndRetries(t *testing.T) {
-	for _, consumed := range []bool{false, true} {
-		t.Run(fmt.Sprint(consumed), func(t *testing.T) {
-			model := settingsRefreshFixture(t)
-			model.runtime.watchGeneration = 1
-			model.runtime.watchReconfigurePending = true
-			model.runtime.watchNeedsWait = consumed
-			model.runtime.pendingFullAnalysis = true
-			model.analyzing = true
-			command := model.handleWatcherReconfigured(watcherReconfigured{generation: 1, err: errors.New("injected registration failure")})
-			if command == nil {
-				t.Fatal("no replacement recovery")
-			}
-			if consumed {
-				batch, ok := command().(tea.BatchMsg)
-				if !ok || len(batch) != 2 {
-					t.Fatal("consumed wait not resumed exactly once")
-				}
-			} else {
-				if _, ok := command().(watcherReconfigureRetry); !ok {
-					t.Fatal("toggle failure scheduled duplicate watcher wait")
-				}
-			}
-			if model.runtime.watchNeedsWait || model.runtime.watchRetryCount != 1 {
-				t.Fatal("retry state not bounded")
-			}
-			retry := model.refreshIgnorePolicy()
-			replacement := retry().(watcherReconfigured)
-			if replacement.err != nil {
-				t.Fatal(replacement.err)
-			}
-			model.handleWatcherReconfigured(replacement)
-			if model.runtimeError != "" {
-				t.Fatal("transient replacement failure opened ERROR popup")
-			}
-			if model.runtime.watchReconfigurePending || model.runtime.watchRetryCount != 0 {
-				t.Fatal("replacement did not recover")
-			}
-		})
-	}
-}
-
 func TestStartupSelectionUsesFilteredProjection(t *testing.T) {
 	root := t.TempDir()
 	watchWrite(t, root, ".gitignore", "omit.go\n")
@@ -247,5 +115,22 @@ func TestStartupSelectionUsesFilteredProjection(t *testing.T) {
 	defer model.Close()
 	if model.files.Selected != "keep.go" {
 		t.Fatalf("selection=%q", model.files.Selected)
+	}
+}
+
+func TestSettingsRetainWatcherResultsAndIncrementalQueue(t *testing.T) {
+	model := settingsRefreshFixture(t)
+	model.preferencesPath = filepath.Join(t.TempDir(), "preferences.toml")
+	old := model.watcher
+	model.analyzing = true
+	model.queued = map[string]bool{"a.go": true}
+	if command := model.toggleGitignore(); command != nil {
+		t.Fatal("toggle scheduled analysis")
+	}
+	if model.watcher != old || len(model.files.Document.Files) != 1 || !model.analyzing || !model.queued["a.go"] {
+		t.Fatal("settings changed active session")
+	}
+	if !strings.Contains(model.status, "restart") {
+		t.Fatal("missing restart notice")
 	}
 }

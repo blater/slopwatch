@@ -32,6 +32,7 @@ type Matcher struct {
 	mu             sync.Mutex
 	root, boundary string
 	disabled       bool
+	frozen         bool
 	directories    map[string]directoryRules
 	inputs         map[string]ruleInput
 	projectRules   []rule
@@ -82,7 +83,7 @@ func (m *Matcher) directory(path string) directoryRules {
 		parent = m.directory(filepath.Dir(path))
 	}
 	result := directoryRules{rules: parent.rules, ignored: parent.ignored || matches(parent.rules, path, true)}
-	if !result.ignored && !m.disabled {
+	if !result.ignored && !m.disabled && !m.frozen {
 		inputPath := filepath.Join(path, ".gitignore")
 		input := readInput(inputPath)
 		m.inputs[inputPath] = input
@@ -339,6 +340,9 @@ func (m *Matcher) Unchanged() bool {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.frozen {
+		return true
+	}
 	for path, expected := range m.inputs {
 		if actual := readInput(path); actual != expected {
 			return false
@@ -387,4 +391,16 @@ func InputFingerprint(path string) string {
 	input := readInput(path)
 	sum := sha256.Sum256([]byte(input.kind + "\x00" + input.data + "\x00" + input.warning))
 	return hex.EncodeToString(sum[:])
+}
+
+// Freeze retains the rules captured by startup traversal. Previously unseen
+// directories inherit those rules without reading newly created rule files.
+func (m *Matcher) Freeze() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.directory(m.root)
+	m.frozen = true
 }

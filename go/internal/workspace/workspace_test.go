@@ -12,11 +12,12 @@ import (
 )
 
 type fakeBackend struct {
-	events chan Event
-	errors chan error
-	mu     sync.Mutex
-	added  []string
-	closed bool
+	events  chan Event
+	errors  chan error
+	mu      sync.Mutex
+	added   []string
+	removed []string
+	closed  bool
 }
 
 type existingPathBackend struct{ *fakeBackend }
@@ -304,7 +305,7 @@ func TestClassifierCanMarkConfigurationInsideSourceScope(t *testing.T) {
 	}
 }
 
-func TestMonitorNewDirectoryRegistersTreeAndRequestsFullAudit(t *testing.T) {
+func TestMonitorNewDirectoryRegistersTreeAndQueuesSources(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, "src"), 0o755); err != nil {
 		t.Fatal(err)
@@ -320,7 +321,7 @@ func TestMonitorNewDirectoryRegistersTreeAndRequestsFullAudit(t *testing.T) {
 	}
 	backend.events <- Event{Name: newDir, Op: OpCreate}
 	batch := receiveBatch(t, m)
-	if !batch.All || batch.Reasons&(ReasonDirectory|ReasonCreate) != (ReasonDirectory|ReasonCreate) {
+	if batch.All || len(batch.Entries) != 1 || batch.Entries[0].Path != "src/new/new.go" {
 		t.Fatalf("directory event batch = %#v", batch)
 	}
 	backend.mu.Lock()
@@ -336,13 +337,13 @@ func TestMonitorNewDirectoryRegistersTreeAndRequestsFullAudit(t *testing.T) {
 	}
 }
 
-func TestMonitorWatcherErrorForcesDirtyAll(t *testing.T) {
+func TestMonitorWatcherErrorIsDelivered(t *testing.T) {
 	root := t.TempDir()
 	backend := newFakeBackend()
 	m := newTestMonitor(t, root, backend, Config{})
 	backend.errors <- errors.New("queue overflow")
 	batch := receiveBatch(t, m)
-	if !batch.All || batch.Reasons&ReasonWatcherError == 0 {
+	if batch.All || batch.Err == nil || batch.Err.Error() != "queue overflow" {
 		t.Fatalf("error batch = %#v", batch)
 	}
 }
@@ -370,14 +371,14 @@ func TestMonitorStartupReconcileIsAsyncAndKeepsReturnedPaths(t *testing.T) {
 	}
 }
 
-func TestMonitorReconcileErrorRequestsFullAudit(t *testing.T) {
+func TestMonitorReconcileErrorIsDelivered(t *testing.T) {
 	root := t.TempDir()
 	backend := newFakeBackend()
 	m := newTestMonitor(t, root, backend, Config{Reconcile: func(context.Context, ReconcileRequest) ([]string, error) {
 		return nil, errors.New("inventory unavailable")
 	}})
 	batch := receiveBatch(t, m)
-	if !batch.All || batch.Reasons&(ReasonWatcherError|ReasonStartupAudit) != (ReasonWatcherError|ReasonStartupAudit) {
+	if batch.All || batch.Err == nil || batch.Err.Error() != "inventory unavailable" {
 		t.Fatalf("reconcile error batch = %#v", batch)
 	}
 }
@@ -392,4 +393,11 @@ func equalStrings(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+func (f *fakeBackend) Remove(path string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.removed = append(f.removed, path)
+	return nil
 }

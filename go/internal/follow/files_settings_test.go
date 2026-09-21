@@ -15,7 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func TestProjectExclusionsEditorAutomaticallySavesAndRefreshes(t *testing.T) {
+func TestProjectExclusionsEditorSavesForRestart(t *testing.T) {
 	model := settingsRefreshFixture(t)
 	model.preferencesPath = filepath.Join(t.TempDir(), "preferences.toml")
 	if err := preferences.Save(model.preferencesPath, model.preferences); err != nil {
@@ -34,23 +34,23 @@ func TestProjectExclusionsEditorAutomaticallySavesAndRefreshes(t *testing.T) {
 	if model.runtime.filesExclusions.Value() != "q.go\na.go" {
 		t.Fatalf("raw text lost: %q", model.runtime.filesExclusions.Value())
 	}
-	if command == nil || !model.runtime.filesEditing || len(model.files.Document.Files) != 0 {
-		t.Fatal("edit did not stay open, prune, and schedule refresh")
+	if !model.runtime.filesEditing || len(model.files.Document.Files) != 1 {
+		t.Fatal("edit changed current results")
 	}
-	executeExclusionsRefresh(t, model, command)
+	_ = command
 	dispatchKey(model, tea.KeyMsg{Type: tea.KeyEsc})
 	document, err := preferences.LoadProject(model.options.Workspace)
 	if err != nil || model.runtime.filesEditing || document.Files.Exclude != "q.go\na.go" {
 		t.Fatalf("close did not retain saved edits: %+v %v", document, err)
 	}
-	if _, _, ok := model.watcher.eligible(filepath.Join(model.options.Workspace, "a.go")); ok {
-		t.Fatal("saved exclusion remains eligible for watching")
+	if _, _, ok := model.watcher.eligible(filepath.Join(model.options.Workspace, "a.go")); !ok {
+		t.Fatal("saved exclusion changed active watcher")
 	}
 	model.openFilesExclusions()
 	model.analyzer.(*refreshAnalyzer).document = report.Document{Files: []report.File{testFile("a.go", 2)}}
 	// Ctrl+U removes the current line's exclusion without a save action.
 	_, command = dispatchKey(model, tea.KeyMsg{Type: tea.KeyCtrlU})
-	executeExclusionsRefresh(t, model, command)
+	_ = command
 	if len(model.files.Document.Files) != 1 {
 		t.Fatal("removed exclusion did not return file to inventory")
 	}
@@ -82,38 +82,18 @@ func TestProjectExclusionsEditorFailureAndLongText(t *testing.T) {
 	}
 }
 
-func executeExclusionsRefresh(t *testing.T, model *Model, command tea.Cmd) {
-	t.Helper()
-	if command == nil {
-		t.Fatal("edit did not schedule refresh")
-	}
-	message := command()
-	if batch, ok := message.(tea.BatchMsg); ok {
-		for _, item := range batch {
-			if changed, ok := item().(watcherReconfigured); ok {
-				executeReplacementAnalysis(t, model, model.handleWatcherReconfigured(changed))
-				return
-			}
-		}
-	} else if changed, ok := message.(watcherReconfigured); ok {
-		executeReplacementAnalysis(t, model, model.handleWatcherReconfigured(changed))
-		return
-	}
-	t.Fatal("edit command contained no watcher refresh")
-}
-
 func TestProjectExclusionsUnchangedMessagesDoNotSave(t *testing.T) {
 	model := settingsRefreshFixture(t)
 	openSetting(model, "files")
 	model.openFilesExclusions()
-	generation := model.runtime.watchGeneration
+	previous := model.watcher
 	for _, message := range []tea.Msg{tea.KeyMsg{Type: tea.KeyLeft}, tea.KeyMsg{Type: tea.KeyCtrlS}, cursor.BlinkMsg{}} {
 		handleMessage(model, message)
 	}
 	if _, err := os.Stat(filepath.Join(model.options.Workspace, ".slopwatch.toml")); !os.IsNotExist(err) {
 		t.Fatalf("unchanged text created a file: %v", err)
 	}
-	if model.runtime.watchGeneration != generation {
+	if model.watcher != previous {
 		t.Fatal("unchanged text refreshed watcher")
 	}
 }
@@ -135,40 +115,15 @@ func TestProjectExclusionsAsyncPasteAutomaticallySaves(t *testing.T) {
 	if err != nil || document.Files.Exclude != "paste.go\nother.go" || !model.runtime.filesEditing {
 		t.Fatalf("async paste was not saved: %+v %v", document, err)
 	}
-	executeExclusionsRefresh(t, model, command)
+	_ = command
 }
 
-func TestMalformedProjectDoesNotPersistGitignoreToggle(t *testing.T) {
-	model := settingsRefreshFixture(t)
-	model.preferencesPath = filepath.Join(t.TempDir(), "preferences.toml")
-	if err := preferences.Save(model.preferencesPath, model.preferences); err != nil {
-		t.Fatal(err)
-	}
-	before, err := os.ReadFile(model.preferencesPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	watchWrite(t, model.options.Workspace, ".slopwatch.toml", "[files]\nexclude = false")
-	disabled, watcher := model.options.DisableGitignore, model.watcher
-	model.toggleGitignore()
-	after, err := os.ReadFile(model.preferencesPath)
-	if err != nil || string(before) != string(after) || model.options.DisableGitignore != disabled || model.watcher != watcher || model.runtimeError == "" {
-		t.Fatal("failed toggle changed displayed, stored, or active policy")
-	}
-}
-
-func TestMalformedProjectRejectsWatcherAndKeepsRefreshState(t *testing.T) {
+func TestMalformedProjectRejectsNewWatcher(t *testing.T) {
 	model := settingsRefreshFixture(t)
 	watchWrite(t, model.options.Workspace, ".slopwatch.toml", "[files]\nexclude = 7")
 	if watcher, err := newSourceWatcher(model.options.Workspace, nil, true, false, nil); err == nil {
 		watcher.close()
-		t.Fatal("watcher swallowed malformed project preferences")
-	}
-	previous, generation := model.watcher, model.runtime.watchGeneration
-	model.runtime.watchNeedsWait = true
-	command := model.refreshIgnorePolicy()
-	if command == nil || model.watcher != previous || model.runtime.watchGeneration != generation || model.runtime.watchReconfigurePending || model.runtime.watchNeedsWait || model.runtimeError == "" {
-		t.Fatal("load failure disrupted existing watcher state")
+		t.Fatal("watcher swallowed malformed preferences")
 	}
 }
 

@@ -152,7 +152,7 @@ func materializeSnapshotFile(ctx context.Context, root string, file SnapshotFile
 // workspace files and verifies each file against its previously captured
 // digest. Snapshot files are disposable and need no durable cache write; any
 // interruption or mismatch is retried as a fresh workspace view.
-func (store *Store) MaterializeWorkspaceSnapshot(ctx context.Context, workspace string, files []SnapshotFile) (root string, cleanup func() error, err error) {
+func (store *Store) MaterializeWorkspaceSnapshot(ctx context.Context, workspace string, files []SnapshotFile, captured ...map[string][]byte) (root string, cleanup func() error, err error) {
 	canonical, err := canonicalSnapshotFiles(files)
 	if err != nil {
 		return "", nil, err
@@ -166,6 +166,14 @@ func (store *Store) MaterializeWorkspaceSnapshot(ctx context.Context, workspace 
 		return "", nil, fmt.Errorf("resolve snapshot workspace: %w", err)
 	}
 	return materializeSnapshot(ctx, canonical, func(file SnapshotFile) ([]byte, error) {
+		if len(captured) > 0 {
+			if contents, ok := captured[0][file.Path]; ok {
+				if DigestBytes(contents) != file.Digest {
+					return nil, ErrWorkspaceSnapshotChanged
+				}
+				return contents, nil
+			}
+		}
 		path := filepath.Join(workspace, filepath.FromSlash(file.Path))
 		metadata, readErr := os.Lstat(path)
 		if readErr != nil {

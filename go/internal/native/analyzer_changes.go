@@ -8,13 +8,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/blater/slopwatch/internal/analysiscache"
 	"github.com/blater/slopwatch/internal/report"
-	"github.com/blater/slopwatch/internal/sourceignore"
 	"github.com/blater/slopwatch/internal/unitplan"
 )
 
-// ErrIncrementalPlanUnavailable tells dashboard callers that a full refresh
-// is needed to bootstrap or reconfigure incremental analysis.
+// ErrIncrementalPlanUnavailable reports that no successful initial plan exists.
+// Callers retain published results and surface the failed incremental update.
 var ErrIncrementalPlanUnavailable = errors.New("incremental analysis requires a successful initial analysis")
 
 type analysisPlanSnapshot struct {
@@ -46,7 +46,7 @@ func workspacePlan(analyzer *analysisEngine, options Options) (unitplan.Plan, er
 	if options.TypeScriptTypes {
 		typeScriptMode = unitplan.TypeScriptTyped
 	}
-	return unitplan.PlanWorkspace(analyzer.workspace, unitplan.Options{TypeScriptMode: typeScriptMode, Targets: options.Targets, DisableGitignore: options.DisableGitignore, IgnoreMatcher: options.ignoreMatcher})
+	return unitplan.PlanWorkspace(analyzer.workspace, unitplan.Options{TypeScriptMode: typeScriptMode, Targets: options.Targets, DisableGitignore: options.DisableGitignore, IgnoreMatcher: options.ignoreMatcher, Configuration: options.configuration})
 }
 
 func cloneDiscovered(discovered map[string][]string) map[string][]string {
@@ -59,15 +59,8 @@ func cloneDiscovered(discovered map[string][]string) map[string][]string {
 
 func analyzeChanges(analyzer *Analyzer, parent context.Context, changed []string) (report.Document, []string, error) {
 	previous := analyzer.plan
-	options := analysisOptions(analyzer.engine(), nil, nil)
-	var err error
-	options.ignoreMatcher, err = sourceignore.New(analyzer.workspace, options.DisableGitignore)
-	if err != nil {
-		return report.Document{}, nil, err
-	}
-	if !samePlanOptions(previous.options, options) {
-		return report.Document{}, nil, fmt.Errorf("%w: analysis configuration changed; run a full analysis", ErrIncrementalPlanUnavailable)
-	}
+	options := previous.options
+	options.ReadCache = analysisOptions(analyzer.engine(), nil, nil).ReadCache
 	current, err := currentChangePlan(analyzer, options, previous.selected)
 	if err != nil {
 		return report.Document{}, nil, err
@@ -111,7 +104,7 @@ func analyzeChanges(analyzer *Analyzer, parent context.Context, changed []string
 }
 
 func currentChangePlan(analyzer *Analyzer, options Options, selected []string) (*analysisPlanSnapshot, error) {
-	discovered, err := discoverPolicy(analyzer.engine(), options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore, options.ignoreMatcher)
+	discovered, err := discoverPolicyWithMissingTargets(analyzer.engine(), options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore, true, options.ignoreMatcher)
 	if err != nil {
 		return nil, err
 	}
@@ -365,9 +358,35 @@ func runChangedUnits(analyzer *Analyzer, parent context.Context, current *analys
 	// uncached run so affected units still receive the same cross-file context
 	// as a normal analysis.
 	prepared := prepareMissPaths(units, unitPlansByID(current.plan.Units))
-	inputs, err := runMissingUnits(analyzer.engine(), parent, analyzer.workspace, catalog, prepared, options)
+	paths := map[string]bool{}
+	for _, unit := range prepared {
+		for _, path := range unit.snapshotPaths {
+			paths[path] = true
+		}
+	}
+	digests, stamps, err := cachedWorkspaceDigests(analyzer.engine(), parent, paths, analysiscache.Generation{}, options.configuration.Bytes())
 	if err != nil {
 		return report.Document{}, err
+	}
+	var store *analysiscache.Store
+	root, cleanup, err := store.MaterializeWorkspaceSnapshot(parent, analyzer.workspace, snapshotFilesForMisses(prepared, digests), options.configuration.Bytes())
+	if errors.Is(err, analysiscache.ErrWorkspaceSnapshotChanged) {
+		return report.Document{}, ErrWorkspaceChanged
+	}
+	if err != nil {
+		return report.Document{}, err
+	}
+	defer cleanup()
+	inputs, err := runMissingUnits(analyzer.engine(), parent, root, catalog, prepared, options)
+	if err != nil {
+		return report.Document{}, err
+	}
+	unchanged, err := verifyWorkspaceStamps(analyzer.engine(), parent, stamps)
+	if err != nil {
+		return report.Document{}, err
+	}
+	if !unchanged {
+		return report.Document{}, ErrWorkspaceChanged
 	}
 	return changeReport(catalog, current.selected, discovered, units, inputs, options)
 }

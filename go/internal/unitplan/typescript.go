@@ -140,7 +140,7 @@ func resolveTSConfigPath(context plannerContext, directory, value string) string
 	return ""
 }
 
-func typeScriptPackageInputsByProject(context plannerContext, configs map[string]*tsConfig) map[string][]string {
+func typeScriptPackageInputsByDirectory(context plannerContext) map[string][]string {
 	byDirectory := map[string][]string{}
 	for _, file := range context.files {
 		base := lastPart(file)
@@ -149,6 +149,11 @@ func typeScriptPackageInputsByProject(context plannerContext, configs map[string
 			byDirectory[pathDirectory(file)] = append(byDirectory[pathDirectory(file)], file)
 		}
 	}
+	return byDirectory
+}
+
+func typeScriptPackageInputsByProject(context plannerContext, configs map[string]*tsConfig) map[string][]string {
+	byDirectory := typeScriptPackageInputsByDirectory(context)
 	result := make(map[string][]string, len(configs))
 	for path, config := range configs {
 		if !config.project {

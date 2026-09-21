@@ -6,12 +6,12 @@ func buildTypeScriptPlan(context plannerContext, options Options) ([]Unit, []Dia
 		return nil, diagnostics
 	}
 	if options.TypeScriptMode == TypeScriptSyntax {
-		return typeScriptSyntaxUnits(context, sources, declarations), diagnostics
+		return syntaxUnitsWithConfiguration(context, sources, declarations, configs), diagnostics
 	}
 	units, typedDiagnostics, configDirs := typedTypeScriptUnits(context, sources, declarations, configs)
 	diagnostics = append(diagnostics, typedDiagnostics...)
 	looseSources := looseTypeScriptSources(sources, configDirs)
-	return append(units, typeScriptSyntaxUnits(context, looseSources, looseTypeScriptSources(declarations, configDirs))...), diagnostics
+	return append(units, syntaxUnitsWithConfiguration(context, looseSources, looseTypeScriptSources(declarations, configDirs), configs)...), diagnostics
 }
 
 func collectTSWorkspace(context plannerContext) ([]string, []string, map[string]*tsConfig, []Diagnostic) {
@@ -38,6 +38,12 @@ func collectTSWorkspace(context plannerContext) ([]string, []string, map[string]
 		configs[file] = config
 	}
 	normalizeTSProjects(context, configs)
+	// Empty projects still define startup policy for sources added later.
+	if context.configuration != nil && !context.configuration.captured {
+		for _, config := range configs {
+			_, _ = tsConfigInputs(context, config, configs, nil)
+		}
+	}
 	return sources, declarations, configs, diagnostics
 }
 
@@ -163,4 +169,32 @@ func looseTypeScriptSources(sources []string, configDirs map[string]bool) []stri
 		}
 	}
 	return loose
+}
+
+// Syntax requests still let the backend consult project compiler settings.
+// Include the captured ancestor configurations in their snapshot and cache key.
+func syntaxUnitsWithConfiguration(context plannerContext, sources, declarations []string, configs map[string]*tsConfig) []Unit {
+	units := typeScriptSyntaxUnits(context, sources, declarations)
+	byDirectory := typeScriptPackageInputsByDirectory(context)
+	packages := typeScriptPackageInputsByProject(context, configs)
+	for path, config := range configs {
+		inputs, _ := tsConfigInputs(context, config, configs, packages[path])
+		byDirectory[config.directory] = append(byDirectory[config.directory], inputs...)
+	}
+	for i := range units {
+		seen := map[string]bool{}
+		for _, source := range units[i].Sources {
+			for directory := pathDirectory(source); ; directory = pathDirectory(directory) {
+				if seen[directory] {
+					break
+				}
+				seen[directory] = true
+				units[i].ConfigInputs = append(units[i].ConfigInputs, byDirectory[directory]...)
+				if directory == "." {
+					break
+				}
+			}
+		}
+	}
+	return units
 }

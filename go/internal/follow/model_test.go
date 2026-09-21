@@ -1179,35 +1179,6 @@ func assertWeightSetting(t *testing.T, id, axis string, component catalogTestCom
 	t.Errorf("weight setting %s is unsupported by every language", id)
 }
 
-func TestTypeSafetySettingsEnableAnalysisAndScheduleRefresh(t *testing.T) {
-	for _, test := range []struct {
-		name          string
-		selectSetting func(*Model)
-		apply         func(*Model) tea.Cmd
-	}{
-		{
-			name:          "column",
-			selectSetting: selectTypeSafetyColumn,
-			apply: func(model *Model) tea.Cmd {
-				_, command := handleColumnKey(model, " ")
-				return command
-			},
-		},
-		{
-			name:          "individual weight",
-			selectSetting: selectExplicitAnyWeight,
-			apply: func(model *Model) tea.Cmd {
-				_, command := handleWeightsKey(model, " ")
-				return command
-			},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			assertTypeSafetyToggle(t, test.selectSetting, test.apply)
-		})
-	}
-}
-
 func selectTypeSafetyColumn(model *Model) {
 	for index, column := range columnNames() {
 		if column.key == "typesafety" {
@@ -1223,74 +1194,6 @@ func selectExplicitAnyWeight(model *Model) {
 			model.weightCursor = index
 			return
 		}
-	}
-}
-
-func assertTypeSafetyToggle(t *testing.T, selectSetting func(*Model), apply func(*Model) tea.Cmd) {
-	t.Helper()
-	analyzer := &settingsAnalyzer{}
-	model := &Model{
-		files: FilesState{
-			Visible: defaultColumnVisibility(),
-		},
-		analyzer:      analyzer,
-		weights:       defaultWeights(),
-		weightEnabled: defaultWeightEnabled(),
-		queued:        map[string]bool{},
-	}
-	selectSetting(model)
-	command := apply(model)
-	if !analyzer.typeScriptTypes {
-		t.Fatal("setting did not enable compiler-aware TypeScript analysis")
-	}
-	if !model.analyzing || command == nil {
-		t.Fatalf("refresh was not scheduled: analyzing=%t command=%v", model.analyzing, command)
-	}
-	if _, ok := command().(analysisResult); !ok || analyzer.analyzeCalls != 1 {
-		t.Fatalf("refresh command did not run analysis: calls=%d", analyzer.analyzeCalls)
-	}
-}
-
-func TestTypeSafetyRefreshQueuesBehindAnAnalysisAndDisablingNeedsNoRefresh(t *testing.T) {
-	analyzer := &settingsAnalyzer{}
-	model := &Model{
-		files: FilesState{
-			Visible: defaultColumnVisibility(),
-		},
-		analyzer:      analyzer,
-		weights:       defaultWeights(),
-		weightEnabled: defaultWeightEnabled(),
-		queued:        map[string]bool{},
-		analyzing:     true,
-	}
-	selectTypeSafetyColumn(model)
-	_, command := handleColumnKey(model, " ")
-	assertQueuedTypeSafetyEnable(t, model, analyzer, command)
-	_, command = model.Update(analysisResult{document: report.Document{}, full: true})
-	assertQueuedTypeSafetyRefresh(t, model, command)
-	model.analyzing = false
-	_, command = handleColumnKey(model, " ")
-	assertTypeSafetyDisabled(t, model, analyzer, command)
-}
-
-func assertQueuedTypeSafetyEnable(t *testing.T, model *Model, analyzer *settingsAnalyzer, command tea.Cmd) {
-	t.Helper()
-	if command != nil || !model.runtime.pendingFullAnalysis || !analyzer.typeScriptTypes {
-		t.Fatalf("enable during analysis = command %v, pending %t, enabled %t", command, model.runtime.pendingFullAnalysis, analyzer.typeScriptTypes)
-	}
-}
-
-func assertQueuedTypeSafetyRefresh(t *testing.T, model *Model, command tea.Cmd) {
-	t.Helper()
-	if command == nil || model.runtime.pendingFullAnalysis || !model.analyzing {
-		t.Fatalf("queued refresh = command %v, pending %t, analyzing %t", command, model.runtime.pendingFullAnalysis, model.analyzing)
-	}
-}
-
-func assertTypeSafetyDisabled(t *testing.T, model *Model, analyzer *settingsAnalyzer, command tea.Cmd) {
-	t.Helper()
-	if command != nil || analyzer.typeScriptTypes || model.files.Visible["typesafety"] {
-		t.Fatalf("disable = command %v, analyzer enabled %t, visible %t", command, analyzer.typeScriptTypes, model.files.Visible["typesafety"])
 	}
 }
 
@@ -2503,5 +2406,12 @@ func TestTargetedAnalysisNarrowsExplicitLanguages(t *testing.T) {
 	got := languagesForPaths([]string{"a.go", "b.java", "c.go"})
 	if strings.Join(got, ",") != "go,java" {
 		t.Fatalf("languagesForPaths() = %v", got)
+	}
+}
+
+func TestTypeSafetySettingsRequireRestart(t *testing.T) {
+	model := Model{files: FilesState{Visible: map[string]bool{"typesafety": true}}, weights: defaultWeights()}
+	if model.syncTypeScriptTypes() != nil || model.analyzing || !strings.Contains(model.status, "restart") {
+		t.Fatal("type setting did not require restart")
 	}
 }

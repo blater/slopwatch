@@ -1,10 +1,6 @@
 package follow
 
 import (
-	"context"
-	"path/filepath"
-	"time"
-
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/sourceignore"
@@ -12,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"path/filepath"
 )
 
 func (model *Model) openFilesExclusions() tea.Cmd {
@@ -79,124 +76,22 @@ func (model *Model) updateFilesExclusions(message tea.Msg) tea.Cmd {
 		showRuntimeError(model, err)
 		return command
 	}
-	model.runtime.watchRetryCount = 0
-	return tea.Batch(command, model.refreshIgnorePolicy())
-}
-
-func (model *Model) toggleGitignore() tea.Cmd {
-	model.runtime.watchRetryCount = 0
-	generation := model.runtime.watchGeneration
-	model.options.DisableGitignore = !model.options.DisableGitignore
-	command := model.refreshIgnorePolicy()
-	if model.runtime.watchGeneration == generation {
-		// A project load error leaves the existing policy active.
-		model.options.DisableGitignore = !model.options.DisableGitignore
-		return command
-	}
-	persistUserPreferences(model)
+	model.status = "Exclusion settings saved; restart to apply"
 	return command
 }
 
-type watcherReconfigureRetry struct{ generation uint64 }
-
-type watcherReconfigured struct {
-	watcher     *sourceWatcher
-	generation  uint64
-	err         error
-	stopCleanup func() bool
+func (model *Model) toggleGitignore() tea.Cmd {
+	model.options.DisableGitignore = !model.options.DisableGitignore
+	persistUserPreferences(model)
+	model.status = "Ignore settings saved; restart to apply"
+	return nil
 }
 
-func (model *Model) refreshIgnorePolicy() tea.Cmd {
-	if err := model.pruneIgnoredRows(); err != nil {
-		showRuntimeError(model, err)
-		if model.runtime.watchNeedsWait {
-			return model.resumeWatcherWait()
-		}
+func (model *Model) resumeWatcherWait() tea.Cmd {
+	if model.runtime.watchStopped || model.watcher == nil {
 		return nil
 	}
-	if model.runtime.watchReconfigureCancel != nil {
-		model.runtime.watchReconfigureCancel()
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	model.runtime.watchReconfigureCancel = cancel
-	model.runtime.watchGeneration++
-	generation, options := model.runtime.watchGeneration, model.options
-	model.runtime.watchReconfigurePending = true
-	model.runtime.pendingFullAnalysis = true
-	model.runtime.discardAnalysis = model.analyzing && !model.runtime.analysisRetryPending && !model.runtime.startupWatcherPending
-	if model.runtime.analysisRetryPending {
-		model.runtime.analysisRetryPending = false
-		model.analyzing = false
-	}
-	if model.runtime.startupWatcherPending {
-		model.analyzing = false
-	}
-	if controller, ok := model.analyzer.(gitignoreController); ok {
-		controller.SetDisableGitignore(options.DisableGitignore)
-	}
-	return func() tea.Msg {
-		watcher, err := newSourceWatcher(options.Workspace, options.Targets, options.IncludeTests, options.FollowSymlinks, options.Languages, options.DisableGitignore)
-		if err == nil {
-			err = watcher.start()
-		}
-		var stopCleanup func() bool
-		if watcher != nil {
-			stopCleanup = context.AfterFunc(ctx, watcher.close)
-		}
-		if ctx.Err() != nil {
-			err = ctx.Err()
-		}
-		if err != nil && watcher != nil {
-			watcher.close()
-			watcher = nil
-		}
-		return watcherReconfigured{watcher: watcher, generation: generation, err: err, stopCleanup: stopCleanup}
-	}
-}
-
-func (model *Model) handleWatcherReconfigured(message watcherReconfigured) tea.Cmd {
-	if message.stopCleanup != nil {
-		message.stopCleanup()
-	}
-	if message.generation != model.runtime.watchGeneration {
-		if message.watcher != nil {
-			message.watcher.close()
-		}
-		return nil
-	}
-	model.runtime.watchReconfigurePending = false
-	if message.err != nil {
-		commands := []tea.Cmd{}
-		if model.runtime.watchNeedsWait {
-			commands = append(commands, model.resumeWatcherWait())
-		}
-		if model.runtime.watchRetryCount < 3 {
-			model.runtime.watchRetryCount++
-			generation := model.runtime.watchGeneration
-			commands = append(commands, tea.Tick(time.Duration(model.runtime.watchRetryCount)*250*time.Millisecond, func(time.Time) tea.Msg { return watcherReconfigureRetry{generation: generation} }))
-		} else {
-			showRuntimeError(model, message.err)
-		}
-
-		if !model.analyzing && !model.runtime.startupWatcherPending {
-			_, command := continueQueuedAnalysis(model)
-			commands = append(commands, command)
-		}
-		return tea.Batch(commands...)
-	}
-	model.runtime.watchRetryCount = 0
-	model.runtime.startupWatcherPending = false
-	previous := model.watcher
-	model.watcher = message.watcher
-	if previous != nil {
-		previous.close()
-	}
-	commands := []tea.Cmd{model.resumeWatcherWait()}
-	if !model.analyzing {
-		_, command := continueQueuedAnalysis(model)
-		commands = append(commands, command)
-	}
-	return tea.Batch(commands...)
+	return waitForChange(model.watcher)
 }
 
 func (model *Model) pruneIgnoredRows() error {
@@ -219,9 +114,4 @@ func (model *Model) pruneIgnoredRows() error {
 	rebuildWeightedDocument(model)
 	restoreSelection(model)
 	return nil
-}
-
-func (model *Model) resumeWatcherWait() tea.Cmd {
-	model.runtime.watchNeedsWait = false
-	return waitForChange(model.watcher)
 }

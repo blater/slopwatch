@@ -49,11 +49,13 @@ func New(cfg Config) (*Monitor, error) {
 		},
 		started: make(chan struct{}),
 	}
+	m.engine.watch.paths = &m.engine.paths
+	m.engine.watch.known = map[string]Classification{}
 	m.engine.paths.scopes = normalizeScopes(&m.engine.paths, cfg.Scopes)
 	m.engine.paths.inputs = normalizeInputs(&m.engine.paths, cfg)
 	m.engine.events = eventManager{
 		paths: &m.engine.paths, watch: &m.engine.watch,
-		dirty: &m.engine.dirty, wake: make(chan struct{}, 1), done: make(chan struct{}),
+		dirty: &m.engine.dirty, wake: make(chan struct{}, 1), done: make(chan struct{}), stopped: make(chan struct{}),
 		debounce: cfg.Debounce,
 	}
 	m.engine.dirty.entries = make(map[string]DirtyEntry)

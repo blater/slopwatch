@@ -55,6 +55,7 @@ const (
 type Options struct {
 	DisableGitignore bool
 	IgnoreMatcher    *sourceignore.Matcher
+	Configuration    *ConfigurationSnapshot
 	TypeScriptMode   TypeScriptMode
 	// Targets are the user-selected paths relative to root. Explicit symlink
 	// targets are part of the authorized inventory even though ordinary tree
@@ -115,7 +116,13 @@ func PlanWorkspace(root string, options Options) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	context := plannerContext{root: absRoot, files: files, fileSet: make(map[string]bool, len(files))}
+	if options.Configuration != nil {
+		files, err = options.Configuration.inventory(absRoot, files)
+		if err != nil {
+			return Plan{}, err
+		}
+	}
+	context := plannerContext{root: absRoot, files: files, fileSet: make(map[string]bool, len(files)), configuration: options.Configuration}
 	for _, path := range files {
 		context.fileSet[path] = true
 	}
@@ -133,9 +140,10 @@ func PlanWorkspace(root string, options Options) (Plan, error) {
 }
 
 type plannerContext struct {
-	root    string
-	files   []string
-	fileSet map[string]bool
+	configuration *ConfigurationSnapshot
+	root          string
+	files         []string
+	fileSet       map[string]bool
 }
 
 var ignoredDirectories = map[string]bool{
@@ -298,6 +306,9 @@ func finalize(plan *Plan) {
 }
 
 func (context plannerContext) read(path string) ([]byte, error) {
+	if context.configuration != nil && !liveSource(path) {
+		return context.configuration.read(context.root, path)
+	}
 	return os.ReadFile(filepath.Join(context.root, filepath.FromSlash(path)))
 }
 

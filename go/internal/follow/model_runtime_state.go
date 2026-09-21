@@ -1,7 +1,6 @@
 package follow
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -90,34 +89,28 @@ func (buffer *analysisProgressBuffer) take(now time.Time, force bool) report.Doc
 // belong to a particular dashboard surface. Event handlers access this
 // lifecycle cluster through Model.runtime.
 type runtimeState struct {
-	watchGeneration         uint64
-	watchReconfigurePending bool
-	watchReconfigureCancel  context.CancelFunc
-	watchNeedsWait          bool
-	watchRetryCount         int
-	startupWatcherPending   bool
-	fixGeneration           uint64
-	jobActions              jobActionState
-	jobReader               jobReaderState
-	shutdown                shutdownState
-	targetScorePreference   targetScorePreferenceState
-	filesSettings           bool
-	filesCursor             int
-	filesEditing            bool
-	filesExclusions         textarea.Model
-	configParent            *configSettingsState
-	runtimeErrorMessages    []string
-	fixErrorSummary         string
-	runtimeErrorOffset      int
-	columnsFromSettings     bool
-	pendingFullAnalysis     bool
-	discardAnalysis         bool
-	analysisRetryPending    bool
-	scanProgress            map[string]report.ScanProgress
-	scanFiles               map[string]bool
-	scanFinished            int
-	scanTotal               int
-	analysisGeneration      uint64
-	analysisProgress        *analysisProgressBuffer
-	weightsResetConfirm     bool
+	watchStopped          bool
+	startupWatcherPending bool
+	fixGeneration         uint64
+	jobActions            jobActionState
+	jobReader             jobReaderState
+	shutdown              shutdownState
+	targetScorePreference targetScorePreferenceState
+	filesSettings         bool
+	filesCursor           int
+	filesEditing          bool
+	filesExclusions       textarea.Model
+	configParent          *configSettingsState
+	runtimeErrorMessages  []string
+	fixErrorSummary       string
+	runtimeErrorOffset    int
+	columnsFromSettings   bool
+	analysisRetryPending  bool
+	scanProgress          map[string]report.ScanProgress
+	scanFiles             map[string]bool
+	scanFinished          int
+	scanTotal             int
+	analysisGeneration    uint64
+	analysisProgress      *analysisProgressBuffer
+	weightsResetConfirm   bool
 }

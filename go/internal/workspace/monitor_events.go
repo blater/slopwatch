@@ -17,26 +17,37 @@ func (m *eventManager) handle(event Event) {
 		return
 	}
 	m.markPath(path, reason, false)
+	if event.Op&(OpRemove|OpRename) != 0 {
+		m.watch.mu.Lock()
+		delete(m.watch.known, path)
+		m.watch.mu.Unlock()
+	} else {
+		m.watch.remember(path)
+	}
 }
 
 func (m *eventManager) handleDirectoryEvent(path string, event Event) bool {
-	if event.IsDir && event.Op&OpCreate != 0 {
-		m.handleCreatedDirectory(path)
-		return true
+	isDirectory := event.IsDir || m.watch.isWatched(path)
+	if !isDirectory {
+		if info, err := os.Stat(path); err == nil {
+			isDirectory = info.IsDir()
+		}
 	}
-	if event.IsDir || (event.Op&(OpRemove|OpRename) != 0 && m.watch.isWatched(path)) {
-		m.markAll(eventReason(event.Op) | ReasonDirectory)
-		return true
-	}
-	if event.Op&OpCreate == 0 {
+	if !isDirectory {
 		return false
 	}
-	info, err := os.Stat(path)
-	if err == nil && info.IsDir() {
+	if event.Op&(OpRemove|OpRename) != 0 {
+		paths, err := m.watch.removeTree(path)
+		for _, old := range paths {
+			m.markPath(old, eventReason(event.Op)|ReasonDirectory, false)
+		}
+		if err != nil {
+			m.markError(err, false)
+		}
+	} else if event.Op&OpCreate != 0 {
 		m.handleCreatedDirectory(path)
-		return true
 	}
-	return false
+	return true
 }
 
 func eventReason(operation Op) Reason {

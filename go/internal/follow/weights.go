@@ -117,22 +117,10 @@ func hasTypeScriptTypeData(model Model) bool {
 }
 
 func (model *Model) syncTypeScriptTypes() tea.Cmd {
-	controller, supported := model.analyzer.(typeScriptTypesController)
-	if !supported {
-		return nil
+	if typeScriptTypesWanted(*model) && !hasTypeScriptTypeData(*model) {
+		model.status = "Analysis settings saved; restart to apply"
 	}
-	enabled := typeScriptTypesWanted(*model)
-	controller.SetTypeScriptTypes(enabled)
-	if !enabled || hasTypeScriptTypeData(*model) {
-		return nil
-	}
-	if model.analyzing {
-		model.runtime.pendingFullAnalysis = true
-		return nil
-	}
-	model.analyzing = true
-	emit := beginAnalysisProgress(model, report.FreshnessVerifying, "analysis in progress")
-	return analysisCommandWithProgress(model.analyzer, model.options.Targets, nil, true, emit)
+	return nil
 }
 
 type settingsItem struct {
