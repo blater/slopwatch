@@ -73,6 +73,11 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return handleKey(model, message)
 	default:
+		if model.runtime.filesEditing {
+			var command tea.Cmd
+			model.runtime.filesExclusions, command = model.runtime.filesExclusions.Update(message)
+			return model, command
+		}
 		return model, nil
 	}
 }
@@ -101,6 +106,9 @@ func handleWatcherReady(model *Model, message watcherReady) (tea.Model, tea.Cmd)
 
 func handleWindowSize(model *Model, message tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	model.width, model.height = message.Width, message.Height
+	if model.runtime.filesEditing {
+		model.resizeFilesExclusions()
+	}
 	model.ensureVisible()
 	model.clampPathOffset()
 	model.agents.ensureVisible(makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))

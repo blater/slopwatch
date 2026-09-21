@@ -147,7 +147,11 @@ var ignoredDirectories = map[string]bool{
 
 func workspaceFiles(root string, targets []string, disabled bool, matcher *sourceignore.Matcher) ([]string, error) {
 	if matcher == nil {
-		matcher = sourceignore.New(root, disabled)
+		var err error
+		matcher, err = sourceignore.New(root, disabled)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var files []string
 	err := walkWorkspaceTree(root, func(path string) error {
@@ -199,9 +203,15 @@ func walkWorkspaceTreeFiltered(start string, addFile func(string) error, ignored
 }
 
 func explicitSymlinkTargetFiles(root, target string, matchers ...*sourceignore.Matcher) ([]string, error) {
-	matcher := sourceignore.New(root, false)
+	var matcher *sourceignore.Matcher
 	if len(matchers) > 0 {
 		matcher = matchers[0]
+	} else {
+		var err error
+		matcher, err = sourceignore.New(root, false)
+		if err != nil {
+			return nil, err
+		}
 	}
 	logical := target
 	if !filepath.IsAbs(logical) {

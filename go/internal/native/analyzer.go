@@ -248,7 +248,11 @@ func analyze(analyzer *analysisEngine, parent context.Context, targets []string,
 
 func analyzeWithPlan(analyzer *analysisEngine, parent context.Context, targets []string, languages []string) (report.Document, *analysisPlanSnapshot, error) {
 	options := analysisOptions(analyzer, targets, languages)
-	options.ignoreMatcher = sourceignore.New(analyzer.workspace, options.DisableGitignore)
+	var err error
+	options.ignoreMatcher, err = sourceignore.New(analyzer.workspace, options.DisableGitignore)
+	if err != nil {
+		return report.Document{}, nil, err
+	}
 	discovered, err := discoverPolicy(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore, options.ignoreMatcher)
 	if err != nil {
 		return report.Document{}, nil, err
@@ -495,9 +499,15 @@ func discover(analyzer *analysisEngine, targets []string, includeTests, followSy
 }
 
 func discoverPolicy(analyzer *analysisEngine, targets []string, includeTests, followSymlinks, disableGitignore bool, matchers ...*sourceignore.Matcher) (map[string][]string, error) {
-	matcher := sourceignore.New(analyzer.workspace, disableGitignore)
+	var matcher *sourceignore.Matcher
 	if len(matchers) > 0 && matchers[0] != nil {
 		matcher = matchers[0]
+	} else {
+		var err error
+		matcher, err = sourceignore.New(analyzer.workspace, disableGitignore)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if len(targets) == 0 {
 		targets = []string{"."}

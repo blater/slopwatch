@@ -51,12 +51,16 @@ type watchScope struct {
 
 func newSourceWatcher(root string, targets []string, includeTests, followSymlinks bool, languages []string, disableGitignore ...bool) (*sourceWatcher, error) {
 	disabled := len(disableGitignore) > 0 && disableGitignore[0]
+	matcher, err := sourceignore.New(root, disabled)
+	if err != nil {
+		return nil, err
+	}
 	selected := make(map[string]bool, len(languages))
 	for _, language := range languages {
 		selected[language] = true
 	}
 	result := &sourceWatcher{
-		matcher: sourceignore.New(root, disabled),
+		matcher: matcher,
 		root:    root, includeTests: includeTests, followSymlinks: followSymlinks,
 		languages: selected, done: make(chan struct{}),
 	}

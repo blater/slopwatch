@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/charmbracelet/bubbles/textarea"
 )
 
 type analysisProgressBuffer struct {
@@ -101,6 +102,9 @@ type runtimeState struct {
 	shutdown                shutdownState
 	targetScorePreference   targetScorePreferenceState
 	filesSettings           bool
+	filesCursor             int
+	filesEditing            bool
+	filesExclusions         textarea.Model
 	configParent            *configSettingsState
 	runtimeErrorMessages    []string
 	fixErrorSummary         string

@@ -6,6 +6,15 @@ import (
 	"testing"
 )
 
+func mustNew(t *testing.T, root string, disabled bool) *Matcher {
+	t.Helper()
+	matcher, err := New(root, disabled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return matcher
+}
+
 func put(t *testing.T, root, path, data string) {
 	t.Helper()
 	path = filepath.Join(root, path)
@@ -21,7 +30,7 @@ func TestRuleMatrix(t *testing.T) {
 	root := t.TempDir()
 	put(t, root, ".gitignore", "# comment\n/root.go\n*.gen.go\nblocked/\n!blocked/keep.go\npartial/*\n!partial/keep/\na/**/z.go\nends/**\n\\#literal.go\n\\!literal.go\nspace\\ \ntrailing.go   \nfile[[:digit:]].go\n[[:alpha:]].go\n/foo[!x]bar.go\n")
 	put(t, root, "nested/.gitignore", "!*.gen.go\n/omit?.go\n")
-	matcher := New(root, false)
+	matcher := mustNew(t, root, false)
 	for path, want := range map[string]bool{
 		"root.go": true, "nested/root.go": false, "a.gen.go": true, "nested/a.gen.go": false,
 		"blocked/keep.go": true, "partial/drop.go": true, "partial/keep/retained.go": false,
@@ -43,7 +52,7 @@ func TestAncestorRulesAndRepositoryBoundary(t *testing.T) {
 	put(t, root, "repo/.git", "gitdir: external\n")
 	put(t, root, "repo/.gitignore", "inside.go\n")
 	put(t, root, "repo/sub/file.go", "")
-	matcher := New(filepath.Join(root, "repo/sub"), false)
+	matcher := mustNew(t, filepath.Join(root, "repo/sub"), false)
 	if matcher.Ignored("outside.go", false) || !matcher.Ignored("inside.go", false) {
 		t.Fatal("ancestor boundary not honored")
 	}
@@ -51,7 +60,7 @@ func TestAncestorRulesAndRepositoryBoundary(t *testing.T) {
 	if len(inputs) != 2 {
 		t.Fatalf("inputs %v", inputs)
 	}
-	if New(filepath.Join(root, "repo/sub"), true).Ignored("inside.go", false) {
+	if mustNew(t, filepath.Join(root, "repo/sub"), true).Ignored("inside.go", false) {
 		t.Fatal("disabled matcher ignored source")
 	}
 }
@@ -59,7 +68,7 @@ func TestAncestorRulesAndRepositoryBoundary(t *testing.T) {
 func TestFingerprintAndPerScanRuleCache(t *testing.T) {
 	root := t.TempDir()
 	put(t, root, ".gitignore", "old.go\n")
-	first := New(root, false)
+	first := mustNew(t, root, false)
 	before := first.Fingerprint()
 	if !first.Ignored("old.go", false) {
 		t.Fatal("missing old rule")
@@ -68,7 +77,7 @@ func TestFingerprintAndPerScanRuleCache(t *testing.T) {
 	if first.Ignored("new.go", false) {
 		t.Fatal("scan did not retain its rule snapshot")
 	}
-	next := New(root, false)
+	next := mustNew(t, root, false)
 	if next.Fingerprint() == before || !next.Ignored("new.go", false) {
 		t.Fatal("new scan did not refresh rules")
 	}
@@ -94,7 +103,7 @@ func TestWildmatchByteAndMalformedClasses(t *testing.T) {
 func TestNewlinesSymlinkRulesAndIncidentalReadFailure(t *testing.T) {
 	root := t.TempDir()
 	put(t, root, ".gitignore", "**/ignored.go\nplain.go\n")
-	m := New(root, false)
+	m := mustNew(t, root, false)
 	for _, path := range []string{"dir\nname/ignored.go", "dir\nname/plain.go"} {
 		if !m.Ignored(path, false) {
 			t.Errorf("newline path not matched: %q", path)
@@ -105,14 +114,14 @@ func TestNewlinesSymlinkRulesAndIncidentalReadFailure(t *testing.T) {
 	if err := os.Symlink(target, filepath.Join(linkRoot, ".gitignore")); err != nil {
 		t.Fatal(err)
 	}
-	if New(linkRoot, false).Ignored("plain.go", false) {
+	if mustNew(t, linkRoot, false).Ignored("plain.go", false) {
 		t.Fatal("symlink rules were followed")
 	}
 	bad := t.TempDir()
 	if err := os.Mkdir(filepath.Join(bad, ".gitignore"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	m = New(bad, false)
+	m = mustNew(t, bad, false)
 	m.Ignored("plain.go", false)
 	warnings := m.Diagnostics()
 	if len(warnings) != 1 || warnings[0]["severity"] != "info" || warnings[0]["attributes"].(map[string]any)["log_only"] != true {
@@ -124,7 +133,7 @@ func TestFingerprintUsesCapturedRulesWithoutWalkingUnvisitedTree(t *testing.T) {
 	root := t.TempDir()
 	put(t, root, "visited/.gitignore", "old.go\n")
 	put(t, root, "unvisited/.gitignore", "one.go\n")
-	m := New(root, false)
+	m := mustNew(t, root, false)
 	m.Ignored("visited/old.go", false)
 	before := m.Fingerprint()
 	count := len(m.inputs)
@@ -150,19 +159,19 @@ func TestSnapshotIncludesMissingAndLogicalSymlinkRules(t *testing.T) {
 	if err := os.Symlink(target, filepath.Join(root, "link")); err != nil {
 		t.Fatal(err)
 	}
-	m := New(root, false)
+	m := mustNew(t, root, false)
 	if !m.Ignored("link/first.go", false) {
 		t.Fatal("logical rules absent")
 	}
 	first := m.Fingerprint()
 	put(t, target, ".gitignore", "second.go\n")
-	next := New(root, false)
+	next := mustNew(t, root, false)
 	next.Ignored("link/first.go", false)
 	if m.Unchanged() || next.Fingerprint() == first {
 		t.Fatal("authorized symlink rules absent from snapshot identity")
 	}
 	put(t, root, "empty/file.go", "")
-	m = New(root, false)
+	m = mustNew(t, root, false)
 	m.Ignored("empty/file.go", false)
 	put(t, root, "empty/.gitignore", "*.go\n")
 	if m.Unchanged() {

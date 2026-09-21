@@ -170,7 +170,14 @@ func settingsIndex(key string) int {
 
 func handleSettingsKey(model *Model, name string) (tea.Model, tea.Cmd) {
 	if model.runtime.filesSettings {
+		if name == "up" || name == "k" || name == "down" || name == "j" || name == "tab" {
+			model.runtime.filesCursor = 1 - model.runtime.filesCursor
+			return model, nil
+		}
 		if isToggleKey(name) {
+			if model.runtime.filesCursor == 1 {
+				return model, model.openFilesExclusions()
+			}
 			return model, model.toggleGitignore()
 		}
 		if name == "esc" || name == "escape" || name == "q" {
@@ -211,6 +218,7 @@ func openSetting(model *Model, key string) tea.Cmd {
 	case "files":
 		model.settings = true
 		model.runtime.filesSettings = true
+		model.runtime.filesCursor = 0
 	case "theme":
 		model.appearance = true
 		model.appearanceCursor = 0

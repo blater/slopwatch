@@ -63,7 +63,10 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	if controller, ok := analyzer.(gitignoreController); ok {
 		controller.SetDisableGitignore(options.DisableGitignore)
 	}
-	model.pruneIgnoredRows()
+	if err := model.pruneIgnoredRows(); err != nil {
+		watcher.close()
+		return nil, err
+	}
 	if controller, ok := analyzer.(typeScriptTypesController); ok {
 		controller.SetTypeScriptTypes(typeScriptTypesWanted(*model))
 	}

@@ -5,16 +5,82 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/sourceignore"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func (model *Model) openFilesExclusions() tea.Cmd {
+	document, err := preferences.LoadProject(model.options.Workspace)
+	if err != nil {
+		showRuntimeError(model, err)
+		return nil
+	}
+	editor := textarea.New()
+	editor.CharLimit = 0
+	editor.MaxHeight = 0
+	editor.Prompt = ""
+	editor.ShowLineNumbers = false
+	editor.Placeholder = "One gitignore pattern per line"
+	editor.SetValue(document.Files.Exclude)
+	model.runtime.filesExclusions = editor
+	model.runtime.filesEditing = true
+	model.resizeFilesExclusions()
+	return model.runtime.filesExclusions.Focus()
+}
+
+func (model *Model) resizeFilesExclusions() {
+	width, height := model.width, model.height
+	if width <= 0 {
+		width = 64
+	}
+	if height <= 0 {
+		height = 18
+	}
+	model.runtime.filesExclusions.SetWidth(max(1, min(56, width-8)))
+	model.runtime.filesExclusions.SetHeight(max(1, min(10, height-7)))
+}
+
+func (model *Model) handleFilesExclusionsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "esc":
+		model.runtime.filesEditing = false
+		model.runtime.filesExclusions.Blur()
+		return model, nil
+	case "ctrl+s":
+		document, err := preferences.LoadProject(model.options.Workspace)
+		if err == nil {
+			document.Files.Exclude = model.runtime.filesExclusions.Value()
+			err = preferences.SaveProject(model.options.Workspace, document)
+		}
+		if err != nil {
+			showRuntimeError(model, err)
+			return model, nil
+		}
+		model.runtime.filesEditing = false
+		model.runtime.filesExclusions.Blur()
+		model.runtime.watchRetryCount = 0
+		return model, model.refreshIgnorePolicy()
+	}
+	var command tea.Cmd
+	model.runtime.filesExclusions, command = model.runtime.filesExclusions.Update(key)
+	return model, command
+}
+
 func (model *Model) toggleGitignore() tea.Cmd {
 	model.runtime.watchRetryCount = 0
+	generation := model.runtime.watchGeneration
 	model.options.DisableGitignore = !model.options.DisableGitignore
+	command := model.refreshIgnorePolicy()
+	if model.runtime.watchGeneration == generation {
+		// A project load error leaves the existing policy active.
+		model.options.DisableGitignore = !model.options.DisableGitignore
+		return command
+	}
 	persistUserPreferences(model)
-	return model.refreshIgnorePolicy()
+	return command
 }
 
 type watcherReconfigureRetry struct{ generation uint64 }
@@ -27,6 +93,13 @@ type watcherReconfigured struct {
 }
 
 func (model *Model) refreshIgnorePolicy() tea.Cmd {
+	if err := model.pruneIgnoredRows(); err != nil {
+		showRuntimeError(model, err)
+		if model.runtime.watchNeedsWait {
+			return model.resumeWatcherWait()
+		}
+		return nil
+	}
 	if model.runtime.watchReconfigureCancel != nil {
 		model.runtime.watchReconfigureCancel()
 	}
@@ -47,7 +120,6 @@ func (model *Model) refreshIgnorePolicy() tea.Cmd {
 	if controller, ok := model.analyzer.(gitignoreController); ok {
 		controller.SetDisableGitignore(options.DisableGitignore)
 	}
-	model.pruneIgnoredRows()
 	return func() tea.Msg {
 		watcher, err := newSourceWatcher(options.Workspace, options.Targets, options.IncludeTests, options.FollowSymlinks, options.Languages, options.DisableGitignore)
 		if err == nil {
@@ -113,8 +185,11 @@ func (model *Model) handleWatcherReconfigured(message watcherReconfigured) tea.C
 	return tea.Batch(commands...)
 }
 
-func (model *Model) pruneIgnoredRows() {
-	matcher := sourceignore.New(model.options.Workspace, model.options.DisableGitignore)
+func (model *Model) pruneIgnoredRows() error {
+	matcher, err := sourceignore.New(model.options.Workspace, model.options.DisableGitignore)
+	if err != nil {
+		return err
+	}
 	keep := make([]report.File, 0, len(model.files.BaseDocument.Files))
 	for _, file := range model.files.BaseDocument.Files {
 		if !matcher.Ignored(filepath.Join(model.options.Workspace, file.Path), false) {
@@ -129,6 +204,7 @@ func (model *Model) pruneIgnoredRows() {
 	model.files.Document.Files = append([]report.File(nil), keep...)
 	rebuildWeightedDocument(model)
 	restoreSelection(model)
+	return nil
 }
 
 func (model *Model) resumeWatcherWait() tea.Cmd {

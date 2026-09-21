@@ -29,11 +29,21 @@ func (model Model) settingsUnderlay(base string) string {
 }
 
 func filesSettingsView(model Model) string {
+	if model.runtime.filesEditing {
+		content := []string{model.runtime.filesExclusions.View()}
+		if model.height > 0 && model.height < 10 {
+			return style.TightPopup(style.Heading("SOURCE EXCLUSIONS"), content, "Ctrl+S save · Esc cancel", model.runtime.filesExclusions.Width()+4)
+		}
+		return style.Popup(style.Heading("SOURCE EXCLUSIONS"), content, "Ctrl+S save · Esc cancel", model.runtime.filesExclusions.Width()+4)
+	}
 	mark := " "
 	if !model.options.DisableGitignore {
 		mark = "✓"
 	}
-	return style.Popup(style.Heading("FILES"), []string{style.ToggleOption("["+mark+"]", "Honor gitignore", true, false, 34)}, "", 38)
+	return style.Popup(style.Heading("FILES"), []string{
+		style.ToggleOption("["+mark+"]", "Honor gitignore", model.runtime.filesCursor == 0, false, 34),
+		style.ToggleOption("›", "Project source exclusions", model.runtime.filesCursor == 1, false, 34),
+	}, "↑/↓ select · Enter edit · Esc back", 42)
 }
 
 func (model Model) settingsParentLayer(base, popup string, depth int) string {

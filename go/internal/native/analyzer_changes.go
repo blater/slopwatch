@@ -60,7 +60,11 @@ func cloneDiscovered(discovered map[string][]string) map[string][]string {
 func analyzeChanges(analyzer *Analyzer, parent context.Context, changed []string) (report.Document, []string, error) {
 	previous := analyzer.plan
 	options := analysisOptions(analyzer.engine(), nil, nil)
-	options.ignoreMatcher = sourceignore.New(analyzer.workspace, options.DisableGitignore)
+	var err error
+	options.ignoreMatcher, err = sourceignore.New(analyzer.workspace, options.DisableGitignore)
+	if err != nil {
+		return report.Document{}, nil, err
+	}
 	if !samePlanOptions(previous.options, options) {
 		return report.Document{}, nil, fmt.Errorf("%w: analysis configuration changed; run a full analysis", ErrIncrementalPlanUnavailable)
 	}

@@ -88,6 +88,9 @@ func dispatchOverlayKey(model *Model, kind OverlayKind, key tea.KeyMsg) (tea.Mod
 	case OverlayAppearance:
 		return handleAppearanceKey(model, name)
 	case OverlaySettings:
+		if model.runtime.filesEditing {
+			return model.handleFilesExclusionsKey(key)
+		}
 		return handleSettingsKey(model, name)
 	case OverlayConfigSettings:
 		return model.handleConfigSettingsKey(key)

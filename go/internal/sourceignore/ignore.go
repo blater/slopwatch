@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/blater/slopwatch/internal/preferences"
 )
 
 type rule struct {
@@ -32,10 +34,15 @@ type Matcher struct {
 	disabled       bool
 	directories    map[string]directoryRules
 	inputs         map[string]ruleInput
+	projectRules   []rule
 }
 
-func New(root string, disabled bool) *Matcher {
+func New(root string, disabled bool) (*Matcher, error) {
 	root, _ = filepath.Abs(root)
+	project, err := preferences.LoadProject(root)
+	if err != nil {
+		return nil, err
+	}
 	boundary := root
 	for current := root; ; current = filepath.Dir(current) {
 		boundary = current
@@ -46,11 +53,11 @@ func New(root string, disabled bool) *Matcher {
 			break
 		}
 	}
-	return &Matcher{root: root, boundary: boundary, disabled: disabled, directories: map[string]directoryRules{}, inputs: map[string]ruleInput{}}
+	return &Matcher{root: root, boundary: boundary, disabled: disabled, directories: map[string]directoryRules{}, inputs: map[string]ruleInput{}, projectRules: parse(root, project.Files.Exclude)}, nil
 }
 
 func (m *Matcher) Ignored(path string, directory bool) bool {
-	if m == nil || m.disabled {
+	if m == nil {
 		return false
 	}
 	if !filepath.IsAbs(path) {
@@ -75,7 +82,7 @@ func (m *Matcher) directory(path string) directoryRules {
 		parent = m.directory(filepath.Dir(path))
 	}
 	result := directoryRules{rules: parent.rules, ignored: parent.ignored || matches(parent.rules, path, true)}
-	if !result.ignored {
+	if !result.ignored && !m.disabled {
 		inputPath := filepath.Join(path, ".gitignore")
 		input := readInput(inputPath)
 		m.inputs[inputPath] = input
@@ -85,6 +92,9 @@ func (m *Matcher) directory(path string) directoryRules {
 				result.rules = append(append([]rule(nil), parent.rules...), own...)
 			}
 		}
+	}
+	if path == m.root && !result.ignored {
+		result.rules = append(append([]rule(nil), result.rules...), m.projectRules...)
 	}
 	m.directories[path] = result
 	return result

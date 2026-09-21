@@ -265,6 +265,24 @@ honor_gitignore = true
 Existing preferences without this key default to `true`. Changes in the dashboard
 or relevant `.gitignore` files refresh the inventory and watcher registrations.
 
+**Project source exclusions** in the same Files menu opens a multiline editor.
+Enter one gitignore pattern per line; Ctrl+S saves and refreshes the inventory,
+and Escape discards edits. These exclusions apply even when Honor gitignore is
+off. They are stored only in `.slopwatch.toml` at the workspace root, separately
+from global preferences:
+
+```toml
+[files]
+exclude = """
+generated/
+*.generated.go
+!keep.generated.go
+"""
+```
+
+A missing file adds no exclusions and is created on the first save. Invalid
+TOML or incompatible field types produce an error without replacing the file.
+
 Settings has three groups: Agents (Agent Setup, Fix Settings, Git Settings),
 Appearance (Theme, Columns), and Static Analysis (Files, Weights). Concurrency is
 inside Agent Setup. Escape restores each caller and its selection.
