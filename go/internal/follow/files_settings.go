@@ -8,8 +8,10 @@ import (
 	"github.com/blater/slopwatch/internal/preferences"
 	"github.com/blater/slopwatch/internal/report"
 	"github.com/blater/slopwatch/internal/sourceignore"
+	"github.com/blater/slopwatch/internal/style"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (model *Model) openFilesExclusions() tea.Cmd {
@@ -19,6 +21,10 @@ func (model *Model) openFilesExclusions() tea.Cmd {
 		return nil
 	}
 	editor := textarea.New()
+	field := lipgloss.NewStyle().Foreground(style.TextPrimary).Background(style.SurfaceFieldActive)
+	editor.FocusedStyle = textarea.Style{Base: field, Text: field, CursorLine: field, Placeholder: field, EndOfBuffer: field}
+	editor.BlurredStyle = editor.FocusedStyle
+	editor.Cursor.Style = field
 	editor.CharLimit = 0
 	editor.MaxHeight = 0
 	editor.Prompt = ""
@@ -29,6 +35,11 @@ func (model *Model) openFilesExclusions() tea.Cmd {
 	model.runtime.filesEditing = true
 	model.resizeFilesExclusions()
 	return model.runtime.filesExclusions.Focus()
+}
+
+func (model Model) filesExclusionsView() string {
+	editor := model.runtime.filesExclusions
+	return paintSurface(editor.View(), editor.Width(), editor.Height(), style.TextPrimary, style.SurfaceFieldActive)
 }
 
 func (model *Model) resizeFilesExclusions() {

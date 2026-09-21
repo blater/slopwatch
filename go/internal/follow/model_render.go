@@ -2,11 +2,13 @@ package follow
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/blater/slopwatch/internal/style"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func initModel(model Model) tea.Cmd {
@@ -37,10 +39,29 @@ func view(model Model) string {
 		return ""
 	}
 	if surface, ok := resizeSurface(model); ok {
-		return surface
+		return paintScreen(surface, model.width, model.height)
 	}
 	base := model.mainViewContent()
-	return overlaySurfaceView(model, base)
+	return paintScreen(overlaySurfaceView(model, base), model.width, model.height)
+}
+
+// Paint every cell, including blank rows and padding, independently of the
+// terminal's default colors. Preserve the colors of nested panels and text.
+func paintScreen(content string, width, height int) string {
+	return paintSurface(content, width, height, style.TextPrimary, style.SurfaceScreen)
+}
+
+func paintSurface(content string, width, height int, foreground, background lipgloss.Color) string {
+	lines := strings.Split(content, "\n")
+	painted := make([]string, height)
+	for row := range painted {
+		line := ""
+		if row < len(lines) {
+			line = lines[row]
+		}
+		painted[row] = paintSourceLine(line, width, foreground, background)
+	}
+	return strings.Join(painted, "\n")
 }
 
 func resizeSurface(model Model) (string, bool) {

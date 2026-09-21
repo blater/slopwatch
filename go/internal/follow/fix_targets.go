@@ -129,8 +129,6 @@ func fixPhaseMarker(job fix.JobPresentation) string {
 		return "×"
 	case fix.PhaseReconciling:
 		return "↻"
-	case fix.PhaseCompleted:
-		return "✓"
 	default:
 		return ""
 	}

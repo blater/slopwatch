@@ -30,7 +30,7 @@ func (model Model) settingsUnderlay(base string) string {
 
 func filesSettingsView(model Model) string {
 	if model.runtime.filesEditing {
-		content := []string{model.runtime.filesExclusions.View()}
+		content := []string{model.filesExclusionsView()}
 		if model.height > 0 && model.height < 10 {
 			return style.TightPopup(style.Heading("SOURCE EXCLUSIONS"), content, "Esc close", model.runtime.filesExclusions.Width()+4)
 		}

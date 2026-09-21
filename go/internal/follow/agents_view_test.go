@@ -455,8 +455,8 @@ func assertCompactSelectedBlock(t *testing.T, view, firstNeedle, secondNeedle st
 		if !strings.Contains(secondPlain, secondNeedle) {
 			t.Fatalf("selected compact block second line = %q", secondPlain)
 		}
-		if lines[index] != agentScreenLine(strings.TrimRight(firstPlain, " "), true, width, style.TextPrimary) ||
-			lines[index+1] != agentScreenLine(strings.TrimRight(secondPlain, " "), true, width, style.TextPrimary) {
+		if lines[index] != paintScreen(agentScreenLine(strings.TrimRight(firstPlain, " "), true, width, style.TextPrimary), width, 1) ||
+			lines[index+1] != paintScreen(agentScreenLine(strings.TrimRight(secondPlain, " "), true, width, style.TextPrimary), width, 1) {
 			t.Fatal("selection background did not cover both lines of compact logical row")
 		}
 		return
