@@ -6,9 +6,31 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blater/slopwatch/internal/fix"
+	"github.com/blater/slopwatch/internal/fixapp"
 	"github.com/blater/slopwatch/internal/report"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+func TestSavedJobErrorsDoNotReappearOnStartupOrRefresh(t *testing.T) {
+	job := fix.JobPresentation{
+		ID: "old-failure", Phase: fix.PhaseFailed,
+		Issue: &fix.JobIssue{Summary: "Historical failure", Detail: "Saved job details"},
+	}
+	service := &fakeFixService{jobs: fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}}}
+	for launch := 0; launch < 2; launch++ {
+		model := fixTestModel(service, 80, 24)
+		for refresh := 0; refresh < 2; refresh++ {
+			model.Update(initialFixJobsCommand(service)())
+			if model.runtimeError != "" || overlayPresent(model.overlays, OverlayRuntimeError) {
+				t.Fatal("saved job issue opened an error popup")
+			}
+			if len(model.agents.Jobs) != 1 || model.agents.Jobs[0].Issue == nil || *model.agents.Jobs[0].Issue != *job.Issue {
+				t.Fatal("job details were lost")
+			}
+		}
+	}
+}
 
 func TestFileAnalysisFailureStaysInRowAndInfo(t *testing.T) {
 	m := Model{width: 80, height: 24}

@@ -343,7 +343,6 @@ func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 	}
 	model.fixNotice = model.fixUpdates.clearError(model.fixNotice)
 	model.runtime.fixErrorSummary = ""
-	showJobErrors(model, message.jobs)
 	previousMonitorUpdate, previousLogUpdate := model.openFixSurfaceUpdates()
 	model.agents.setPresentations(message.jobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	monitorCommand, logCommand := model.refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpdate)
