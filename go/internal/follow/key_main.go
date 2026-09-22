@@ -100,7 +100,7 @@ func dispatchFileKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		return model, model.openFixForSelected()
 	case "m":
 		model.toggleMarkMode()
-	case "M":
+	case "c":
 		model.clearMarkedFiles()
 	case " ":
 		if model.files.Marking {
@@ -108,10 +108,6 @@ func dispatchFileKey(model *Model, name string) (tea.Model, tea.Cmd) {
 		}
 	case "v":
 		return model, openSourceView(model)
-	case "c":
-		model.settings, model.settingsCursor = true, 1
-		model.settingsGroup = "appearance"
-		model.settingsRootCursor = settingsIndex("appearance")
 	case "o":
 		openSortDialog(model)
 	case "f", "/":

@@ -74,7 +74,7 @@ func finishMarkingMode(t *testing.T, result *Model, files []report.File) {
 
 func clearMarks(t *testing.T, result *Model) {
 	t.Helper()
-	handleKey(result, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'M'}})
+	handleKey(result, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	if len(result.files.Marked) != 0 || !strings.Contains(ansi.Strip(footer(*result)), "mark") || !strings.Contains(ansi.Strip(footer(*result)), "clear") {
 		t.Fatalf("clear did not restore the unmarked view: marks=%v footer=%q", result.files.Marked, ansi.Strip(footer(*result)))
 	}

@@ -72,7 +72,7 @@ func footer(model Model) string {
 	if model.files.Marking {
 		markLabel = "done"
 	}
-	screenItems := [][2]string{{"m", markLabel}, {"M", "clear"}, {"o", "sort"}, {"v", "view"}, {"i", "info"}}
+	screenItems := [][2]string{{"m", markLabel}, {"c", "clear"}, {"o", "sort"}, {"v", "view"}, {"i", "info"}}
 	if model.width >= 36 {
 		screenItems = append(screenItems[:2], append([][2]string{{"Tab", "agents"}, {"x", "fix"}}, screenItems[2:]...)...)
 	}
