@@ -379,3 +379,27 @@ make build
 Run the executables from `build/`; keep the checkout's supporting analyzer files in place.
 
 The TypeScript analyzer requires Node.js 22 or newer. Homebrew installs that runtime dependency automatically.
+
+## Releases
+
+Run `./release.sh X.Y.Z` from a clean checkout to push the branch and tag, monitor
+publication, and verify the release assets and Homebrew formula. Deployment
+publishes the archive already validated by a successful push or manual CI run
+for the exact tagged commit. CI and local validation still use `make build`.
+The archive bytes remain unchanged; deployment only renames it for the version
+and updates its checksum filename.
+
+A push to `main` starts CI. For another branch, or to recreate a missing/expired
+artifact, explicitly dispatch CI on the branch or tag containing the exact
+release commit (for example `gh workflow run ci.yml --ref v0.2.0`). CI artifacts
+are retained for 30 days. Deployment waits up to one minute for a matching run
+to appear and up to 30 minutes for active CI to finish. It prefers an already
+successful matching push/manual run; PR artifacts are never used. Missing,
+failed or expired artifacts stop deployment, with no build fallback. After CI
+succeeds, retry Release using its manual tag input.
+
+Deployment retains tag/credential checks, exact-commit provenance, archive
+checksum verification, publication checks, and `brew style`. It installs no
+toolchains and runs no application or packaged-binary tests. Shared functional
+checks remain in CI, including the descriptor regression; this deployment change
+does not repair that test or unblock CI if it fails.
