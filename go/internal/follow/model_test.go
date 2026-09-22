@@ -902,6 +902,11 @@ func TestFooterPlacesGenericActionsOnTheRightWithoutOverlap(t *testing.T) {
 	if !strings.Contains(text, "help") || !strings.Contains(text, "quit") {
 		t.Fatalf("footer omitted generic actions: %q", text)
 	}
+	if strings.Contains(text, "next") {
+		t.Fatalf("footer advertised next without a find query: %q", text)
+	}
+	model.source.findQuery = "main"
+	text = ansi.Strip(footer(model))
 	if strings.Index(text, "find") > strings.Index(text, "next") {
 		t.Fatalf("find and next are out of order: %q", text)
 	}
@@ -909,7 +914,7 @@ func TestFooterPlacesGenericActionsOnTheRightWithoutOverlap(t *testing.T) {
 
 func TestFooterDropsGenericActionsBeforeLeftActionsOnNarrowScreens(t *testing.T) {
 	ConfigureTerminalColours()
-	model := Model{width: 30}
+	model := Model{width: 30, source: sourceState{findQuery: "main"}, files: FilesState{Marked: map[string]bool{"main.go": true}}}
 	text := ansi.Strip(footer(model))
 	if !strings.Contains(text, "mark") || !strings.Contains(text, "clear") {
 		t.Fatalf("narrow footer dropped permanent marking actions: %q", text)
@@ -2147,7 +2152,11 @@ func assertSourceViewContents(t *testing.T, model *Model) {
 	if !strings.Contains(view, "example.go") || !strings.Contains(view, "45 lines") || strings.Contains(view, "SOURCE  example.go") {
 		t.Fatalf("source header does not show path and line count: %q", view)
 	}
-	if !strings.Contains(view, "ctrl-f/b page  g/G jump") || !strings.Contains(view, "find  n/N next  ESC close") {
+	findHints := "find  ESC close"
+	if model.source.findQuery != "" {
+		findHints = "find  n/N next  ESC close"
+	}
+	if !strings.Contains(view, "ctrl-f/b page  g/G jump") || !strings.Contains(view, findHints) {
 		t.Fatalf("source footer does not contain the navigation and close groups: %q", view)
 	}
 	assertSourceViewInsets(t, view)

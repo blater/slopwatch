@@ -12,7 +12,7 @@ import (
 	"github.com/blater/slopwatch/internal/style"
 )
 
-func TestMarkModeTogglesFilesAndKeepsPermanentActions(t *testing.T) {
+func TestMarkModeTogglesFilesAndClearAction(t *testing.T) {
 	ConfigureTerminalColours()
 	files := []report.File{testFile("a.go", 30), testFile("b.go", 20), testFile("c.go", 10)}
 	model := Model{
@@ -36,6 +36,9 @@ func enterMarkingMode(t *testing.T, model Model, files []report.File) *Model {
 	t.Helper()
 	updated, _ := handleKey(&model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
 	result := updated.(*Model)
+	if strings.Contains(ansi.Strip(footer(*result)), "clear") {
+		t.Fatal("clear is visible before any file is marked")
+	}
 	if !result.files.Marking || !strings.Contains(ansi.Strip(footer(*result)), "done") {
 		t.Fatalf("mark mode was not visible: marking=%t footer=%q", result.files.Marking, ansi.Strip(footer(*result)))
 	}
@@ -51,7 +54,13 @@ func markSelectedRows(t *testing.T, result *Model) {
 	if !result.files.Marked["a.go"] {
 		t.Fatalf("Space did not mark the current row: %v", result.files.Marked)
 	}
+	if !strings.Contains(ansi.Strip(footer(*result)), "clear") {
+		t.Fatal("clear is hidden after marking a file")
+	}
 	handleKey(result, tea.KeyMsg{Type: tea.KeySpace})
+	if strings.Contains(ansi.Strip(footer(*result)), "clear") {
+		t.Fatal("clear remains visible after unmarking the last file")
+	}
 	handleKey(result, tea.KeyMsg{Type: tea.KeyShiftDown})
 	if !result.files.Marked["a.go"] || !result.files.Marked["b.go"] || result.files.Cursor != 1 {
 		t.Fatalf("Shift-Down marks = %v cursor=%d", result.files.Marked, result.files.Cursor)
@@ -75,7 +84,7 @@ func finishMarkingMode(t *testing.T, result *Model, files []report.File) {
 func clearMarks(t *testing.T, result *Model) {
 	t.Helper()
 	handleKey(result, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	if len(result.files.Marked) != 0 || !strings.Contains(ansi.Strip(footer(*result)), "mark") || !strings.Contains(ansi.Strip(footer(*result)), "clear") {
+	if len(result.files.Marked) != 0 || !strings.Contains(ansi.Strip(footer(*result)), "mark") || strings.Contains(ansi.Strip(footer(*result)), "clear") {
 		t.Fatalf("clear did not restore the unmarked view: marks=%v footer=%q", result.files.Marked, ansi.Strip(footer(*result)))
 	}
 }

@@ -72,18 +72,27 @@ func footer(model Model) string {
 	if model.files.Marking {
 		markLabel = "done"
 	}
-	screenItems := [][2]string{{"m", markLabel}, {"c", "clear"}, {"o", "sort"}, {"v", "view"}, {"i", "info"}}
-	if model.width >= 36 {
-		screenItems = append(screenItems[:2], append([][2]string{{"Tab", "agents"}, {"x", "fix"}}, screenItems[2:]...)...)
+	screenItems := [][2]string{{"m", markLabel}}
+	if model.files.markedCount() > 0 {
+		screenItems = append(screenItems, [2]string{"c", "clear"})
 	}
-	generalItems := [][2]string{{"f", "find"}, {"n", "next"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
+	markingActions := len(screenItems)
+	if model.width >= 36 {
+		screenItems = append(screenItems, [2]string{"Tab", "agents"}, [2]string{"x", "fix"})
+	}
+	screenItems = append(screenItems, [2]string{"o", "sort"}, [2]string{"v", "view"}, [2]string{"i", "info"})
+	generalItems := [][2]string{{"f", "find"}}
+	if model.source.findQuery != "" {
+		generalItems = append(generalItems, [2]string{"n", "next"})
+	}
+	generalItems = append(generalItems, [][2]string{{"s", "settings"}, {"h", "help"}, {"q", "quit"}}...)
 	screenFunctions := footerItems(screenItems)
 	generalFunctions := footerItems(generalItems)
 	for len(generalItems) > 2 && lipgloss.Width(screenFunctions)+lipgloss.Width(generalFunctions)+1 > model.width {
 		generalItems = generalItems[:len(generalItems)-1]
 		generalFunctions = footerItems(generalItems)
 	}
-	for len(screenItems) > 2 && lipgloss.Width(screenFunctions)+lipgloss.Width(generalFunctions)+1 > model.width {
+	for len(screenItems) > markingActions && lipgloss.Width(screenFunctions)+lipgloss.Width(generalFunctions)+1 > model.width {
 		screenItems = screenItems[:len(screenItems)-1]
 		screenFunctions = footerItems(screenItems)
 	}

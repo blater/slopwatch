@@ -93,11 +93,12 @@ func (state sourceState) render(outerWidth, outerHeight int, findFooter string) 
 		hintItem{"ctrl-f/b", "page"},
 		hintItem{"g/G", "jump"},
 	)
-	rightHints := hintRow(style.SurfaceFooter,
-		hintItem{"f", "find"},
-		hintItem{"n/N", "next"},
-		hintItem{"ESC", "close"},
-	) + lipgloss.NewStyle().Background(style.SurfaceFooter).Render(" ")
+	rightItems := []hintItem{{"f", "find"}}
+	if state.findQuery != "" {
+		rightItems = append(rightItems, hintItem{"n/N", "next"})
+	}
+	rightItems = append(rightItems, hintItem{"ESC", "close"})
+	rightHints := hintRow(style.SurfaceFooter, rightItems...) + lipgloss.NewStyle().Background(style.SurfaceFooter).Render(" ")
 	leftWidth := max(0, innerWidth-lipgloss.Width(rightHints))
 	footer := padANSI(truncateANSI(leftHints, leftWidth), leftWidth) + rightHints
 	if state.findOpen {
