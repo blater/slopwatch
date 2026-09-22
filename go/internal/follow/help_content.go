@@ -72,7 +72,9 @@ var mainScreenHelp = []helpEntry{
 	{label: "Path scroll", description: "Left and Right reveal horizontally clipped file paths."},
 	{label: "Previous match", description: "N selects the previous result for the current search."},
 	{label: "Quit", description: "q or Ctrl-C exits when idle. With active fixes, Slopwatch confirms cancel-all and visibly joins them before exit."},
+	{label: "Rescan", description: "r repeats startup discovery and cache-validating checks in the current session."},
 	{label: "Settings", description: "s opens Agents, Appearance, and Static Analysis settings. Agent Setup shows provider availability, highlights the active provider, and automatically checks connections in provider-specific dialogs."},
 	{label: "Sort", description: "o chooses the sort field and direction."},
 	{label: "View source", description: "v opens the selected file with syntax highlighting."},
+	{label: "Warning", description: "! opens the retained notification-loss explanation, when one has been recorded."},
 }

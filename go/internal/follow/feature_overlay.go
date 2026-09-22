@@ -33,6 +33,8 @@ func (renderer overlayRenderer) render(base string, frame OverlayFrame) string {
 		return dirtyChoiceView(base, "UNSAVED SETTINGS", model.configSettings.dirtyCursor, model.width, model.height)
 	case OverlayShutdown:
 		return shutdownView(base, model.runtime.shutdown, model.width, model.height)
+	case OverlayNotificationLoss:
+		return model.overlay(base, notificationLossPopup(model))
 	case OverlayRuntimeError:
 		return model.overlay(base, runtimeErrorPopup(model))
 	default:

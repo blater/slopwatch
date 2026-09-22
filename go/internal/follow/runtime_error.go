@@ -92,6 +92,10 @@ func handleRuntimeErrorKey(model *Model, name string) (tea.Model, tea.Cmd) {
 func runtimeErrorWidth(width int) int { return min(80, max(6, width-4)) }
 
 func runtimeErrorPopup(model Model) string {
+	return diagnosticPopup(model, "ERROR")
+}
+
+func diagnosticPopup(model Model, title string) string {
 	outerWidth := runtimeErrorWidth(model.width)
 	popupWidth := outerWidth - 2
 	bodyWidth := max(1, popupWidth-2)
@@ -111,13 +115,13 @@ func runtimeErrorPopup(model Model) string {
 	for _, line := range visible {
 		content = append(content, fixSurfaceLine(line, bodyWidth, style.SurfaceModal, style.TextPrimary))
 	}
-	rows := []string{"ERROR", ""}
+	rows := []string{title, ""}
 	rows = append(rows, content...)
 	if model.height < 7 {
 		// Popup's blank separator rows need seven terminal rows at minimum. The
 		// tight form fits the supported 36x6 surface while retaining the full
 		// message and footer controls.
-		rows = []string{"ERROR"}
+		rows = []string{title}
 		rows = append(rows, content...)
 		rows = append(rows, footer)
 	} else {

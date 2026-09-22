@@ -85,6 +85,7 @@ func footer(model Model) string {
 	if model.source.findQuery != "" {
 		generalItems = append(generalItems, [2]string{"n", "next"})
 	}
+	generalItems = append(generalItems, [2]string{"r", "rescan"})
 	generalItems = append(generalItems, [][2]string{{"s", "settings"}, {"h", "help"}, {"q", "quit"}}...)
 	screenFunctions := footerItems(screenItems)
 	generalFunctions := footerItems(generalItems)
@@ -104,7 +105,7 @@ func footer(model Model) string {
 	if gap := model.width - lipgloss.Width(screenFunctions) - lipgloss.Width(generalFunctions); gap > 0 {
 		result += background.Render(strings.Repeat(" ", gap))
 	}
-	return truncateANSI(result+generalFunctions, model.width)
+	return notificationFooter(model, truncateANSI(result+generalFunctions, model.width))
 }
 
 func footerItems(items [][2]string) string {

@@ -16,6 +16,10 @@ TS_MARKER := $(TYPESCRIPT_WORK_DIR)/dist/src/cli.js
 TS_LAUNCHER := $(TYPESCRIPT_RUNTIME_DIR)/slopslap-typescript
 
 GO_ENV := CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off
+GO_APP_ENV := $(GO_ENV)
+ifeq ($(shell go env GOOS),darwin)
+GO_APP_ENV := CGO_ENABLED=1 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off
+endif
 GO_FLAGS := -trimpath -buildvcs=false
 GO_TEST_FLAGS := -buildvcs=false -count=1
 JAR_DATE := 1980-01-01T00:00:02Z
@@ -87,11 +91,11 @@ build-java: $(JAVA_JAR) $(JAVA_RUNTIME_BIN)
 
 $(GO_BIN): $(GO_SOURCES) $(GO_CALIBRATION) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
-	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopslap-go
+	@$(GO_APP_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopslap-go
 
 $(WATCH_BIN): $(WATCH_SOURCES) $(GO_SOURCES) $(GO_CALIBRATION) $(ROOT)/go/go.mod $(ROOT)/go/go.sum
 	@mkdir -p $(dir $@) $(BUILD_DIR)/go-cache
-	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopwatch
+	@$(GO_APP_ENV) GOCACHE=$(BUILD_DIR)/go-cache go build -C $(ROOT)/go $(GO_FLAGS) -o $@ ./cmd/slopwatch
 
 build-go: $(GO_BIN) $(WATCH_BIN)
 
@@ -123,7 +127,7 @@ test-typescript: build-typescript build-structural
 	@cd $(TYPESCRIPT_WORK_DIR) && SLOPSLAP_DEPTH_EVALUATOR=$(STRUCTURAL_BIN) node --test dist/test/*.test.js
 
 test-go: build-artifacts
-	@$(GO_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./...
+	@$(GO_APP_ENV) GOCACHE=$(BUILD_DIR)/go-cache go test -C $(ROOT)/go $(GO_TEST_FLAGS) ./...
 
 test: test-structural test-typescript test-go
 	@bash util/test-distribution.sh

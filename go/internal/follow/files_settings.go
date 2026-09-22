@@ -76,14 +76,14 @@ func (model *Model) updateFilesExclusions(message tea.Msg) tea.Cmd {
 		showRuntimeError(model, err)
 		return command
 	}
-	model.status = "Exclusion settings saved; restart to apply"
+	model.status = "Exclusion settings saved; press r to apply"
 	return command
 }
 
 func (model *Model) toggleGitignore() tea.Cmd {
 	model.options.DisableGitignore = !model.options.DisableGitignore
 	persistUserPreferences(model)
-	model.status = "Ignore settings saved; restart to apply"
+	model.status = "Ignore settings saved; press r to apply"
 	return nil
 }
 

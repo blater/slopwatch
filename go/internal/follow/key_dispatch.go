@@ -44,6 +44,10 @@ func dispatchResizeKey(model *Model, name string, key tea.KeyMsg) (tea.Model, te
 
 func dispatchGlobalKey(model *Model, name string) (bool, tea.Cmd) {
 	switch name {
+	case "r":
+		return true, requestRescan(model)
+	case "!":
+		openNotificationLoss(model)
 	case "tab":
 		model.toggleMainView()
 	case "A":
@@ -110,6 +114,8 @@ func dispatchOverlayKey(model *Model, kind OverlayKind, key tea.KeyMsg) (tea.Mod
 		return model.handleSettingsDirtyKey(key)
 	case OverlayShutdown:
 		return model.handleShutdownKey(key)
+	case OverlayNotificationLoss:
+		return handleNotificationLossKey(model, name)
 	case OverlayRuntimeError:
 		return handleRuntimeErrorKey(model, name)
 	default:

@@ -33,6 +33,7 @@ func handleMessage(model *Model, message tea.Msg) (tea.Model, tea.Cmd) {
 		return handleAnalysisRetry(model)
 	case animationTick:
 		model.animationFrame++
+		expireNotificationLoss(model, time.Time(message))
 		flushAnalysisProgress(model, false)
 		return model, tickAnimationFor(*model)
 	case startupLogoExpired:
@@ -116,10 +117,13 @@ func handleSourceChange(model *Model, message sourceChange) (tea.Model, tea.Cmd)
 	if message.watcher != nil && message.watcher != model.watcher {
 		return model, nil
 	}
+	if message.LossCount > 0 && (message.LossVersion == 0 || message.LossVersion > model.runtime.clearedLossVersion) {
+		recordNotificationLoss(model, message.LossCount, time.Now())
+	}
 	model.runtime.watchStopped = message.Closed
 	command := model.resumeWatcherWait()
 	if message.IgnoreRules {
-		model.status = "Ignore rules changed; restart to apply"
+		model.status = "Ignore rules changed; press r to apply"
 	}
 	if message.Err != nil {
 		showRuntimeError(model, message.Err)
@@ -195,6 +199,13 @@ func handleAnalysisResult(model *Model, message analysisResult) (tea.Model, tea.
 		handleAnalysisError(model, message)
 	} else {
 		handleAnalysisSuccess(model, message, wasInitial)
+	}
+	if model.runtime.rescanRunning {
+		model.runtime.rescanRunning = false
+		if message.err == nil && model.runtime.notificationLoss.generation == model.runtime.rescanLossGeneration && (model.watcher == nil || model.watcher.monitor.LossVersion() == model.runtime.rescanMonitorLossVersion) {
+			model.runtime.clearedLossVersion = model.runtime.rescanMonitorLossVersion
+			model.runtime.notificationLoss = notificationLossState{generation: model.runtime.notificationLoss.generation}
+		}
 	}
 	return continueQueuedAnalysis(model)
 }
@@ -301,6 +312,9 @@ func currentSourceMessage(model *Model, generation uint64, path string) bool {
 }
 
 func continueQueuedAnalysis(model *Model) (tea.Model, tea.Cmd) {
+	if model.runtime.rescanPending {
+		return model, beginRescan(model)
+	}
 	if len(model.queued) > 0 {
 		paths := takeQueue(model)
 		model.analyzing = true

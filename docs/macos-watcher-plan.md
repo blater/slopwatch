@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 baseline_commit: 19a52868c0e121b01b4bb82dfd5dcf06ae1e9c12
 context:
   - AGENTS.md
@@ -8,7 +8,8 @@ context:
 
 # macOS watcher descriptor fix
 
-Status: implementation plan, 2026-09-22. No implementation or capacity claim yet.
+Status: implemented and validated through `make build` on macOS, 2026-09-22.
+This does not establish enterprise capacity.
 
 Implementation scope instruction: implement only this agreed plan. Do not add
 owners, new exit criteria, platform/version compatibility projects, test scope,
@@ -71,17 +72,15 @@ authorize event-triggered, scheduled or error-triggered rescans.
    add a native per-child watch. Preserve authorized external targets without
    expanding discovery scope.
 
-   Check compatibility with the actual build first: `Makefile` currently sets
-   `CGO_ENABLED=0`. A binding requiring cgo needs an explicit, documented Darwin
-   build adjustment in the common Makefile path. Do not silently change all
-   platform builds, add a second build command, vendor a custom FSEvents engine,
-   or fall back to kqueue. Record the selected dependency and any required build
-   change before implementation; this choice is not yet resolved.
+   Selected binding: `github.com/fsnotify/fsevents v0.2.0`. Enable cgo for the
+   Darwin application build/tests in the common Makefile path. Other platform
+   builds retain their existing configuration. No separate build command,
+   custom native watcher engine or kqueue fallback.
 
 2. **Collect during startup.** Establish native delivery before startup inventory
-   traversal. Keep the native callback limited to copying/coalescing event data;
-   perform no analysis, rendering, filesystem traversal or blocking channel send
-   there. Retain startup changes until inventory initialization completes, then
+   traversal. Use the library's standard synchronous callback/channel handoff
+   with a dedicated receiver; keep analysis, rendering and filesystem traversal
+   off that handoff. Retain startup changes until inventory initialization completes, then
    apply them through the existing event path. Keep inventory mutation serialized
    rather than racing startup traversal against the current event handler.
 
@@ -93,8 +92,8 @@ authorize event-triggered, scheduled or error-triggered rescans.
    ambiguous directory notification authorizes rediscovering an existing subtree.
    An unresolvable loss-of-detail notification uses the warning path below.
 
-4. **Bound intake work.** A recursive root stream also receives events from
-   ignored subtrees that the current watcher never registers. Before bounded
+4. **Coalesce intake work.** A recursive root stream also receives events from
+   ignored subtrees that the current watcher never registers. Before
    queue admission, discard known exclusions using existing in-memory policy
    state; preserve explicit targets and relevant `.gitignore` notifications.
    This filter must not read files, enumerate directories or rebuild policies
@@ -102,12 +101,13 @@ authorize event-triggered, scheduled or error-triggered rescans.
    from the inventory.
 
    Coalesce pending events by path, preserving combined
-   operation flags and final-state handling. Use a bounded pending buffer, not
-   an unbounded event log, goroutine per event, or full-inventory sweep. If native
-   delivery or this buffer loses information, record one notification-loss
-   warning and continue accepting subsequent events. Ordinary repeated changes
-   to one path are not errors. Select and document the concrete buffer cap in
-   implementation; do not add a tuning UI.
+   operation flags and final-state handling. Retain one pending entry per path
+   without a count limit; remove entries as they are delivered. Do not discard
+   changes because of backlog size. This supersedes the earlier bounded-buffer
+   proposal by explicit user instruction. Do not create an event log, goroutine
+   per event, or full-inventory sweep. If native delivery loses information,
+   record one notification-loss warning and continue accepting subsequent events.
+   Ordinary repeated changes to one path are not errors.
 
 5. **Close resources.** Stop streams and release callbacks/handles on normal
    shutdown and failed initialization, including partial registration. No retry
@@ -210,7 +210,7 @@ check passes. It does not establish overall scan speed or enterprise readiness.
 
 Constraints preventing replacement bottlenecks: root-level subscriptions;
 callbacks whose work is independent of inventory size; exclusion filtering before
-queue admission; bounded, path-coalesced pending work;
+queue admission; path-coalesced pending work with no path-count limit;
 serialized inventory mutation; no automatic post-startup discovery or
 full-inventory replanning; one warning record and one deadline; reuse of existing
 UI ticks. Manual rescan has startup-equivalent cost only when explicitly
@@ -222,9 +222,8 @@ general notification infrastructure are excluded. No additional edge-case
 handling is recommended in this plan. If implementation reveals a need for any
 such expansion, describe it and ask the user explicitly before including it.
 
-Open implementation decision: FSEvents binding and compatibility with the
-current cgo-disabled build. Resolve it before claiming this plan is executable
-with unchanged packaging.
+The binding/build decision is resolved above. Validation remains the common
+`make build` command.
 
 Review outcome: the performance review identified ignored-subtree events flooding
 the new root stream; step 4 now requires inexpensive filtering before admission.

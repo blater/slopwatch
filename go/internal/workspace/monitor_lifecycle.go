@@ -10,6 +10,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 		defer close(m.started)
 		m.startErr = m.engine.watch.registerAll(m.engine.paths.scopes, m.engine.paths.inputs)
 		if m.startErr != nil {
+			_ = m.Close()
 			return
 		}
 		go m.engine.events.run()
@@ -45,3 +46,46 @@ func (m *Monitor) Reconcile(ctx context.Context, full bool) error {
 
 func (m *pathPolicy) scopesCopy() []Scope { return append([]Scope(nil), m.scopes...) }
 func (m *pathPolicy) inputsCopy() []Input { return append([]Input(nil), m.inputs...) }
+
+// Rescan repeats startup registration only on explicit user request. Native
+// intake continues while inventory mutation and the startup verifier serialize.
+func (m *Monitor) Rescan(ctx context.Context, verify func() error, prepare ...func() error) error {
+	m.engine.events.mutation.Lock()
+	defer m.engine.events.mutation.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	for _, setup := range prepare {
+		if err := setup(); err != nil {
+			return err
+		}
+	}
+	watch := &m.engine.watch
+	watch.mu.Lock()
+	oldWatches := watch.watched
+	watch.watched = map[string]struct{}{}
+	watch.known = map[string]Classification{}
+	watch.children = map[string]map[string]struct{}{}
+	watch.complete = map[string]bool{}
+	watch.mu.Unlock()
+	if err := watch.registerAll(m.engine.paths.scopes, m.engine.paths.inputs); err != nil {
+		return err
+	}
+	for path := range oldWatches {
+		if !watch.isWatched(path) {
+			_ = watch.backend.Remove(path)
+		}
+	}
+	if verify != nil {
+		return verify()
+	}
+	return nil
+}
+
+// LossVersion lets an explicit rescan distinguish prior loss from loss during it.
+func (m *Monitor) LossVersion() uint64 {
+	if b, ok := m.engine.watch.backend.(*bufferedBackend); ok {
+		return b.lossVersion.Load()
+	}
+	return 0
+}

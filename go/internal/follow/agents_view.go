@@ -24,7 +24,7 @@ func agentsTableView(model Model) string {
 	lines = append(lines, agentsTopLine(model))
 	lines = append(lines, agentsHeader(model))
 	lines = append(lines, agentsRows(model)...)
-	lines = append(lines, agentsFooterForState(model.agents, model.width))
+	lines = append(lines, notificationFooter(model, agentsFooterForState(model.agents, model.width)))
 	return joinScreenLines(lines)
 }
 
@@ -543,7 +543,7 @@ func agentFooterGlobalItems(showAll bool) []hintItem {
 	if showAll {
 		filterLabel = "active"
 	}
-	return []hintItem{{"a", filterLabel}, {"f", "find"}, {"o", "sort"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
+	return []hintItem{{"r", "rescan"}, {"a", filterLabel}, {"f", "find"}, {"o", "sort"}, {"s", "settings"}, {"h", "help"}, {"q", "quit"}}
 }
 
 func agentFooterLayout(background lipgloss.Style, leftItems, rightItems []hintItem, width int) string {

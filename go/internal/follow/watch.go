@@ -25,6 +25,8 @@ var testDirectories = map[string]bool{
 }
 
 type sourceChange struct {
+	LossVersion uint64
+	LossCount   uint64
 	watcher     *sourceWatcher
 	IgnoreRules bool
 	Paths       []string
@@ -107,6 +109,7 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 	monitor, err := workspacefs.New(workspacefs.Config{
 		Root: root, Scopes: monitorScopes, Inputs: monitorInputs,
 		FollowSymlinks: followSymlinks,
+		IntakeFilter:   result.acceptIntake,
 		Classifier: workspacefs.ClassifierFunc(func(relative string, directory bool) (workspacefs.Classification, bool) {
 			if directory {
 				return workspacefs.Classification{}, false
@@ -163,7 +166,7 @@ func (watcher *sourceWatcher) wait() sourceChange {
 			rulesChanged = true
 		}
 	}
-	return sourceChange{Paths: paths, IgnoreRules: rulesChanged, Err: errors.Join(err, batch.Err), Closed: batch.Closed || errors.Is(err, io.EOF), watcher: watcher}
+	return sourceChange{LossVersion: watcher.monitor.LossVersion(), LossCount: batch.LossCount, Paths: paths, IgnoreRules: rulesChanged, Err: errors.Join(err, batch.Err), Closed: batch.Closed || errors.Is(err, io.EOF), watcher: watcher}
 }
 
 // External ancestor paths are exact configuration inputs, not source scopes.
@@ -226,4 +229,28 @@ func (watcher *sourceWatcher) startupMatcher() *sourceignore.Matcher {
 		return nil
 	}
 	return watcher.matcher
+}
+
+// acceptIntake uses loaded policy only; new paths are not excluded merely for
+// being absent from inventory. Exact configured inputs retain precedence.
+func (watcher *sourceWatcher) acceptIntake(event workspacefs.Event) bool {
+	path := filepath.Clean(event.Name)
+	for _, scope := range watcher.outputScopes {
+		if path == scope.path {
+			return true
+		}
+	}
+	if filepath.Base(path) == ".gitignore" {
+		return true
+	}
+	relative, err := filepath.Rel(watcher.root, path)
+	if err != nil {
+		return true
+	}
+	for _, part := range strings.Split(filepath.ToSlash(relative), "/") {
+		if unitplan.IgnoredDirectory(part) {
+			return false
+		}
+	}
+	return !watcher.matcher.IgnoredKnown(path, event.IsDir)
 }

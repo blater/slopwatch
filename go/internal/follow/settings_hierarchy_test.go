@@ -130,7 +130,7 @@ func TestSettingsRetainWatcherResultsAndIncrementalQueue(t *testing.T) {
 	if model.watcher != old || len(model.files.Document.Files) != 1 || !model.analyzing || !model.queued["a.go"] {
 		t.Fatal("settings changed active session")
 	}
-	if !strings.Contains(model.status, "restart") {
-		t.Fatal("missing restart notice")
+	if !strings.Contains(model.status, "press r") {
+		t.Fatal("missing rescan notice")
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/blater/slopwatch/internal/sourcefs"
-	"github.com/fsnotify/fsnotify"
 )
 
 // New creates a monitor. It does not touch the filesystem or start goroutines.
@@ -22,15 +21,7 @@ func New(cfg Config) (*Monitor, error) {
 	}
 	factory := cfg.BackendFactory
 	if factory == nil {
-		factory = func() (Backend, error) {
-			w, err := fsnotify.NewWatcher()
-			if err != nil {
-				return nil, err
-			}
-			backend := &fsnotifyBackend{watcher: w, events: make(chan Event), errors: make(chan error), done: make(chan struct{})}
-			go backend.forward()
-			return backend, nil
-		}
+		factory = newPlatformBackend
 	}
 	backend, err := factory()
 	if err != nil {
@@ -43,7 +34,7 @@ func New(cfg Config) (*Monitor, error) {
 		engine: monitorEngine{
 			paths: pathPolicy{root: root, classifier: cfg.Classifier},
 			watch: watchManager{
-				backend: backend, ignoreDir: cfg.IgnoreDirectory,
+				backend: bufferBackend(backend, cfg.IntakeFilter), ignoreDir: cfg.IgnoreDirectory,
 				fs: sourcefs.Default(cfg.FileSystem), children: map[string]map[string]struct{}{}, complete: map[string]bool{},
 				followSymlinks: cfg.FollowSymlinks, watched: make(map[string]struct{}),
 			},

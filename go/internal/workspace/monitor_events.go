@@ -8,6 +8,8 @@ import (
 
 func (m *Monitor) handle(event Event) { m.engine.events.handle(event) }
 func (m *eventManager) handle(event Event) {
+	m.mutation.Lock()
+	defer m.mutation.Unlock()
 	if event.Name == "" || event.Op == 0 {
 		return
 	}
@@ -28,7 +30,7 @@ func (m *eventManager) handle(event Event) {
 		return
 	}
 	isDirectory := exists && !ignoredLink && info.IsDir()
-	replacement := event.Op&(OpRemove|OpRename) != 0
+	replacement := !event.Uncertain && event.Op&(OpRemove|OpRename) != 0
 	if wasDirectory && (!isDirectory || replacement) {
 		paths, removeErr := m.watch.removeTree(path)
 		for _, old := range paths {
@@ -64,7 +66,7 @@ func (m *eventManager) handle(event Event) {
 		if path == m.paths.root {
 			return
 		}
-		if event.Op&OpCreate != 0 || replacement || !wasDirectory {
+		if !wasDirectory || replacement {
 			m.handleCreatedDirectory(path)
 		}
 		return

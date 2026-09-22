@@ -103,6 +103,8 @@ type Event struct {
 	// IsDir is optional for injected backends. Registration bookkeeping
 	// identifies directories in real remove/rename events too.
 	IsDir bool
+	// Uncertain marks native rename/coalescing flags that do not prove replacement.
+	Uncertain bool
 }
 
 // Op mirrors the fsnotify operations needed by a workspace monitor.
@@ -147,6 +149,8 @@ type Config struct {
 	// eligibility; keep that decision in Classifier.
 	IgnoreDirectory func(path string, name string) bool
 
+	// IntakeFilter must use only in-memory policy and preserve unknown paths.
+	IntakeFilter   func(Event) bool
 	Debounce       time.Duration
 	BackendFactory BackendFactory
 	Reconcile      ReconcileHook
@@ -161,23 +165,27 @@ type DirtyEntry struct {
 
 // DirtyBatch is a snapshot removed atomically from the durable dirty set.
 type DirtyBatch struct {
-	Err     error
-	Closed  bool
-	Entries []DirtyEntry
-	All     bool
-	Reasons Reason
+	LossCount uint64
+	Err       error
+	Closed    bool
+	Entries   []DirtyEntry
+	All       bool
+	Reasons   Reason
 }
 
 // Empty reports whether no work was pending in the batch.
-func (b DirtyBatch) Empty() bool { return !b.All && len(b.Entries) == 0 && b.Err == nil && !b.Closed }
+func (b DirtyBatch) Empty() bool {
+	return b.LossCount == 0 && !b.All && len(b.Entries) == 0 && b.Err == nil && !b.Closed
+}
 
 type dirtySet struct {
-	err     error
-	closed  bool
-	mu      sync.Mutex
-	entries map[string]DirtyEntry
-	all     bool
-	reasons Reason
+	lossCount uint64
+	err       error
+	closed    bool
+	mu        sync.Mutex
+	entries   map[string]DirtyEntry
+	all       bool
+	reasons   Reason
 }
 
 func (s *dirtySet) mark(entry DirtyEntry) bool {
@@ -203,8 +211,8 @@ func (s *dirtySet) markAll(reason Reason) {
 func (s *dirtySet) snapshot() DirtyBatch {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	b := DirtyBatch{All: s.all, Reasons: s.reasons, Err: s.err, Closed: s.closed}
-	s.err, s.closed = nil, false
+	b := DirtyBatch{LossCount: s.lossCount, All: s.all, Reasons: s.reasons, Err: s.err, Closed: s.closed}
+	s.err, s.closed, s.lossCount = nil, false, 0
 	b.Entries = make([]DirtyEntry, 0, len(s.entries))
 	for _, e := range s.entries {
 		b.Entries = append(b.Entries, e)
@@ -217,7 +225,7 @@ func (s *dirtySet) snapshot() DirtyBatch {
 
 func (s *dirtySet) pending() bool {
 	s.mu.Lock()
-	pending := s.all || len(s.entries) != 0 || s.err != nil || s.closed
+	pending := s.lossCount > 0 || s.all || len(s.entries) != 0 || s.err != nil || s.closed
 	s.mu.Unlock()
 	return pending
 }
@@ -261,6 +269,7 @@ type watchManager struct {
 }
 
 type eventManager struct {
+	mutation sync.Mutex
 	paths    *pathPolicy
 	watch    *watchManager
 	dirty    *dirtySet
@@ -310,6 +319,13 @@ type fsnotifyBackend struct {
 }
 
 func (m *eventManager) markError(err error, closed bool) {
+	if errors.Is(err, ErrNotificationLoss) {
+		m.dirty.mu.Lock()
+		m.dirty.lossCount++
+		m.dirty.mu.Unlock()
+		m.signal()
+		return
+	}
 	m.dirty.mu.Lock()
 	m.dirty.err = errors.Join(m.dirty.err, err)
 	m.dirty.closed = m.dirty.closed || closed
