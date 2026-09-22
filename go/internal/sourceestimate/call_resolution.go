@@ -140,16 +140,20 @@ func unreachableCall(body []token, candidate call) bool {
 	return i >= 2 && ((body[i-2].text == "false" && body[i-1].text == "&&") || (body[i-2].text == "true" && body[i-1].text == "||"))
 }
 
-func resolveCall(caller *operation, c call, units []unit, byKey map[string][]*operation) []*operation {
+func resolveCall(caller *operation, c call, units []unit, byKey *operationLookup) callSelection {
+	if byKey == nil {
+		return callSelection{}
+	}
+	byKey.observe("query")
 	if matches, handled := resolveTypeScriptImportedCall(caller, c, units, byKey); handled {
 		return matches
 	}
 	name, owner, hasReceiverType := resolveCallOwner(caller, c.name)
 	matches := findCallMatches(caller, name, owner, byKey)
-	if len(matches) == 0 && owner != "" && crossFileCallAllowed(caller, owner, hasReceiverType) {
+	if matches.count() == 0 && owner != "" && crossFileCallAllowed(caller, owner, hasReceiverType) {
 		matches = findWorkspaceCallMatches(caller, name, owner, byKey)
 	}
-	if len(matches) == 0 && owner != "" && caller.owner != "" {
+	if matches.count() == 0 && owner != "" && caller.owner != "" {
 		matches = findCallMatches(caller, name, "", byKey)
 	}
 	return matches
@@ -175,25 +179,11 @@ func resolveCallOwner(caller *operation, callName string) (string, string, bool)
 	return name, owner, hasReceiverType
 }
 
-func findCallMatches(caller *operation, name, owner string, byKey map[string][]*operation) []*operation {
-	matches := make([]*operation, 0)
-	for _, candidate := range byKey[scopedOperationKey(caller, name, owner)] {
-		if !sameCallScope(caller, candidate, owner) {
-			continue
-		}
-		matches = append(matches, candidate)
+func findCallMatches(caller *operation, name, owner string, byKey *operationLookup) callSelection {
+	if byKey == nil {
+		return callSelection{}
 	}
-	return matches
-}
-
-func sameCallScope(caller, candidate *operation, owner string) bool {
-	if (caller.language == "typescript" || caller.language == "rust") && candidate.file != caller.file {
-		return false
-	}
-	if owner != "" && candidate.owner != "" && candidate.owner != owner {
-		return false
-	}
-	return candidate.file == caller.file || sameLanguage(candidate.language, caller.language)
+	return callSelection{bucket: byKey.scoped[scopedOperationKey(caller, name, owner)]}
 }
 
 func crossFileCallAllowed(caller *operation, owner string, hasReceiverType bool) bool {
@@ -211,12 +201,9 @@ func crossFileCallAllowed(caller *operation, owner string, hasReceiverType bool)
 	return explicitOwner
 }
 
-func findWorkspaceCallMatches(caller *operation, name, owner string, byKey map[string][]*operation) []*operation {
-	matches := make([]*operation, 0)
-	for _, candidate := range byKey[workspaceOperationKey(caller, name, owner)] {
-		if candidate.file != caller.file && candidate.owner == owner && candidate.exposed {
-			matches = append(matches, candidate)
-		}
+func findWorkspaceCallMatches(caller *operation, name, owner string, byKey *operationLookup) callSelection {
+	if byKey == nil {
+		return callSelection{}
 	}
-	return matches
+	return callSelection{bucket: byKey.workspace[workspaceOperationKey(caller, name, owner)], exclude: true, file: caller.file}
 }

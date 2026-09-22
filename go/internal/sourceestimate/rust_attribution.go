@@ -79,7 +79,7 @@ func analyzeRustAttribution(files []File) RustAttribution {
 // analyzeRustUnits consumes the shared parsed inventory. Native callers can
 // annotate once, build their common operation index once, and then pass both
 // here without reparsing or creating a second Rust graph.
-func analyzeRustUnits(units []unit, byKey map[string][]*operation, annotations map[string]rustFunction, callbacks ...func(File, Result)) RustAttribution {
+func analyzeRustUnits(units []unit, byKey *operationLookup, annotations map[string]rustFunction, callbacks ...func(File, Result)) RustAttribution {
 	if byKey == nil {
 		byKey = operationIndex(units)
 	}
@@ -199,8 +199,8 @@ func rustAudience(op *operation, annotations map[string]rustFunction) string {
 	return "internal"
 }
 
-func operationIndex(units []unit) map[string][]*operation {
-	index := make(map[string][]*operation)
+func operationIndex(units []unit) *operationLookup {
+	index := newOperationLookup()
 	for _, u := range units {
 		for _, op := range u.ops {
 			indexOperation(index, op)
@@ -209,11 +209,13 @@ func operationIndex(units []unit) map[string][]*operation {
 	return index
 }
 
-func rustCallIndex(all []*operation) map[string][]*operation {
-	index := make(map[string][]*operation, len(all))
+func rustCallIndex(all []*operation) *operationLookup {
+	index := newOperationLookup()
 	for _, op := range all {
-		index[rustCallKey(op.pkg, op.name, op.owner)] = append(index[rustCallKey(op.pkg, op.name, op.owner)], op)
-		index[rustWorkspaceCallKey(op.pkg, op.name, op.owner)] = append(index[rustWorkspaceCallKey(op.pkg, op.name, op.owner)], op)
+		index.add(index.scoped, rustCallKey(op.pkg, op.name, op.owner), op)
+		if op.exposed {
+			index.add(index.workspace, rustWorkspaceCallKey(op.pkg, op.name, op.owner), op)
+		}
 	}
 	return index
 }
@@ -226,7 +228,11 @@ func rustWorkspaceCallKey(pkg, name, owner string) string {
 	return "workspace:rust#" + owner + "#" + name
 }
 
-func rustResolveCall(caller *operation, call call, index map[string][]*operation) []*operation {
+func rustResolveCall(caller *operation, call call, index *operationLookup) []*operation {
+	if index == nil {
+		return nil
+	}
+	index.observe("query")
 	name := call.name
 	owner := caller.owner
 	if dot := strings.LastIndexByte(name, '.'); dot >= 0 {
@@ -237,11 +243,11 @@ func rustResolveCall(caller *operation, call call, index map[string][]*operation
 	if owner == "" {
 		owner = caller.owner
 	}
-	matches := index[rustCallKey(caller.pkg, name, owner)]
-	if len(matches) == 0 && owner != "" {
-		matches = index[rustCallKey(caller.pkg, name, "")]
+	matches := callSelection{bucket: index.scoped[rustCallKey(caller.pkg, name, owner)]}
+	if matches.count() == 0 && owner != "" {
+		matches = callSelection{bucket: index.scoped[rustCallKey(caller.pkg, name, "")]}
 	}
-	if len(matches) == 0 && owner != "" {
+	if matches.count() == 0 && owner != "" {
 		if receiverType, ok := operationFieldType(caller, owner); ok {
 			owner = receiverType
 		} else if dot := strings.LastIndexByte(owner, '.'); dot >= 0 {
@@ -249,14 +255,10 @@ func rustResolveCall(caller *operation, call call, index map[string][]*operation
 				owner = receiverType
 			}
 		}
-		for _, candidate := range index[rustWorkspaceCallKey(caller.pkg, name, owner)] {
-			if candidate.file != caller.file && candidate.owner == owner && candidate.exposed {
-				matches = append(matches, candidate)
-			}
-		}
+		matches = callSelection{bucket: index.workspace[rustWorkspaceCallKey(caller.pkg, name, owner)], exclude: true, file: caller.file}
 	}
-	if len(matches) == 1 {
-		return matches
+	if matches.count() == 1 {
+		return []*operation{matches.unique()}
 	}
 	return nil
 }

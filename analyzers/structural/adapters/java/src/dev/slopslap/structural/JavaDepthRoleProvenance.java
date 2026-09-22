@@ -7,22 +7,21 @@ import com.sun.source.util.Trees;
 import java.util.Map;
 
 final class JavaDepthRoleProvenance {
-    private final JavaDepthRoles owner;
     private final SourcePositions positions;
 
     JavaDepthRoleProvenance(JavaDepthRoles owner) {
-        this.owner = owner;
         this.positions = owner.trees.getSourcePositions();
     }
 
     Map<String, Object> evidence(JavaDepthRoles.SourceType source, Tree tree,
                                  javax.lang.model.element.ExecutableElement method) {
         return Map.of("artifact", source.element().getEnclosingElement().toString(), "path", source.file(),
-                "span", location(source.unit(), tree), "rule_id", JavaDepthRoles.RULE,
+                "span", location(source, tree), "rule_id", JavaDepthRoles.RULE,
                 "fact_ids", java.util.List.of(JavaDepthRoles.methodID(method)), "omitted_location_count", 0);
     }
 
-    private Map<String, Object> location(CompilationUnitTree unit, Tree tree) {
+    private Map<String, Object> location(JavaDepthRoles.SourceType source, Tree tree) {
+        CompilationUnitTree unit = source.unit();
         long start = Math.max(0, positions.getStartPosition(unit, tree));
         long end = Math.max(start, positions.getEndPosition(unit, tree));
         var lineMap = unit.getLineMap();
@@ -30,7 +29,7 @@ final class JavaDepthRoleProvenance {
         int column = columnNumber(lineMap, start, 1);
         int endLine = lineNumber(lineMap, end, line);
         int endColumn = columnNumber(lineMap, end, column);
-        return Map.of("path", relativePath(unit), "line", line, "column", column,
+        return Map.of("path", source.file(), "line", line, "column", column,
                 "end_line", endLine, "end_column", endColumn);
     }
 
@@ -42,8 +41,4 @@ final class JavaDepthRoleProvenance {
         return map == null ? fallback : (int) map.getColumnNumber(offset);
     }
 
-    private String relativePath(CompilationUnitTree unit) {
-        for (JavaDepthRoles.SourceType source : owner.sources) if (source.unit() == unit) return source.file();
-        return unit.getSourceFile().getName();
-    }
 }

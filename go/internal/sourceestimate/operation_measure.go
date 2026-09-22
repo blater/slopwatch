@@ -21,7 +21,7 @@ func categoryWeight(category string) float64 {
 	}
 }
 
-func measureOperation(op *operation, units []unit, byKey map[string][]*operation, seen map[string]bool, depth int, bindings map[string][]token, budget *int) operationMeasure {
+func measureOperation(op *operation, units []unit, byKey *operationLookup, seen map[string]bool, depth int, bindings map[string][]token, budget *int) operationMeasure {
 	if cutoff, limited := measurementCutoff(op, seen, depth); cutoff {
 		return limited
 	}
@@ -77,7 +77,7 @@ func expansionLimitedMeasure() operationMeasure {
 	}
 }
 
-func localOperationMeasure(op *operation, body []token, units []unit, byKey map[string][]*operation) operationMeasure {
+func localOperationMeasure(op *operation, body []token, units []unit, byKey *operationLookup) operationMeasure {
 	m := operationMeasure{}
 	m.limitations = executionLimitations(body, op.language)
 	if combinesOwnedErrors(op, units) {
@@ -125,7 +125,7 @@ func unsupportedExecutionToken(text string) bool {
 	}
 }
 
-func appendCallMeasure(m operationMeasure, op *operation, body []token, units []unit, byKey map[string][]*operation, seen map[string]bool, depth int, budget *int) operationMeasure {
+func appendCallMeasure(m operationMeasure, op *operation, body []token, units []unit, byKey *operationLookup, seen map[string]bool, depth int, budget *int) operationMeasure {
 	calls := callsIn(body)
 	if len(calls) > maxCallsPerRoot {
 		calls = calls[:maxCallsPerRoot]
@@ -143,8 +143,8 @@ func appendCallMeasure(m operationMeasure, op *operation, body []token, units []
 		}
 		*budget--
 		candidates := resolveCall(op, call, units, byKey)
-		if len(candidates) == 1 {
-			m = appendResolvedMeasure(m, op, call, candidates[0], units, byKey, seen, depth, budget)
+		if candidates.count() == 1 {
+			m = appendResolvedMeasure(m, op, call, candidates.unique(), units, byKey, seen, depth, budget)
 			continue
 		}
 		unknownCalls[call.callSignature()] = true
@@ -158,7 +158,7 @@ func appendCallMeasure(m operationMeasure, op *operation, body []token, units []
 	return m
 }
 
-func appendResolvedMeasure(m operationMeasure, op *operation, call call, callee *operation, units []unit, byKey map[string][]*operation, seen map[string]bool, depth int, budget *int) operationMeasure {
+func appendResolvedMeasure(m operationMeasure, op *operation, call call, callee *operation, units []unit, byKey *operationLookup, seen map[string]bool, depth int, budget *int) operationMeasure {
 	m.dependencies = append(m.dependencies, callee.id)
 	childBindings := make(map[string][]token, len(callee.paramNames))
 	for i, formal := range callee.paramNames {
@@ -173,7 +173,7 @@ func appendResolvedMeasure(m operationMeasure, op *operation, call call, callee 
 	return m
 }
 
-func appendUnsupportedOutcome(m operationMeasure, op *operation, body []token, units []unit, byKey map[string][]*operation) operationMeasure {
+func appendUnsupportedOutcome(m operationMeasure, op *operation, body []token, units []unit, byKey *operationLookup) operationMeasure {
 	if !onlyStorageSnapshots(m.evidence) || !nontrivial(body) {
 		return m
 	}

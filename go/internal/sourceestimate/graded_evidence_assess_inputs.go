@@ -2,7 +2,7 @@ package sourceestimate
 
 import "strings"
 
-func newGradedEvidenceAssessment(u unit, roots []*operation, units []unit, byKey map[string][]*operation, evidence []evidenceItem) *gradedEvidenceAssessment {
+func newGradedEvidenceAssessment(u unit, roots []*operation, units []unit, byKey *operationLookup, evidence []evidenceItem) *gradedEvidenceAssessment {
 	p := u.gradingProfile()
 	a := &gradedEvidenceAssessment{unit: u, roots: roots, profile: p, evidence: &GradedEvidence{DenominatorReference: p.DenominatorReference, ResponsibilityMultiplier: p.ResponsibilityMultiplier, Surface: gradedCallerSurface(u, roots, units), Responsibilities: map[string]float64{}}, rootOwners: map[string]bool{}, protocol: map[string]map[string]bool{}, dispatches: map[string]string{}}
 	for _, op := range roots {
@@ -30,8 +30,8 @@ func newGradedEvidenceAssessment(u unit, roots []*operation, units []unit, byKey
 	}
 	for _, root := range roots {
 		if c, ok := gradeTransparentCall(root); ok {
-			if candidates := resolveCall(root, c, units, byKey); len(candidates) == 1 {
-				callee := candidates[0]
+			if candidates := resolveCall(root, c, units, byKey); candidates.count() == 1 {
+				callee := candidates.unique()
 				if len(a.protocol[itoa(callee.file)+"#"+callee.owner]) > 0 {
 					a.transparent = appendTransparent(a.transparent, callee.id)
 				}

@@ -14,19 +14,12 @@ func workspaceOperationKey(op *operation, name, owner string) string {
 	return "workspace:" + op.language + "#" + op.pkg + "#" + owner + "#" + name
 }
 
-func indexOperation(index map[string][]*operation, op *operation) {
-	index[operationKey(op)] = append(index[operationKey(op)], op)
-	if op.language == "typescript" || op.language == "rust" {
-		index[workspaceOperationKey(op, op.name, op.owner)] = append(index[workspaceOperationKey(op, op.name, op.owner)], op)
-	}
-}
-
 func scopedOperationKey(op *operation, name, owner string) string {
 	scope := op.pkg
 	if op.language == "typescript" || op.language == "rust" {
 		scope += ":file:" + itoa(op.file)
 	}
-	return name + "@" + scope + "#" + owner
+	return op.language + ":" + name + "@" + scope + "#" + owner
 }
 
 func lexicalOwners(tokens []token, language string) []string {

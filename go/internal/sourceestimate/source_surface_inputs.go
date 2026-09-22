@@ -14,9 +14,9 @@ import (
 // This is source evidence, not a type-system proof. Ambiguous calls, callback
 // escapes, contract methods, optional parameters, generated/deprecated source,
 // and incomplete declarations are left alone.
-func annotateSourceSurfaceInputs(units []unit, byKey map[string][]*operation) {
+func annotateSourceSurfaceInputs(units []unit, byKey *operationLookup) {
 	prepareRustWorkspace(units)
-	if len(units) == 0 || len(byKey) == 0 {
+	if len(units) == 0 || byKey == nil || len(byKey.scoped) == 0 {
 		return
 	}
 	callers := make(map[*operation][]surfaceCaller)
@@ -175,10 +175,10 @@ func surfaceArgumentUsesCallerInput(caller *operation, arg []token) bool {
 	return usesInput
 }
 
-func surfaceCallTarget(caller *operation, c call, units []unit, byKey map[string][]*operation) *operation {
+func surfaceCallTarget(caller *operation, c call, units []unit, byKey *operationLookup) *operation {
 	candidates := resolveCall(caller, c, units, byKey)
-	if len(candidates) == 1 {
-		return candidates[0]
+	if candidates.count() == 1 {
+		return candidates.unique()
 	}
 	return nil
 }
@@ -241,7 +241,7 @@ func annotateSurfaceOperation(op *operation, callers map[*operation][]surfaceCal
 	}
 }
 
-func observeSurfaceCalls(caller *operation, lang, path string, units []unit, byKey map[string][]*operation, callers map[*operation][]surfaceCaller) {
+func observeSurfaceCalls(caller *operation, lang, path string, units []unit, byKey *operationLookup, callers map[*operation][]surfaceCaller) {
 	calls := callsIn(caller.body)
 	if len(calls) > maxCallsPerRoot {
 		calls = calls[:maxCallsPerRoot]

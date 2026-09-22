@@ -2,7 +2,7 @@ package sourceestimate
 
 import "strings"
 
-func gradedResultValueToken(op *operation, expression []token, i int, current gradedResultFlow, locals map[string]gradedResultFlow, units []unit, byKey map[string][]*operation, budget *int, depth int) (gradedResultFlow, bool, int, bool, bool) {
+func gradedResultValueToken(op *operation, expression []token, i int, current gradedResultFlow, locals map[string]gradedResultFlow, units []unit, byKey *operationLookup, budget *int, depth int) (gradedResultFlow, bool, int, bool, bool) {
 	tok := expression[i]
 	if tok.text == "." && i > 0 && expression[i-1].text == ")" && i+2 < len(expression) && isIdentifier(expression[i+1].text) && expression[i+2].text == "(" {
 		end := matching(expression, i+2, "(", ")")
@@ -51,7 +51,7 @@ func gradedResultValueToken(op *operation, expression []token, i int, current gr
 	}
 	c := call{name: strings.Join(parts, "."), actuals: actuals, position: i, hasArguments: len(actuals) > 0}
 	matches := resolveCall(op, c, units, byKey)
-	if len(matches) == 0 {
+	if matches.count() == 0 {
 		dependent.predicate = false
 		if dependent.unknown {
 			dependent.composed = true
@@ -61,12 +61,12 @@ func gradedResultValueToken(op *operation, expression []token, i int, current gr
 		}
 	} else {
 		dependent = gradedResultFlow{}
-		if len(matches) == 1 && matches[0].owner == op.owner && !matches[0].exposed && len(matches[0].paramNames) == len(arguments) {
+		if matches.count() == 1 && matches.unique().owner == op.owner && !matches.unique().exposed && len(matches.unique().paramNames) == len(arguments) {
 			bindings := map[string]gradedResultFlow{}
-			for j, name := range matches[0].paramNames {
+			for j, name := range matches.unique().paramNames {
 				bindings[name] = arguments[j]
 			}
-			dependent = gradedOperationResult(matches[0], bindings, units, byKey, budget, depth+1)
+			dependent = gradedOperationResult(matches.unique(), bindings, units, byKey, budget, depth+1)
 		}
 	}
 	return dependent, dependent.predicate, end, true, true

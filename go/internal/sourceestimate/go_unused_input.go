@@ -26,17 +26,19 @@ func annotateGoUnusedInputs(units []unit) {
 }
 
 type goUnusedInputPackage struct {
-	units     []unit
-	indexes   []int
-	fset      *gotoken.FileSet
-	files     []*ast.File
-	fileIndex map[*ast.File]int
-	nodeFile  map[ast.Node]int
-	parents   map[ast.Node]ast.Node
-	refs      map[*goUnusedInputFunction][]goUnusedInputCall
-	refValid  map[*goUnusedInputFunction]bool
-	byName    map[string][]*goUnusedInputFunction
-	callerArg map[*ast.FuncDecl]goUnusedCallerArgs
+	referenceWork int
+	units         []unit
+	indexes       []int
+	fset          *gotoken.FileSet
+	files         []*ast.File
+	fileIndex     map[*ast.File]int
+	context       map[ast.Node]goUnusedContext
+	nodeFile      map[ast.Node]int
+	parents       map[ast.Node]ast.Node
+	refs          map[*goUnusedInputFunction][]goUnusedInputCall
+	refValid      map[*goUnusedInputFunction]bool
+	byName        map[string][]*goUnusedInputFunction
+	callerArg     map[*ast.FuncDecl]goUnusedCallerArgs
 }
 
 type goUnusedInputFunction struct {
@@ -60,6 +62,7 @@ func annotateGoUnusedInputPackage(units []unit, indexes []int) {
 		fset:      gotoken.NewFileSet(),
 		fileIndex: map[*ast.File]int{},
 		nodeFile:  map[ast.Node]int{},
+		context:   map[ast.Node]goUnusedContext{},
 		parents:   map[ast.Node]ast.Node{},
 		refs:      map[*goUnusedInputFunction][]goUnusedInputCall{},
 		refValid:  map[*goUnusedInputFunction]bool{},
@@ -101,7 +104,7 @@ func (p *goUnusedInputPackage) parse() bool {
 		}
 		files = append(files, file)
 		p.fileIndex[file] = index
-		indexGoUnusedParents(p.parents, p.nodeFile, file, index)
+		indexGoUnusedContext(p.parents, p.nodeFile, p.context, file, index)
 	}
 	p.files = files
 	return len(files) != 0
@@ -119,24 +122,6 @@ func goUnusedInputExcluded(source []byte) bool {
 		return true
 	}
 	return false
-}
-
-func indexGoUnusedParents(parents map[ast.Node]ast.Node, nodeFile map[ast.Node]int, file *ast.File, index int) {
-	stack := make([]ast.Node, 0, 32)
-	ast.Inspect(file, func(node ast.Node) bool {
-		if node == nil {
-			if len(stack) != 0 {
-				stack = stack[:len(stack)-1]
-			}
-			return true
-		}
-		if len(stack) != 0 {
-			parents[node] = stack[len(stack)-1]
-		}
-		nodeFile[node] = index
-		stack = append(stack, node)
-		return true
-	})
 }
 
 func (p *goUnusedInputPackage) functions() []*goUnusedInputFunction {
@@ -199,7 +184,7 @@ func (p *goUnusedInputPackage) annotateFunction(function *goUnusedInputFunction)
 	if function.operation == nil || function.decl.Body == nil {
 		return
 	}
-	unused, usedCount := goUnusedParameters(function.decl.Body, function.paramNames)
+	unused, usedCount, _ := goUnusedParameters(function.decl.Body, function.paramNames)
 	if len(unused) == 0 {
 		return
 	}
@@ -244,24 +229,27 @@ func (p *goUnusedInputPackage) annotateFunction(function *goUnusedInputFunction)
 	}
 }
 
-func goUnusedParameters(body *ast.BlockStmt, names []string) ([]int, int) {
+func goUnusedParameters(body *ast.BlockStmt, names []string) ([]int, int, int) {
+	work := 0
+	usedNames := map[string]bool{}
+	ast.Inspect(body, func(node ast.Node) bool {
+		if node != nil {
+			work++
+		}
+		if ident, ok := node.(*ast.Ident); ok {
+			usedNames[ident.Name] = true
+		}
+		return true
+	})
 	unused := make([]int, 0, len(names))
 	usedCount := 0
 	for index, parameter := range names {
-		used := false
-		ast.Inspect(body, func(node ast.Node) bool {
-			ident, ok := node.(*ast.Ident)
-			if ok && ident.Name == parameter {
-				used = true
-				return false
-			}
-			return true
-		})
-		if !used {
-			unused = append(unused, index)
-		} else {
+		work++
+		if usedNames[parameter] {
 			usedCount++
+		} else {
+			unused = append(unused, index)
 		}
 	}
-	return unused, usedCount
+	return unused, usedCount, work
 }

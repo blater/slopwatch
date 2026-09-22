@@ -10,15 +10,11 @@ func (p *goUnusedInputPackage) callsFor(function *goUnusedInputFunction) ([]goUn
 }
 
 func (p *goUnusedInputPackage) enclosingFunction(node ast.Node) (*ast.FuncDecl, int) {
-	for parent := p.parents[node]; parent != nil; parent = p.parents[parent] {
-		if decl, ok := parent.(*ast.FuncDecl); ok {
-			return decl, p.nodeFile[decl]
-		}
-		if _, ok := parent.(*ast.FuncLit); ok {
-			return nil, -1
-		}
+	decl := p.context[node].caller
+	if decl == nil {
+		return nil, -1
 	}
-	return nil, -1
+	return decl, p.nodeFile[decl]
 }
 
 func (p *goUnusedInputPackage) pureGoUnusedArgument(caller *ast.FuncDecl, expression ast.Expr) (pure, computed bool) {

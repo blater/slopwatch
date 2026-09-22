@@ -17,6 +17,7 @@ final class JavaDepthRoleCandidate {
     private final Trees trees;
     private final Elements elements;
     private final Types types;
+    private final Map<TypeElement, JavaDepthRoleMethodIndex> signatures = new IdentityHashMap<>();
 
     JavaDepthRoleCandidate(JavaDepthRoles owner) {
         this.owner = owner;
@@ -74,11 +75,24 @@ final class JavaDepthRoleCandidate {
         return methods;
     }
 
+    private JavaDepthRoleMethodIndex indexMethods(TypeElement contract) {
+        List<ExecutableElement> result = new ArrayList<>();
+        for (Element member : elements.getAllMembers(contract)) {
+            if (member instanceof ExecutableElement method && method.getKind() == ElementKind.METHOD) result.add(method);
+        }
+        return new JavaDepthRoleMethodIndex(types, contract, result);
+    }
+
+    long signatureWork() {
+        long result = 0;
+        for (JavaDepthRoleMethodIndex index : signatures.values()) result += index.signatureWork;
+        return result;
+    }
+
     private ExecutableElement matchingContractMethod(TypeElement owner, ExecutableElement implementation,
                                                       TypeElement contract) {
-        for (Element member : elements.getAllMembers(contract)) {
-            if (member instanceof ExecutableElement required && required.getKind() == ElementKind.METHOD
-                    && elements.overrides(implementation, required, owner)) return required;
+        for (ExecutableElement required : signatures.computeIfAbsent(contract, this::indexMethods).candidates(implementation, owner)) {
+            if (elements.overrides(implementation, required, owner)) return required;
         }
         return null;
     }

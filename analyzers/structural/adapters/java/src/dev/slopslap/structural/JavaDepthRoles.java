@@ -34,8 +34,6 @@ final class JavaDepthRoles {
     final Types types;
     final List<SourceType> sources;
     final Map<TypeElement, SourceType> sourcesByType = new IdentityHashMap<>();
-    final Map<String, List<SourceType>> sourcesByPackage = new HashMap<>();
-    final Map<String, List<SourceType>> consumersByContract = new HashMap<>();
     final Map<Element, VariableTree> fieldTrees = new IdentityHashMap<>();
     final Map<Element, TreePath> fieldPaths = new IdentityHashMap<>();
     private final SourcePositions positions;
@@ -45,7 +43,7 @@ final class JavaDepthRoles {
     private final JavaDepthRoleProvenance provenanceHelper;
     boolean exposureCutoff;
 
-    private JavaDepthRoles(Trees trees, Elements elements, Types types, List<SourceType> sources) {
+    JavaDepthRoles(Trees trees, Elements elements, Types types, List<SourceType> sources) {
         this.trees = trees;
         this.elements = elements;
         this.types = types;
@@ -53,9 +51,7 @@ final class JavaDepthRoles {
         this.positions = trees.getSourcePositions();
         for (SourceType source : sources) {
             sourcesByType.put(source.element(), source);
-            sourcesByPackage.computeIfAbsent(packageName(source.element()), ignored -> new ArrayList<>()).add(source);
             JavaDepthRoleSourceIndex.indexFields(this, source);
-            JavaDepthRoleSourceIndex.indexConsumers(this, source);
         }
         this.bindings = new JavaDepthRoleBindings(this);
         this.exposure = new JavaDepthRoleExposure(this);
@@ -98,17 +94,11 @@ final class JavaDepthRoles {
         JavaDepthRoleCandidate.Result candidateResult = candidate.analyze(source);
         if (candidateResult == null) return null;
         TypeElement owner = source.element();
-        List<String> externalRoutes = new ArrayList<>();
         Set<ExecutableElement> exposedMethods = candidateExposureMethods(owner, candidateResult.contracts());
-        for (SourceType candidateSource : sourcesByPackage.getOrDefault(packageName(owner), List.of())) {
-            inspectPublicExposure(candidateSource, owner, externalRoutes,
-                    candidateResult.contracts(), exposedMethods);
-        }
+        List<String> externalRoutes = exposure.publicRoutes(owner, candidateResult.contracts(), exposedMethods);
         List<Map<String, Object>> bindings = new ArrayList<>();
         for (TypeElement contract : candidateResult.contracts()) {
-            for (SourceType consumer : consumersByContract.getOrDefault(typeKey(types.erasure(contract.asType())), List.of())) {
-                bindings.addAll(findBindings(source, contract, consumer, candidateResult.matches()));
-            }
+            bindings.addAll(bindingsFor(source, contract, candidateResult.matches()));
         }
         List<String> memberIDs = candidateResult.memberIDs();
         memberIDs.sort(String::compareTo);
@@ -126,15 +116,9 @@ final class JavaDepthRoles {
         );
     }
 
-    private List<Map<String, Object>> findBindings(SourceType implementation, TypeElement contract,
-                                                   SourceType consumer, Map<Element, ExecutableElement> matches) {
-        return bindings.findBindings(implementation, contract, consumer, matches);
-    }
-
-    private void inspectPublicExposure(SourceType source, TypeElement implementation,
-                                       List<String> routes, List<TypeElement> contracts,
-                                       Set<ExecutableElement> exposedMethods) {
-        exposure.inspectPublicExposure(source, implementation, routes, contracts, exposedMethods);
+    private List<Map<String, Object>> bindingsFor(SourceType implementation, TypeElement contract,
+                                                  Map<Element, ExecutableElement> matches) {
+        return bindings.findBindings(implementation, contract, matches);
     }
 
     private Set<ExecutableElement> candidateExposureMethods(TypeElement implementation,
@@ -145,14 +129,6 @@ final class JavaDepthRoles {
     SourceType sourceForType(Element element) {
         if (!(element instanceof TypeElement type)) return null;
         return sourcesByType.get(type);
-    }
-
-    MethodTree methodTree(SourceType source, ExecutableElement expected) {
-        for (Tree member : source.tree.getMembers()) {
-            if (member instanceof MethodTree method
-                    && trees.getElement(new TreePath(source.path, method)) == expected) return method;
-        }
-        return null;
     }
 
     boolean publiclyAccessible(TypeElement type) {

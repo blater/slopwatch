@@ -5,7 +5,7 @@ package sourceestimate
 // straight-line bindings and resolvable same-workspace helper returns are
 // followed. key is empty when the returned value carries no transformation.
 // complete is false whenever the bounded proof cannot account for the value.
-func returnedTransformation(op *operation, units []unit, byKey map[string][]*operation) (key string, transformed, complete bool) {
+func returnedTransformation(op *operation, units []unit, byKey *operationLookup) (key string, transformed, complete bool) {
 	if op == nil {
 		return "", false, false
 	}
@@ -25,7 +25,7 @@ func returnedTransformation(op *operation, units []unit, byKey map[string][]*ope
 
 type transformationState struct {
 	units  []unit
-	byKey  map[string][]*operation
+	byKey  *operationLookup
 	active map[string]bool
 	calls  int
 	tokens int
@@ -134,10 +134,10 @@ func (s *transformationState) helper(op *operation, call call, bindings map[stri
 		actuals[index] = value
 	}
 	candidates := resolveCall(op, call, s.units, s.byKey)
-	if len(candidates) != 1 {
+	if candidates.count() != 1 {
 		return nil, false
 	}
-	callee := candidates[0]
+	callee := candidates.unique()
 	childBindings := make(map[string]*transformationExpr, len(callee.paramNames))
 	for index, formal := range callee.paramNames {
 		if index >= len(actuals) {
@@ -155,7 +155,7 @@ func (s *transformationState) bindPrefix(op *operation, local map[string]*transf
 		}
 		if !s.bindStatement(op, local, statement, depth) {
 			if discarded, standalone := standaloneTransformationCall(statement); standalone {
-				if len(resolveCall(op, discarded, s.units, s.byKey)) != 1 {
+				if resolveCall(op, discarded, s.units, s.byKey).count() != 1 {
 					s.incomplete = true
 				}
 				continue

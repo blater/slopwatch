@@ -5,7 +5,7 @@ import "sort"
 // Observable mutation through a caller-supplied buffer leaves allocation,
 // retention and reset/combination with the caller. This is alias burden, not
 // hidden responsibility or coupling inferred from parameter count.
-func gradedCallerOutputBuffers(op *operation, units []unit, index map[string][]*operation, depth int) []string {
+func gradedCallerOutputBuffers(op *operation, units []unit, index *operationLookup, depth int) []string {
 	if depth >= maxCallDepth || op.file < 0 || op.file >= len(units) {
 		return nil
 	}
@@ -42,7 +42,7 @@ func gradedCallerOutputBuffers(op *operation, units []unit, index map[string][]*
 	return result
 }
 
-func gradedOutputBufferScan(op *operation, units []unit, index map[string][]*operation, depth int, body []token, kinds map[string]string, aliases map[string]string, calls map[int]call, outputs map[string]bool, declarations map[int]gradedOutputDeclaration, scopes *[]map[string]string) {
+func gradedOutputBufferScan(op *operation, units []unit, index *operationLookup, depth int, body []token, kinds map[string]string, aliases map[string]string, calls map[int]call, outputs map[string]bool, declarations map[int]gradedOutputDeclaration, scopes *[]map[string]string) {
 	for i, t := range body {
 		gradedOutputBufferToken(op, units, index, depth, body, kinds, aliases, calls, outputs, declarations, scopes, i, t)
 	}

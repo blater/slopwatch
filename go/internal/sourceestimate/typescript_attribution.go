@@ -21,7 +21,7 @@ func AnalyzeTypeScriptFiles(files []File) map[string]Result {
 		all = append(all, unit.ops...)
 	}
 	annotateTypeScriptImports(units)
-	byKey := make(map[string][]*operation, len(all))
+	byKey := newOperationLookup()
 	for _, op := range all {
 		indexOperation(byKey, op)
 	}
@@ -29,7 +29,7 @@ func AnalyzeTypeScriptFiles(files []File) map[string]Result {
 	return analyzeTypeScriptUnits(units, byKey)
 }
 
-func analyzeTypeScriptUnits(units []unit, byKey map[string][]*operation, callbacks ...func(File, Result)) map[string]Result {
+func analyzeTypeScriptUnits(units []unit, byKey *operationLookup, callbacks ...func(File, Result)) map[string]Result {
 	roles := supportingTypeScriptOwners(units)
 	rolesByFile := map[int]map[string]string{}
 	for key, role := range roles {

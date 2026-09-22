@@ -312,3 +312,41 @@ func TestLanguageMembershipBatchesFinalizeEachOwnerOnce(t *testing.T) {
 		}
 	}
 }
+
+func TestEffectiveUnitFanoutDoesNotCopyGrowingPrefixes(t *testing.T) {
+	for _, size := range []int{128, 512, 2048} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			index := newIndex()
+			backing := make([]string, 4, size+8)
+			copy(backing, []string{"owned.go", "shared.go", "shared.go", "retained-sentinel"})
+			base := Unit{ID: "root", Language: LanguageGo, Sources: []string{"owned.go"}, ContextSources: backing[:3]}
+			for i := 0; i < size; i++ {
+				id := fmt.Sprintf("dependency:%06d", i)
+				base.DirectDependencies = append(base.DirectDependencies, id)
+				index.units[id] = Unit{ID: id, Language: LanguageGo, Sources: []string{fmt.Sprintf("source-%06d.go", i), "shared.go"}}
+			}
+			index.units[base.ID] = base
+			before := append([]string(nil), backing[:cap(backing)]...)
+			allocations := testing.AllocsPerRun(1, func() { _, _ = index.Unit(base.ID) })
+			// The old loop allocates at least once for every dependency by
+			// copying its growing prefix. Amortized slices and maps remain
+			// well below that bound; this is a work check, not a timing test.
+			if allocations >= float64(size)/2 {
+				t.Fatalf("fanout=%d allocations=%g: repeated prefix copies", size, allocations)
+			}
+			result, ok := index.Unit(base.ID)
+			if !ok || len(result.ContextSources) != size+1 || !sort.StringsAreSorted(result.ContextSources) || len(result.DirectDependencies) != size {
+				t.Fatalf("unexpected materialization: %+v", result)
+			}
+			if !reflect.DeepEqual(backing[:cap(backing)], before) {
+				t.Fatal("materialization mutated retained backing slice")
+			}
+			deltaUnit := base
+			delta := &PlanDelta{base: index, Units: map[string]*Unit{base.ID: &deltaUnit}}
+			deltaResult, ok := delta.Unit(base.ID)
+			if !ok || !reflect.DeepEqual(result, deltaResult) || !reflect.DeepEqual(backing[:cap(backing)], before) {
+				t.Fatal("delta materialization changed output or retained input")
+			}
+		})
+	}
+}

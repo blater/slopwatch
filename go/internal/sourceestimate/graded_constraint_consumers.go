@@ -11,11 +11,11 @@ type gradedConsumerConstraint struct {
 	lifecycle bool
 }
 
-func gradedConsumerConstraints(op *operation, u unit, units []unit, index map[string][]*operation, bindings map[string]map[string]bool, depth int) []gradedConsumerConstraint {
+func gradedConsumerConstraints(op *operation, u unit, units []unit, index *operationLookup, bindings map[string]map[string]bool, depth int) []gradedConsumerConstraint {
 	budget := gradedSurfaceTokenLimit
 	return gradedConsumerConstraintsBounded(op, u, units, index, bindings, depth, &budget)
 }
-func gradedConsumerConstraintsBounded(op *operation, u unit, units []unit, index map[string][]*operation, bindings map[string]map[string]bool, depth int, budget *int) []gradedConsumerConstraint {
+func gradedConsumerConstraintsBounded(op *operation, u unit, units []unit, index *operationLookup, bindings map[string]map[string]bool, depth int, budget *int) []gradedConsumerConstraint {
 	if len(op.body) > *budget {
 		return nil
 	}
@@ -70,10 +70,10 @@ func gradedConsumerConstraintsBounded(op *operation, u unit, units []unit, index
 		}
 		for _, c := range callsAt[i] {
 			matches := resolveCall(op, c, units, index)
-			if len(matches) != 1 {
+			if matches.count() != 1 {
 				continue
 			}
-			callee := matches[0]
+			callee := matches.unique()
 			if len(c.actuals) != len(callee.paramNames) {
 				continue
 			}

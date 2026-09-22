@@ -1,11 +1,11 @@
 package sourceestimate
 
-func gradedCallObservesProtocol(op *operation, u unit, units []unit, c call, byKey map[string][]*operation, fields map[string]string) bool {
+func gradedCallObservesProtocol(op *operation, u unit, units []unit, c call, byKey *operationLookup, fields map[string]string) bool {
 	candidates := gradedCleanupCandidates(op, u, units, c, byKey)
-	if len(candidates) != 1 {
+	if candidates.count() != 1 {
 		return false
 	}
-	candidate := candidates[0]
+	candidate := candidates.unique()
 	for i, tok := range candidate.body {
 		if fields[tok.text] != "" && gradeOwnedFieldReference(candidate, units[candidate.file], candidate.body, i) && !gradedStorageWriteAt(candidate.body, i) && gradedProtocolReadAdmits(candidate, units[candidate.file], i, fields[tok.text]) {
 			return true

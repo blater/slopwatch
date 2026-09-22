@@ -44,6 +44,8 @@ build: test
 # Internal compilation prerequisite; avoids recursion through build -> test.
 build-artifacts: build-structural build-rust build-java build-go build-typescript
 
+compile: build-structural build-rust build-java build-go build-typescript
+
 # Normative source conformance, including currently unsupported capabilities.
 # This deliberately fails when any expected result is not delivered.
 .PHONY: test-shallow-adapters

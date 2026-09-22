@@ -1,6 +1,6 @@
 package sourceestimate
 
-func annotateOutputObligations(units []unit, index map[string][]*operation) {
+func annotateOutputObligations(units []unit, index *operationLookup) {
 	for _, u := range units {
 		for _, op := range u.ops {
 			gradedCallerOutputBuffers(op, units, index, 0)

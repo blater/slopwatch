@@ -7,10 +7,10 @@ func transformationOperation(id, name, body string, params ...string) *operation
 	return &operation{id: id, name: name, owner: "", language: "go", pkg: "p", params: len(params), paramNames: params, body: tokens}
 }
 
-func transformationIndex(operations ...*operation) map[string][]*operation {
-	index := make(map[string][]*operation)
+func transformationIndex(operations ...*operation) *operationLookup {
+	index := newOperationLookup()
 	for _, op := range operations {
-		index[operationKey(op)] = append(index[operationKey(op)], op)
+		indexOperation(index, op)
 	}
 	return index
 }

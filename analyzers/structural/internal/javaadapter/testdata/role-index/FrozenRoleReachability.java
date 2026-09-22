@@ -9,7 +9,7 @@ import javax.lang.model.type.*;
 import javax.lang.model.util.Types;
 import java.util.*;
 
-final class JavaDepthRoleReachability {
+final class FrozenRoleReachability {
     private static final int MAX_REFERENCE_METHODS = JavaDepthRoles.MAX_REFERENCE_METHODS;
     private final JavaDepthRoles owner;
     private final Trees trees;
@@ -17,68 +17,36 @@ final class JavaDepthRoleReachability {
     private final List<JavaDepthRoles.SourceType> sources;
     private final Map<String, Map<ExecutableElement, Set<ExecutableElement>>> callers = new HashMap<>();
     private final Map<String, Map<TypeElement, Set<ExecutableElement>>> directReferences = new HashMap<>();
-    private final Map<String, Map<ExecutableElement, List<ExecutableElement>>> callerPrefixes = new HashMap<>();
-    private final Map<String, Map<TypeElement, List<ExecutableElement>>> seedPrefixes = new HashMap<>();
-    long queryWork;
     private final Set<String> graphCutoffs = new HashSet<>();
 
-    JavaDepthRoleReachability(JavaDepthRoles owner) {
+    FrozenRoleReachability(JavaDepthRoles owner) {
         this.owner = owner;
         this.trees = owner.trees;
         this.types = owner.types;
         this.sources = owner.sources;
         indexCallGraph();
-        callers.forEach((pkg, graph) -> {
-            Map<ExecutableElement, List<ExecutableElement>> indexed = new IdentityHashMap<>();
-            graph.forEach((method, refs) -> indexed.put(method, prefix(refs)));
-            callerPrefixes.put(pkg, indexed);
-        });
-        directReferences.forEach((pkg, refs) -> {
-            Map<TypeElement, List<ExecutableElement>> indexed = new IdentityHashMap<>();
-            refs.forEach((type, methods) -> indexed.put(type, prefix(methods)));
-            seedPrefixes.put(pkg, indexed);
-        });
-        callers.clear();
-        directReferences.clear();
     }
 
     Set<ExecutableElement> candidateExposureMethods(TypeElement implementation,
                                                      List<TypeElement> contracts) {
         String pkg = JavaDepthRoles.packageName(implementation);
         if (graphCutoffs.contains(pkg)) owner.exposureCutoff = true;
-        List<ExecutableElement> seeds = seedPrefixes.getOrDefault(pkg, Map.of()).getOrDefault(implementation, List.of());
-        Map<ExecutableElement, List<ExecutableElement>> packageCallers = callerPrefixes.getOrDefault(pkg, Map.of());
+        Set<ExecutableElement> seeds = directReferences.getOrDefault(pkg, Map.of())
+                .getOrDefault(implementation, Collections.newSetFromMap(new IdentityHashMap<>()));
+        Map<ExecutableElement, Set<ExecutableElement>> packageCallers = callers.getOrDefault(pkg, Map.of());
         Set<ExecutableElement> reachable = Collections.newSetFromMap(new IdentityHashMap<>());
-        Set<ExecutableElement> scheduled = Collections.newSetFromMap(new IdentityHashMap<>());
-        ArrayDeque<ExecutableElement> pending = new ArrayDeque<>();
-        for (ExecutableElement seed : seeds) { scheduled.add(seed); pending.add(seed); queryWork++; }
+        ArrayDeque<ExecutableElement> pending = new ArrayDeque<>(seeds);
         while (!pending.isEmpty()) {
             ExecutableElement method = pending.removeFirst();
-            reachable.add(method);
+            if (!reachable.add(method)) continue;
             if (reachable.size() > MAX_REFERENCE_METHODS) {
                 owner.exposureCutoff = true;
                 break;
             }
-            if (scheduled.size() > MAX_REFERENCE_METHODS) continue;
-            for (ExecutableElement caller : packageCallers.getOrDefault(method, List.of())) {
-                queryWork++;
-                if (scheduled.add(caller)) pending.addLast(caller);
-                if (scheduled.size() > MAX_REFERENCE_METHODS) break;
-            }
+            Set<ExecutableElement> callersForMethod = packageCallers.get(method);
+            if (callersForMethod != null) pending.addAll(callersForMethod);
         }
         return reachable;
-    }
-
-    // A query returns at most limit+1 distinct methods. With at most limit
-    // already scheduled, these first limit+1 unique neighbours either include
-    // every neighbour or suffice to reach the same cutoff. Keep iterator order.
-    private static List<ExecutableElement> prefix(Set<ExecutableElement> methods) {
-        List<ExecutableElement> result = new ArrayList<>(Math.min(methods.size(), MAX_REFERENCE_METHODS + 1));
-        for (ExecutableElement method : methods) {
-            result.add(method);
-            if (result.size() > MAX_REFERENCE_METHODS) break;
-        }
-        return result;
     }
 
     private void indexCallGraph() {
@@ -153,4 +121,38 @@ final class JavaDepthRoleReachability {
         for (TypeMirror argument : declared.getTypeArguments()) mentionedTypes(argument, result);
     }
 
+    boolean directlyReferences(Tree tree, TreePath parent, TypeElement implementation) {
+        if (tree == null) return false;
+        final boolean[] found = {false};
+        new TreePathScanner<Void, Void>() {
+            @Override public Void visitIdentifier(IdentifierTree identifier, Void unused) {
+                check(getCurrentPath());
+                return super.visitIdentifier(identifier, unused);
+            }
+            @Override public Void visitMemberSelect(MemberSelectTree selected, Void unused) {
+                check(getCurrentPath());
+                return super.visitMemberSelect(selected, unused);
+            }
+            @Override public Void visitNewClass(NewClassTree created, Void unused) {
+                check(getCurrentPath());
+                return super.visitNewClass(created, unused);
+            }
+            private void check(TreePath path) {
+                Element element = trees.getElement(path);
+                if (element == implementation
+                        || element instanceof TypeElement type && type == implementation
+                        || element instanceof VariableElement variable
+                        && mentions(variable.asType(), implementation)) found[0] = true;
+            }
+        }.scan(new TreePath(parent, tree), null);
+        return found[0];
+    }
+
+    private boolean mentions(TypeMirror type, TypeElement implementation) {
+        if (type == null) return false;
+        if (type.getKind() == TypeKind.ARRAY) return mentions(((ArrayType) type).getComponentType(), implementation);
+        if (!(type instanceof DeclaredType declared)) return false;
+        if (declared.asElement() == implementation) return true;
+        return declared.getTypeArguments().stream().anyMatch(argument -> mentions(argument, implementation));
+    }
 }

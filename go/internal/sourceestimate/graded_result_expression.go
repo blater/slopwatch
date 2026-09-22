@@ -1,6 +1,6 @@
 package sourceestimate
 
-func gradedResultExpression(op *operation, expression []token, locals map[string]gradedResultFlow, units []unit, byKey map[string][]*operation, budget *int, depth int) gradedResultFlow {
+func gradedResultExpression(op *operation, expression []token, locals map[string]gradedResultFlow, units []unit, byKey *operationLookup, budget *int, depth int) gradedResultFlow {
 	if depth > maxCallDepth || len(expression) > *budget {
 		return gradedResultFlow{}
 	}
@@ -55,7 +55,7 @@ func gradedResultExpression(op *operation, expression []token, locals map[string
 	return flow
 }
 
-func gradedResultAggregateExpression(op *operation, expression []token, locals map[string]gradedResultFlow, units []unit, byKey map[string][]*operation, budget *int, depth int) (gradedResultFlow, bool) {
+func gradedResultAggregateExpression(op *operation, expression []token, locals map[string]gradedResultFlow, units []unit, byKey *operationLookup, budget *int, depth int) (gradedResultFlow, bool) {
 	for open, tok := range expression {
 		if tok.text != "{" {
 			continue
@@ -100,7 +100,7 @@ func gradedResultAggregateSlot(slot []token) []token {
 	return value
 }
 
-func gradedResultConditionalFlow(op *operation, expression []token, locals map[string]gradedResultFlow, units []unit, byKey map[string][]*operation, budget *int, depth int) (gradedResultFlow, bool) {
+func gradedResultConditionalFlow(op *operation, expression []token, locals map[string]gradedResultFlow, units []unit, byKey *operationLookup, budget *int, depth int) (gradedResultFlow, bool) {
 	question, colon := gradedResultConditional(expression)
 	if question < 0 {
 		return gradedResultFlow{}, false
@@ -125,7 +125,7 @@ func gradedResultConditionalFlow(op *operation, expression []token, locals map[s
 	return flow, true
 }
 
-func gradedResultLogicalFlow(op *operation, expression []token, locals map[string]gradedResultFlow, units []unit, byKey map[string][]*operation, budget *int, depth int) (gradedResultFlow, bool) {
+func gradedResultLogicalFlow(op *operation, expression []token, locals map[string]gradedResultFlow, units []unit, byKey *operationLookup, budget *int, depth int) (gradedResultFlow, bool) {
 	for _, operator := range []string{"||", "&&"} {
 		nesting := 0
 		for i, tok := range expression {

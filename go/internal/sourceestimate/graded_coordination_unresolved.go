@@ -2,7 +2,7 @@ package sourceestimate
 
 import "strings"
 
-func gradedUnresolvedCleanup(roots []*operation, units []unit, byKey map[string][]*operation) bool {
+func gradedUnresolvedCleanup(roots []*operation, units []unit, byKey *operationLookup) bool {
 	for _, root := range roots {
 		for _, op := range gradeOwnedOperations(root, units, byKey) {
 			if gradedUnresolvedOperation(op, units, byKey) {
@@ -13,7 +13,7 @@ func gradedUnresolvedCleanup(roots []*operation, units []unit, byKey map[string]
 	return false
 }
 
-func gradedUnresolvedOperation(op *operation, units []unit, byKey map[string][]*operation) bool {
+func gradedUnresolvedOperation(op *operation, units []unit, byKey *operationLookup) bool {
 	body := normalizedPrunedBody(op)
 	for i := range body {
 		start, end, protectedStart, protectedEnd := gradedUnresolvedRegion(op, body, i)
@@ -50,13 +50,13 @@ func gradedUnresolvedRegion(op *operation, body []token, i int) (start, end, pro
 	return
 }
 
-func gradedUnresolvedCall(op *operation, units []unit, byKey map[string][]*operation, body []token, start, end, protectedStart, protectedEnd int, c call, flow *unconditionalQueries) bool {
+func gradedUnresolvedCall(op *operation, units []unit, byKey *operationLookup, body []token, start, end, protectedStart, protectedEnd int, c call, flow *unconditionalQueries) bool {
 	dot := strings.LastIndexByte(c.name, '.')
 	if dot < 0 || !flow.unconditional(body[start:end], c.position) {
 		return false
 	}
 	receiver := c.name[:dot]
-	if !gradedCoordinationOwnedReceiver(op, units[op.file], receiver) || len(gradedCleanupCandidates(op, units[op.file], units, c, byKey)) != 0 || gradedReceiverReplaced(body, 0, len(body), receiver) {
+	if !gradedCoordinationOwnedReceiver(op, units[op.file], receiver) || gradedCleanupCandidates(op, units[op.file], units, c, byKey).count() != 0 || gradedReceiverReplaced(body, 0, len(body), receiver) {
 		return false
 	}
 	return gradedUnresolvedUses(body, start, end, protectedStart, protectedEnd, receiver)

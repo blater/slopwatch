@@ -2,7 +2,7 @@ package sourceestimate
 
 // Build once, then share the bounded inbound representation index with every
 // owner projection. Caller effects never become hidden duties of the callee.
-func gradedCallerPrepare(units []unit) (map[string][]*operation, map[string][]gradedCallerType) {
+func gradedCallerPrepare(units []unit) (*operationLookup, map[string][]gradedCallerType) {
 	shadows := map[string]map[string]bool{}
 	for _, u := range units {
 		key := normalizeLanguage(u.file.Language, u.file.Path) + "#" + u.pkg
@@ -18,7 +18,7 @@ func gradedCallerPrepare(units []unit) (map[string][]*operation, map[string][]gr
 	for i := range units {
 		units[i].shadowedBuiltins = shadows[normalizeLanguage(units[i].file.Language, units[i].file.Path)+"#"+units[i].pkg]
 	}
-	byKey := map[string][]*operation{}
+	byKey := newOperationLookup()
 	for _, u := range units {
 		for _, op := range u.ops {
 			indexOperation(byKey, op)

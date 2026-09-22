@@ -1,6 +1,6 @@
 package sourceestimate
 
-func gradedOutputBufferToken(op *operation, units []unit, index map[string][]*operation, depth int, body []token, kinds map[string]string, aliases map[string]string, calls map[int]call, outputs map[string]bool, declarations map[int]gradedOutputDeclaration, scopes *[]map[string]string, i int, t token) {
+func gradedOutputBufferToken(op *operation, units []unit, index *operationLookup, depth int, body []token, kinds map[string]string, aliases map[string]string, calls map[int]call, outputs map[string]bool, declarations map[int]gradedOutputDeclaration, scopes *[]map[string]string, i int, t token) {
 	if t.text == "{" {
 		*scopes = append(*scopes, map[string]string{})
 	}

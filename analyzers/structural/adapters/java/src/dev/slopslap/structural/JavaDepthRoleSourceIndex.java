@@ -4,9 +4,7 @@ import com.sun.source.tree.*;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.Trees;
 import javax.lang.model.element.*;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 final class JavaDepthRoleSourceIndex {
     private JavaDepthRoleSourceIndex() { }
@@ -36,18 +34,4 @@ final class JavaDepthRoleSourceIndex {
         }
     }
 
-    static void indexConsumers(JavaDepthRoles owner, JavaDepthRoles.SourceType source) {
-        Set<String> seen = new HashSet<>();
-        for (Tree member : source.tree().getMembers()) {
-            if (!(member instanceof MethodTree constructorTree)) continue;
-            Element element = owner.trees.getElement(new TreePath(source.path(), constructorTree));
-            if (!(element instanceof ExecutableElement constructor)
-                    || constructor.getKind() != ElementKind.CONSTRUCTOR) continue;
-            for (VariableElement parameter : constructor.getParameters()) {
-                String key = JavaDepthRoles.typeKey(owner.types.erasure(parameter.asType()));
-                if (seen.add(key)) owner.consumersByContract
-                        .computeIfAbsent(key, ignored -> new java.util.ArrayList<>()).add(source);
-            }
-        }
-    }
 }

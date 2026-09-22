@@ -1,7 +1,5 @@
 package sourceestimate
 
-import "strings"
-
 func rustVisibilityMaps(units []unit) (map[string]bool, map[string]bool, map[string]bool) {
 	typeVisibility := map[string]bool{}
 	traitVisibility := map[string]bool{}
@@ -48,6 +46,10 @@ func rustTraitEscapes(units []unit) map[string]bool {
 			}
 		}
 	}
+	matchers := make(map[string]*rustTraitMatcher, len(traitNames))
+	for pkg, names := range traitNames {
+		matchers[pkg] = newRustTraitMatcher(names)
+	}
 	traitEscapes := map[string]bool{}
 	for _, u := range units {
 		if normalizeLanguage(u.file.Language, u.file.Path) != "rust" {
@@ -59,11 +61,9 @@ func rustTraitEscapes(units []unit) map[string]bool {
 			}
 			// Imported traits have no local declaration; the return signature
 			// still provides bounded evidence for a named impl trait.
-			for trait := range traitNames[u.pkg] {
-				if strings.Contains(op.returnType, trait) {
-					traitEscapes[u.pkg+"#"+trait] = true
-				}
-			}
+			matchers[u.pkg].match(op.returnType, func(trait string) {
+				traitEscapes[u.pkg+"#"+trait] = true
+			})
 		}
 	}
 	return traitEscapes

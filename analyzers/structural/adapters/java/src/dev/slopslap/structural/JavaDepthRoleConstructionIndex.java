@@ -16,6 +16,7 @@ import java.util.Set;
 final class JavaDepthRoleConstructionIndex {
     private final JavaDepthRoles owner;
     private final Trees trees;
+    private final Map<VariableElement, Set<TypeElement>> aliases = new IdentityHashMap<>();
     private final Map<TypeElement, Map<TypeElement, Map<Integer, Set<TypeElement>>>> constructorTypes = new IdentityHashMap<>();
     private final Map<TypeElement, Map<ExecutableElement, Map<Integer, Set<TypeElement>>>> consumerTargets = new IdentityHashMap<>();
     private final Map<TypeElement, Map<ExecutableElement, Map<Integer, Set<TypeElement>>>> constructorTargets = new IdentityHashMap<>();
@@ -26,27 +27,28 @@ final class JavaDepthRoleConstructionIndex {
         indexConstructionUses();
     }
 
-    boolean uses(JavaDepthRoles.SourceType consumer, ExecutableElement target,
-                 JavaDepthRoles.SourceType implementation, int parameterIndex) {
-        if (JavaDepthRoles.isTestPath(consumer.file())) return false;
+    Set<TypeElement> implementations(JavaDepthRoles.SourceType consumer, ExecutableElement target, int parameterIndex) {
+        Set<TypeElement> result = newIdentitySet();
         TypeElement targetType = target.getEnclosingElement() instanceof TypeElement type ? type : null;
-        Map<TypeElement, Map<Integer, Set<TypeElement>>> byType = constructorTypes.get(consumer.element());
-        if (targetType != null && contains(byType == null ? null : byType.get(targetType), parameterIndex,
-                implementation.element())) return true;
-        Map<ExecutableElement, Map<Integer, Set<TypeElement>>> localTargets = consumerTargets.get(consumer.element());
-        if (contains(localTargets == null ? null : localTargets.get(target), parameterIndex, implementation.element())) return true;
-        Map<ExecutableElement, Map<Integer, Set<TypeElement>>> byTarget = targetType == null ? null : constructorTargets.get(targetType);
-        return contains(byTarget == null ? null : byTarget.get(target), parameterIndex, implementation.element());
+        var byType = constructorTypes.get(consumer.element());
+        if (byType != null && targetType != null) add(result, byType.get(targetType), parameterIndex);
+        var local = consumerTargets.get(consumer.element());
+        if (local != null) add(result, local.get(target), parameterIndex);
+        var global = constructorTargets.get(targetType);
+        if (global != null) add(result, global.get(target), parameterIndex);
+        return result;
     }
 
-    private static boolean contains(Map<Integer, Set<TypeElement>> values, int index, TypeElement implementation) {
-        return values != null && values.getOrDefault(index, Set.of()).contains(implementation);
+    private static void add(Set<TypeElement> result, Map<Integer, Set<TypeElement>> slots, int index) {
+        if (slots != null) result.addAll(slots.getOrDefault(index, Set.of()));
     }
 
     private void indexConstructionUses() {
         for (JavaDepthRoles.SourceType source : owner.sources) {
             if (JavaDepthRoles.isTestPath(source.file())) continue;
             indexConstructors(source);
+            // Top-level trees already include every nested declaration.
+            if (!(source.path().getParentPath().getLeaf() instanceof CompilationUnitTree)) continue;
             new TreePathScanner<Void, Void>() {
                 @Override public Void visitNewClass(NewClassTree created, Void unused) {
                     Element called = trees.getElement(getCurrentPath());
@@ -146,18 +148,20 @@ final class JavaDepthRoleConstructionIndex {
         }
         if (element instanceof VariableElement variable && variable.getModifiers().contains(Modifier.STATIC)
                 && variable.getModifiers().contains(Modifier.FINAL) && seen.add(variable)) {
+            Set<TypeElement> completed = aliases.get(variable);
+            if (completed != null) return completed;
             VariableTree field = owner.fieldTrees.get(variable);
             TreePath fieldPath = owner.fieldPaths.get(variable);
             if (field != null && fieldPath != null && field.getInitializer() != null) {
                 result.addAll(resolvesTo(field.getInitializer(), new TreePath(fieldPath, field.getInitializer()), seen));
             }
-            return result;
+            // Alias expressions have a single successor; a cycle therefore has no concrete construction.
+            Set<TypeElement> completedResult = Set.copyOf(result);
+            aliases.put(variable, completedResult);
+            return completedResult;
         }
         if (element instanceof TypeElement type) result.add(type);
         return result;
     }
 
-    boolean resolvesTo(TreePath parent, ExpressionTree expression, TypeElement implementation) {
-        return resolvesTo(expression, new TreePath(parent, expression)).contains(implementation);
-    }
 }

@@ -2,12 +2,12 @@ package sourceestimate
 
 import "strings"
 
-func gradedOutputBufferCall(op *operation, units []unit, index map[string][]*operation, depth int, aliases map[string]string, outputs map[string]bool, c call) {
+func gradedOutputBufferCall(op *operation, units []unit, index *operationLookup, depth int, aliases map[string]string, outputs map[string]bool, c call) {
 	matches := resolveCall(op, c, units, index)
-	if len(matches) != 1 || matches[0].exposed || matches[0].owner != op.owner {
+	if matches.count() != 1 || matches.unique().exposed || matches.unique().owner != op.owner {
 		return
 	}
-	callee := matches[0]
+	callee := matches.unique()
 	mutated := gradedCallerOutputBuffers(callee, units, index, depth+1)
 	for j, param := range callee.paramNames {
 		if j >= len(c.actuals) {

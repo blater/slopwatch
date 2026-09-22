@@ -68,7 +68,7 @@ func newGradedEvidenceRootState() *gradedEvidenceRootState {
 	return &gradedEvidenceRootState{coordinated: map[string]bool{}, connectedFactories: map[string]int{}, phaseCommands: map[string]map[string]bool{}, callerPhases: map[string]map[string]bool{}, phaseMethods: map[string]map[string]bool{}}
 }
 
-func gradedEvidenceRootResponsibilities(a *gradedEvidenceAssessment, state *gradedEvidenceRootState, root *operation, units []unit, byKey map[string][]*operation, storageSnapshots map[string]bool) {
+func gradedEvidenceRootResponsibilities(a *gradedEvidenceAssessment, state *gradedEvidenceRootState, root *operation, units []unit, byKey *operationLookup, storageSnapshots map[string]bool) {
 	ops := gradeOwnedOperations(root, units, byKey)
 	calls := map[string]map[string]bool{}
 	for _, op := range ops {

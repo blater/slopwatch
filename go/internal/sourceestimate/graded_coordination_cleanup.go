@@ -2,10 +2,10 @@ package sourceestimate
 
 import "strings"
 
-func gradeGuaranteedCleanup(ops []*operation, units []unit, byKey map[string][]*operation) bool {
+func gradeGuaranteedCleanup(ops []*operation, units []unit, byKey *operationLookup) bool {
 	return gradedCleanupMode(ops, units, byKey, false)
 }
-func gradedCleanupMode(ops []*operation, units []unit, byKey map[string][]*operation, acquisition bool) bool {
+func gradedCleanupMode(ops []*operation, units []unit, byKey *operationLookup, acquisition bool) bool {
 	if len(ops) == 0 || len(units) == 0 {
 		return false
 	}
@@ -21,7 +21,7 @@ func gradedCleanupMode(ops []*operation, units []unit, byKey map[string][]*opera
 	}
 	return false
 }
-func gradedFinallyCleanup(op *operation, u unit, units []unit, body []token, byKey map[string][]*operation, acquisition bool) bool {
+func gradedFinallyCleanup(op *operation, u unit, units []unit, body []token, byKey *operationLookup, acquisition bool) bool {
 	for i, item := range body {
 		if item.text != "finally" {
 			continue
@@ -44,7 +44,7 @@ func gradedFinallyCleanup(op *operation, u unit, units []unit, body []token, byK
 	}
 	return false
 }
-func gradedDeferCleanup(op *operation, u unit, units []unit, body []token, byKey map[string][]*operation, acquisition bool) bool {
+func gradedDeferCleanup(op *operation, u unit, units []unit, body []token, byKey *operationLookup, acquisition bool) bool {
 	for i, item := range body {
 		if item.text != "defer" || !operationBodyUnconditional(op, body, i) {
 			continue
@@ -74,7 +74,7 @@ func gradedDeferCleanup(op *operation, u unit, units []unit, body []token, byKey
 	}
 	return false
 }
-func gradedCleanupCallInRange(op *operation, u unit, units []unit, body []token, start, end, protectedStart, protectedEnd int, byKey map[string][]*operation, acquisition bool) bool {
+func gradedCleanupCallInRange(op *operation, u unit, units []unit, body []token, start, end, protectedStart, protectedEnd int, byKey *operationLookup, acquisition bool) bool {
 	if start < 0 || start >= end || end > len(body) {
 		return false
 	}
@@ -96,15 +96,15 @@ func gradedCleanupCallInRange(op *operation, u unit, units []unit, body []token,
 	}
 	return false
 }
-func gradedCleanupCandidates(op *operation, u unit, units []unit, c call, byKey map[string][]*operation) []*operation {
+func gradedCleanupCandidates(op *operation, u unit, units []unit, c call, byKey *operationLookup) callSelection {
 	matches := resolveCall(op, c, units, byKey)
-	if len(matches) == 0 {
+	if matches.count() == 0 {
 		dot := strings.LastIndexByte(c.name, '.')
 		if dot >= 0 {
 			fields := callerDeclaredFields(u, op.owner)
 			for _, part := range strings.Split(c.name[:dot], ".") {
 				if field, ok := fields[part]; ok && field.typeName != "" {
-					matches = byKey[scopedOperationKey(op, c.name[dot+1:], field.typeName)]
+					matches = findCallMatches(op, c.name[dot+1:], field.typeName, byKey)
 					break
 				}
 			}
@@ -112,8 +112,8 @@ func gradedCleanupCandidates(op *operation, u unit, units []unit, c call, byKey 
 	}
 	// Follow a bounded unconditional forwarding helper, keeping the resolved
 	// owner/storage identity rather than granting credit to the helper name.
-	for depth := 0; len(matches) == 1 && depth < maxCallDepth; depth++ {
-		candidate := matches[0]
+	for depth := 0; matches.count() == 1 && depth < maxCallDepth; depth++ {
+		candidate := matches.unique()
 		calls := callsIn(candidate.body)
 		if len(calls) != 1 || gradedHasAssignment(candidate.body) || !operationBodyUnconditional(candidate, candidate.body, calls[0].position) {
 			break
@@ -122,16 +122,16 @@ func gradedCleanupCandidates(op *operation, u unit, units []unit, c call, byKey 
 			break
 		}
 		next := resolveCall(candidate, calls[0], units, byKey)
-		if len(next) != 1 || next[0].owner != candidate.owner || next[0] == candidate {
+		if next.count() != 1 || next.unique().owner != candidate.owner || next.unique() == candidate {
 			break
 		}
 		matches = next
 	}
 	return matches
 }
-func gradedCleanupResolvedCall(op *operation, u unit, units []unit, c call, byKey map[string][]*operation) bool {
+func gradedCleanupResolvedCall(op *operation, u unit, units []unit, c call, byKey *operationLookup) bool {
 	candidates := gradedCleanupCandidates(op, u, units, c, byKey)
-	return len(candidates) == 1 && len(gradedCleanupResetFields(candidates[0], units)) > 0
+	return candidates.count() == 1 && len(gradedCleanupResetFields(candidates.unique(), units)) > 0
 }
 func gradedCleanupResetFields(op *operation, units []unit) map[string]string {
 	result := map[string]string{}

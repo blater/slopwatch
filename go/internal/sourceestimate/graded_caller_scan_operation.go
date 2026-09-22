@@ -2,7 +2,7 @@ package sourceestimate
 
 import "strings"
 
-func gradedCallerScanOperation(u unit, op0 *operation, units []unit, byKey map[string][]*operation, resolver gradedCallerResolver, controlled map[string]bool, transitions map[string]map[string]map[string]bool, record func(fieldRef, *operation)) []consumerRecord {
+func gradedCallerScanOperation(u unit, op0 *operation, units []unit, byKey *operationLookup, resolver gradedCallerResolver, controlled map[string]bool, transitions map[string]map[string]map[string]bool, record func(fieldRef, *operation)) []consumerRecord {
 	consumers := []consumerRecord{}
 	op := op0
 

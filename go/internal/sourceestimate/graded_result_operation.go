@@ -1,6 +1,6 @@
 package sourceestimate
 
-func gradedOperationResult(op *operation, locals map[string]gradedResultFlow, units []unit, byKey map[string][]*operation, budget *int, depth int) gradedResultFlow {
+func gradedOperationResult(op *operation, locals map[string]gradedResultFlow, units []unit, byKey *operationLookup, budget *int, depth int) gradedResultFlow {
 	if gradedSurfaceConstructor(op) || depth > maxCallDepth || len(op.body) > *budget {
 		return gradedResultFlow{}
 	}

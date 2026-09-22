@@ -55,7 +55,7 @@ func typeScriptCallResultObserved(body []token, c call) bool {
 // Module-private storage retains the same duty as equivalent class-private
 // storage. Grouping must not erase a counter update simply because it is lexical.
 
-func typeScriptModuleScalarEffects(u unit, roots []*operation, units []unit, index map[string][]*operation) (state, computed bool) {
+func typeScriptModuleScalarEffects(u unit, roots []*operation, units []unit, index *operationLookup) (state, computed bool) {
 	if normalizeLanguage(u.file.Language, u.file.Path) != "typescript" {
 		return false, false
 	}

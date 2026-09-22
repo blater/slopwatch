@@ -78,9 +78,9 @@ func annotateTypeScriptImports(units []unit) {
 	}
 }
 
-func resolveTypeScriptImportedCall(caller *operation, c call, units []unit, byKey map[string][]*operation) ([]*operation, bool) {
+func resolveTypeScriptImportedCall(caller *operation, c call, units []unit, byKey *operationLookup) (callSelection, bool) {
 	if caller.language != "typescript" {
-		return nil, false
+		return callSelection{}, false
 	}
 	alias, member := c.name, ""
 	if dot := strings.IndexByte(alias, '.'); dot >= 0 {
@@ -88,16 +88,15 @@ func resolveTypeScriptImportedCall(caller *operation, c call, units []unit, byKe
 	}
 	binding, ok := caller.imports[alias]
 	if !ok {
-		return nil, false
+		return callSelection{}, false
 	}
 	name := binding.name
 	if name == "*" {
 		name = member
 	}
 	if name == "" || strings.Contains(name, ".") {
-		return nil, true
+		return callSelection{}, true
 	}
-	matches := []*operation{}
 	lookup := *caller
 	lookup.file = binding.index
 	lookup.pkg = binding.pkg
@@ -105,10 +104,8 @@ func resolveTypeScriptImportedCall(caller *operation, c call, units []unit, byKe
 	if member != "" && binding.name != "*" {
 		owner, name = binding.name, member
 	}
-	for _, candidate := range byKey[scopedOperationKey(&lookup, name, owner)] {
-		if candidate.owner == owner && candidate.exposed && candidate.file >= 0 && candidate.file < len(units) && units[candidate.file].file.Path == binding.file {
-			matches = append(matches, candidate)
-		}
+	if binding.index < 0 || binding.index >= len(units) || units[binding.index].file.Path != binding.file {
+		return callSelection{}, true
 	}
-	return matches, true
+	return callSelection{bucket: byKey.exposed[scopedOperationKey(&lookup, name, owner)]}, true
 }

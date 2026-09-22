@@ -1,6 +1,6 @@
 package sourceestimate
 
-func gradedCachedFactories(op *operation, u unit, units []unit, byKey map[string][]*operation) int {
+func gradedCachedFactories(op *operation, u unit, units []unit, byKey *operationLookup) int {
 	body := trimSemicolonTokens(op.body)
 	if len(body) < 8 || body[0].text != "return" {
 		return 0
@@ -86,7 +86,7 @@ func gradedFactoryValue(body []token) (string, bool) {
 	}
 	return typ, assigned == 1
 }
-func gradedConnectedFactoryValue(op *operation, body []token, units []unit, byKey map[string][]*operation, depth int) (string, bool) {
+func gradedConnectedFactoryValue(op *operation, body []token, units []unit, byKey *operationLookup, depth int) (string, bool) {
 	if typ, ok := gradedFactoryValue(body); ok {
 		return typ, true
 	}
@@ -110,10 +110,10 @@ func gradedConnectedFactoryValue(op *operation, body []token, units []unit, byKe
 		return "", false
 	}
 	matches := resolveCall(op, c, units, byKey)
-	if len(matches) != 1 || matches[0].owner != op.owner || matches[0].exposed {
+	if matches.count() != 1 || matches.unique().owner != op.owner || matches.unique().exposed {
 		return "", false
 	}
-	callee := matches[0]
+	callee := matches.unique()
 	inner := trimSemicolonTokens(callee.body)
 	if len(inner) > 0 && inner[0].text == "return" {
 		return gradedConnectedFactoryValue(callee, inner[1:], units, byKey, depth+1)

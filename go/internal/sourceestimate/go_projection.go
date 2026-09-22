@@ -2,7 +2,7 @@ package sourceestimate
 
 import "sort"
 
-func estimateGoAttribution(units []unit, byKey map[string][]*operation, goMethods goMethodIndex, graph map[string][]*operation, callbacks ...func(File, Result)) map[string]Result {
+func estimateGoAttribution(units []unit, byKey *operationLookup, goMethods goMethodIndex, graph map[string][]*operation, callbacks ...func(File, Result)) map[string]Result {
 	projections := goMethodProjections(units, byKey, goMethods)
 	inbound := buildGoInboundIndex(units, graph)
 	results := make(map[string]Result)
@@ -18,7 +18,7 @@ func estimateGoAttribution(units []unit, byKey map[string][]*operation, goMethod
 	return results
 }
 
-func goMethodProjections(units []unit, byKey map[string][]*operation, goMethods goMethodIndex) map[string]Result {
+func goMethodProjections(units []unit, byKey *operationLookup, goMethods goMethodIndex) map[string]Result {
 	result := make(map[string]Result, len(goMethods.exported))
 	keys := make([]string, 0, len(goMethods.exported))
 	for key := range goMethods.exported {
@@ -36,7 +36,7 @@ func goMethodProjections(units []unit, byKey map[string][]*operation, goMethods 
 	return result
 }
 
-func projectGoUnit(index int, unit unit, units []unit, byKey map[string][]*operation, methods goMethodIndex, projections map[string]Result, inbound goInboundData) Result {
+func projectGoUnit(index int, unit unit, units []unit, byKey *operationLookup, methods goMethodIndex, projections map[string]Result, inbound goInboundData) Result {
 	best, haveBest, abstractions := goExternalProjections(index, unit, units, byKey, methods, projections)
 	private, audiences := privateGoRoots(unit, inbound, methods)
 	for _, op := range private {
@@ -64,7 +64,7 @@ func projectGoUnit(index int, unit unit, units []unit, byKey map[string][]*opera
 	return best
 }
 
-func goExternalProjections(index int, unit unit, units []unit, byKey map[string][]*operation, methods goMethodIndex, projections map[string]Result) (Result, bool, []Abstraction) {
+func goExternalProjections(index int, unit unit, units []unit, byKey *operationLookup, methods goMethodIndex, projections map[string]Result) (Result, bool, []Abstraction) {
 	best, haveBest := Result{}, false
 	abstractions := make([]Abstraction, 0, 3)
 	free, owners := goExternalRoots(unit, methods)

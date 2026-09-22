@@ -149,7 +149,7 @@ func analyzeWithAttribution(files []File, includeGoPackage bool, profiles ...Cal
 	return analyzeWithAttributionProgress(files, includeGoPackage, nil, nil, profiles...)
 }
 
-func estimateUnit(index int, u unit, units []unit, byKey map[string][]*operation, supporting map[string]string) Result {
+func estimateUnit(index int, u unit, units []unit, byKey *operationLookup, supporting map[string]string) Result {
 	roots := make([]*operation, 0, len(u.ops))
 	for _, op := range u.ops {
 		if op.exposed && supporting[goMethodGroupKey(op)] == "" {
@@ -174,7 +174,7 @@ func estimateUnit(index int, u unit, units []unit, byKey map[string][]*operation
 	return result
 }
 
-func estimateRoots(index int, u unit, units []unit, byKey map[string][]*operation, roots []*operation) Result {
+func estimateRoots(index int, u unit, units []unit, byKey *operationLookup, roots []*operation) Result {
 	r := Result{Categories: map[string]float64{}, evidence: map[string]float64{}}
 	seen := map[string]bool{}
 	evidenceSeen := map[string]bool{}

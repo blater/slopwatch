@@ -2,7 +2,7 @@ package sourceestimate
 
 import "strings"
 
-func gradedRustRAIICleanup(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool) bool {
+func gradedRustRAIICleanup(op *operation, u unit, body []token, units []unit, byKey *operationLookup, acquisition bool) bool {
 	if op.language != "rust" {
 		return false
 	}
@@ -74,7 +74,7 @@ func gradedRustGuardEscapes(body []token, close int, guard string) bool {
 	return false
 }
 
-func gradedRustGuardDrop(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool, guard gradedRustGuard) bool {
+func gradedRustGuardDrop(op *operation, u unit, body []token, units []unit, byKey *operationLookup, acquisition bool, guard gradedRustGuard) bool {
 	fields := callerDeclaredFields(u, op.owner)
 	fieldType := fields[guard.field].typeName
 	for _, function := range rustUnitMembers(u, guard.typ, "drop") {
@@ -89,7 +89,7 @@ func gradedRustGuardDrop(op *operation, u unit, body []token, units []unit, byKe
 	return false
 }
 
-func gradedRustDropBody(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool, guard gradedRustGuard, fieldType string, dropBody []token) bool {
+func gradedRustDropBody(op *operation, u unit, body []token, units []unit, byKey *operationLookup, acquisition bool, guard gradedRustGuard, fieldType string, dropBody []token) bool {
 	var flow unconditionalQueries
 	for _, c := range callsIn(dropBody) {
 		if !strings.HasPrefix(c.name, "self.0.") || !flow.unconditional(dropBody, c.position) {
@@ -103,7 +103,7 @@ func gradedRustDropBody(op *operation, u unit, body []token, units []unit, byKey
 	return false
 }
 
-func gradedRustRelease(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool, guard gradedRustGuard, fieldType, method string) bool {
+func gradedRustRelease(op *operation, u unit, body []token, units []unit, byKey *operationLookup, acquisition bool, guard gradedRustGuard, fieldType, method string) bool {
 	for _, candidate := range rustReleaseCandidates(units, fieldType, method) {
 		resourceUnit := units[candidate.unit]
 		reset := gradedRustCleanupReset(candidate.function, resourceUnit, 0)
@@ -114,12 +114,13 @@ func gradedRustRelease(op *operation, u unit, body []token, units []unit, byKey 
 	return false
 }
 
-func gradedRustReleaseState(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool, guard gradedRustGuard, reset map[string]string) bool {
+func gradedRustReleaseState(op *operation, u unit, body []token, units []unit, byKey *operationLookup, acquisition bool, guard gradedRustGuard, reset map[string]string) bool {
 	receiver := "self." + guard.field
 	acquired, used, invalidated := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	guardCalls := false
+	effects := map[callSelection]map[string]bool{}
 	for _, actual := range callsIn(body) {
-		guardCalls = gradedRustReleaseActual(op, u, body, units, byKey, acquisition, guard, receiver, reset, actual, acquired, used, invalidated) || guardCalls
+		guardCalls = gradedRustReleaseActual(op, u, body, units, byKey, acquisition, guard, receiver, reset, actual, acquired, used, invalidated, effects) || guardCalls
 	}
 	for field := range reset {
 		if acquired[field] && used[field] || !acquisition && (!guardCalls || used[field]) {
@@ -129,20 +130,17 @@ func gradedRustReleaseState(op *operation, u unit, body []token, units []unit, b
 	return false
 }
 
-func gradedRustReleaseActual(op *operation, u unit, body []token, units []unit, byKey map[string][]*operation, acquisition bool, guard gradedRustGuard, receiver string, reset map[string]string, actual call, acquired, used, invalidated map[string]bool) bool {
+func gradedRustReleaseActual(op *operation, u unit, body []token, units []unit, byKey *operationLookup, acquisition bool, guard gradedRustGuard, receiver string, reset map[string]string, actual call, acquired, used, invalidated map[string]bool, effects map[callSelection]map[string]bool) bool {
 	dot := strings.LastIndexByte(actual.name, '.')
 	if dot < 0 {
 		return false
 	}
 	guardCalls := false
 	if actual.name[:dot] == receiver && actual.position < guard.index {
-		for _, resolved := range gradedCleanupCandidates(op, u, units, actual, byKey) {
-			for effect, state := range reset {
-				if gradedOperationWritesField(resolved, units[resolved.file], effect) {
-					acquired[effect] = gradedHasBooleanWrite(resolved, units, effect, gradedOppositeBoolean(state)) && operationBodyUnconditional(op, body, actual.position)
-					invalidated[effect] = !acquired[effect]
-				}
-			}
+		selection := gradedCleanupCandidates(op, u, units, actual, byKey)
+		for effect, value := range gradedRustAcquisitionEffects(selection, byKey, units, reset, effects) {
+			acquired[effect] = value && operationBodyUnconditional(op, body, actual.position)
+			invalidated[effect] = !acquired[effect]
 		}
 	}
 	if strings.HasPrefix(actual.name, guard.name+".0.") && actual.position > guard.close {
@@ -151,7 +149,7 @@ func gradedRustReleaseActual(op *operation, u unit, body []token, units []unit, 
 		connected.name = receiver + "." + actual.name[strings.LastIndexByte(actual.name, '.')+1:]
 		matches := gradedCleanupCandidates(op, u, units, connected, byKey)
 		for field := range reset {
-			if len(matches) != 1 || gradedOperationWritesField(matches[0], units[matches[0].file], field) {
+			if matches.count() != 1 || gradedOperationWritesField(matches.unique(), units[matches.unique().file], field) {
 				acquired[field], invalidated[field] = false, true
 			}
 		}
@@ -165,4 +163,23 @@ func gradedRustReleaseActual(op *operation, u unit, body []token, units []unit, 
 		}
 	}
 	return guardCalls
+}
+
+// Candidate order matters: the last candidate that writes a field supplies
+// its state. Cache that position-independent summary once per selected bucket;
+// each actual call still applies its own unconditional-execution check.
+func gradedRustAcquisitionEffects(selection callSelection, index *operationLookup, units []unit, reset map[string]string, cache map[callSelection]map[string]bool) map[string]bool {
+	if effects, ok := cache[selection]; ok {
+		return effects
+	}
+	effects := map[string]bool{}
+	selection.each(index, func(resolved *operation) {
+		for effect, state := range reset {
+			if gradedOperationWritesField(resolved, units[resolved.file], effect) {
+				effects[effect] = gradedHasBooleanWrite(resolved, units, effect, gradedOppositeBoolean(state))
+			}
+		}
+	})
+	cache[selection] = effects
+	return effects
 }

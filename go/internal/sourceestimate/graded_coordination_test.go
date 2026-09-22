@@ -78,7 +78,7 @@ func TestGradeGuaranteedCleanupRequiresActualCleanupCall(t *testing.T) {
 
 func TestGradedDeferDoesNotCaptureFollowingStatements(t *testing.T) {
 	u := gradedSurfaceUnit("go", "example.go", `package sample;type Driver struct{active bool};func(d *Driver)Set(){d.active=true};type Example struct{d Driver};func(e *Example)Process(){defer println("log");e.d.Set()}`)
-	index := map[string][]*operation{}
+	index := newOperationLookup()
 	for _, op := range u.ops {
 		indexOperation(index, op)
 	}

@@ -6,7 +6,7 @@ type typeScriptModuleScan struct {
 	op           *operation
 	storage      map[string]string
 	units        []unit
-	index        map[string][]*operation
+	index        *operationLookup
 	seen         map[string]bool
 	bindings     map[string]string
 	visits       *int
@@ -18,7 +18,7 @@ type typeScriptModuleScan struct {
 	result       map[string]typeScriptModuleUse
 }
 
-func typeScriptModuleUses(op *operation, storage map[string]string, units []unit, index map[string][]*operation, seen map[string]bool, bindings map[string]string, visits *int, depth int) map[string]typeScriptModuleUse {
+func typeScriptModuleUses(op *operation, storage map[string]string, units []unit, index *operationLookup, seen map[string]bool, bindings map[string]string, visits *int, depth int) map[string]typeScriptModuleUse {
 	result := map[string]typeScriptModuleUse{}
 	if depth >= maxCallDepth || seen[op.id] || *visits >= maxCallsPerRoot {
 		return result
@@ -159,11 +159,11 @@ func typeScriptCollectionWrite(body []token, i int, kind string) bool {
 
 func (s *typeScriptModuleScan) followCall(c call) {
 	matches := resolveCall(s.op, c, s.units, s.index)
-	if len(matches) != 1 || matches[0].file != s.op.file || matches[0].owner != "" || matches[0].exposed {
+	if matches.count() != 1 || matches.unique().file != s.op.file || matches.unique().owner != "" || matches.unique().exposed {
 		return
 	}
 	childBindings := map[string]string{}
-	for j, p := range matches[0].paramNames {
+	for j, p := range matches.unique().paramNames {
 		if j >= len(c.actuals) || len(c.actuals[j]) != 1 {
 			continue
 		}
@@ -171,7 +171,7 @@ func (s *typeScriptModuleScan) followCall(c call) {
 			childBindings[p] = root
 		}
 	}
-	for field, use := range typeScriptModuleUses(matches[0], s.storage, s.units, s.index, s.seen, childBindings, s.visits, s.depth+1) {
+	for field, use := range typeScriptModuleUses(matches.unique(), s.storage, s.units, s.index, s.seen, childBindings, s.visits, s.depth+1) {
 		prior := s.result[field]
 		prior.read = prior.read || use.read && typeScriptCallResultObserved(s.body, c)
 		prior.write = prior.write || use.write

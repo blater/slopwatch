@@ -18,7 +18,7 @@ func (f gradedResultFlow) merge(other gradedResultFlow) gradedResultFlow {
 // gradeConnectedResult follows straight-line local values to a final returned
 // expression. Branch bodies and closures are not traversed. The expression
 // budget and depth bound apply to the whole operation, including nested calls.
-func gradeConnectedResult(op *operation, units []unit, byKey map[string][]*operation) (connected, predicateOnly, representationOnly bool) {
+func gradeConnectedResult(op *operation, units []unit, byKey *operationLookup) (connected, predicateOnly, representationOnly bool) {
 	locals := map[string]gradedResultFlow{}
 	for _, name := range op.paramNames {
 		locals[name] = gradedResultFlow{input: true}

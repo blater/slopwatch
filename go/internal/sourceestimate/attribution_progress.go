@@ -146,12 +146,12 @@ func isJavaOrRust(file File) bool {
 	return language == "java" || language == "rust"
 }
 
-func attributionOperationIndex(units []unit) map[string][]*operation {
+func attributionOperationIndex(units []unit) *operationLookup {
 	all := make([]*operation, 0)
 	for _, unit := range units {
 		all = append(all, unit.ops...)
 	}
-	byKey := make(map[string][]*operation, len(all))
+	byKey := newOperationLookup()
 	for _, op := range all {
 		indexOperation(byKey, op)
 	}

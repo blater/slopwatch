@@ -2,12 +2,12 @@ package sourceestimate
 
 import "strings"
 
-func gradedConnectedCleanup(op *operation, u unit, units []unit, body []token, start, end, protectedStart, protectedEnd int, cleanup call, byKey map[string][]*operation, acquisition bool) bool {
+func gradedConnectedCleanup(op *operation, u unit, units []unit, body []token, start, end, protectedStart, protectedEnd int, cleanup call, byKey *operationLookup, acquisition bool) bool {
 	candidates := gradedCleanupCandidates(op, u, units, cleanup, byKey)
-	if len(candidates) != 1 {
+	if candidates.count() != 1 {
 		return false
 	}
-	reset := gradedCleanupResetFields(candidates[0], units)
+	reset := gradedCleanupResetFields(candidates.unique(), units)
 	receiver := cleanup.name[:strings.LastIndexByte(cleanup.name, '.')]
 	acquired, used := map[string]bool{}, map[string]bool{}
 	invalidated := map[string]bool{}
@@ -23,14 +23,14 @@ func gradedConnectedCleanup(op *operation, u unit, units []unit, body []token, s
 			continue
 		}
 		matches := gradedCleanupCandidates(op, u, units, c, byKey)
-		if len(matches) != 1 {
+		if matches.count() != 1 {
 			for field := range reset {
 				acquired[field], invalidated[field] = false, true
 			}
 			continue
 		}
-		other := matches[0]
-		if other.owner != candidates[0].owner || other.pkg != candidates[0].pkg {
+		other := matches.unique()
+		if other.owner != candidates.unique().owner || other.pkg != candidates.unique().pkg {
 			continue
 		}
 		for i, tok := range other.body {

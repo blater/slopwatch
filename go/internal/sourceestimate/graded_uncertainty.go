@@ -76,7 +76,7 @@ func gradedCallResultOnly(op *operation, body []token, c call, local string) boo
 // one credit per unknown call. Already observed duties are not counted again.
 // Calls on owned delegates retain their observable protocol attribution;
 // unrelated calls and discarded results do not acquire this allowance.
-func gradeUnresolvedReturnedDuty(roots []*operation, units []unit, byKey map[string][]*operation, known map[string]float64, p CalibrationProfile) float64 {
+func gradeUnresolvedReturnedDuty(roots []*operation, units []unit, byKey *operationLookup, known map[string]float64, p CalibrationProfile) float64 {
 	allowance := 0.0
 	for _, root := range roots {
 		for _, op := range gradeOwnedOperations(root, units, byKey) {
@@ -98,13 +98,13 @@ func gradeUnresolvedReturnedDuty(roots []*operation, units []unit, byKey map[str
 			if known["coordination"] > 0 && known["validation"] < p.ValidationEnvelope {
 				for _, candidate := range callsIn(normalizedPrunedBody(op)) {
 					dot := strings.LastIndexByte(candidate.name, '.')
-					if dot >= 0 && len(candidate.actuals) > 0 && gradeOwnedReceiver(op, units[op.file], candidate.name[:dot]) && len(resolveCall(op, candidate, units, byKey)) == 0 {
+					if dot >= 0 && len(candidate.actuals) > 0 && gradeOwnedReceiver(op, units[op.file], candidate.name[:dot]) && resolveCall(op, candidate, units, byKey).count() == 0 {
 						allowance = p.ValidationEnvelope - known["validation"]
 					}
 				}
 			}
 			c, ok := gradeUnresolvedResultCall(op)
-			if !ok || len(c.actuals) == 0 || len(resolveCall(op, c, units, byKey)) != 0 {
+			if !ok || len(c.actuals) == 0 || resolveCall(op, c, units, byKey).count() != 0 {
 				continue
 			}
 			if dot := strings.LastIndexByte(c.name, '.'); dot >= 0 && gradeOwnedReceiver(op, units[op.file], c.name[:dot]) {

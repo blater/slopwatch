@@ -2,7 +2,7 @@ package sourceestimate
 
 import "strings"
 
-func gradeOwnedOperations(root *operation, units []unit, byKey map[string][]*operation) []*operation {
+func gradeOwnedOperations(root *operation, units []unit, byKey *operationLookup) []*operation {
 	result := []*operation{}
 	seen := map[string]bool{}
 	var visit func(*operation, int)
@@ -14,8 +14,8 @@ func gradeOwnedOperations(root *operation, units []unit, byKey map[string][]*ope
 		result = append(result, op)
 		for _, c := range callsIn(normalizedPrunedBody(op)) {
 			matches := resolveCall(op, c, units, byKey)
-			if len(matches) == 1 && matches[0].owner == root.owner && !matches[0].exposed {
-				visit(matches[0], depth+1)
+			if matches.count() == 1 && matches.unique().owner == root.owner && !matches.unique().exposed {
+				visit(matches.unique(), depth+1)
 			}
 		}
 	}

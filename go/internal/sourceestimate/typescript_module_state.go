@@ -10,7 +10,7 @@ import (
 // turn a file into an abstraction.
 type typeScriptModuleUse struct{ read, write, scalarState, scalarComputed bool }
 
-func typeScriptModuleGroups(u unit, units []unit, index map[string][]*operation) map[string]string {
+func typeScriptModuleGroups(u unit, units []unit, index *operationLookup) map[string]string {
 	storage := typeScriptModuleStorage(u.tokens)
 	if len(storage) == 0 {
 		return nil

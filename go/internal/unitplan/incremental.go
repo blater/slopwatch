@@ -125,6 +125,7 @@ func effectiveUnit(view unitLookup, id string) (Unit, bool) {
 		unit.Conservative = unit.Conservative || !view.narrow(unit.Language)
 	}
 	raw, _ := view.raw(id)
+	unit.ContextSources = append([]string(nil), unit.ContextSources...)
 	for _, symbol := range raw.DirectDependencies {
 		if (strings.HasPrefix(symbol, "java:project:") || strings.HasPrefix(symbol, "rust:project:")) && !view.narrow(unit.Language) {
 			continue
@@ -135,7 +136,7 @@ func effectiveUnit(view unitLookup, id string) (Unit, bool) {
 		}
 		if target, exists := view.raw(dependency); exists {
 			unit.DirectDependencies = append(unit.DirectDependencies, dependency)
-			unit.ContextSources = append(append([]string(nil), unit.ContextSources...), target.Sources...)
+			unit.ContextSources = append(unit.ContextSources, target.Sources...)
 		}
 	}
 	unit.DirectDependencies = uniqueStrings(unit.DirectDependencies)

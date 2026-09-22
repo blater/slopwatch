@@ -22,7 +22,7 @@ func annotateConstraintWitnesses(units []unit) {
 		}
 
 	}
-	byKey := map[string][]*operation{}
+	byKey := newOperationLookup()
 	for _, u := range units {
 		for _, op := range u.ops {
 			indexOperation(byKey, op)
