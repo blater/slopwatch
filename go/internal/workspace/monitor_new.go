@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/blater/slopwatch/internal/sourcefs"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -43,6 +44,7 @@ func New(cfg Config) (*Monitor, error) {
 			paths: pathPolicy{root: root, classifier: cfg.Classifier},
 			watch: watchManager{
 				backend: backend, ignoreDir: cfg.IgnoreDirectory,
+				fs: sourcefs.Default(cfg.FileSystem), children: map[string]map[string]struct{}{}, complete: map[string]bool{},
 				followSymlinks: cfg.FollowSymlinks, watched: make(map[string]struct{}),
 			},
 			reconcile: cfg.Reconcile,

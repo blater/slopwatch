@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blater/slopwatch/internal/sourcefs"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -129,9 +130,10 @@ type BackendFactory func() (Backend, error)
 
 // Config configures a Monitor.
 type Config struct {
-	Root   string
-	Scopes []Scope
-	Inputs []Input
+	FileSystem sourcefs.FileSystem
+	Root       string
+	Scopes     []Scope
+	Inputs     []Input
 	// DependencyPaths and ConfigurationPaths are convenience forms for
 	// non-recursive explicit inputs. Inputs can be used when a directory needs
 	// recursive tracking or when a caller needs a custom Kind.
@@ -246,6 +248,9 @@ type pathPolicy struct {
 }
 
 type watchManager struct {
+	fs             sourcefs.FileSystem
+	children       map[string]map[string]struct{}
+	complete       map[string]bool
 	paths          *pathPolicy
 	known          map[string]Classification
 	backend        Backend

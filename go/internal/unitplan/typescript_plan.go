@@ -2,6 +2,9 @@ package unitplan
 
 func buildTypeScriptPlan(context plannerContext, options Options) ([]Unit, []Diagnostic) {
 	sources, declarations, configs, diagnostics := collectTSWorkspace(context)
+	if context.retained != nil {
+		context.retained.captureTypeScript(context, options, configs, declarations)
+	}
 	if len(sources) == 0 {
 		return nil, diagnostics
 	}
@@ -23,6 +26,14 @@ func collectTSWorkspace(context plannerContext) ([]string, []string, map[string]
 		if isTypeScriptSource(file) {
 			if isTypeScriptDeclaration(file) {
 				declarations = append(declarations, file)
+				if context.retained != nil {
+					directory, ok := nearestAncestor(pathDirectory(file), context.retained.tsPackages)
+					if !ok {
+						directory = "."
+					}
+					id := "typescript:syntax:" + relativeIDPath(directory)
+					bucketAdd(context.retained.tsDeclarations, id, file)
+				}
 			} else {
 				sources = append(sources, file)
 			}

@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blater/slopwatch/internal/native"
 	"github.com/blater/slopwatch/internal/sourceignore"
-	"github.com/blater/slopwatch/internal/sourcepath"
+	"github.com/blater/slopwatch/internal/unitplan"
 	workspacefs "github.com/blater/slopwatch/internal/workspace"
 )
 
@@ -39,6 +40,7 @@ type sourceWatcher struct {
 	followSymlinks bool
 	languages      map[string]bool
 	scopes         []watchScope
+	outputScopes   []watchScope
 	monitor        *workspacefs.Monitor
 	startOnce      sync.Once
 	closeOnce      sync.Once
@@ -69,7 +71,8 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 	if len(targets) == 0 {
 		targets = []string{"."}
 	}
-	monitorScopes := make([]workspacefs.Scope, 0, len(targets))
+	monitorScopes := []workspacefs.Scope{{Path: root, Recursive: true, Directory: true, Kind: workspacefs.KindSource}}
+	result.scopes = []watchScope{{path: filepath.Clean(root), directory: true}}
 	for _, target := range targets {
 		absolute := target
 		if !filepath.IsAbs(absolute) {
@@ -80,6 +83,12 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 			return nil, err
 		}
 		absolute = filepath.Clean(absolute)
+		result.outputScopes = append(result.outputScopes, watchScope{path: absolute, directory: info.IsDir()})
+		// Explicit entry points remain authorized if replaced by symlinks later.
+		// Completed inventory makes these overlapping scopes registration-only.
+		if absolute == filepath.Clean(root) {
+			continue
+		}
 		result.scopes = append(result.scopes, watchScope{path: absolute, directory: info.IsDir()})
 		monitorScopes = append(monitorScopes, workspacefs.Scope{
 			Path: absolute, Recursive: info.IsDir(), Directory: info.IsDir(), Kind: workspacefs.KindSource,
@@ -112,13 +121,13 @@ func newSourceWatcher(root string, targets []string, includeTests, followSymlink
 				return workspacefs.Classification{}, false
 			}
 			language, ok := languageFor(result, relative)
-			if !ok || len(result.languages) > 0 && !result.languages[language] {
+			if !ok || !native.ContextSourceEligible(relative, language, includeTests) || len(result.languages) > 0 && !result.languages[language] {
 				return workspacefs.Classification{}, false
 			}
 			return workspacefs.Classification{Kind: workspacefs.KindSource, Language: language}, true
 		}),
 		IgnoreDirectory: func(path string, name string) bool {
-			return sourcepath.IsIgnoredDirectory(name) || result.matcher.Ignored(path, true)
+			return unitplan.IgnoredDirectory(name) || result.matcher.Ignored(path, true)
 		},
 	})
 	if err != nil {
@@ -210,4 +219,11 @@ func (watcher *sourceWatcher) ancestorRulesChanged() bool {
 		}
 	}
 	return changed
+}
+
+func (watcher *sourceWatcher) startupMatcher() *sourceignore.Matcher {
+	if watcher == nil {
+		return nil
+	}
+	return watcher.matcher
 }

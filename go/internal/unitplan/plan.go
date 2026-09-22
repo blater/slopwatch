@@ -4,6 +4,7 @@ package unitplan
 
 import (
 	"fmt"
+	"github.com/blater/slopwatch/internal/sourcefs"
 	"github.com/blater/slopwatch/internal/sourceignore"
 	"io/fs"
 	"os"
@@ -53,6 +54,8 @@ const (
 
 // Options controls planning choices which affect analyzer correctness.
 type Options struct {
+	FileSystem       sourcefs.FileSystem
+	BeforeDiscovery  func() error
 	DisableGitignore bool
 	IgnoreMatcher    *sourceignore.Matcher
 	Configuration    *ConfigurationSnapshot
@@ -67,6 +70,8 @@ type Options struct {
 // clean, slash-separated, workspace-relative paths. Lists are sorted and
 // duplicate-free.
 type Unit struct {
+	// Directory retains the actual owner path; IDs are not reversible paths.
+	Directory    string
 	ID           string
 	Language     Language
 	Mode         Mode
@@ -91,6 +96,7 @@ type Diagnostic struct {
 
 // Plan is a deterministic workspace analysis plan.
 type Plan struct {
+	Index       *Index
 	Units       []Unit
 	Diagnostics []Diagnostic
 }
@@ -100,11 +106,16 @@ type Plan struct {
 // filesystem failures are returned because silently omitting source would
 // under-invalidate the cache.
 func PlanWorkspace(root string, options Options) (Plan, error) {
+	if options.BeforeDiscovery != nil {
+		if err := options.BeforeDiscovery(); err != nil {
+			return Plan{}, err
+		}
+	}
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return Plan{}, fmt.Errorf("canonicalize workspace: %w", err)
 	}
-	info, err := os.Stat(absRoot)
+	info, err := sourcefs.Default(options.FileSystem).Stat(absRoot)
 	if err != nil {
 		return Plan{}, fmt.Errorf("inspect workspace: %w", err)
 	}
@@ -112,7 +123,7 @@ func PlanWorkspace(root string, options Options) (Plan, error) {
 		return Plan{}, fmt.Errorf("workspace is not a directory: %s", root)
 	}
 
-	files, err := workspaceFiles(absRoot, options.Targets, options.DisableGitignore, options.IgnoreMatcher)
+	files, err := workspaceFiles(absRoot, options.Targets, options.DisableGitignore, options.IgnoreMatcher, sourcefs.Default(options.FileSystem))
 	if err != nil {
 		return Plan{}, err
 	}
@@ -122,12 +133,22 @@ func PlanWorkspace(root string, options Options) (Plan, error) {
 			return Plan{}, err
 		}
 	}
-	context := plannerContext{root: absRoot, files: files, fileSet: make(map[string]bool, len(files)), configuration: options.Configuration}
+	index := newIndex()
+	context := plannerContext{retained: index, fs: sourcefs.Default(options.FileSystem), root: absRoot, files: files, fileSet: make(map[string]bool, len(files)), configuration: options.Configuration}
 	for _, path := range files {
 		context.fileSet[path] = true
+		if lastPart(path) == "package.json" {
+			index.tsPackages[pathDirectory(path)] = true
+		}
+		if language := SourceLanguage(path); language != "" {
+			index.sources[path] = &Source{Path: path, Language: language}
+			if language == LanguageTypeScript && !isTypeScriptDeclaration(path) {
+				index.tsSourceCount++
+			}
+		}
 	}
 
-	var plan Plan
+	plan := Plan{Index: index}
 	for _, planner := range []func(plannerContext, Options) ([]Unit, []Diagnostic){
 		planGo, planJava, planRust, planTypeScript,
 	} {
@@ -135,11 +156,14 @@ func PlanWorkspace(root string, options Options) (Plan, error) {
 		plan.Units = append(plan.Units, units...)
 		plan.Diagnostics = append(plan.Diagnostics, diagnostics...)
 	}
+	index.captureUnits(plan.Units)
 	finalize(&plan)
 	return plan, nil
 }
 
 type plannerContext struct {
+	retained      *Index
+	fs            sourcefs.FileSystem
 	configuration *ConfigurationSnapshot
 	root          string
 	files         []string
@@ -153,7 +177,7 @@ var ignoredDirectories = map[string]bool{
 	"target": true, "vendor": true,
 }
 
-func workspaceFiles(root string, targets []string, disabled bool, matcher *sourceignore.Matcher) ([]string, error) {
+func workspaceFiles(root string, targets []string, disabled bool, matcher *sourceignore.Matcher, filesystem sourcefs.FileSystem) ([]string, error) {
 	if matcher == nil {
 		var err error
 		matcher, err = sourceignore.New(root, disabled)
@@ -162,14 +186,14 @@ func workspaceFiles(root string, targets []string, disabled bool, matcher *sourc
 		}
 	}
 	var files []string
-	err := walkWorkspaceTree(root, func(path string) error {
+	err := walkWorkspaceTreeFS(filesystem, root, func(path string) error {
 		relative, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
 		files = append(files, cleanPath(relative))
 		return nil
-	}, matcher)
+	}, func(path string, directory bool) bool { return matcher.Ignored(path, directory) })
 	if err != nil {
 		return nil, fmt.Errorf("scan workspace: %w", err)
 	}
@@ -309,7 +333,7 @@ func (context plannerContext) read(path string) ([]byte, error) {
 	if context.configuration != nil && !liveSource(path) {
 		return context.configuration.read(context.root, path)
 	}
-	return os.ReadFile(filepath.Join(context.root, filepath.FromSlash(path)))
+	return sourcefs.Default(context.fs).ReadFile(filepath.Join(context.root, filepath.FromSlash(path)))
 }
 
 func cleanPath(path string) string {
@@ -417,4 +441,39 @@ func populateContextSources(units []Unit, byID map[string]*Unit) {
 			}
 		}
 	}
+}
+
+// Startup traversal uses the same observable boundary as named source reads.
+// Incremental planning never receives or calls this construction helper.
+func walkWorkspaceTreeFS(filesystem sourcefs.FileSystem, start string, addFile func(string) error, ignored func(string, bool) bool) error {
+	if ignored(start, true) {
+		return nil
+	}
+	var walk func(string) error
+	walk = func(directory string) error {
+		entries, err := filesystem.ReadDir(directory)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			path := filepath.Join(directory, entry.Name())
+			if ignored(path, entry.IsDir()) {
+				continue
+			}
+			if entry.IsDir() {
+				if ignoredDirectories[entry.Name()] {
+					continue
+				}
+				if err := walk(path); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := addFile(path); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(start)
 }

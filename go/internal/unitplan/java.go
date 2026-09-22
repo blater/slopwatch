@@ -108,7 +108,7 @@ func javaModuleUnits(
 	var units []Unit
 	for sourceSet, sources := range module.sets {
 		units = append(units, Unit{
-			ID: javaUnitID(module, sourceSet), Language: LanguageJava, Mode: ModeProject,
+			Directory: module.directory, ID: javaUnitID(module, sourceSet), Language: LanguageJava, Mode: ModeProject,
 			Capabilities: javaCapabilities(sourceSet), Sources: sources,
 			ConfigInputs:       configInputs[module.directory],
 			DirectDependencies: javaSourceDependencies(module, sourceSet, mainIDs, localDependencies, narrow),
@@ -148,6 +148,13 @@ func planJava(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 	fallback := javaSources(context, modules, moduleDirs)
 	mainIDs := javaMainIDs(modules)
 	localDependencies, narrow, diagnostics := javaDependencyGraph(context, modules)
+	if context.retained != nil {
+		context.retained.javaModules = modules
+		context.retained.javaConfigs = configInputs
+		context.retained.javaDeps = localDependencies
+		context.retained.javaNarrow = narrow
+		context.retained.javaFallbackConfigs = javaWorkspaceConfigs(context)
+	}
 	if len(fallback) > 0 {
 		narrow = false
 		diagnostics = append(diagnostics, Diagnostic{Path: fallback[0], Message: "Java source outside a recognized build broadened the workspace dependency graph"})

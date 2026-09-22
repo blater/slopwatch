@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/sourcefs"
 	"github.com/blater/slopwatch/internal/sourceignore"
 	"github.com/blater/slopwatch/internal/sourcepath"
 	"github.com/blater/slopwatch/internal/unitplan"
@@ -43,15 +44,20 @@ type Options struct {
 }
 
 type Analyzer struct {
-	workspace string
-	root      string
-	catalog   catalogDocument
-	options   Options
-	optionsMu sync.RWMutex
-	planMu    sync.Mutex
-	plan      *analysisPlanSnapshot
-	cache     analyzerCache
-	runUnits  analyzerUnitsRunner
+	snapshotFileSystem    sourcefs.FileSystem
+	fileSystem            sourcefs.FileSystem
+	beforeDiscovery       func() error
+	beforeSourceDiscovery func() error
+	decorateLookup        func(changeLookup) changeLookup
+	workspace             string
+	root                  string
+	catalog               catalogDocument
+	options               Options
+	optionsMu             sync.RWMutex
+	planMu                sync.Mutex
+	plan                  *analysisPlanSnapshot
+	cache                 analyzerCache
+	runUnits              analyzerUnitsRunner
 }
 
 type analysisEngine Analyzer
@@ -196,10 +202,31 @@ func (analyzer *Analyzer) Analyze(parent context.Context, targets []string, lang
 	analyzer.planMu.Lock()
 	defer analyzer.planMu.Unlock()
 	document, snapshot, err := analyzeWithPlan(analyzer.engine(), parent, targets, languages)
-	if err == nil && snapshot != nil && !snapshot.options.configuration.Unchanged(analyzer.workspace) {
+	installable := err == nil || errors.Is(err, ErrNoSources) && parent.Value(startupProjectionKey{}) == true
+	if installable && snapshot != nil {
+		if verifyErr := verifyInitialSession(analyzer.engine(), snapshot); verifyErr != nil {
+			return report.Document{}, verifyErr
+		}
+	}
+	if installable && snapshot != nil && !snapshot.options.configuration.Unchanged(analyzer.workspace) {
 		return report.Document{}, ErrWorkspaceChanged
 	}
-	if err == nil && snapshot != nil {
+	if installable && snapshot != nil {
+		retry := false
+		for _, diagnostic := range document.Diagnostics {
+			if transientAnalyzerDiagnostic(diagnostic) {
+				retry = true
+			}
+		}
+		if retry {
+			for path := range snapshot.initialInputs {
+				if source, ok := snapshot.index.Source(path); ok {
+					source.NeedsRetry = true
+				}
+			}
+		}
+		snapshot.startupVisible = nil
+		snapshot.initialInputs = nil
 		snapshot.options.ignoreMatcher.Freeze()
 		analyzer.plan = snapshot
 	}
@@ -255,7 +282,10 @@ func analyze(analyzer *analysisEngine, parent context.Context, targets []string,
 func analyzeWithPlan(analyzer *analysisEngine, parent context.Context, targets []string, languages []string) (report.Document, *analysisPlanSnapshot, error) {
 	options := analysisOptions(analyzer, targets, languages)
 	var err error
-	options.ignoreMatcher, err = sourceignore.New(analyzer.workspace, options.DisableGitignore)
+	options.ignoreMatcher, _ = parent.Value(followMatcherKey{}).(*sourceignore.Matcher)
+	if options.ignoreMatcher == nil {
+		options.ignoreMatcher, err = sourceignore.New(analyzer.workspace, options.DisableGitignore)
+	}
 	if err != nil {
 		return report.Document{}, nil, err
 	}
@@ -263,12 +293,16 @@ func analyzeWithPlan(analyzer *analysisEngine, parent context.Context, targets [
 	if err != nil {
 		return report.Document{}, nil, err
 	}
-	if err := requireDiscoveredSources(discovered); err != nil {
-		return report.Document{}, nil, err
+	emptyErr := requireDiscoveredSources(discovered)
+	if emptyErr != nil && parent.Value(startupProjectionKey{}) != true {
+		return report.Document{}, nil, emptyErr
 	}
-	selected, err := selectedLanguages(options.Languages, discovered)
-	if err != nil {
-		return report.Document{}, nil, err
+	selected := options.Languages
+	if emptyErr == nil {
+		selected, err = selectedLanguages(options.Languages, discovered)
+		if err != nil {
+			return report.Document{}, nil, err
+		}
 	}
 	options.configuration = unitplan.NewConfigurationSnapshot()
 	plan, planErr := workspacePlan(analyzer, options)
@@ -280,16 +314,22 @@ func analyzeWithPlan(analyzer *analysisEngine, parent context.Context, targets [
 	var snapshot *analysisPlanSnapshot
 	if planErr == nil {
 		snapshot = newPlanSnapshot(plan, discovered, selected, options)
+		if err := initializeSession(analyzer, snapshot); err != nil {
+			return report.Document{}, nil, err
+		}
+	}
+	if emptyErr != nil {
+		return report.Document{}, snapshot, emptyErr
 	}
 	catalog := activeCatalog(analyzer.catalog, options)
 	// Cache writes and cache reads remain independent. The workspace plan is
 	// captured here for a later incremental refresh; the coordinator reuses it
 	// when cache reads are enabled instead of planning a second time.
 	if persistentCacheEnabled(analyzer, options) {
-		cacheResult := analyzeWithPersistentCache(analyzer, parent, catalog, discovered, selected, options, plan, planErr, options)
+		cacheResult := analyzeWithPersistentCache(analyzer, parent, catalog, discovered, selected, options, plan, planErr, options, snapshot)
 		if cacheResult.handled {
 			if cacheResult.err == nil {
-				snapshot = newPlanSnapshot(cacheResult.plan, cacheResult.discovered, cacheResult.selected, options)
+				snapshot = cacheResult.snapshot
 			}
 			return cacheResult.document, snapshot, cacheResult.err
 		}
@@ -511,6 +551,11 @@ func discoverPolicy(analyzer *analysisEngine, targets []string, includeTests, fo
 }
 
 func discoverPolicyWithMissingTargets(analyzer *analysisEngine, targets []string, includeTests, followSymlinks, disableGitignore, missingTargetsOK bool, matchers ...*sourceignore.Matcher) (map[string][]string, error) {
+	if analyzer.beforeSourceDiscovery != nil {
+		if err := analyzer.beforeSourceDiscovery(); err != nil {
+			return nil, err
+		}
+	}
 	var matcher *sourceignore.Matcher
 	if len(matchers) > 0 && matchers[0] != nil {
 		matcher = matchers[0]

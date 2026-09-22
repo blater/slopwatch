@@ -1,55 +1,84 @@
 package workspace
 
-import "os"
+import (
+	"errors"
+	"fmt"
+	"os"
+)
 
 func (m *Monitor) handle(event Event) { m.engine.events.handle(event) }
-
 func (m *eventManager) handle(event Event) {
 	if event.Name == "" || event.Op == 0 {
 		return
 	}
 	path := m.paths.absolute(event.Name)
-	if m.handleDirectoryEvent(path, event) {
-		return
-	}
 	reason := eventReason(event.Op)
 	if reason == 0 {
 		return
 	}
-	m.markPath(path, reason, false)
-	if event.Op&(OpRemove|OpRename) != 0 {
-		m.watch.mu.Lock()
-		delete(m.watch.known, path)
-		m.watch.mu.Unlock()
-	} else {
-		m.watch.remember(path)
+	wasDirectory := m.watch.isWatched(path)
+	info, err := m.watch.fs.Lstat(path)
+	ignoredLink := err == nil && info.Mode()&os.ModeSymlink != 0 && !m.watch.followSymlinks && !m.paths.explicitTarget(path)
+	if err == nil && info.Mode()&os.ModeSymlink != 0 && !ignoredLink {
+		info, err = m.watch.fs.Stat(path)
 	}
-}
-
-func (m *eventManager) handleDirectoryEvent(path string, event Event) bool {
-	isDirectory := event.IsDir || m.watch.isWatched(path)
-	if !isDirectory {
-		if info, err := os.Stat(path); err == nil {
-			isDirectory = info.IsDir()
-		}
+	exists := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		m.markError(err, false)
+		return
 	}
-	if !isDirectory {
-		return false
-	}
-	if event.Op&(OpRemove|OpRename) != 0 {
-		paths, err := m.watch.removeTree(path)
+	isDirectory := exists && !ignoredLink && info.IsDir()
+	replacement := event.Op&(OpRemove|OpRename) != 0
+	if wasDirectory && (!isDirectory || replacement) {
+		paths, removeErr := m.watch.removeTree(path)
 		for _, old := range paths {
-			m.markPath(old, eventReason(event.Op)|ReasonDirectory, false)
+			m.markPath(old, reason|ReasonDirectory, false)
 		}
-		if err != nil {
-			m.markError(err, false)
+		if removeErr != nil {
+			m.markError(removeErr, false)
 		}
-	} else if event.Op&OpCreate != 0 {
-		m.handleCreatedDirectory(path)
 	}
-	return true
+	if path == m.paths.root && wasDirectory && (!isDirectory || replacement) {
+		m.markError(fmt.Errorf("workspace root was removed or replaced; restart required: %s", path), true)
+		return
+	}
+	if ignoredLink {
+		m.watch.mu.RLock()
+		_, known := m.watch.known[path]
+		m.watch.mu.RUnlock()
+		if known {
+			m.markPath(path, reason, false)
+			m.watch.forget(path)
+		}
+		return
+	}
+	if isDirectory {
+		m.watch.mu.RLock()
+		_, wasFile := m.watch.known[path]
+		m.watch.mu.RUnlock()
+		if wasFile {
+			m.markPath(path, reason, false)
+			m.watch.forget(path)
+		}
+		// A root notification is never authority to rediscover the workspace.
+		if path == m.paths.root {
+			return
+		}
+		if event.Op&OpCreate != 0 || replacement || !wasDirectory {
+			m.handleCreatedDirectory(path)
+		}
+		return
+	}
+	if wasDirectory && !exists {
+		return
+	}
+	m.markPath(path, reason, false)
+	if exists {
+		m.watch.remember(path)
+	} else {
+		m.watch.forget(path)
+	}
 }
-
 func eventReason(operation Op) Reason {
 	var reason Reason
 	if operation&OpWrite != 0 {
@@ -65,4 +94,18 @@ func eventReason(operation Op) Reason {
 		reason |= ReasonRename
 	}
 	return reason
+}
+
+func (m *pathPolicy) explicitTarget(path string) bool {
+	for _, scope := range m.scopes {
+		if scope.Path == path {
+			return true
+		}
+	}
+	for _, input := range m.inputs {
+		if input.Path == path {
+			return true
+		}
+	}
+	return false
 }

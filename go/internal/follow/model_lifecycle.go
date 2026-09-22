@@ -9,6 +9,7 @@ import (
 
 	"github.com/blater/slopwatch/internal/native"
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/sourceignore"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -76,12 +77,15 @@ func startupAnalysisCommand(analyzer Analyzer, targets []string) tea.Cmd {
 	return startupAnalysisCommandWithProgress(analyzer, targets, nil)
 }
 
-func startupAnalysisCommandWithProgress(analyzer Analyzer, targets []string, emit func(report.Document)) tea.Cmd {
+func startupAnalysisCommandWithProgress(analyzer Analyzer, targets []string, emit func(report.Document), matchers ...*sourceignore.Matcher) tea.Cmd {
 	if startup, ok := analyzer.(interface {
 		AnalyzeStartup(context.Context, []string) (report.Document, error)
 	}); ok {
 		return func() tea.Msg {
 			ctx := context.Background()
+			if len(matchers) > 0 {
+				ctx = native.WithFollowMatcher(ctx, matchers[0])
+			}
 			if emit != nil {
 				ctx = native.WithAnalysisProgress(ctx, emit)
 			}

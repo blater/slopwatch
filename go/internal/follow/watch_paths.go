@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/blater/slopwatch/internal/native"
 	"github.com/blater/slopwatch/internal/sourcepath"
+	"github.com/blater/slopwatch/internal/unitplan"
 )
 
 func (watcher *sourceWatcher) eligible(path string) (string, string, bool) {
@@ -33,8 +35,7 @@ func excluded(watcher *sourceWatcher, relative string) bool {
 	}
 	parts := strings.Split(filepath.ToSlash(relative), "/")
 	for _, part := range parts[:max(0, len(parts)-1)] {
-		lower := strings.ToLower(part)
-		if sourcepath.IsIgnoredDirectory(lower) || !watcher.includeTests && testDirectories[lower] {
+		if unitplan.IgnoredDirectory(part) {
 			return true
 		}
 	}
@@ -82,14 +83,15 @@ func eligible(watcher *sourceWatcher, path string) (string, string, bool) {
 		return "", "", false
 	}
 	language, ok := languageFor(watcher, relative)
-	if !ok || len(watcher.languages) > 0 && !watcher.languages[language] {
+	if !ok || !native.ContextSourceEligible(relative, language, watcher.includeTests) || len(watcher.languages) > 0 && !watcher.languages[language] {
 		return "", "", false
 	}
 	return filepath.ToSlash(relative), language, true
 }
 
 func isNestedSymlink(watcher *sourceWatcher, path string) bool {
-	for _, scope := range watcher.scopes {
+	for i := len(watcher.scopes) - 1; i >= 0; i-- {
+		scope := watcher.scopes[i]
 		if !scope.directory {
 			if filepath.Clean(path) == scope.path {
 				return false

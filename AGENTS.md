@@ -20,6 +20,18 @@ merely displaying the known misleading recognition-only 100 estimates. Deliver
 a defensible bounded approximation across Java, TypeScript, Go and Rust.
 Preserve honest evidence metadata and separate safety gates for automated fixes.
 
+## No post-startup discovery (user mandate, 2026-09-22)
+
+After startup, source changes must not trigger workspace-wide discovery or
+planning scans. Maintain the file inventory, ownership and dependency indexes
+from filesystem events. Existing-file edits must not enumerate directories or
+reread unrelated sources for planning. New-directory enumeration is limited to
+that new subtree; deletion uses known paths. Do not substitute whole-inventory
+in-memory replanning for filesystem scans. No full-scan fallback, reconciliation
+scan or background audit may bypass this requirement. Removing full rescoring
+alone does not satisfy incremental refresh. Retain `.gitignore` monitoring for
+now; its changes must not cause a full refresh or discovery scan.
+
 ## One test entry point (user mandate, 2026-09-19)
 
 Local builds, CI, and releases must use the exact same command: `make build`,

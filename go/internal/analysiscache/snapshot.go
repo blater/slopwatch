@@ -18,6 +18,12 @@ import (
 // new workspace view rather than analyze a mixed snapshot.
 var ErrWorkspaceSnapshotChanged = errors.New("workspace changed while materializing analysis snapshot")
 
+// WorkspaceSnapshotChangedError retains the exact known inputs for named retry.
+type WorkspaceSnapshotChangedError struct{ Paths []string }
+
+func (err *WorkspaceSnapshotChangedError) Error() string { return ErrWorkspaceSnapshotChanged.Error() }
+func (err *WorkspaceSnapshotChangedError) Unwrap() error { return ErrWorkspaceSnapshotChanged }
+
 // SnapshotFile maps a workspace-relative path to a verified source blob.
 type SnapshotFile struct {
 	Path   string `json:"path"`
@@ -169,28 +175,31 @@ func (store *Store) MaterializeWorkspaceSnapshot(ctx context.Context, workspace 
 		if len(captured) > 0 {
 			if contents, ok := captured[0][file.Path]; ok {
 				if DigestBytes(contents) != file.Digest {
-					return nil, ErrWorkspaceSnapshotChanged
+					return nil, &WorkspaceSnapshotChangedError{Paths: []string{file.Path}}
 				}
 				return contents, nil
 			}
 		}
 		path := filepath.Join(workspace, filepath.FromSlash(file.Path))
-		metadata, readErr := os.Lstat(path)
+		metadata, readErr := snapshotFileSystem(ctx).Lstat(path)
 		if readErr != nil {
 			if errors.Is(readErr, os.ErrNotExist) {
-				return nil, ErrWorkspaceSnapshotChanged
+				return nil, &WorkspaceSnapshotChangedError{Paths: []string{file.Path}}
 			}
 			return nil, readErr
 		}
 		if metadata.Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("snapshot input is symlinked: %s", file.Path)
 		}
-		contents, readErr := os.ReadFile(path)
+		contents, readErr := snapshotFileSystem(ctx).ReadFile(path)
 		if readErr != nil {
+			if errors.Is(readErr, os.ErrNotExist) {
+				return nil, &WorkspaceSnapshotChangedError{Paths: []string{file.Path}}
+			}
 			return nil, readErr
 		}
 		if DigestBytes(contents) != file.Digest {
-			return nil, ErrWorkspaceSnapshotChanged
+			return nil, &WorkspaceSnapshotChangedError{Paths: []string{file.Path}}
 		}
 		return contents, nil
 	})

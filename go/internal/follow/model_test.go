@@ -2309,7 +2309,7 @@ func TestWatcherExcludesTestsByConvention(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer watcher.close()
-	for _, path := range []string{"x_test.go", "tests/x.java", "x.spec.ts"} {
+	for _, path := range []string{"x_test.go", "src/test/java/X.java", "x.spec.ts"} {
 		if _, _, ok := watcher.eligible(filepath.Join(root, filepath.FromSlash(path))); ok {
 			t.Fatalf("test source %q was eligible", path)
 		}
@@ -2357,7 +2357,7 @@ func TestWatcherStartsWithExplicitSymlinkDirectoryTarget(t *testing.T) {
 	}
 }
 
-func TestFileTargetDoesNotWatchItsSiblings(t *testing.T) {
+func TestFileTargetObservesSiblingContext(t *testing.T) {
 	root := t.TempDir()
 	target := filepath.Join(root, "selected.go")
 	if err := os.WriteFile(target, []byte("package selected\n"), 0o600); err != nil {
@@ -2368,8 +2368,8 @@ func TestFileTargetDoesNotWatchItsSiblings(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer watcher.close()
-	if _, _, ok := watcher.eligible(filepath.Join(root, "sibling.go")); ok {
-		t.Fatal("a sibling escaped the exact-file watch scope")
+	if _, _, ok := watcher.eligible(filepath.Join(root, "sibling.go")); !ok {
+		t.Fatal("workspace context source was not observable")
 	}
 	if _, _, ok := watcher.eligible(target); !ok {
 		t.Fatal("the exact file target was not eligible")

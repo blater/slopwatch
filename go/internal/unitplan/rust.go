@@ -24,6 +24,22 @@ func planRust(context plannerContext, _ Options) ([]Unit, []Diagnostic) {
 	mainIDs := rustMainIDs(packages)
 	localDependencies, narrow, diagnostics := cargoDependencyGraph(context, packages)
 	configInputs := rustConfigInputsByPackage(context, packages)
+	if context.retained != nil {
+		index := context.retained
+		index.rustPackages = packages
+		index.rustConfigs = configInputs
+		index.rustDeps = localDependencies
+		index.rustNarrow = narrow
+		index.rustFallbackConfigs = rustWorkspaceConfigs(context)
+		for directory, pkg := range packages {
+			index.rustMembers[directory] = map[string]bool{}
+			for _, path := range pkg.sources {
+				index.rustMembers[directory][path] = true
+			}
+			data, _ := context.read(pkg.manifest)
+			index.rustExplicit[directory] = explicitCargoTargets(string(data), pkg)
+		}
+	}
 	if len(fallback) > 0 {
 		narrow = false
 		diagnostics = append(diagnostics, rustFallbackDiagnostic(fallback[0]))
@@ -106,7 +122,7 @@ func rustUnits(packages map[string]*rustPackage, localDependencies map[string]ca
 
 func rustUnit(pkg *rustPackage, target rustTarget, localDependencies map[string]cargoDependencies, narrow bool, configs []string, mainIDs map[string]string) Unit {
 	return Unit{
-		ID: rustUnitID(pkg, target), Language: LanguageRust, Mode: ModeProject,
+		Directory: pkg.directory, ID: rustUnitID(pkg, target), Language: LanguageRust, Mode: ModeProject,
 		Capabilities: rustCapabilities(target), Sources: rustTargetSources(pkg, target),
 		ContextSources: pkg.sources, ConfigInputs: configs,
 		DirectDependencies: rustDependencies(pkg, target, localDependencies, narrow, mainIDs),

@@ -32,6 +32,7 @@ type cachePreparation struct {
 var ErrWorkspaceChanged = errors.New("workspace changed while analysis snapshot was running")
 
 type persistentAnalysisResult struct {
+	snapshot   *analysisPlanSnapshot
 	document   report.Document
 	handled    bool
 	err        error
@@ -40,7 +41,7 @@ type persistentAnalysisResult struct {
 	selected   []string
 }
 
-func analyzeWithPersistentCache(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options, plan unitplan.Plan, planErr error, planningOptions Options) persistentAnalysisResult {
+func analyzeWithPersistentCache(analyzer *analysisEngine, parent context.Context, catalog catalogDocument, discovered map[string][]string, selected []string, options Options, plan unitplan.Plan, planErr error, planningOptions Options, snapshot *analysisPlanSnapshot) persistentAnalysisResult {
 	for attempt := 0; attempt < 2; attempt++ {
 		if !options.ignoreMatcher.Unchanged() {
 			return persistentAnalysisResult{handled: true, err: ErrWorkspaceChanged}
@@ -60,12 +61,17 @@ func analyzeWithPersistentCache(analyzer *analysisEngine, parent context.Context
 			if err != nil {
 				return persistentAnalysisResult{handled: true, err: err}
 			}
+			snapshot = newPlanSnapshot(attemptPlan, attemptDiscovered, attemptSelected, options)
+			if err := initializeSession(analyzer, snapshot); err != nil {
+				return persistentAnalysisResult{handled: true, err: err}
+			}
 		}
 		result := analyzeWithPersistentCacheOnce(analyzer, parent, catalog, attemptDiscovered, attemptSelected, options, attemptPlan, planErr)
 		if errors.Is(result.err, ErrWorkspaceChanged) && attempt == 0 {
 			continue
 		}
 		result.plan, result.discovered, result.selected = attemptPlan, attemptDiscovered, attemptSelected
+		result.snapshot = snapshot
 		return result
 	}
 	return persistentAnalysisResult{handled: true, err: ErrWorkspaceChanged}
