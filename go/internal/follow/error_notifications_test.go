@@ -20,8 +20,9 @@ func TestSavedJobErrorsDoNotReappearOnStartupOrRefresh(t *testing.T) {
 	service := &fakeFixService{jobs: fixapp.JobListSnapshot{Jobs: []fix.JobPresentation{job}}}
 	for launch := 0; launch < 2; launch++ {
 		model := fixTestModel(service, 80, 24)
+		model.Update(initialFixJobsCommand(service)())
 		for refresh := 0; refresh < 2; refresh++ {
-			model.Update(initialFixJobsCommand(service)())
+			model.Update(fixJobsMsg{jobs: service.jobs.Jobs})
 			if model.runtimeError != "" || overlayPresent(model.overlays, OverlayRuntimeError) {
 				t.Fatal("saved job issue opened an error popup")
 			}
@@ -29,6 +30,30 @@ func TestSavedJobErrorsDoNotReappearOnStartupOrRefresh(t *testing.T) {
 				t.Fatal("job details were lost")
 			}
 		}
+	}
+}
+
+func TestNewJobErrorsStillNotifyAndDismiss(t *testing.T) {
+	service := &fakeFixService{}
+	model := fixTestModel(service, 80, 24)
+	model.Update(initialFixJobsCommand(service)())
+	job := fix.JobPresentation{ID: "new-job", Phase: fix.PhaseFailed, Issue: &fix.JobIssue{Summary: "New failure"}}
+	for _, summary := range []string{"New failure", "Different failure"} {
+		job.Issue = &fix.JobIssue{Summary: summary}
+		message := fixJobsMsg{jobs: []fix.JobPresentation{job}}
+		model.Update(message)
+		if !strings.Contains(model.runtimeError, summary) || !overlayPresent(model.overlays, OverlayRuntimeError) {
+			t.Fatal("new job error did not show a popup")
+		}
+		model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		model.Update(message)
+		if model.runtimeError != "" || overlayPresent(model.overlays, OverlayRuntimeError) {
+			t.Fatal("unchanged dismissed job error appeared again")
+		}
+	}
+	showRuntimeError(&model, errors.New("Current operation failed"))
+	if model.runtimeError != "Current operation failed" || !overlayPresent(model.overlays, OverlayRuntimeError) {
+		t.Fatal("direct runtime error was suppressed")
 	}
 }
 

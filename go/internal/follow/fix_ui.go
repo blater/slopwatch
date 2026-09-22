@@ -133,8 +133,9 @@ type fixTargetPreferenceSavedMsg struct {
 }
 
 type fixJobsMsg struct {
-	jobs []fix.JobPresentation
-	err  error
+	jobs    []fix.JobPresentation
+	err     error
+	initial bool
 }
 
 type fixCommandMsg struct {
@@ -333,7 +334,7 @@ func overlayPresent(stack OverlayStack, kind OverlayKind) bool {
 func initialFixJobsCommand(service FixService) tea.Cmd {
 	return func() tea.Msg {
 		snapshot := service.Jobs(fixapp.JobFilter{IncludeFinished: true})
-		return fixJobsMsg{jobs: snapshot.Jobs}
+		return fixJobsMsg{jobs: snapshot.Jobs, initial: true}
 	}
 }
 
@@ -343,6 +344,9 @@ func (model *Model) handleFixJobs(message fixJobsMsg) tea.Cmd {
 	}
 	model.fixNotice = model.fixUpdates.clearError(model.fixNotice)
 	model.runtime.fixErrorSummary = ""
+	if !message.initial {
+		showJobErrors(model, message.jobs)
+	}
 	previousMonitorUpdate, previousLogUpdate := model.openFixSurfaceUpdates()
 	model.agents.setPresentations(message.jobs, makeAgentLayout(model.width, model.height, bodyHeight(model.mainView, model.height)))
 	monitorCommand, logCommand := model.refreshOpenFixSurfaces(previousMonitorUpdate, previousLogUpdate)
