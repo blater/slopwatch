@@ -84,12 +84,12 @@ func TestProjectExclusionsReconcileCachedRows(t *testing.T) {
 	analyzer := startupProjectionFixture(t)
 	writeTestFile(t, analyzer.workspace, ".slopwatch.toml", "[files]\nexclude = 'kept.java'\n")
 	document, ok := analyzer.CachedProjection()
-	if !ok || len(document.Files) != 1 || document.Files[0].Path != "new.java" {
+	if !ok || len(document.Files) != 1 || document.Files[0].Path != "deleted.java" {
 		t.Fatalf("excluded cached row leaked: %+v %v", document.Files, ok)
 	}
 	writeTestFile(t, analyzer.workspace, ".slopwatch.toml", "[files]\nexclude = ''\n")
 	document, ok = analyzer.CachedProjection()
 	if !ok || len(document.Files) != 2 {
-		t.Fatalf("removed exclusion did not restore inventory: %+v %v", document.Files, ok)
+		t.Fatalf("removed exclusion did not restore cached inventory: %+v %v", document.Files, ok)
 	}
 }

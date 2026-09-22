@@ -18,13 +18,41 @@ import (
 	"github.com/blater/slopwatch/internal/unitplan"
 )
 
-func TestStartupProjectionIsReconciledWithCurrentSourceInventory(t *testing.T) {
+func TestStartupProjectionPreservesCachedRowsWithoutDiscovery(t *testing.T) {
 	analyzer := startupProjectionFixture(t)
+	analyzer.beforeSourceDiscovery = func() error {
+		t.Fatal("cached projection attempted source discovery")
+		return errors.New("forbidden source discovery")
+	}
 	document, ok := analyzer.CachedProjection()
 	if !ok {
-		t.Fatal("current inventory rejected a readable startup projection")
+		t.Fatal("cached rows rejected a readable startup projection")
 	}
 	assertStartupProjection(t, document)
+}
+
+func TestInitialAnalysisReconcilesProvisionalStartupInventory(t *testing.T) {
+	analyzer := startupProjectionFixture(t)
+	provisional, ok := analyzer.CachedProjection()
+	if !ok {
+		t.Fatal("missing startup projection")
+	}
+	assertStartupProjection(t, provisional)
+	calls := 0
+	analyzer.runUnits = countingFakeBatchRunner(t, &calls)
+
+	document := analyzeTestDocument(t, analyzer)
+	paths := make([]string, 0, len(document.Files))
+	for _, file := range document.Files {
+		paths = append(paths, file.Path)
+		if file.Freshness == report.FreshnessProvisional {
+			t.Fatalf("initial analysis retained provisional row: %#v", file)
+		}
+	}
+	sort.Strings(paths)
+	if !reflect.DeepEqual(paths, []string{"kept.java", "new.java"}) || calls != 1 {
+		t.Fatalf("initial analysis inventory = %v, analyzer calls = %d", paths, calls)
+	}
 }
 
 func startupProjectionFixture(t *testing.T) *Analyzer {
@@ -37,7 +65,10 @@ func startupProjectionFixture(t *testing.T) *Analyzer {
 		t.Fatal(err)
 	}
 	options := Options{Targets: []string{"."}, Languages: []string{"java"}, ReadCache: true, ShallowProfile: ShallowProfileLegacy}
-	analyzer := newCacheTestAnalyzer(t, workspace, options, store, goTestCatalog())
+	catalog := goTestCatalog()
+	catalog.Languages = []string{"java"}
+	catalog.Components[0].Support = map[string]string{"java": "supported"}
+	analyzer := newCacheTestAnalyzer(t, workspace, options, store, catalog)
 	view, err := analyzer.viewKey(options)
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +77,7 @@ func startupProjectionFixture(t *testing.T) *Analyzer {
 		{Path: "kept.java", Language: "java", Complete: true, Score: 12},
 		{Path: "deleted.java", Language: "java", Complete: true, Score: 34},
 	}}
-	schema, hash, profile, policy, err := reportIdentity(activeCatalog(goTestCatalog(), options))
+	schema, hash, profile, policy, err := reportIdentity(activeCatalog(catalog, options))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +98,7 @@ func startupProjectionFixture(t *testing.T) *Analyzer {
 func assertStartupProjection(t *testing.T, document report.Document) {
 	t.Helper()
 	if len(document.Files) != 2 {
-		t.Fatalf("startup files = %d, want current inventory of 2", len(document.Files))
+		t.Fatalf("startup files = %d, want cached inventory of 2", len(document.Files))
 	}
 	byPath := map[string]report.File{}
 	for _, file := range document.Files {
@@ -76,11 +107,19 @@ func assertStartupProjection(t *testing.T, document report.Document) {
 	if byPath["kept.java"].Score != 12 || !byPath["kept.java"].Complete {
 		t.Fatalf("cached row was not preserved: %#v", byPath["kept.java"])
 	}
-	if file, exists := byPath["new.java"]; !exists || file.Complete || file.Freshness != report.FreshnessProvisional {
-		t.Fatalf("new source was not added provisionally: %#v", file)
+	if byPath["deleted.java"].Score != 34 || !byPath["deleted.java"].Complete {
+		t.Fatalf("missing cached row was not preserved: %#v", byPath["deleted.java"])
 	}
-	if _, exists := byPath["deleted.java"]; exists {
-		t.Fatal("deleted source remained in startup projection")
+	if _, exists := byPath["new.java"]; exists {
+		t.Fatal("uncached source appeared before initial analysis")
+	}
+	for _, file := range document.Files {
+		if file.Freshness != report.FreshnessProvisional || file.FreshnessNote != "validating current workspace" {
+			t.Fatalf("cached row is not explicitly provisional: %#v", file)
+		}
+	}
+	if document.Summary["cache_state"] != "provisional" || document.Summary["discovered_source_count"] != 2 {
+		t.Fatalf("startup summary = %#v", document.Summary)
 	}
 }
 

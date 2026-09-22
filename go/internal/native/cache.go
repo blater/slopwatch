@@ -5,6 +5,7 @@ import (
 
 	"github.com/blater/slopwatch/internal/analysiscache"
 	"github.com/blater/slopwatch/internal/report"
+	"github.com/blater/slopwatch/internal/sourceignore"
 )
 
 type analyzerCache struct {
@@ -106,16 +107,20 @@ func cachedProjection(analyzer *analysisEngine) (report.Document, bool) {
 	if !ok {
 		return report.Document{}, false
 	}
-	discovered, err := discoverPolicy(analyzer, options.Targets, options.IncludeTests, options.FollowSymlinks, options.DisableGitignore)
-	if err != nil {
-		return report.Document{}, false
-	}
-	selected, err := selectedLanguages(options.Languages, discovered)
+	matcher, err := sourceignore.New(analyzer.workspace, options.DisableGitignore)
 	if err != nil {
 		return report.Document{}, false
 	}
 	document := projectionDocument(projection)
-	document.Files = reconcileProjectionInventory(document.Files, discovered, selected)
+	// Filter only cached paths. Initial analysis reconciles the source inventory
+	// after the dashboard opens; missing cached sources remain provisional.
+	files := document.Files[:0]
+	for _, file := range document.Files {
+		if !matcher.Ignored(file.Path, false) {
+			files = append(files, file)
+		}
+	}
+	document.Files = files
 	document.Summary["discovered_source_count"] = len(document.Files)
 	for index := range document.Files {
 		document.Files[index].Freshness = report.FreshnessProvisional
@@ -123,32 +128,6 @@ func cachedProjection(analyzer *analysisEngine) (report.Document, bool) {
 	}
 	document.SortAndRank()
 	return document, true
-}
-
-func reconcileProjectionInventory(cached []report.File, discovered map[string][]string, selected []string) []report.File {
-	byPath := make(map[string]report.File, len(cached))
-	for _, file := range cached {
-		byPath[file.Path] = file
-	}
-	count := 0
-	for _, language := range selected {
-		count += len(discovered[language])
-	}
-	files := make([]report.File, 0, count)
-	for _, language := range selected {
-		for _, path := range discovered[language] {
-			file, exists := byPath[path]
-			if !exists {
-				file = report.File{
-					Path: path, Language: language, Complete: false,
-					Components: map[string]report.Component{}, Coverage: map[string]string{},
-					Axes: map[string]float64{}, ObservedAxes: map[string]float64{},
-				}
-			}
-			files = append(files, file)
-		}
-	}
-	return files
 }
 
 func persistProjection(analyzer *analysisEngine, document report.Document, options Options) {

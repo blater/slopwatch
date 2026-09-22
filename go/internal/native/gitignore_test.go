@@ -127,9 +127,9 @@ func TestRuleEditCannotRestoreIgnoredCachedProjectionRow(t *testing.T) {
 	writeTestFile(t, analyzer.workspace, ".gitignore", "kept.java\n")
 	document, ok := analyzer.CachedProjection()
 	if !ok {
-		t.Fatal("stable view should reconcile its current inventory")
+		t.Fatal("stable view should filter its cached inventory")
 	}
-	if len(document.Files) != 1 || document.Files[0].Path != "new.java" {
+	if len(document.Files) != 1 || document.Files[0].Path != "deleted.java" {
 		t.Fatalf("ignored cached row leaked: %+v", document.Files)
 	}
 }

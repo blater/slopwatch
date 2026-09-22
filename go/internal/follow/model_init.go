@@ -70,7 +70,6 @@ func New(document report.Document, analyzer Analyzer, options Options) (*Model, 
 	if controller, ok := analyzer.(typeScriptTypesController); ok {
 		controller.SetTypeScriptTypes(typeScriptTypesWanted(*model))
 	}
-	rebuildWeightedDocument(model)
 	if len(model.files.Document.Files) > 0 {
 		model.files.Selected = model.files.Document.Files[0].Path
 	}
