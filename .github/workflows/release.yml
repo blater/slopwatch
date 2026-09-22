@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to publish or republish, such as v0.2.0
+        description: Existing release tag to build or rebuild, such as v0.2.0
         required: true
         type: string
 
@@ -22,7 +22,6 @@ jobs:
     runs-on: macos-15
     permissions:
       contents: write
-      actions: read
     steps:
       - name: Check out release tag
         uses: actions/checkout@v6
@@ -45,12 +44,31 @@ jobs:
           }
           echo "VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
 
-      - name: Retrieve CI-validated distribution for release commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SLOPWATCH_SOURCE_REPOSITORY: ${{ github.repository }}
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: analyzers/typescript/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Run standard tests and package distribution
         shell: bash
-        run: ./util/download-release-artifact.sh "$VERSION"
+        run: |
+          set -euo pipefail
+          go -C go mod download
+          make build
 
       - name: Create or update GitHub release
         env:

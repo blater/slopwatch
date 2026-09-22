@@ -34,18 +34,13 @@ now; its changes must not cause a full refresh or discovery scan.
 
 ## One test entry point (user mandate, 2026-09-19)
 
-Local builds and CI must use the exact same command: `make build`, with no
-workflow-specific flags or parameters. Plain `make` invokes it too. The Makefile
-owns orchestration: build, package, and run the full test suite, including
-packaged-distribution smoke tests. Keep shared test implementations in the repository
-and invoke them through this common path. Preserve build caches; use
-`make test-clean` explicitly when a clean run is needed.
-
-Deployment (newer user mandate, 2026-09-22) publishes the existing successful
-push/manual CI artifact for the exact release commit. It must not compile,
-install toolchains, run functional tests or packaged binaries, or repackage the
-archive. It may rename the archive and update the checksum filename while
-preserving tested bytes. Missing, failed or expired CI artifacts stop deployment;
-there is no deployment build fallback. Retain tag, credential, provenance,
-checksum and Homebrew formula style checks. Publishing credentials and network
+Local builds, CI, and releases must use the exact same command: `make build`,
+with no workflow-specific flags or parameters. Plain `make` invokes it too.
+The Makefile owns orchestration: build, package, and run the full test
+suite, including packaged-distribution smoke tests. Never add tests, fixtures,
+or assertions to release YAML or a release-only test path. Keep shared test
+implementations in the repository and invoke them through this common path.
+The release environment may supply VERSION solely to name the archive. Publish
+that tested archive without rebuilding it. Preserve build caches; use
+`make test-clean` explicitly when a clean run is needed. Publishing credentials and network
 availability are external requirements, not additional test suites.

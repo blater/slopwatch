@@ -29,12 +29,6 @@ Run this script locally from a clean working tree. It pushes the current branch,
 creates and pushes the release tag, then monitors the tag-triggered GitHub
 Release workflow. After that workflow publishes the Slopwatch bundle, the
 script verifies the GitHub release and Homebrew tap update.
-
-Deployment requires a successful push/manual CI run for the exact tag commit
-and its unexpired validated archive. It waits for matching CI already running;
-it never builds or runs functional tests. Pushing main starts CI. For another
-branch or an expired artifact, explicitly run the CI workflow on that commit's
-branch/tag first, then deploy. A successful matching CI build is required.
 USAGE
 }
 
