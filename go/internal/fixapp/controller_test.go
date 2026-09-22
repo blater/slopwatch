@@ -131,18 +131,6 @@ func (service *changingCandidates) Diff(context.Context, fix.CandidateIdentity) 
 	return service.snapshot, nil
 }
 
-type discoveringCandidates struct {
-	fakeCandidates
-	identity fix.CandidateIdentity
-}
-
-func (service discoveringCandidates) DiscoverPrepared(_ context.Context, request candidate.PrepareRequest) (fix.CandidateIdentity, bool, error) {
-	if request.Job == service.identity.Job {
-		return service.identity, true, nil
-	}
-	return fix.CandidateIdentity{}, false, nil
-}
-
 func (fakeCandidates) Prepare(_ context.Context, request candidate.PrepareRequest) (fix.CandidateIdentity, error) {
 	return fix.CandidateIdentity{Job: request.Job, WorkspaceMode: request.Mode, Repository: request.Workspace.Repository, RepositoryRoot: "/candidate/" + string(request.Job), AnalysisRoot: "/candidate/" + string(request.Job), BaseCommit: request.Workspace.BaseCommit}, nil
 }

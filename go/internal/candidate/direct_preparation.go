@@ -14,7 +14,7 @@ func (service *DirectService) Prepare(ctx context.Context, request PrepareReques
 	if !validJobID(request.Job) || request.Mode != fix.WorkspaceCurrent || len(request.Targets) == 0 {
 		return fix.CandidateIdentity{}, errors.New("prepare current files: job and targets are required")
 	}
-	if existing, found, err := service.DiscoverPrepared(ctx, request); err != nil || found {
+	if existing, found, err := service.discoverPrepared(ctx, request); err != nil || found {
 		return existing, err
 	}
 	root, analysis, err := canonicalCurrentRoots(request.Workspace)
@@ -44,7 +44,7 @@ func (service *DirectService) Prepare(ctx context.Context, request PrepareReques
 	return identity, nil
 }
 
-func (service *DirectService) DiscoverPrepared(ctx context.Context, request PrepareRequest) (fix.CandidateIdentity, bool, error) {
+func (service *DirectService) discoverPrepared(ctx context.Context, request PrepareRequest) (fix.CandidateIdentity, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return fix.CandidateIdentity{}, false, err
 	}

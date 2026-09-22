@@ -67,6 +67,10 @@ func (owner *recoveryOwner) prepareRestoredRecord(state *controllerState, record
 	if !owner.claimRestoredJob(state, record) {
 		return recoveryFlags{}, true
 	}
+	if record.input.DeliveryPlan.Workspace == fix.WorkspaceCurrent {
+		state.finishRestoredRecord(record)
+		return recoveryFlags{}, true
+	}
 	flags := recoveryFlags{
 		resumeDelivery: record.presentation.Phase == fix.PhasePublishing || record.presentation.Phase == fix.PhaseReconciling ||
 			(record.presentation.Phase == fix.PhaseFailed && (record.delivery.Ambiguous || record.published.Ambiguous)),

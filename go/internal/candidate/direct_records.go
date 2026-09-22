@@ -26,10 +26,6 @@ func loadDirectRecord(stateRoot string, identity fix.CandidateIdentity) (directR
 	return record, nil
 }
 
-func (record directRecord) matchesPolicy(targets, allowed []fix.RepoPath, scope string) bool {
-	return record.Scope == scope && sameRepoPaths(record.Targets, sortedRepoPaths(targets)) && sameRepoPaths(record.Allowed, sortedRepoPaths(allowed))
-}
-
 type directRecord struct {
 	Version  int                   `json:"version"`
 	Identity fix.CandidateIdentity `json:"identity"`

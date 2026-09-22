@@ -54,17 +54,23 @@ type File struct {
 	Truncated   bool
 }
 
-type Service interface {
+// Strategy provides normal candidate operations.
+type Strategy interface {
 	Prepare(context.Context, PrepareRequest) (fix.CandidateIdentity, error)
-	DiscoverPrepared(context.Context, PrepareRequest) (fix.CandidateIdentity, bool, error)
 	Diff(context.Context, fix.CandidateIdentity) (DiffSnapshot, error)
 	ReadFile(context.Context, fix.CandidateIdentity, fix.RepoPath, int64) (File, error)
-	Recover(context.Context, fix.CandidateIdentity, []fix.RepoPath, string, []fix.RepoPath) error
-	// ReconcileDiscard completes an interrupted discard using the durable
-	// ownership marker, or confirms that the exact owned candidate is gone.
-	ReconcileDiscard(context.Context, fix.CandidateIdentity) error
 	Discard(context.Context, fix.CandidateIdentity) error
 	// Release ends Slopwatch ownership without deleting a preserved workspace.
 	Release(context.Context, fix.CandidateIdentity) error
 	Close() error
+}
+
+// Service includes restart recovery for worktree candidates.
+type Service interface {
+	Strategy
+	DiscoverPrepared(context.Context, PrepareRequest) (fix.CandidateIdentity, bool, error)
+	Recover(context.Context, fix.CandidateIdentity, []fix.RepoPath, string, []fix.RepoPath) error
+	// ReconcileDiscard completes an interrupted discard using the durable
+	// ownership marker, or confirms that the exact owned candidate is gone.
+	ReconcileDiscard(context.Context, fix.CandidateIdentity) error
 }

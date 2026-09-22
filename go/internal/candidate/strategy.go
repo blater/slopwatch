@@ -10,18 +10,18 @@ import (
 // StrategyService keeps candidate location policy out of the controller.
 // Every operation is routed from the durable candidate identity.
 type StrategyService struct {
-	current  Service
+	current  Strategy
 	worktree Service
 }
 
-func NewStrategyService(current, worktree Service) (*StrategyService, error) {
+func NewStrategyService(current Strategy, worktree Service) (*StrategyService, error) {
 	if current == nil || worktree == nil {
 		return nil, errors.New("candidate strategies require current-file and worktree services")
 	}
 	return &StrategyService{current: current, worktree: worktree}, nil
 }
 
-func (service *StrategyService) selected(mode fix.WorkspaceMode) (Service, error) {
+func (service *StrategyService) selected(mode fix.WorkspaceMode) (Strategy, error) {
 	switch mode {
 	case fix.WorkspaceCurrent:
 		return service.current, nil
@@ -40,11 +40,10 @@ func (service *StrategyService) Prepare(ctx context.Context, request PrepareRequ
 	return selected.Prepare(ctx, request)
 }
 func (service *StrategyService) DiscoverPrepared(ctx context.Context, request PrepareRequest) (fix.CandidateIdentity, bool, error) {
-	selected, err := service.selected(request.Mode)
-	if err != nil {
-		return fix.CandidateIdentity{}, false, err
+	if request.Mode != fix.WorkspaceWorktree {
+		return fix.CandidateIdentity{}, false, errors.New("candidate recovery requires a worktree")
 	}
-	return selected.DiscoverPrepared(ctx, request)
+	return service.worktree.DiscoverPrepared(ctx, request)
 }
 func (service *StrategyService) Diff(ctx context.Context, identity fix.CandidateIdentity) (DiffSnapshot, error) {
 	selected, err := service.selected(identity.WorkspaceMode)
@@ -61,18 +60,16 @@ func (service *StrategyService) ReadFile(ctx context.Context, identity fix.Candi
 	return selected.ReadFile(ctx, identity, path, maximum)
 }
 func (service *StrategyService) Recover(ctx context.Context, identity fix.CandidateIdentity, targets []fix.RepoPath, scope string, allowed []fix.RepoPath) error {
-	selected, err := service.selected(identity.WorkspaceMode)
-	if err != nil {
-		return err
+	if identity.WorkspaceMode != fix.WorkspaceWorktree {
+		return errors.New("candidate recovery requires a worktree")
 	}
-	return selected.Recover(ctx, identity, targets, scope, allowed)
+	return service.worktree.Recover(ctx, identity, targets, scope, allowed)
 }
 func (service *StrategyService) ReconcileDiscard(ctx context.Context, identity fix.CandidateIdentity) error {
-	selected, err := service.selected(identity.WorkspaceMode)
-	if err != nil {
-		return err
+	if identity.WorkspaceMode != fix.WorkspaceWorktree {
+		return errors.New("candidate recovery requires a worktree")
 	}
-	return selected.ReconcileDiscard(ctx, identity)
+	return service.worktree.ReconcileDiscard(ctx, identity)
 }
 func (service *StrategyService) Discard(ctx context.Context, identity fix.CandidateIdentity) error {
 	selected, err := service.selected(identity.WorkspaceMode)
